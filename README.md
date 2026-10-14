@@ -1,5 +1,10 @@
 # USD BRep
 
+This is the **tx-code maintained fork**. See [fork maintenance](FORK_MAINTENANCE.md)
+for branch policy and local changes, and [planar regions](docs/planar-regions.md)
+for the general boundary-region extension. USD integration is retained; STEP
+import is a separate concern.
+
 Standalone Omniverse repo containing USD BRep (NURBS boundary-representation solid modeling) libraries.
 
 ## Requirements

@@ -5,6 +5,12 @@
 set "start_dir=%cd%"
 set rtn=0
 
+ECHO Run planar region regressions
+set "region_test=%start_dir%\_build\windows-x86_64\release\planar_regions.exe"
+if not exist "%region_test%" set "region_test=%start_dir%\tests\bin\planar_regions.exe"
+"%region_test%"
+if errorlevel 1 set rtn=1
+
 ECHO Run usd_test tests
 cd "%start_dir%"
 call "tests\usd_test\usd_test.bat"

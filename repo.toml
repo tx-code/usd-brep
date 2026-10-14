@@ -252,6 +252,8 @@ files = [
     ["source/SmPyLib/python/usd_brep/*.py", "python/usd_brep"],
     ["source/SmPyLib/stubs/usd_brep/*", "python/usd_brep"],
     # Test binaries and runners for the public C API and USD API.
+    ["_build/$${platform}/$${config}/planar_regions*", "tests/bin"],
+    ["tests/planar_regions/*", "tests/planar_regions"],
     ["_build/$${platform}/$${config}/SM_API_test*", "tests/bin"],
     ["_build/$${platform}/$${config}/SM_API_USD_test*", "tests/bin"],
     ["_build/$${platform}/$${config}/libSM_API_test*", "tests/bin"],

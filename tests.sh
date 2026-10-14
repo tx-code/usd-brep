@@ -112,6 +112,16 @@ apply_runtime_lib_path
 
 # Run test binaries one by one
 
+echo "Running planar region regressions"
+region_test="${PWD}/_build/${platform}/release/planar_regions"
+if [ ! -x "$region_test" ]; then region_test="${PWD}/tests/bin/planar_regions"; fi
+"$region_test"
+status=$?
+if [ $status -ne 0 ]; then
+    echo "planar region regressions failed with exit code $status, aborting"
+    exit $status
+fi
+
 run_test_script "usd tests" "${PWD}/_build/${platform}/release/usd_test_app" \
     ./tests/usd_test/usd_test.sh
 
