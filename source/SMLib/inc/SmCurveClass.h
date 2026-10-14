@@ -428,6 +428,12 @@ public:
   // empty default constructor - use ReSet(args) to initialize
   SmCurveClassification() ;
 
+  // Copying clones an owned curve; a borrowed curve stays borrowed. UV and
+  // surface aliases into an owned SmCrvOnSurf follow its clone; external
+  // references stay borrowed and must outlive the copy. Interval data is copied.
+  // Assignment requires that source borrows do not depend on destination-owned
+  // geometry. No ownership is transferred from the source.
+  // Modified: copy construction and assignment share these ownership rules.
   // copy constructor
   SmCurveClassification(const SmCurveClassification &crOther) ;
 

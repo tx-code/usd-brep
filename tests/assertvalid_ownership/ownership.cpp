@@ -10,6 +10,7 @@
 #include <SmCrvOnSurf.h>
 #include <SmCurveClass.h>
 #include <SmFace.h>
+#include <SmLine.h>
 // clang-format on
 #include <cmath>
 #include <iostream>
@@ -94,6 +95,208 @@ static void aliases()
     std::cout << "PASS seam aliases and repeated assignment: " << checked << '\n';
 }
 
+// A source with two UV/surface aliases and nonempty classification storage.
+static void initClassification(SmCurveClassification& result, SmSurface& surface, ULONG ownership)
+{
+    auto* context = SmApiGetOrCreateContext();
+    SmPoint2d start(0.1, 0.1), end(0.4, 0.4);
+    SmLine* line = nullptr;
+    require(SmLine::CreateLineSegment(*context, 2, start, end, line) == SM_SUCCESS, "UV line creation failed");
+    std::unique_ptr<SmLine> input(line);
+    SmCrvOnSurf* curve = nullptr;
+    if (ownership == 3)
+    {
+        SmSurface* ownedSurface = nullptr;
+        require(surface.Copy(*context, ownedSurface) == SM_SUCCESS, "surface creation failed");
+        curve = new (*context) SmCrvOnSurf(*input.release(), *ownedSurface, nullptr, 3, context);
+    }
+    else
+    {
+        curve = new (*context) SmCrvOnSurf(*line, surface, nullptr, ownership, context);
+    }
+    result.SetContext(context);
+    result.SetCurve(curve, TRUE);
+    result.SetUVCurve1(curve->GetUVCurve());
+    result.SetUVCurve2(curve->GetUVCurve());
+    result.SetSurface1(curve->GetBaseSurface());
+    result.SetSurface2(curve->GetBaseSurface());
+    result.SetSize(2);
+}
+
+static SmPoint3d midpoint(const SmCurve* curve)
+{
+    const auto interval = curve->GetNaturalInterval();
+    SmPoint3d point;
+    require(curve->EvaluatePoint((interval.GetMin() + interval.GetMax()) * 0.5, point) == SM_SUCCESS, "copy curve evaluation failed");
+    return point;
+}
+
+static void checkCopy(const SmCurveClassification& result, const SmPoint3d& expected)
+{
+    const auto* curve = dynamic_cast<const SmCrvOnSurf*>(result.GetCurve());
+    require(curve != nullptr, "copy lost curve type");
+    require(result.GetAnyUVCurve1() == curve->GetUVCurve(), "copy retained source UV1 alias");
+    require(result.GetAnyUVCurve2() == curve->GetUVCurve(), "copy retained source UV2 alias");
+    require(result.GetSurface1() == curve->GetBaseSurface(), "copy retained source surface1 alias");
+    require(result.GetSurface2() == curve->GetBaseSurface(), "copy retained source surface2 alias");
+    require(midpoint(curve).DistanceBetween(expected) < 1e-10, "copy changed geometry");
+    for (ULONG i = 0; i < result.GetSize(); ++i)
+    {
+        require(result[i].GetCurveClassification() == &result, "interval points to source classification");
+    }
+}
+
+static void copyContract(const std::string& mode)
+{
+    require(
+        mode == "--copy-owned" || mode == "--copy-borrowed" || mode == "--copy-external" || mode == "--copy-context" || mode == "--copy-empty" ||
+            mode == "--copy-self-uv" || mode == "--copy-borrowed-surface" || mode == "--copy-borrowed-children" || mode == "--copy-transferred" ||
+            mode == "--copy-borrowed-intervals",
+        "unknown copy test mode"
+    );
+    auto body = makeBody(2);
+    SmTArray<SmFace*> faces;
+    body->GetFaces(faces);
+    auto& surface = *const_cast<SmSurface*>(faces[0]->GetSurface());
+    if (mode == "--copy-empty")
+    {
+        SmCurveClassification empty;
+        SmCurveClassification copy(empty);
+        SmCurveClassification target;
+        initClassification(target, surface, 2);
+        target = empty;
+        require(
+            copy.GetCurve() == nullptr && copy.GetSize() == 0 && target.GetCurve() == nullptr && target.GetSize() == 0,
+            "empty copy retained data"
+        );
+        return;
+    }
+    SmCurveClassification source;
+    initClassification(source, surface, mode == "--copy-borrowed-surface" ? 1 : mode == "--copy-transferred" ? 3 : 2);
+    const SmPoint3d expected = midpoint(source.GetCurve());
+    if (mode == "--copy-borrowed-intervals")
+    {
+        SmCurveClassification assigned;
+        std::unique_ptr<SmCurveClassification> constructed;
+        {
+            SmCurveInterval storage[20];
+            SmCurveClassification borrowed;
+            const auto interval = source.GetCurve()->GetNaturalInterval();
+            borrowed.ReSet(source.GetCurve(), &interval, nullptr, SM_ZONE_TOL_3D, 20, storage);
+            require(borrowed.GetSize() > 0, "borrowed intervals are empty");
+            require(&borrowed[0] == &storage[0], "test did not borrow interval storage");
+            assigned = borrowed;
+            constructed.reset(new (*SmApiGetOrCreateContext()) SmCurveClassification(borrowed));
+            require(&assigned[0] != &storage[0] && &(*constructed)[0] != &storage[0], "interval storage was borrowed by copy");
+        }
+        for (auto* copy : { &assigned, constructed.get() })
+        {
+            require((*copy)[0].GetCurveClassification() == copy, "copied interval has source back-pointer");
+            require(midpoint(copy->GetCurve()).DistanceBetween(expected) < 1e-10, "borrowed interval copy changed curve");
+        }
+        return;
+    }
+    if (mode == "--copy-context")
+    {
+        source.SetContext(nullptr); // Curve context must supply the clone allocation context.
+    }
+    if (mode == "--copy-borrowed")
+    {
+        SmCurveClassification borrowed;
+        borrowed.SetCurve(source.GetCurve(), FALSE);
+        borrowed.SetUVCurve1(source.GetAnyUVCurve1());
+        borrowed.SetUVCurve2(source.GetAnyUVCurve2());
+        SmCurveClassification copy(borrowed);
+        SmCurveClassification target;
+        initClassification(target, surface, 2);
+        target = borrowed;
+        require(copy.GetCurve() == source.GetCurve() && target.GetCurve() == source.GetCurve(), "borrowed curve was cloned");
+        require(copy.GetAnyUVCurve1() == source.GetAnyUVCurve1() && target.GetAnyUVCurve2() == source.GetAnyUVCurve2(), "borrowed aliases changed");
+        return;
+    }
+    if (mode == "--copy-borrowed-children")
+    {
+        const auto* original = dynamic_cast<const SmCrvOnSurf*>(source.GetCurve());
+        auto* curve = new (*SmApiGetOrCreateContext()) SmCrvOnSurf(
+            *const_cast<SmCurve*>(original->GetUVCurve()),
+            *const_cast<SmSurface*>(original->GetBaseSurface()),
+            nullptr,
+            0,
+            SmApiGetOrCreateContext()
+        );
+        SmCurveClassification borrower;
+        borrower.SetCurve(curve, TRUE); // Own the container, borrow both children.
+        borrower.SetUVCurve1(curve->GetUVCurve());
+        borrower.SetUVCurve2(curve->GetUVCurve());
+        borrower.SetSurface1(curve->GetBaseSurface());
+        borrower.SetSurface2(curve->GetBaseSurface());
+        SmCurveClassification copy(borrower);
+        SmCurveClassification target;
+        target = borrower;
+        borrower = SmCurveClassification();
+        checkCopy(copy, expected);
+        checkCopy(target, expected);
+        require(
+            copy.GetAnyUVCurve1() == original->GetUVCurve() && target.GetSurface1() == original->GetBaseSurface(),
+            "borrowed children were cloned"
+        );
+        return;
+    }
+    if (mode == "--copy-external")
+    {
+        SmCurveClassification external;
+        initClassification(external, surface, 2);
+        source.SetUVCurve1(external.GetAnyUVCurve1());
+        source.SetUVCurve2(nullptr);
+        source.SetSurface1(&surface);
+        source.SetSurface2(nullptr);
+        SmCurveClassification copy(source);
+        SmCurveClassification target;
+        target = source;
+        for (const auto* result : { &copy, &target })
+        {
+            require(result->GetAnyUVCurve1() == external.GetAnyUVCurve1() && result->GetAnyUVCurve2() == nullptr, "external/null UV was rebound");
+            require(result->GetSurface1() == &surface && result->GetSurface2() == nullptr, "external/null surface was rebound");
+        }
+        return;
+    }
+    if (mode == "--copy-self-uv")
+    {
+        source.SetUVCurve1(source.GetCurve());
+        source.SetUVCurve2(source.GetCurve());
+        SmCurveClassification copy(source);
+        SmCurveClassification target;
+        target = source;
+        require(copy.GetAnyUVCurve1() == copy.GetCurve() && target.GetAnyUVCurve2() == target.GetCurve(), "self curve alias was not rebound");
+        return;
+    }
+    source.SetIsCurveCurrent(FALSE); // Stored aliases must be preserved even when public UV getters hide them.
+    const auto* sourceCurve = dynamic_cast<const SmCrvOnSurf*>(source.GetCurve());
+    source.SetUVCurve1(sourceCurve->GetUVCurve());
+    source.SetUVCurve2(sourceCurve->GetUVCurve());
+    SmCurveClassification copy(source);
+    SmCurveClassification target;
+    initClassification(target, surface, 2);
+    for (int i = 0; i < 3; ++i)
+    {
+        target = source;
+        checkCopy(target, expected);
+    }
+    checkCopy(copy, expected);
+    require(copy.GetCurve() != source.GetCurve() && target.GetCurve() != source.GetCurve(), "owned curve was borrowed");
+    require(copy.GetUVCurve1() == nullptr && target.GetUVCurve2() == nullptr, "currentness changed");
+    if (mode == "--copy-borrowed-surface")
+    {
+        require(copy.GetSurface1() == &surface && target.GetSurface2() == &surface, "borrowed surface was cloned");
+    }
+    const auto* identity = target.GetCurve();
+    target = target;
+    require(target.GetCurve() == identity, "self assignment changed ownership");
+    source = SmCurveClassification(); // Destroy source geometry before evaluating the results again.
+    checkCopy(copy, expected);
+    checkCopy(target, expected);
+}
+
 #ifdef _WIN32
 struct HeapUsage
 {
@@ -124,6 +327,39 @@ static HeapUsage heapUsage()
         require(error == ERROR_NO_MORE_ITEMS, "HeapWalk failed");
     }
     return usage;
+}
+
+static void copyMemory()
+{
+    auto body = makeBody(2);
+    SmTArray<SmFace*> faces;
+    body->GetFaces(faces);
+    for (ULONG ownership : { 1UL, 2UL })
+    {
+        SmCurveClassification source;
+        initClassification(source, *const_cast<SmSurface*>(faces[0]->GetSurface()), ownership);
+        const auto job = [&source]()
+        {
+            SmCurveClassification copy(source);
+            SmCurveClassification target;
+            target = source;
+            target = source;
+        };
+        for (int i = 0; i < 50; ++i)
+        {
+            job();
+        }
+        const auto before = heapUsage();
+        for (int i = 0; i < 200; ++i)
+        {
+            job();
+        }
+        const auto after = heapUsage();
+        const auto bytes = static_cast<long long>(after.bytes) - static_cast<long long>(before.bytes);
+        const auto blocks = static_cast<long long>(after.blocks) - static_cast<long long>(before.blocks);
+        std::cout << "copy ownership=" << ownership << " bytes=" << bytes << " blocks=" << blocks << std::endl;
+        require(bytes <= 16384 && blocks <= 64, "outstanding allocations grow after classification copies");
+    }
 }
 
 static void memory()
@@ -168,7 +404,8 @@ int main(int argc, char** argv)
         }
 #endif
         SmApiCreateContext();
-        require(argc == 2, "use --aliases or --memory");
+        require(argc == 2, "use --aliases, --memory or --copy-<case>");
+        const std::string mode(argv[1]);
         if (std::string(argv[1]) == "--aliases")
         {
             aliases();
@@ -178,7 +415,16 @@ int main(int argc, char** argv)
         {
             memory();
         }
+        else if (mode == "--copy-memory")
+        {
+            copyMemory();
+        }
 #endif
+        else if (mode.rfind("--copy-", 0) == 0)
+        {
+            copyContract(mode);
+            std::cout << "PASS " << mode << '\n';
+        }
         else
         {
             throw std::runtime_error("unknown test mode");

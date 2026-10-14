@@ -4867,60 +4867,9 @@ NOTES:
 ***********************************************************************/
 SmCurveClassification::SmCurveClassification
  (const SmCurveClassification &crOther )
+ : SmCurveClassification()
 {
-  // locals
-  ULONG ii ;
-
-  // base
-  m_cpContext       = crOther.m_cpContext ;
-
-  // copy member values
-  m_bIsCurveOwned         = crOther.m_bIsCurveOwned ;
-  if(m_bIsCurveOwned && crOther.m_cpCurve != NULL) 
-    { crOther.m_cpCurve->Copy(m_cpContext ? *m_cpContext : *(m_cpCurve->GetContext()), 
-                              (SmCurve *&)m_cpCurve) ;  
-    }
-  else                
-    { m_cpCurve = crOther.m_cpCurve ; }
-    SM_ASSERT_BREAK_MSG(   (   crOther.m_cpCurve != NULL && m_cpCurve != NULL
-                            && (   (m_bIsCurveOwned == TRUE && crOther.m_cpCurve != m_cpCurve)
-                                || (m_bIsCurveOwned == FALSE && crOther.m_cpCurve == m_cpCurve)))
-                        || (crOther.m_cpCurve == NULL && m_cpCurve == NULL),
-                        _T("SmCurveClass::operator=: m_cpCurve deep copy failed - this is a bug")) ;
-
-  m_cpUVCurve1            = crOther.m_cpUVCurve1 ;
-  m_bIsCurveCurrent       = crOther.m_bIsCurveCurrent ;
-  m_cpSurface1            = crOther.m_cpSurface1 ;
-  m_cpSurface2            = crOther.m_cpSurface2 ;
-  m_bDoingCrossHatch      = crOther.m_bDoingCrossHatch ; 
-  m_bDoingFillets         = crOther.m_bDoingFillets ;
-  m_bOKToSetTolerance     = crOther.m_bOKToSetTolerance ;
-  m_bTgtLoopsOnly         = crOther.m_bTgtLoopsOnly ;
-  m_sTgtLoops.ReSet() ; 
-  m_sTgtLoops.Append(crOther.m_sTgtLoops) ;
-  m_cpOtherClassification = crOther.m_cpOtherClassification ;
-  m_cpFace                = crOther.m_cpFace ;
-  m_cpUVCurve2            = crOther.m_cpUVCurve2 ;
-  m_cpTI                  = crOther.m_cpTI ;
-
-#ifdef SM_USE_NEWTOL
-  SM_NEWTOL_LINE m_dMaxGap3d        = crOther.m_dMaxGap3d ;
-#endif // SM_USE_NEWTOL
-  m_sSrcZoneTol3d         = crOther.m_sSrcZoneTol3d ;
-                          
-  m_vInterval             = crOther.m_vInterval ;
-  // gwc removed next line - SetSize manages m_bIsBorrowed when it changes - otherwise use current value
-  // m_bIsBorrowed     = FALSE ;
-  SetSize(crOther.m_lSize) ;
-  for(ii=0;ii<m_lSize;ii++)
-    {
-      m_pData[ii] = crOther.m_pData[ii] ;
-
-      // ensure all back pointers point to this CrvClassif
-      m_pData[ii].m_pCurveClassification = this ;
-    }
-  m_bIgnoreTangency       = crOther.m_bIgnoreTangency ;
-
+  *this = crOther;
 } // end SmCurveClassification copy constructor
 
 /*******************************************************************//**
@@ -5010,71 +4959,129 @@ NOTES: When the crOther.m_bIsCurveOwned is set to TRUE
        otherwise only the m_cpCurve pointer is copied and this-.m_bIsCurveOwned
          is set to FALSE.
 ***********************************************************************/
-SmCurveClassification & SmCurveClassification::operator=
- (const SmCurveClassification &crOther )
+SmCurveClassification& SmCurveClassification::operator=(const SmCurveClassification& crOther)
 {
-  if(this == & crOther)
-    { return *this ; }
-
-  // when needed - free old curve
-  if(m_bIsCurveOwned && m_cpCurve)
-    { delete m_cpCurve ; m_cpCurve = NULL ; }
-
-  // locals
-  ULONG ii ;
-
-  // base
-  m_cpContext       = crOther.m_cpContext ;
-
-  // copy member values
-  m_bIsCurveOwned         = crOther.m_bIsCurveOwned ;
-  if(m_bIsCurveOwned && crOther.m_cpCurve != NULL) 
-    { crOther.m_cpCurve->Copy(m_cpContext ? *m_cpContext : *(m_cpCurve->GetContext()), 
-                              (SmCurve *&)m_cpCurve) ;  
+    if (this == &crOther)
+    {
+        return *this;
     }
-  else                
-    { m_cpCurve = crOther.m_cpCurve ; }
-    SM_ASSERT_BREAK_MSG(   (   crOther.m_cpCurve != NULL && m_cpCurve != NULL
-                            && (   (m_bIsCurveOwned == TRUE && crOther.m_cpCurve != m_cpCurve)
-                                || (m_bIsCurveOwned == FALSE && crOther.m_cpCurve == m_cpCurve)))
-                        || (crOther.m_cpCurve == NULL && m_cpCurve == NULL),
-                        _T("SmCurveClass::operator=: m_cpCurve deep copy failed - this is a bug")) ;
 
-  m_cpUVCurve1            = crOther.m_cpUVCurve1 ;
-  m_bIsCurveCurrent       = crOther.m_bIsCurveCurrent ;
-  m_cpSurface1            = crOther.m_cpSurface1 ;
-  m_cpSurface2            = crOther.m_cpSurface2 ;
-  m_bDoingCrossHatch      = crOther.m_bDoingCrossHatch ; 
-  m_bDoingFillets         = crOther.m_bDoingFillets ;
-  m_bOKToSetTolerance     = crOther.m_bOKToSetTolerance ;
-  m_bTgtLoopsOnly         = crOther.m_bTgtLoopsOnly ;
-  m_sTgtLoops.ReSet() ; 
-  m_sTgtLoops.Append(crOther.m_sTgtLoops) ;
-  m_cpOtherClassification = crOther.m_cpOtherClassification ;
-  m_cpFace                = crOther.m_cpFace ;
-  m_cpUVCurve2            = crOther.m_cpUVCurve2 ;
-  m_cpTI                  = crOther.m_cpTI ;
+    // Modified: clone before releasing the destination, and use the source
+    // curve's context when a stack classification has no explicit context.
+    SmCurve* pCopy = NULL;
+    if (crOther.m_bIsCurveOwned && crOther.m_cpCurve != NULL)
+    {
+        const SmContext* pContext = crOther.m_cpContext ? crOther.m_cpContext : crOther.m_cpCurve->GetContext();
+        if (pContext == NULL)
+        {
+            SM_ASSERT_BREAK_MSG(FALSE, _T("SmCurveClassification copy requires a curve context"));
+            return *this;
+        }
+        const SmStatus status = crOther.m_cpCurve->Copy(*pContext, pCopy);
+        if (status != SM_SUCCESS || pCopy == NULL)
+        {
+            delete pCopy;
+            SM_ASSERT_BREAK_MSG(FALSE, _T("SmCurveClassification curve copy failed"));
+            return *this;
+        }
+    }
+
+    // A borrowed source must not depend on geometry owned by this destination.
+    // Such an assignment cannot both release the owner and preserve the borrow.
+    if (m_bIsCurveOwned && m_cpCurve != NULL && !crOther.m_bIsCurveOwned && m_cpCurve == crOther.m_cpCurve)
+    {
+        SM_ASSERT_BREAK_MSG(FALSE, _T("Cannot assign a borrowed view over its curve owner"));
+        return *this;
+    }
+    if (m_bIsCurveOwned && m_cpCurve != NULL)
+    {
+        delete m_cpCurve;
+    }
+
+    ULONG ii;
+    m_cpContext = crOther.m_cpContext;
+    m_bIsCurveOwned = crOther.m_bIsCurveOwned;
+    m_cpCurve = pCopy ? pCopy : crOther.m_cpCurve;
+
+    m_cpUVCurve1 = crOther.m_cpUVCurve1;
+    m_bIsCurveCurrent = crOther.m_bIsCurveCurrent;
+    m_cpSurface1 = crOther.m_cpSurface1;
+    m_cpSurface2 = crOther.m_cpSurface2;
+    m_bDoingCrossHatch = crOther.m_bDoingCrossHatch;
+    m_bDoingFillets = crOther.m_bDoingFillets;
+    m_bOKToSetTolerance = crOther.m_bOKToSetTolerance;
+    m_bTgtLoopsOnly = crOther.m_bTgtLoopsOnly;
+    m_sTgtLoops.ReSet();
+    m_sTgtLoops.Append(crOther.m_sTgtLoops);
+    m_cpOtherClassification = crOther.m_cpOtherClassification;
+    m_cpFace = crOther.m_cpFace;
+    m_cpUVCurve2 = crOther.m_cpUVCurve2;
+    m_cpTI = crOther.m_cpTI;
+
+    // Copy external references unchanged. Only aliases into the cloned curve
+    // follow its copy; inspect stored UV pointers even when they are not current.
+    if (pCopy != NULL)
+    {
+        if (m_cpUVCurve1 == crOther.m_cpCurve)
+        {
+            m_cpUVCurve1 = pCopy;
+        }
+        if (m_cpUVCurve2 == crOther.m_cpCurve)
+        {
+            m_cpUVCurve2 = pCopy;
+        }
+        const auto* pSourceOnSurface = dynamic_cast<const SmCrvOnSurf*>(crOther.m_cpCurve);
+        const auto* pCopyOnSurface = dynamic_cast<const SmCrvOnSurf*>(pCopy);
+        if (pSourceOnSurface != NULL && pCopyOnSurface != NULL)
+        {
+            const SmCurve* pSourceUV = pSourceOnSurface->GetUVCurve();
+            const SmSurface* pSourceSurface = pSourceOnSurface->GetBaseSurface();
+            if (pSourceUV != NULL)
+            {
+                if (m_cpUVCurve1 == pSourceUV)
+                {
+                    m_cpUVCurve1 = pCopyOnSurface->GetUVCurve();
+                }
+                if (m_cpUVCurve2 == pSourceUV)
+                {
+                    m_cpUVCurve2 = pCopyOnSurface->GetUVCurve();
+                }
+            }
+            if (pSourceSurface != NULL)
+            {
+                if (m_cpSurface1 == pSourceSurface)
+                {
+                    m_cpSurface1 = pCopyOnSurface->GetBaseSurface();
+                }
+                if (m_cpSurface2 == pSourceSurface)
+                {
+                    m_cpSurface2 = pCopyOnSurface->GetBaseSurface();
+                }
+            }
+        }
+    }
+
 
 #ifdef SM_USE_NEWTOL
-  SM_NEWTOL_LINE m_dMaxGap3d        = crOther.m_dMaxGap3d ;
+    SM_NEWTOL_LINE m_dMaxGap3d = crOther.m_dMaxGap3d;
 #endif // SM_USE_NEWTOL
-  m_sSrcZoneTol3d         = crOther.m_sSrcZoneTol3d ;
-                          
-  m_vInterval             = crOther.m_vInterval ;
-  // gwc removed next line - SetSize manages m_bIsBorrowed when it changes - otherwise use current value
-  // m_bIsBorrowed     = FALSE ;
-  SetSize(crOther.m_lSize) ;
-  for(ii=0;ii<m_lSize;ii++)
+    m_sSrcZoneTol3d = crOther.m_sSrcZoneTol3d;
+
+    m_vInterval = crOther.m_vInterval;
+    // gwc removed next line - SetSize manages m_bIsBorrowed when it changes - otherwise use current value
+    // m_bIsBorrowed     = FALSE ;
+    SetSize(crOther.m_lSize);
+    for (ii = 0; ii < m_lSize; ii++)
     {
-      m_pData[ii] = crOther.m_pData[ii] ;
+        m_pData[ii] = crOther.m_pData[ii];
 
-      // ensure all back pointers point to this CrvClassif
-      m_pData[ii].m_pCurveClassification = this ;
+        // ensure all back pointers point to this CrvClassif
+        m_pData[ii].m_pCurveClassification = this;
     }
-  m_bIgnoreTangency       = crOther.m_bIgnoreTangency ;
+    m_bIgnoreTangency = crOther.m_bIgnoreTangency;
 
-  // all done
-  return(*this) ;
+    // all done
+    return (*this);
 
 } // end SmCurveClassification::operator= assignment operator
 

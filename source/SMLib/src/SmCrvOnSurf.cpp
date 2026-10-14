@@ -213,7 +213,8 @@ SmCrvOnSurf::SmCrvOnSurf
     }
 
   // copy Surface when its owned by this object
-  if (bTargetOwnsCurve || bTargetOwnsSurface) 
+  // Modified: a UV-only owner must keep borrowing its base surface.
+  if (bTargetOwnsSurface)
     {
       const SmContext * pContext = GetContext();
       if (pContext == NULL) 
