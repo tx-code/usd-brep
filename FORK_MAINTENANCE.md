@@ -4,18 +4,32 @@ Fork: <https://github.com/tx-code/usd-brep>
 
 Upstream: <https://github.com/NVIDIA-Omniverse/usd-brep>
 
-Use `origin` for this fork and `upstream` for the original repository. Keep
-`main` as an upstream reference and maintain local enhancements on `maintained`.
-Feature/fix branches retain independently reviewable changes. Do not force-push
-the maintained branch. Before merging upstream changes, run focused regressions
-and the repository's normal tests in a suitable build environment.
+Use `origin` for this fork and `upstream` for the original repository.
+`origin/main` is the long-lived development and default branch, containing our
+fixes and extensions. Track the original project through `upstream/main`; do not
+maintain a second local development branch just to mirror upstream.
 
-Current patch sequence:
+Use temporary feature/fix branches for development and review, then delete them
+after their commits are merged into `main`. Do not force-push `main`. Create a
+release branch only when a shipped version needs independent maintenance; use
+release tags to identify published versions. Keep deployment branches, such as
+`gh-pages`, separate from this development-branch cleanup policy.
 
-1. `fix/assertvalid-seam-ownership`: seam-classifier lifetime regression and fix.
-2. `refactor/classification-copy-ownership`: shared classification copy rules,
+Before merging upstream changes, run focused regressions and the repository's
+normal tests in a suitable build environment. Record the upstream commit merged,
+local patch commits and purpose, tests/toolchain/results, release tags, and any
+patches subsequently absorbed upstream. Deleting merged branches does not delete
+their commits or regression history.
+
+Last incorporated upstream commit: `c9c5979f04cea8c38213004d4f04df0dcfb40d05`
+(Release 1.0.0).
+
+Local patch sequence (recorded by commit, independent of temporary branch names):
+
+1. `f169b722918eefa62ba3dddab4eccf980c2f450c`: seam-classifier lifetime regression and fix.
+2. `5c0f4b9398d4e6af2538767da37575304a7f1aec`: shared classification copy rules,
    context fallback, internal aliases, and curve-on-surface ownership fixes.
-3. `feature/planar-regions`: general planar boundary-region construction and
+3. `2dd87a031ae2a6671b421b7a3e21ccba66abec56`: general planar boundary-region construction and
    regression integration. No USD removal or STEP importer is included.
 
 The copy-ownership tests currently use their independent CMake/CTest entry point
