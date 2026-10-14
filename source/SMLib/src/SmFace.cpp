@@ -15511,6 +15511,18 @@ SmBoolean SmFace::HasStrutEdge() const
   return( FALSE );
 } // end SmFace::HasStrutEdge
 
+// Seam classifiers own their curve. Assignment deep-copies that curve but
+// retains borrowed UV pointers, so bind the UV alias to the owned copy.
+static void sms_CopySeamClassification(SmCurveClassification& result, const SmCurveClassification& source)
+{
+    result = source;
+    const auto* seam = dynamic_cast<const SmCrvOnSurf*>(result.GetCurve());
+    if (seam != nullptr && result.GetCurve() != source.GetCurve())
+    {
+        result.SetUVCurve1(seam->GetUVCurve());
+    }
+}
+
 /*******************************************************************//**
 PURPOSE: Check that Face->Seams are represented by Edges
          and are NOT crossed by any other Face->Edges without the XSect
@@ -15640,8 +15652,8 @@ static ULONG lCount      = 1 ; lCount++ ;
       pFaceProps->SetProps_Stage2(this, pFaceProps->m_lFaceIndx == SM_UNDEF_ULONG ? 0 : pFaceProps->m_lFaceIndx, SM_HO_ALL) ;
 
       // set output and return
-      rCrvClassU     = *pFaceProps->m_pCrvClassU ;
-      rCrvClassV     = *pFaceProps->m_pCrvClassV ;
+      sms_CopySeamClassification(rCrvClassU, *pFaceProps->m_pCrvClassU);
+      sms_CopySeamClassification(rCrvClassV, *pFaceProps->m_pCrvClassV);
       reCrossedSeam  = pFaceProps->m_eBadCrossedSeam  ;
       reMissingSeam  = pFaceProps->m_eBadMissingSeam  ;
       reNearMissSeam = pFaceProps->m_eBadNearMissSeam ;
@@ -15684,11 +15696,8 @@ static ULONG lCount      = 1 ; lCount++ ;
       sCrvClassU.SetOKToSetTolerance(FALSE) ;
 
       // init output
-      rCrvClassU = sCrvClassU ;
-
-      // switch pSeamConstU ownership to rCrvClassU
-      rCrvClassU.SetIsCurveOwned(TRUE) ;
-      sCrvClassU.SetIsCurveOwned(FALSE) ;
+      // Keep source ownership: assignment copies, rather than transfers, the curve.
+      sms_CopySeamClassification(rCrvClassU, sCrvClassU);
 
       // classify the SeamCurve3d against this face
       CurveOnClassify(FALSE,                // in : TRUE =Do expensive PtClassification for Curves not XSecting any Face->Bndrys
@@ -15831,11 +15840,8 @@ static ULONG lCount      = 1 ; lCount++ ;
       sCrvClassV.SetOKToSetTolerance(FALSE) ;
 
       // init output
-      rCrvClassV = sCrvClassV ;
-
-      // switch pSeamConstV ownership to pCrvClassU
-      rCrvClassV.SetIsCurveOwned(TRUE) ;
-      sCrvClassV.SetIsCurveOwned(FALSE) ;
+      // Keep source ownership: assignment copies, rather than transfers, the curve.
+      sms_CopySeamClassification(rCrvClassV, sCrvClassV);
 
 
       // classify the SeamCurve3d against this face (works for composites)
