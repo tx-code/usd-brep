@@ -64,4 +64,5 @@ Windows 资源检查包含成功、各调用预算边界、后验预算不足、
 `SmIterationValue::operator==` 仅补 `const` 以使头文件能在 C++20 equality rewriting 下编译，
 函数原有恒 FALSE 主体与求解算法不变。详细实现和验收见
 [实施合同](../../docs/step-import/ticket05-implementation.md)与
-[05 验收](../../docs/step-import/ticket05-acceptance.md)。
+[05 验收](../../docs/step-import/ticket05-acceptance.md)和
+[06 验收](../../docs/step-import/ticket06-acceptance.md)。

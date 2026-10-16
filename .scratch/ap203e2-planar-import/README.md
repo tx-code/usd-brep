@@ -1,6 +1,6 @@
 # AP203e2首个profile：本地实施票
 
-2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05已实现并验收；当前06已获准实施，07—12仍未领取/on-hold。
+2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05已实现并验收；当前06也已实现并验收，07—12仍未领取/on-hold。
 
 ## 状态与执行限制
 
@@ -9,7 +9,7 @@
 01—04原19条验收及进入05前的核心准备已经完成，详见
 [05之前准备完成记录](../../docs/step-import/pre05-readiness.md)。三个STEP目标及其CLI/原生测试
 当前以C++20为基线；本页下方C++17与各阶段“后续未开始”描述保留初次验收的历史时点。
-随后用户要求按后续计划继续，05已实现并验收关闭；现已授权06开工，见[05验收](../../docs/step-import/ticket05-acceptance.md)；07—12仍为on-hold。
+随后用户要求按后续计划继续，05已实现并验收关闭；06也已完成，见[05验收](../../docs/step-import/ticket05-acceptance.md)；07—12仍为on-hold。
 前置准备的验收不代替05实际native构建与后验检查。
 
 后续核心收尾包括[全局身份](../../docs/step-import/global-rule-identity.md)、
@@ -19,9 +19,9 @@
 
 ### 票据状态
 
-- **Status：01—05为closed，06为in-progress，其余ready-for-agent**。ready-for-agent不表示已开工。
-- **Execution：01—05为completed，06为in-progress，07—12为on-hold**。
-- **Assignee：01—06为codex，其余None**。06已按新指令开工；07/10/11的05技术前置已满足，仍保持on-hold。
+- **Status：01—06为closed，其余ready-for-agent**。ready-for-agent不表示已开工。
+- **Execution：01—06为completed，07—12为on-hold**。
+- **Assignee：01—06为codex，其余None**。06已按新指令验收完成；07/10/11的05技术前置已满足，仍保持on-hold。
 - Blocked by只列直接技术前置。前置票实际完成验收并关闭后才解除相应阻塞；未执行的验收框保持未勾选。
 - 后续明确开工后，先按授权范围更新Execution与负责人再执行；没有新指令时不自动领取frontier。
 
@@ -60,7 +60,9 @@
 
 **05实际验收：** [05验收记录](../../docs/step-import/ticket05-acceptance.md)。C++20内部owning开放平面，F1面积96/边界40/1F4E4V/参数与查询通过；独立native一致性、后装UV、五阶段tol、普通失败及视图/报告生命期均验收。两配置各9组CLI通过，49合同为1Accepted/25Rejected/17Unsupported/6Deferred；01—04及冻结材料不改。
 
-共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，加05的5条，共24条；其余29条未执行。
+**06实际验收：** [06验收记录](../../docs/step-import/ticket06-acceptance.md)。带孔单开放平面、负UV与源原点、逐loop/use实际UV身份通过；P02/P03均为88mm²/52mm。双配置各14组CLI及7个CTest目标通过；49合同为3Accepted/25Rejected/15Unsupported/6Deferred，01—05回归保持，07—12未开工。
+
+共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，加05的5条、06的4条，共28条；其余25条未执行。
 
 ```mermaid
 flowchart TD
