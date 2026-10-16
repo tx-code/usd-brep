@@ -115,6 +115,30 @@ class PlanarTests(unittest.TestCase):
         self.assertEqual(59, len(rules[46]["populations"]))
         self.assertEqual("1", rules[35]["facts"]["correlation_UNKNOWN_count"])
 
+    def test_global_execution_order_matches_independent_schema(self):
+        observed = self.checked(self.p01)
+        names = [rule["name"] for rule in observed["rules"] if rule["kind"] == "GLOBAL"]
+        self.assertEqual([rule["name"] for rule in reference()["rules"]], names)
+
+    def test_first_global_failure_and_field_survive_multiple_violations(self):
+        original = b"'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies'"
+        unsupported_claim = original[:-1] + b"_mim_lf'"
+        data = self.input("S203-N29")
+        self.assertEqual(1, data.count(original))
+        data = data.replace(original, unsupported_claim)
+        observed = self.failed(data, "SourceRuleViolation:application_protocol_definition_required.WR1")
+        diagnostic = observed["diagnostics"][0]
+        self.assertEqual(("2", "application_interpreted_model_schema_name", [2]),
+                         (diagnostic["record_id"], diagnostic["field"], diagnostic["parameter_path"]))
+        start = data.index(unsupported_claim)
+        self.assertEqual([start, start + len(unsupported_claim)], diagnostic["span"])
+        self.assertEqual(["alternative_solution_requires_solution_definition", "application_protocol_definition_required"],
+                         [rule["name"] for rule in observed["rules"] if rule["kind"] == "GLOBAL"])
+        uncertainty = self.failed(self.input("S203-N29"), "SourceRuleViolation:consistent_uncertainty.WR1")
+        diagnostic = uncertainty["diagnostics"][0]
+        self.assertEqual(("12", "uncertainty", [1]),
+                         (diagnostic["record_id"], diagnostic["field"], diagnostic["parameter_path"]))
+
     def test_nonempty_category_does_not_activate_ply_outer_loop(self):
         observed = self.checked(self.input("S203-P09"))
         rule = self.rule(observed, "ply_stock_material_select")

@@ -1,6 +1,6 @@
 # STEP source semantics: ticket 03
 
-Internal C++17 checks on the immutable [STEP_SOURCE](../STEP_SOURCE/README.md)
+Internal C++20 checks on the immutable [STEP_SOURCE](../STEP_SOURCE/README.md)
 snapshot. No OCCT, SMLib, USD, STEPcode runtime or EXPRESS compiler is linked.
 The existing raw reader and its public behavior remain unchanged.
 

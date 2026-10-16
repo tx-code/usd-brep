@@ -1,6 +1,6 @@
 # STEP source inspection (ticket 02)
 
-An internal C++17 source layer with no SMLib, OCCT, USD or third-party parser link.
+An internal C++20 source layer with no SMLib, OCCT, USD or third-party parser link.
 It captures input bytes, parses raw values, indexes all DATA records and resolves
 all reference occurrences. `Inspected` means this source-only work completed;
 AP/schema rules, types, units, geometry and native BRep construction remain unrun.

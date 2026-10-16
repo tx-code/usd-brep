@@ -3,6 +3,7 @@
 
 project "STEP_SOURCE"
     kind "StaticLib"
+    cppdialect "C++20"
     location (workspace_dir.."/%{prj.name}")
     files { "src/*.cpp", "inc/*.h" }
     includedirs { root.."/source/STEP_SOURCE/inc" }
@@ -10,6 +11,7 @@ project "STEP_SOURCE"
 
 project "step_inspect"
     kind "ConsoleApp"
+    cppdialect "C++20"
     location (workspace_dir.."/%{prj.name}")
     files { "app/*.cpp" }
     includedirs { root.."/source/STEP_SOURCE/inc" }

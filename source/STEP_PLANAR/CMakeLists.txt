@@ -7,7 +7,7 @@ add_subdirectory(../STEP_SEMANTICS source-semantics)
 add_library(STEP_PLANAR STATIC src/StepExact.cpp src/StepPlanar.cpp src/StepPlanarRules.cpp
     src/StepPlanarGeometry.cpp src/StepPlanarJson.cpp)
 target_include_directories(STEP_PLANAR PUBLIC inc PRIVATE src)
-target_compile_features(STEP_PLANAR PUBLIC cxx_std_17)
+target_compile_features(STEP_PLANAR PUBLIC cxx_std_20)
 target_link_libraries(STEP_PLANAR PUBLIC STEP_SEMANTICS)
 add_executable(step_planar_inspect app/step_planar.cpp)
 target_link_libraries(step_planar_inspect PRIVATE STEP_PLANAR)

@@ -573,9 +573,8 @@ void Validator::Local()
     out.evidence.rules.push_back(std::move(dimension));
 }
 
-RuleEvidence Validator::GlobalValue(std::size_t i)
+RuleEvidence Validator::GlobalValue(const Global& meta)
 {
-    const auto& meta = Globals.at(i);
     RuleEvidence e;
     e.name = meta.name;
     e.kind = "GLOBAL";
@@ -611,232 +610,271 @@ RuleEvidence Validator::GlobalValue(std::size_t i)
     {
         return Field(context, "name").text == "part definition";
     };
-    if (i == 1)
+    switch (meta.id)
     {
-        e.applicability = "Mandatory";
-        const auto ac = Role("application_context");
-        const auto uses = sem.UsedIn(Record(ac).id, "APPLICATION_PROTOCOL_DEFINITION", "application");
-        std::size_t matches = 0;
-        for (const auto ref : uses)
+        case GlobalRuleId::ApplicationProtocolDefinitionRequired:
         {
-            const auto apd = src.References()[ref].recordIndex;
-            Tick(apd);
-            e.witnesses.push_back(apd);
-            matches += Field(apd, "application_interpreted_model_schema_name").text ==
-                               "ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies" ?
-                           1 :
-                           0;
+            e.applicability = "Mandatory";
+            const auto ac = Role("application_context");
+            const auto uses = sem.UsedIn(Record(ac).id, "APPLICATION_PROTOCOL_DEFINITION", "application");
+            std::size_t matches = 0;
+            for (const auto ref : uses)
+            {
+                const auto apd = src.References()[ref].recordIndex;
+                Tick(apd);
+                e.witnesses.push_back(apd);
+                matches += Field(apd, "application_interpreted_model_schema_name").text ==
+                                   "ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies" ?
+                               1 :
+                               0;
+            }
+            e.facts["matching_apd_count"] = std::to_string(matches);
+            e.proof = "At least one AC with at least one matching reverse APD schema name; HEADER and APD year are not substitutes";
+            setValue(matches > 0);
+            return e;
         }
-        e.facts["matching_apd_count"] = std::to_string(matches);
-        e.proof = "At least one AC with at least one matching reverse APD schema name; HEADER and APD year are not substitutes";
-        setValue(matches > 0);
-    }
-    else if (i == 3)
-    {
-        e.applicability = "Mandatory";
-        const auto dimension = Field(Role("unit_context"), "coordinate_space_dimension").text;
-        bool good = true;
-        for (const auto type : { "CARTESIAN_POINT", "DIRECTION" })
+        case GlobalRuleId::CompatibleDimension:
         {
-            for (const auto r : Population(type))
+            e.applicability = "Mandatory";
+            const auto dimension = Field(Role("unit_context"), "coordinate_space_dimension").text;
+            bool good = true;
+            for (const auto type : { "CARTESIAN_POINT", "DIRECTION" })
+            {
+                for (const auto r : Population(type))
+                {
+                    Tick(r);
+                    if (sem.UsedByRepresentation(r))
+                    {
+                        e.witnesses.push_back(r);
+                        const auto size = Field(r, type == std::string("DIRECTION") ? "direction_ratios" : "coordinates").children.size();
+                        good = (Rational(static_cast<std::int64_t>(size)) == Rational::Decimal(dimension)) && good;
+                    }
+                }
+            }
+            e.facts["context_id"] = Record(Role("unit_context")).id;
+            e.facts["dimension"] = dimension;
+            e.proof =
+                "item_in_context uses direct representation membership and RI reverse reachability; all indirectly used points and directions counted";
+            setValue(good);
+            return e;
+        }
+        case GlobalRuleId::ConsistentUncertainty:
+        {
+            e.applicability = "Conditional";
+            bool good = true;
+            for (const auto c : Population("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT"))
+            {
+                std::set<std::string> names;
+                for (const auto u : Refs(c, "uncertainty"))
+                {
+                    Tick(u);
+                    e.witnesses.push_back(u);
+                    good = names.insert(Field(u, "name").text).second && good;
+                }
+            }
+            e.facts["WR2_UAR_count"] = "0";
+            e.facts["WR3_QRI_count"] = "0";
+            e.proof = "WR1 compares uncertainty.name, not identity/value/unit; WR2/WR3 populations excluded by complete profile signatures";
+            setValue(good);
+            return e;
+        }
+        case GlobalRuleId::RestrictRepresentationForSurfaceCondition:
+        {
+            e.applicability = "Mandatory";
+            std::size_t failures = 0, unknown = 0;
+            const std::set<std::string> special = { "visual appearance", "tactile appearance", "contact ratio",
+                                                    "hardness",          "treatment result",   "surface texture" };
+            for (const auto pdr : Population("PROPERTY_DEFINITION_REPRESENTATION"))
+            {
+                Tick(pdr);
+                const auto definition = Ref(pdr, "definition"), used = Ref(pdr, "used_representation");
+                const auto correlation = !special.count(Field(definition, "name").text)             ? Logical::Unknown :
+                                         Field(definition, "name").text == Field(used, "name").text ? Logical::True :
+                                                                                                      Logical::False;
+                failures += QuerySelects(Not(correlation)) ? 1 : 0;
+                unknown += correlation == Logical::Unknown ? 1 : 0;
+                e.witnesses.push_back(pdr);
+                e.witnesses.push_back(definition);
+                e.witnesses.push_back(used);
+            }
+            e.facts["correlation_UNKNOWN_count"] = std::to_string(unknown);
+            e.facts["failure_QUERY_count"] = std::to_string(failures);
+            e.proof =
+                "SDR is in FOR PDR; ordinary PDS.name yields source LOGICAL UNKNOWN; NOT UNKNOWN = UNKNOWN; QUERY selects only TRUE; outer count = 0";
+            setValue(failures == 0);
+            return e;
+        }
+        case GlobalRuleId::SubtypeExclusivenessRepresentationItem:
+        {
+            e.applicability = "Mandatory";
+            bool good = true;
+            for (const auto r : Population("REPRESENTATION_ITEM"))
             {
                 Tick(r);
-                if (sem.UsedByRepresentation(r))
+                const auto types = sem.TypesOf(r);
+                std::size_t matches = 0;
+                for (const auto type : { "MEASURE_REPRESENTATION_ITEM", "VALUE_REPRESENTATION_ITEM", "COMPOUND_REPRESENTATION_ITEM" })
                 {
-                    e.witnesses.push_back(r);
-                    const auto size = Field(r, type == std::string("DIRECTION") ? "direction_ratios" : "coordinates").children.size();
-                    good = (Rational(static_cast<std::int64_t>(size)) == Rational::Decimal(dimension)) && good;
+                    matches += std::find(types.begin(), types.end(), type) != types.end() ? 1 : 0;
                 }
+                good = matches <= 1 && good;
             }
+            e.facts["criterion"] = "3";
+            e.proof =
+                "type_check_function criterion 3: every full RI TYPEOF intersects the three subtype names in <=1; parameters are defined and sub_names nonempty";
+            setValue(good);
+            return e;
         }
-        e.facts["context_id"] = Record(Role("unit_context")).id;
-        e.facts["dimension"] = dimension;
-        e.proof =
-            "item_in_context uses direct representation membership and RI reverse reachability; all indirectly used points and directions counted";
-        setValue(good);
-    }
-    else if (i == 5)
-    {
-        e.applicability = "Conditional";
-        bool good = true;
-        for (const auto c : Population("GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT"))
+        case GlobalRuleId::ValidateDependentlyInstantiableEntityDataTypes:
         {
-            std::set<std::string> names;
-            for (const auto u : Refs(c, "uncertainty"))
+            e.applicability = "Mandatory";
+            std::set<std::string> restricted;
+            for (const auto& entry : e.populations)
             {
-                Tick(u);
-                e.witnesses.push_back(u);
-                good = names.insert(Field(u, "name").text).second && good;
-            }
-        }
-        e.facts["WR2_UAR_count"] = "0";
-        e.facts["WR3_QRI_count"] = "0";
-        e.proof = "WR1 compares uncertainty.name, not identity/value/unit; WR2/WR3 populations excluded by complete profile signatures";
-        setValue(good);
-    }
-    else if (i == 35)
-    {
-        e.applicability = "Mandatory";
-        std::size_t failures = 0, unknown = 0;
-        const std::set<std::string> special = { "visual appearance", "tactile appearance", "contact ratio",
-                                                "hardness",          "treatment result",   "surface texture" };
-        for (const auto pdr : Population("PROPERTY_DEFINITION_REPRESENTATION"))
-        {
-            Tick(pdr);
-            const auto definition = Ref(pdr, "definition"), used = Ref(pdr, "used_representation");
-            const auto correlation = !special.count(Field(definition, "name").text)             ? Logical::Unknown :
-                                     Field(definition, "name").text == Field(used, "name").text ? Logical::True :
-                                                                                                  Logical::False;
-            failures += QuerySelects(Not(correlation)) ? 1 : 0;
-            unknown += correlation == Logical::Unknown ? 1 : 0;
-            e.witnesses.push_back(pdr);
-            e.witnesses.push_back(definition);
-            e.witnesses.push_back(used);
-        }
-        e.facts["correlation_UNKNOWN_count"] = std::to_string(unknown);
-        e.facts["failure_QUERY_count"] = std::to_string(failures);
-        e.proof = "SDR is in FOR PDR; ordinary PDS.name yields source LOGICAL UNKNOWN; NOT UNKNOWN = UNKNOWN; QUERY selects only TRUE; outer count = 0";
-        setValue(failures == 0);
-    }
-    else if (i == 42)
-    {
-        e.applicability = "Mandatory";
-        bool good = true;
-        for (const auto r : Population("REPRESENTATION_ITEM"))
-        {
-            Tick(r);
-            const auto types = sem.TypesOf(r);
-            std::size_t matches = 0;
-            for (const auto type : { "MEASURE_REPRESENTATION_ITEM", "VALUE_REPRESENTATION_ITEM", "COMPOUND_REPRESENTATION_ITEM" })
-            {
-                matches += std::find(types.begin(), types.end(), type) != types.end() ? 1 : 0;
-            }
-            good = matches <= 1 && good;
-        }
-        e.facts["criterion"] = "3";
-        e.proof =
-            "type_check_function criterion 3: every full RI TYPEOF intersects the three subtype names in <=1; parameters are defined and sub_names nonempty";
-        setValue(good);
-    }
-    else if (i == 46)
-    {
-        e.applicability = "Mandatory";
-        std::set<std::string> restricted;
-        for (const auto& entry : e.populations)
-        {
-            for (const auto r : entry.second)
-            {
-                for (const auto& type : sem.TypesOf(r))
+                for (const auto r : entry.second)
                 {
-                    restricted.insert(type);
-                }
-            }
-        }
-        restricted.insert("GENERIC");
-        bool good = true;
-        for (const auto loop : Population("LOOP"))
-        {
-            std::vector<std::size_t> pending{ loop };
-            std::set<std::size_t> visited;
-            bool anchored = false;
-            while (!pending.empty() && !anchored)
-            {
-                const auto r = pending.back();
-                pending.pop_back();
-                if (!visited.insert(r).second)
-                {
-                    continue;
-                }
-                for (const auto index : src.Incoming(Record(r).id))
-                {
-                    const auto owner = src.References()[index].recordIndex;
-                    Tick(owner);
-                    const auto types = sem.TypesOf(owner);
-                    const bool subset = std::all_of(
-                        types.begin(),
-                        types.end(),
-                        [&](const auto& t)
-                        {
-                            return restricted.count(t) > 0;
-                        }
-                    );
-                    if (!subset)
+                    for (const auto& type : sem.TypesOf(r))
                     {
-                        e.witnesses.push_back(loop);
-                        e.witnesses.push_back(owner);
-                        anchored = true;
-                        break;
+                        restricted.insert(type);
                     }
-                    pending.push_back(owner);
                 }
             }
-            good = anchored && good;
+            restricted.insert("GENERIC");
+            bool good = true;
+            for (const auto loop : Population("LOOP"))
+            {
+                std::vector<std::size_t> pending{ loop };
+                std::set<std::size_t> visited;
+                bool anchored = false;
+                while (!pending.empty() && !anchored)
+                {
+                    const auto r = pending.back();
+                    pending.pop_back();
+                    if (!visited.insert(r).second)
+                    {
+                        continue;
+                    }
+                    for (const auto index : src.Incoming(Record(r).id))
+                    {
+                        const auto owner = src.References()[index].recordIndex;
+                        Tick(owner);
+                        const auto types = sem.TypesOf(owner);
+                        const bool subset = std::all_of(
+                            types.begin(),
+                            types.end(),
+                            [&](const auto& t)
+                            {
+                                return restricted.count(t) > 0;
+                            }
+                        );
+                        if (!subset)
+                        {
+                            e.witnesses.push_back(loop);
+                            e.witnesses.push_back(owner);
+                            anchored = true;
+                            break;
+                        }
+                        pending.push_back(owner);
+                    }
+                }
+                good = anchored && good;
+            }
+            e.facts["restricted_type_count_with_GENERIC"] = std::to_string(restricted.size());
+            e.proof =
+                "59 FOR populations; LOOP includes EDGE_LOOP. Each input reaches a referring instance whose TYPEOF is not a subset of the restricted type union; cycles alone cannot anchor";
+            setValue(good);
+            return e;
         }
-        e.facts["restricted_type_count_with_GENERIC"] = std::to_string(restricted.size());
-        e.proof =
-            "59 FOR populations; LOOP includes EDGE_LOOP. Each input reaches a referring instance whose TYPEOF is not a subset of the restricted type union; cycles alone cannot anchor";
-        setValue(good);
+        case GlobalRuleId::AlternativeSolutionRequiresSolutionDefinition:
+        case GlobalRuleId::BreakdownElementRequiresProductDefinition:
+        case GlobalRuleId::DesignConstraintRequiresProductDefinition:
+        case GlobalRuleId::PlyStockMaterialSelect:
+        {
+            e.witnesses = category;
+            e.proof = "PRPC population may be nonempty; every actual category.name is part, so source special-category/IF-ply filter is empty";
+            setValue(ordinaryCategory());
+            e.facts["category_name_filter"] = "part only or absent";
+            return e;
+        }
+        case GlobalRuleId::ConstraintDefinitionRequiresConstraintCategory:
+        case GlobalRuleId::RestrictAlternativeDefinition:
+        case GlobalRuleId::RestrictPartOccurrence:
+        case GlobalRuleId::RestrictPartOccurrenceCategory:
+        case GlobalRuleId::SolutionDefinitionRequiresSolutionCategory:
+        {
+            e.witnesses = { context };
+            e.proof = "Actual PD context.name is part definition, so constraint/alternative/part occurrence filters are empty";
+            setValue(ordinaryContext());
+            e.facts["context_name"] = Field(context, "name").text;
+            return e;
+        }
+        case GlobalRuleId::RestrictAssemblyCategory:
+        case GlobalRuleId::RestrictCollectionCategory:
+        {
+            e.witnesses = { context };
+            e.proof =
+                "ClosedProfileTypeExclusion: PRODUCT_DEFINITION_CONTEXT_ASSOCIATION; original reverse association filter empty (not a direct-context test)";
+            e.facts["association_population"] = "0";
+            return e;
+        }
+        case GlobalRuleId::RestrictCentreOfMassRepresentation:
+        case GlobalRuleId::RestrictTreatmentResult:
+        {
+            const auto name = Field(rep, "name").text;
+            e.witnesses = { rep };
+            e.proof = "REPRESENTATION population nonempty; actual name does not equal the original special trigger";
+            e.facts["representation_name"] = name;
+            setValue(name != (meta.id == GlobalRuleId::RestrictCentreOfMassRepresentation ? "centre of mass" : "treatment result"));
+            return e;
+        }
+        case GlobalRuleId::ComponentClassForAssemblySelect:
+        case GlobalRuleId::DraughtingModelItemsConstraint:
+        case GlobalRuleId::ExternalVersionAssignmentsAreValid:
+        case GlobalRuleId::MaterialForCoatingLayer:
+        case GlobalRuleId::PlibPropertyReferenceRequiresNameScope:
+        case GlobalRuleId::PlibPropertyReferenceRequiresVersion:
+        case GlobalRuleId::PlyReference:
+        case GlobalRuleId::ProductConceptFeatureRequiresCategory:
+        case GlobalRuleId::ProductDefinitionReplacementRequiresEffectivityAssignment:
+        case GlobalRuleId::RestrictClassificationAssignments:
+        case GlobalRuleId::RestrictConceptFeatureOperator:
+        case GlobalRuleId::RestrictConfigurationDesignForClassBreakdownAssociation:
+        case GlobalRuleId::RestrictConfigurationDesignForDesignConstraint:
+        case GlobalRuleId::RestrictGroupRelationshipForClassificationHierarchy:
+        case GlobalRuleId::RestrictGroupRelationshipForSpecificationCategory:
+        case GlobalRuleId::RestrictLanguageAssignmentPerAttribute:
+        case GlobalRuleId::RestrictProductDefinitionsForBaseElement:
+        case GlobalRuleId::RestrictProductDefinitionsForCollection:
+        case GlobalRuleId::RestrictProductDefinitionsForDefinitionUsage:
+        case GlobalRuleId::RestrictProductDefinitionsForDesignConstraintAssociation:
+        case GlobalRuleId::RestrictProductDefinitionsForPartDefinitionRelationship:
+        case GlobalRuleId::SelectedInstanceUsageRequiresRepresentation:
+        case GlobalRuleId::StockMaterialReference:
+        case GlobalRuleId::StyledCurve:
+        case GlobalRuleId::SubtypeExclusivenessGeometricTolerance:
+        case GlobalRuleId::SubtypeMandatoryGeometricTolerance:
+        case GlobalRuleId::TextFontUsage:
+        case GlobalRuleId::ThicknessLaminateTableComponentSelect:
+        {
+            // Remaining rules have an empty first FOR population / outer loop. Other FOR sets are still reported.
+            e.proof = "Full-file closed-profile type exclusion proves first FOR/outer-loop population empty; other FOR populations retained separately";
+            setValue(e.populations.at(std::string(meta.types.front())).empty());
+            return e;
+        }
     }
-    else if (i == 0 || i == 2 || i == 7 || i == 14)
-    {
-        e.witnesses = category;
-        e.proof = "PRPC population may be nonempty; every actual category.name is part, so source special-category/IF-ply filter is empty";
-        setValue(ordinaryCategory());
-        e.facts["category_name_filter"] = "part only or absent";
-    }
-    else if (i == 6 || i == 17 || i == 28 || i == 29 || i == 38)
-    {
-        e.witnesses = { context };
-        e.proof = "Actual PD context.name is part definition, so constraint/alternative/part occurrence filters are empty";
-        setValue(ordinaryContext());
-        e.facts["context_name"] = Field(context, "name").text;
-    }
-    else if (i == 18 || i == 21)
-    {
-        e.witnesses = { context };
-        e.proof =
-            "ClosedProfileTypeExclusion: PRODUCT_DEFINITION_CONTEXT_ASSOCIATION; original reverse association filter empty (not a direct-context test)";
-        e.facts["association_population"] = "0";
-    }
-    else if (i == 19 || i == 36)
-    {
-        const auto name = Field(rep, "name").text;
-        e.witnesses = { rep };
-        e.proof = "REPRESENTATION population nonempty; actual name does not equal the original special trigger";
-        e.facts["representation_name"] = name;
-        setValue(name != (i == 19 ? "centre of mass" : "treatment result"));
-    }
-    else
-    {
-        // Remaining rules have an empty first FOR population / outer loop. Other FOR sets are still reported.
-        e.proof = "Full-file closed-profile type exclusion proves first FOR/outer-loop population empty; other FOR populations retained separately";
-        setValue(e.populations.at(std::string(meta.types.front())).empty());
-    }
-    return e;
+    throw std::logic_error("Unimplemented global rule identity");
 }
 void Validator::GlobalRules()
 {
-    for (std::size_t i = 0; i < Globals.size(); ++i)
+    for (const auto id : GlobalExecutionOrder)
     {
+        const auto& rule = GlobalMetadata(id);
         Tick(Role("representation"));
-        out.evidence.rules.push_back(GlobalValue(i));
+        out.evidence.rules.push_back(GlobalValue(rule));
         const auto& e = out.evidence.rules.back();
         if (e.value != Logical::True)
         {
-            const bool apd = i == 1, uncertainty = i == 5;
-            Fail(
-                "SourceRuleViolation:" + e.name + ".WR1",
-                "D3",
-                Role(
-                    apd         ? "application_protocol" :
-                    uncertainty ? "unit_context" :
-                                  "representation"
-                ),
-                apd         ? "application_interpreted_model_schema_name" :
-                uncertainty ? "uncertainty" :
-                              "",
-                e.proof
-            );
+            Fail("SourceRuleViolation:" + e.name + ".WR1", "D3", Role(rule.failureRole), std::string(rule.failureField), e.proof);
         }
     }
 }

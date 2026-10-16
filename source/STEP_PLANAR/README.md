@@ -17,6 +17,11 @@ prove inverse WHERE counts, while context inverse cardinalities use actual role-
 predicates include their inherited predicates. This is a dedicated equivalent evaluation inside the closed profile,
 not a general EXPRESS interpreter.
 
+The 47 global rules have internal named identities. A separate fixed identity list preserves execution and report
+order, independently of registry storage order. Each entry retains its source name, line, FOR populations and failure
+location. C++20 compile-time checks reject duplicate identities/names or incomplete execution coverage; evaluation
+dispatches exhaustively on identity. Internal numeric IDs are not serialized.
+
 Complete type populations are shared through the embedded semantic snapshot. Per-instance local rows state
 `population_scope=OwnerInstance` and list only their owner; global FOR populations use `FullFile`. This keeps local
 evidence storage linear in applicable instance/clause pairs rather than copying a whole class into every row.
@@ -51,14 +56,14 @@ Source uncertainty is checked as source semantics, and does not enlarge this thr
 retains `Deferred` until ticket 09, so its dependent rules/geometry remain `NotRun`.
 
 ```powershell
-cmake -S source/STEP_PLANAR -B <external-build> -DCMAKE_CXX_STANDARD=17
+cmake -S source/STEP_PLANAR -B <external-build> -DCMAKE_CXX_STANDARD=20
 cmake --build <external-build> --config Release
 ctest --test-dir <external-build> -C Release --output-on-failure
 <external-build>/Release/step_planar_inspect --fixture-limits --quality Q-P0-mm-01 input.step
 ```
 
-C++17 is the minimum. Set `CMAKE_CXX_STANDARD=20` in a separate build directory to validate the same component closure
-under C++20; this does not change the repository's global standard or promise cross-standard ABI mixing.
+C++20 is required by the STEP_SOURCE/STEP_SEMANTICS/STEP_PLANAR targets in both CMake and Premake.
+This does not change the repository's global standard or build SMLib.
 
 Exit codes: 0 checked source evidence; 1 source rejection; 2 upstream profile/transport unsupported; 3 resource limit;
 4 input I/O; 5 report limit (no partial stdout); 6 infrastructure; 7 conversion deferred; 8 unestablished numeric/derived
