@@ -144,6 +144,14 @@ class SemanticTests(unittest.TestCase):
         self.failed(self.changed(b"LENGTH_UNIT() NAMED_UNIT(*)", b"LENGTH_UNIT() NAMED_UNIT(*) PLANE_ANGLE_UNIT()"),
                     "ComplexSubtypeConflict")
 
+    def test_subtype_conflict_precedes_order_and_missing_constituent(self):
+        data = self.changed(b"LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.)",
+                            b"SI_UNIT(.MILLI.,.METRE.) LENGTH_UNIT() PLANE_ANGLE_UNIT()")
+        observed = self.failed(data, "ComplexSubtypeConflict")
+        diagnostic = observed["diagnostics"][0]
+        self.assertEqual(("10", "D1", []),
+                         (diagnostic["record_id"], diagnostic["stage"], diagnostic["parameter_path"]))
+
     def test_si_derived_dimensions_and_oe_endpoints_require_star(self):
         self.failed(self.changed(b"NAMED_UNIT(*) SI_UNIT(.MILLI.", b"NAMED_UNIT($) SI_UNIT(.MILLI."),
                     "DerivedSlotMarkerRequired")

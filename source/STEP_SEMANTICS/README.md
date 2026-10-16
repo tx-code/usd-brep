@@ -4,6 +4,12 @@ Internal C++20 checks on the immutable [STEP_SOURCE](../STEP_SOURCE/README.md)
 snapshot. No OCCT, SMLib, USD, STEPcode runtime or EXPRESS compiler is linked.
 The existing raw reader and its public behavior remain unchanged.
 
+The internal type catalog owns the fixed complex signatures, exclusive subtype groups, reference SELECT branches,
+enumeration and measure choices, SI-prefix powers, and declaration-qualified derived-slot descriptions. It checks
+descriptor references against the registered declarations during initialization. The checker retains traversal order,
+source diagnostics, budgets and product/unit interpretation; field queries use the same derived-slot descriptions.
+This does not extend the admitted profile or change the Snapshot interface.
+
 ```powershell
 cmake -S source/STEP_SEMANTICS -B C:/temp/step-semantic-build
 cmake --build C:/temp/step-semantic-build --config Debug

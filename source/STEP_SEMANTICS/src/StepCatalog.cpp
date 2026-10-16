@@ -11,6 +11,173 @@ namespace step_semantics
 {
 namespace
 {
+using Names = std::span<const std::string_view>;
+constexpr std::string_view Context[] = { "GEOMETRIC_REPRESENTATION_CONTEXT", "GLOBAL_UNIT_ASSIGNED_CONTEXT", "REPRESENTATION_CONTEXT" };
+constexpr std::string_view ContextWithUncertainty[] = { "GEOMETRIC_REPRESENTATION_CONTEXT",
+                                                        "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+                                                        "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+                                                        "REPRESENTATION_CONTEXT" };
+constexpr std::string_view SiLength[] = { "LENGTH_UNIT", "NAMED_UNIT", "SI_UNIT" };
+constexpr std::string_view SiPlaneAngle[] = { "NAMED_UNIT", "PLANE_ANGLE_UNIT", "SI_UNIT" };
+constexpr std::string_view SiSolidAngle[] = { "NAMED_UNIT", "SI_UNIT", "SOLID_ANGLE_UNIT" };
+constexpr std::string_view ConversionLength[] = { "CONVERSION_BASED_UNIT", "LENGTH_UNIT", "NAMED_UNIT" };
+constexpr Names ComplexSignatures[] = { Context, ContextWithUncertainty, SiLength, SiPlaneAngle, SiSolidAngle, ConversionLength };
+static_assert(std::size(ComplexSignatures) == 6);
+
+constexpr std::string_view UnitDefinitions[] = { "SI_UNIT", "CONVERSION_BASED_UNIT" };
+constexpr std::string_view NominalQuantities[] = { "LENGTH_UNIT", "PLANE_ANGLE_UNIT", "SOLID_ANGLE_UNIT", "MASS_UNIT" };
+constexpr std::string_view ContextBranches[] = { "PRODUCT_CONTEXT", "PRODUCT_DEFINITION_CONTEXT" };
+constexpr Names ExclusiveGroups[] = { UnitDefinitions, NominalQuantities, ContextBranches };
+
+struct NamedBranches
+{
+    std::string_view name;
+    Names branches;
+};
+constexpr std::string_view UnitBranches[] = { "NAMED_UNIT", "DERIVED_UNIT" };
+constexpr std::string_view ShellBranches[] = { "OPEN_SHELL", "CLOSED_SHELL" };
+constexpr std::string_view CharacterizedBranches[] = { "PRODUCT_DEFINITION", "PRODUCT_DEFINITION_SHAPE" };
+constexpr std::string_view RepresentedBranches[] = { "PROPERTY_DEFINITION" };
+// Only branches possible under the complete, closed profile are listed here.
+constexpr NamedBranches ReferenceSelects[] = { { "UNIT", UnitBranches },
+                                               { "SHELL", ShellBranches },
+                                               { "CHARACTERIZED_DEFINITION", CharacterizedBranches },
+                                               { "REPRESENTED_DEFINITION", RepresentedBranches } };
+
+struct SiPrefix
+{
+    std::string_view name;
+    int power;
+};
+// Empty is the explicit absent-prefix interpretation, never a guessed source unit.
+constexpr SiPrefix Prefixes[] = { { "", 0 },       { "EXA", 18 },  { "PETA", 15 },  { "TERA", 12 },   { "GIGA", 9 },   { "MEGA", 6 },
+                                  { "KILO", 3 },   { "HECTO", 2 }, { "DECA", 1 },   { "DECI", -1 },   { "CENTI", -2 }, { "MILLI", -3 },
+                                  { "MICRO", -6 }, { "NANO", -9 }, { "PICO", -12 }, { "FEMTO", -15 }, { "ATTO", -18 } };
+constexpr std::string_view SiNames[] = { "METRE",   "GRAM",           "SECOND", "AMPERE", "KELVIN",    "MOLE",  "CANDELA",
+                                         "RADIAN",  "STERADIAN",      "HERTZ",  "NEWTON", "PASCAL",    "JOULE", "WATT",
+                                         "COULOMB", "VOLT",           "FARAD",  "OHM",    "SIEMENS",   "WEBER", "TESLA",
+                                         "HENRY",   "DEGREE_CELSIUS", "LUMEN",  "LUX",    "BECQUEREL", "GRAY",  "SIEVERT" };
+constexpr std::string_view SourceNames[] = { "MADE", "BOUGHT", "NOT_KNOWN" };
+constexpr NamedBranches Enumerations[] = { { "SI_UNIT_NAME", SiNames }, { "SOURCE", SourceNames } };
+constexpr std::string_view MeasureBranches[] = { "LENGTH_MEASURE", "NON_NEGATIVE_LENGTH_MEASURE", "POSITIVE_LENGTH_MEASURE" };
+
+struct DerivedSlot
+{
+    std::string_view recordType;
+    std::string_view declaredIn;
+    std::string_view field;
+};
+constexpr DerivedSlot DerivedSlots[] = { { "ORIENTED_EDGE", "EDGE", "edge_start" },
+                                         { "ORIENTED_EDGE", "EDGE", "edge_end" },
+                                         { "SI_UNIT", "NAMED_UNIT", "dimensions" } };
+
+bool Contains(Names names, std::string_view value)
+{
+    return std::find(names.begin(), names.end(), value) != names.end();
+}
+
+void ValidateProfile(const Catalog& catalog)
+{
+    const auto typeId = [&](std::string_view name)
+    {
+        const auto id = catalog.Find(name);
+        if (!id)
+        {
+            throw std::logic_error("Profile refers to an unregistered declaration");
+        }
+        return *id;
+    };
+    for (std::size_t i = 0; i < std::size(ComplexSignatures); ++i)
+    {
+        const auto signature = ComplexSignatures[i];
+        if (!std::is_sorted(signature.begin(), signature.end()) || std::adjacent_find(signature.begin(), signature.end()) != signature.end())
+        {
+            throw std::logic_error("Complex profile facets must be unique and sorted");
+        }
+        for (const auto facet : signature)
+        {
+            const auto id = typeId(facet);
+            for (std::size_t parent = 0; parent < catalog.names.size(); ++parent)
+            {
+                if (catalog.ancestors[id].test(parent) && !Contains(signature, catalog.names[parent]))
+                {
+                    throw std::logic_error("Complex profile omits an inherited facet");
+                }
+            }
+        }
+        for (std::size_t j = 0; j < i; ++j)
+        {
+            if (std::equal(signature.begin(), signature.end(), ComplexSignatures[j].begin(), ComplexSignatures[j].end()))
+            {
+                throw std::logic_error("Duplicate complex profile signature");
+            }
+        }
+    }
+    for (const auto group : ExclusiveGroups)
+    {
+        for (const auto name : group)
+        {
+            typeId(name);
+        }
+    }
+    for (const auto& select : ReferenceSelects)
+    {
+        for (const auto name : select.branches)
+        {
+            typeId(name);
+        }
+    }
+    for (const auto& slot : DerivedSlots)
+    {
+        const auto owner = typeId(slot.recordType), origin = typeId(slot.declaredIn);
+        const auto& fields = catalog.declarations[origin].fields;
+        if (!catalog.ancestors[owner].test(origin) || std::none_of(
+                                                          fields.begin(),
+                                                          fields.end(),
+                                                          [&](const Field& field)
+                                                          {
+                                                              return field.name == slot.field;
+                                                          }
+                                                      ))
+        {
+            throw std::logic_error("Derived profile slot has no matching inherited declaration");
+        }
+    }
+    for (const auto& declaration : catalog.declarations)
+    {
+        for (const auto& field : declaration.fields)
+        {
+            if (field.kind == FieldKind::Reference || (field.kind == FieldKind::Aggregate && field.elementKind == FieldKind::Reference))
+            {
+                const bool select = std::any_of(
+                    std::begin(ReferenceSelects),
+                    std::end(ReferenceSelects),
+                    [&](const NamedBranches& entry)
+                    {
+                        return entry.name == field.type;
+                    }
+                );
+                if (!catalog.Find(field.type) && !select)
+                {
+                    throw std::logic_error("Reference field has no registered type or SELECT");
+                }
+            }
+            if (field.kind == FieldKind::Enumeration && field.type != "SI_PREFIX" &&
+                std::none_of(
+                    std::begin(Enumerations),
+                    std::end(Enumerations),
+                    [&](const NamedBranches& entry)
+                    {
+                        return entry.name == field.type;
+                    }
+                ))
+            {
+                throw std::logic_error("Enumeration field has no registered values");
+            }
+        }
+    }
+}
+
 Field Text(const char* name, const char* type = "LABEL", bool optional = false)
 {
     return { name, type, FieldKind::String, optional };
@@ -200,6 +367,7 @@ Catalog::Catalog()
     {
         visit(i);
     }
+    ValidateProfile(*this);
 }
 
 std::optional<std::size_t> Catalog::Find(std::string_view name) const
@@ -217,6 +385,100 @@ bool Catalog::HasField(std::size_t type, std::string_view name) const
             return binding.field->name == name;
         }
     );
+}
+bool Catalog::AdmitsComplex(std::span<const std::string> facets) const
+{
+    return std::any_of(
+        std::begin(ComplexSignatures),
+        std::end(ComplexSignatures),
+        [&](Names signature)
+        {
+            return std::equal(facets.begin(), facets.end(), signature.begin(), signature.end());
+        }
+    );
+}
+bool Catalog::HasSubtypeConflict(const std::bitset<128>& types) const
+{
+    for (const auto group : ExclusiveGroups)
+    {
+        std::size_t count = 0;
+        for (const auto name : group)
+        {
+            count += types.test(ids.at(std::string(name))) ? 1 : 0;
+        }
+        if (count > 1)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+bool Catalog::MatchesReference(const std::bitset<128>& types, std::string_view expected) const
+{
+    for (const auto& select : ReferenceSelects)
+    {
+        if (select.name == expected)
+        {
+            return std::any_of(
+                select.branches.begin(),
+                select.branches.end(),
+                [&](std::string_view name)
+                {
+                    return types.test(ids.at(std::string(name)));
+                }
+            );
+        }
+    }
+    const auto type = Find(expected);
+    return type && types.test(*type);
+}
+bool Catalog::ContainsEnumeration(std::string_view type, std::string_view value) const
+{
+    if (type == "SI_PREFIX")
+    {
+        return std::any_of(
+            std::begin(Prefixes),
+            std::end(Prefixes),
+            [&](const SiPrefix& entry)
+            {
+                return entry.name == value;
+            }
+        );
+    }
+    for (const auto& entry : Enumerations)
+    {
+        if (entry.name == type)
+        {
+            return Contains(entry.branches, value);
+        }
+    }
+    return false;
+}
+bool Catalog::AdmitsMeasure(std::string_view type) const
+{
+    return Contains(MeasureBranches, type);
+}
+int Catalog::PrefixPower10(std::string_view prefix) const
+{
+    for (const auto& entry : Prefixes)
+    {
+        if (entry.name == prefix)
+        {
+            return entry.power;
+        }
+    }
+    throw std::out_of_range("Unregistered SI prefix");
+}
+std::string_view Catalog::RedeclaredBy(const std::bitset<128>& types, const FieldBinding& binding) const
+{
+    for (const auto& slot : DerivedSlots)
+    {
+        if (binding.origin == slot.declaredIn && binding.field->name == slot.field && types.test(ids.at(std::string(slot.recordType))))
+        {
+            return slot.recordType;
+        }
+    }
+    return {};
 }
 const Catalog& Schema()
 {
@@ -247,16 +509,8 @@ AttributeView AttributeAt(const SemanticData& data, std::size_t r, std::size_t c
             view.maximum = binding.field->maximum;
         }
     }
-    if (component.name == "ORIENTED_EDGE" && (view.name == "edge_start" || view.name == "edge_end"))
-    {
-        view.derivedSlot = true;
-        view.redeclaredBy = "ORIENTED_EDGE";
-    }
-    if (component.name == "NAMED_UNIT" && data.types[r].test(catalog.ids.at("SI_UNIT")))
-    {
-        view.derivedSlot = true;
-        view.redeclaredBy = "SI_UNIT";
-    }
+    view.redeclaredBy = catalog.RedeclaredBy(data.types[r], binding);
+    view.derivedSlot = !view.redeclaredBy.empty();
     return view;
 }
 } // namespace step_semantics

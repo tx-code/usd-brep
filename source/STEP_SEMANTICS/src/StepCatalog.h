@@ -5,6 +5,7 @@
 #include "StepSemantics.h"
 
 #include <bitset>
+#include <span>
 #include <unordered_map>
 
 namespace step_semantics
@@ -59,6 +60,13 @@ struct Catalog
     Catalog();
     std::optional<std::size_t> Find(std::string_view name) const;
     bool HasField(std::size_t type, std::string_view field) const;
+    bool AdmitsComplex(std::span<const std::string> facets) const;
+    bool HasSubtypeConflict(const std::bitset<128>& types) const;
+    bool MatchesReference(const std::bitset<128>& types, std::string_view expected) const;
+    bool ContainsEnumeration(std::string_view type, std::string_view value) const;
+    bool AdmitsMeasure(std::string_view type) const;
+    int PrefixPower10(std::string_view prefix) const;
+    std::string_view RedeclaredBy(const std::bitset<128>& types, const FieldBinding& binding) const;
 };
 const Catalog& Schema();
 

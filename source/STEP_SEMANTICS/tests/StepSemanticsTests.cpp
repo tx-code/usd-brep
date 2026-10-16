@@ -105,6 +105,28 @@ int main(int argc, char** argv)
         );
         ++groups;
 
+        const auto siDimensions = snapshot->Attribute(Index(*snapshot, "10"), 1, 0);
+        Require(
+            siDimensions.name == "dimensions" && siDimensions.declaredIn == "NAMED_UNIT" && siDimensions.derivedSlot &&
+                siDimensions.redeclaredBy == "SI_UNIT" && siDimensions.value->kind == step_source::ValueKind::Derived,
+            "SI redeclaration must bind the original NAMED_UNIT slot"
+        );
+        const auto conversionDimensions = deferred.snapshot->Attribute(Index(*deferred.snapshot, "19"), 2, 0);
+        Require(
+            conversionDimensions.name == "dimensions" && conversionDimensions.declaredIn == "NAMED_UNIT" && !conversionDimensions.derivedSlot &&
+                conversionDimensions.redeclaredBy.empty() && conversionDimensions.value->text == "17",
+            "Conversion unit must retain its explicit dimensional reference"
+        );
+        ++groups;
+
+        const auto context = Index(*snapshot, "12");
+        Require(
+            snapshot->Attribute(context, 0, 0).name == "coordinate_space_dimension" && snapshot->Attribute(context, 1, 0).name == "units" &&
+                snapshot->Attribute(context, 2, 0).name == "context_identifier" && snapshot->Attribute(context, 2, 1).name == "context_type",
+            "Complex context keeps each declaration in its actual source facet"
+        );
+        ++groups;
+
         const auto n10 = step_source::InspectBytes(Read(corpus / "S203-N10/input.step"), step_source::Limits::PlanarFixtures());
         const auto n10Result = Check(n10, Limits{});
         Require(

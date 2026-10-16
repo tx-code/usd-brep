@@ -20,15 +20,6 @@ struct Failure
     Status status;
     Diagnostic diagnostic;
 };
-const std::unordered_map<std::string, int> prefixes = { { "", 0 },        { "EXA", 18 },   { "PETA", 15 },  { "TERA", 12 }, { "GIGA", 9 },
-                                                        { "MEGA", 6 },    { "KILO", 3 },   { "HECTO", 2 },  { "DECA", 1 },  { "DECI", -1 },
-                                                        { "CENTI", -2 },  { "MILLI", -3 }, { "MICRO", -6 }, { "NANO", -9 }, { "PICO", -12 },
-                                                        { "FEMTO", -15 }, { "ATTO", -18 } };
-const std::unordered_set<std::string> siNames = { "METRE",   "GRAM",           "SECOND", "AMPERE", "KELVIN",    "MOLE",  "CANDELA",
-                                                  "RADIAN",  "STERADIAN",      "HERTZ",  "NEWTON", "PASCAL",    "JOULE", "WATT",
-                                                  "COULOMB", "VOLT",           "FARAD",  "OHM",    "SIEMENS",   "WEBER", "TESLA",
-                                                  "HENRY",   "DEGREE_CELSIUS", "LUMEN",  "LUX",    "BECQUEREL", "GRAY",  "SIEVERT" };
-
 bool IsA(const SemanticData& data, std::size_t record, std::string_view name)
 {
     const auto type = Schema().Find(name);
@@ -42,27 +33,6 @@ std::size_t IndexOf(const SemanticData& data, std::string_view id)
         throw std::invalid_argument("Unknown source instance ID");
     }
     return static_cast<std::size_t>(record - data.source->Records().data());
-}
-bool Matches(const SemanticData& data, std::size_t record, std::string_view expected)
-{
-    // Under the closed profile guard these are the only possible branches of the full SELECTs.
-    if (expected == "UNIT")
-    {
-        return IsA(data, record, "NAMED_UNIT") || IsA(data, record, "DERIVED_UNIT");
-    }
-    if (expected == "SHELL")
-    {
-        return IsA(data, record, "OPEN_SHELL") || IsA(data, record, "CLOSED_SHELL");
-    }
-    if (expected == "CHARACTERIZED_DEFINITION")
-    {
-        return IsA(data, record, "PRODUCT_DEFINITION") || IsA(data, record, "PRODUCT_DEFINITION_SHAPE");
-    }
-    if (expected == "REPRESENTED_DEFINITION")
-    {
-        return IsA(data, record, "PROPERTY_DEFINITION");
-    }
-    return IsA(data, record, expected);
 }
 bool PositiveInteger(std::string_view text)
 {
@@ -269,14 +239,6 @@ private:
         const auto& records = m_data->source->Records();
         m_data->types.resize(records.size());
         m_data->populations.resize(catalog.names.size());
-        const std::vector<std::vector<std::string>> signatures = {
-            { "GEOMETRIC_REPRESENTATION_CONTEXT", "GLOBAL_UNIT_ASSIGNED_CONTEXT", "REPRESENTATION_CONTEXT" },
-            { "GEOMETRIC_REPRESENTATION_CONTEXT", "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT", "GLOBAL_UNIT_ASSIGNED_CONTEXT", "REPRESENTATION_CONTEXT" },
-            { "LENGTH_UNIT", "NAMED_UNIT", "SI_UNIT" },
-            { "NAMED_UNIT", "PLANE_ANGLE_UNIT", "SI_UNIT" },
-            { "NAMED_UNIT", "SI_UNIT", "SOLID_ANGLE_UNIT" },
-            { "CONVERSION_BASED_UNIT", "LENGTH_UNIT", "NAMED_UNIT" }
-        };
         for (std::size_t r = 0; r < records.size(); ++r)
         {
             Visit(records[r].span);
@@ -339,18 +301,7 @@ private:
             }
             if (records[r].complex)
             {
-                const auto countGroup = [&](std::initializer_list<const char*> group)
-                {
-                    std::size_t count = 0;
-                    for (const auto* name : group)
-                    {
-                        count += IsA(*m_data, r, name) ? 1 : 0;
-                    }
-                    return count;
-                };
-                if (countGroup({ "SI_UNIT", "CONVERSION_BASED_UNIT" }) > 1 ||
-                    countGroup({ "LENGTH_UNIT", "PLANE_ANGLE_UNIT", "SOLID_ANGLE_UNIT", "MASS_UNIT" }) > 1 ||
-                    countGroup({ "PRODUCT_CONTEXT", "PRODUCT_DEFINITION_CONTEXT" }) > 1)
+                if (catalog.HasSubtypeConflict(m_data->types[r]))
                 {
                     Fail(
                         "ComplexSubtypeConflict",
@@ -401,7 +352,7 @@ private:
                         );
                     }
                 }
-                if (std::find(signatures.begin(), signatures.end(), explicitTypes) == signatures.end())
+                if (!catalog.AdmitsComplex(explicitTypes))
                 {
                     Fail(
                         "UnsupportedComplexSignature",
@@ -490,11 +441,7 @@ private:
                 {
                     mismatch();
                 }
-                const bool valid = field.type == "SI_PREFIX"    ? prefixes.count(value.text) != 0 :
-                                   field.type == "SI_UNIT_NAME" ? siNames.count(value.text) != 0 :
-                                                                  field.type == "SOURCE" &&
-                                                                      (value.text == "MADE" || value.text == "BOUGHT" || value.text == "NOT_KNOWN");
-                if (!valid)
+                if (!Schema().ContainsEnumeration(field.type, value.text))
                 {
                     Fail(
                         "EnumerationValueInvalid",
@@ -517,7 +464,7 @@ private:
                 {
                     mismatch();
                 }
-                if (!Matches(*m_data, Target(value), field.type))
+                if (!Schema().MatchesReference(m_data->types.at(Target(value)), field.type))
                 {
                     try
                     {
@@ -548,7 +495,7 @@ private:
                 {
                     mismatch();
                 }
-                if (value.text != "LENGTH_MEASURE" && value.text != "NON_NEGATIVE_LENGTH_MEASURE" && value.text != "POSITIVE_LENGTH_MEASURE")
+                if (!Schema().AdmitsMeasure(value.text))
                 {
                     Fail(
                         "UnsupportedMeasureBranch",
@@ -1232,7 +1179,7 @@ private:
                     "profile nominal SI-unit guard"
                 );
             }
-            definition.canonicalPower10 = prefixes.at(definition.prefix) + (length ? 3 : 0);
+            definition.canonicalPower10 = Schema().PrefixPower10(definition.prefix) + (length ? 3 : 0);
             if (length)
             {
                 definition.dimensions[0] = 1;
