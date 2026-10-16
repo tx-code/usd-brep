@@ -7,6 +7,9 @@
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
+#ifdef _DEBUG
+#    include <crtdbg.h>
+#endif
 // clang-format off: psapi.h requires Windows types before its declarations.
 #include <windows.h>
 #include <psapi.h>
@@ -24,10 +27,37 @@ void Require(bool value, const char* message)
 struct Memory
 {
     unsigned long long bytes = 0, blocks = 0, privateBytes = 0;
+    unsigned long long tick = 0, crtBytes = 0, crtBlocks = 0;
+    // Matched SDK and adapter share ucrtbased.dll; native calloc/new use this CRT.
+    // Whole-process heaps also contain OS/runtime bookkeeping that grows without imports.
+    // Keep those values diagnostic, and calibrate the selected observer with retained models.
+    unsigned long long RetainedBytes() const
+    {
+#ifdef _DEBUG
+        return crtBytes;
+#else
+        return bytes;
+#endif
+    }
+    unsigned long long RetainedBlocks() const
+    {
+#ifdef _DEBUG
+        return crtBlocks;
+#else
+        return blocks;
+#endif
+    }
 };
 Memory Sample()
 {
     Memory result;
+    result.tick = GetTickCount64();
+#ifdef _DEBUG
+    _CrtMemState state{};
+    _CrtMemCheckpoint(&state);
+    result.crtBytes = state.lSizes[_NORMAL_BLOCK] + state.lSizes[_CLIENT_BLOCK];
+    result.crtBlocks = state.lCounts[_NORMAL_BLOCK] + state.lCounts[_CLIENT_BLOCK];
+#endif
     HANDLE heaps[128];
     const DWORD count = GetProcessHeaps(128, heaps);
     Require(count > 0 && count <= 128, "Heap enumeration");
@@ -58,7 +88,7 @@ Memory Sample()
 void Json(const Memory& memory)
 {
     std::cout << "{\"heap_busy_bytes\":" << memory.bytes << ",\"heap_busy_blocks\":" << memory.blocks << ",\"private_bytes\":" << memory.privateBytes
-              << '}';
+              << ",\"tick\":" << memory.tick << ",\"crt_bytes\":" << memory.crtBytes << ",\"crt_blocks\":" << memory.crtBlocks << '}';
 }
 } // namespace
 int main(int argc, char** argv)
@@ -127,17 +157,13 @@ int main(int argc, char** argv)
             model.reset();
         }
         const auto released = Sample();
-        // A positive retention control must be visible to the same observer used for failures.
-        Require(allocated.bytes > before.bytes + 65536 && allocated.blocks > before.blocks + 256, "Observer detects retained models");
-        for (const auto& memory : samples)
-        {
-            Require(
-                memory.bytes <= samples[0].bytes + 4096 && memory.blocks <= samples[0].blocks + 8,
-                "Repeated ordinary failures or success retain allocations"
-            );
-        }
-        Require(released.bytes <= before.bytes + 4096 && released.blocks <= before.blocks + 8, "Control releases allocations");
-        std::cout << "{\"measured_imports\":" << 16 * calls << ",\"native_boundaries\":" << calls << ",\"samples\":[";
+        std::cout << "{\"retention_observer\":\""
+#ifdef _DEBUG
+                  << "SharedDebugCrtUserAllocations"
+#else
+                  << "ProcessHeaps"
+#endif
+                  << "\",\"measured_imports\":" << 16 * calls << ",\"native_boundaries\":" << calls << ",\"samples\":[";
         for (std::size_t i = 0; i < samples.size(); ++i)
         {
             if (i)
@@ -153,6 +179,23 @@ int main(int argc, char** argv)
         std::cout << ",\"released\":";
         Json(released);
         std::cout << "}}\n";
+        std::cout.flush(); // Preserve completed observations even when a resource assertion fails.
+        // A positive retention control must be visible to the same observer used for failures.
+        Require(
+            allocated.RetainedBytes() > before.RetainedBytes() + 65536 && allocated.RetainedBlocks() > before.RetainedBlocks() + 256,
+            "Observer detects retained models"
+        );
+        for (const auto& memory : samples)
+        {
+            Require(
+                memory.RetainedBytes() <= samples[0].RetainedBytes() + 4096 && memory.RetainedBlocks() <= samples[0].RetainedBlocks() + 8,
+                "Repeated ordinary failures or success retain allocations"
+            );
+        }
+        Require(
+            released.RetainedBytes() <= before.RetainedBytes() + 4096 && released.RetainedBlocks() <= before.RetainedBlocks() + 8,
+            "Control releases allocations"
+        );
         return 0;
     }
     catch (const std::exception& error)
