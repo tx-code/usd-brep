@@ -90,7 +90,7 @@ class PlanarTests(unittest.TestCase):
                 ledger = load_json(CORPUS / case["identity"]["materials"]["inventory"]["path"])
                 self.assertEqual("Matched", compare(case, observed, actual.returncode, data, ledger)["status"])
                 counts[observed["status"]] += 1
-        self.assertEqual(Counter(Checked=11, Rejected=15, UpstreamFailure=17, Deferred=6), counts)
+        self.assertEqual(Counter(Checked=13, Rejected=19, UpstreamFailure=17), counts)
 
     def test_upstream_failure_keeps_captured_source_location(self):
         for case in ("S203-N02", "S203-N03"):
@@ -188,7 +188,8 @@ class PlanarTests(unittest.TestCase):
                          (diagnostic["record_id"], diagnostic["field"], diagnostic["parameter_path"]))
         start = data.index(unsupported_claim)
         self.assertEqual([start, start + len(unsupported_claim)], diagnostic["span"])
-        self.assertEqual(["alternative_solution_requires_solution_definition", "application_protocol_definition_required"],
+        self.assertEqual(["alternative_solution_requires_solution_definition",
+                          "application_protocol_definition_required"],
                          [rule["name"] for rule in observed["rules"] if rule["kind"] == "GLOBAL"])
         uncertainty = self.failed(self.input("S203-N29"), "SourceRuleViolation:consistent_uncertainty.WR1")
         diagnostic = uncertainty["diagnostics"][0]
@@ -435,12 +436,72 @@ class PlanarTests(unittest.TestCase):
         result = subprocess.run([str(self.binary), "--fixture-limits", str(path)], capture_output=True, timeout=10)
         self.assertEqual((64, b""), (result.returncode, result.stdout))
 
-    def test_deferred_conversion_never_enters_rules_or_geometry(self):
-        for key in ("S203-P11", "S203-P13", "S203-N31", "S203-N32", "S203-N33", "S203-N34"):
+    def test_typed_conversion_handoff_finishes_before_any_native_build(self):
+        for key in ("S203-P11", "S203-P13"):
             result, observed = self.invoke(self.input(key))
-            self.assertEqual(7, result.returncode)
-            self.assertEqual([], observed["rules"])
+            self.assertEqual(0, result.returncode)
+            self.assertEqual("Deferred", observed["source_semantics"]["status"])
+            self.assertEqual("Passed", observed["checks"]["conversion_units"])
+            self.assertEqual("NotRun", observed["checks"]["native_build"])
+            self.assertEqual(exact(F(127, 5)), observed["unit_conversions"][0]["scale_mm"])
+
+    def test_unit_constraints_keep_source_dimensions_and_project_scale_distinct(self):
+        for key, diagnostic, stage in (("N31", "SourceRuleViolation:LENGTH_UNIT.WR1+CONVERSION_BASED_UNIT.WR1", "D3"),
+                                       ("N32", "UnitScaleNotPositive", "D4"), ("N33", "UnitScaleNotPositive", "D4"),
+                                       ("N34", "CyclicUnitDefinition", "D4")):
+            observed = self.failed(self.input("S203-" + key), diagnostic)
+            self.assertEqual(stage, observed["diagnostics"][0]["stage"])
+            self.assertTrue(observed["diagnostics"][0]["related_spans"])
             self.assertEqual([], observed["faces"])
+        positive_type = self.record(self.input("S203-P11"), 18,
+                                    "LENGTH_MEASURE_WITH_UNIT(POSITIVE_LENGTH_MEASURE(0.),#10)")
+        observed = self.failed(positive_type, "SourceRuleViolation:POSITIVE_LENGTH_MEASURE.WR1")
+        self.assertEqual("D3", observed["diagnostics"][0]["stage"])
+
+    def test_shared_unit_bases_and_multinode_cycle_use_complete_typed_graph(self):
+        original = self.input("S203-P13")
+        rows = ("#28=MEASURE_WITH_UNIT(LENGTH_MEASURE(2.),#10);\n"
+                "#29=(CONVERSION_BASED_UNIT('shared mm base',#28) LENGTH_UNIT() NAMED_UNIT(#17));\n")
+        shared = original.replace(b"ENDSEC;\nEND-ISO", rows.encode() + b"ENDSEC;\nEND-ISO")
+        shared = self.record(shared, 13,
+                             "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001),#29,'distance_accuracy_A',$)")
+        observed = self.checked(shared)
+        self.assertEqual({"19", "29"}, {r["unit_id"] for r in observed["unit_conversions"]})
+        self.assertEqual({F(2), F(127, 5)}, {decode(r["scale_mm"]) for r in observed["unit_conversions"]})
+        cycle = self.record(shared, 18, "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#29)")
+        cycle = self.record(cycle, 28, "MEASURE_WITH_UNIT(LENGTH_MEASURE(2.),#19)")
+        # Keep the mm root attached through the optional source uncertainty, avoiding an orphan mutation.
+        cycle = self.record(cycle, 13,
+                            "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001),#10,'distance_accuracy_A',$)")
+        observed = self.failed(cycle, "CyclicUnitDefinition")
+        trace = next(m for m in observed["metrics"] if m["kind"] == "unit_cycle")
+        self.assertEqual(["19", "18", "29", "28", "19"], trace["witness_ids"])
+
+    def test_conversion_work_boundary_and_numeric_capacity_do_not_publish_geometry(self):
+        original = self.input("S203-P11")
+        observed = self.checked(original)
+        work = observed["work"]
+        self.assertEqual(work, self.checked(original, "--max-planar-work", work)["work"])
+        self.failed(original, "PlanarWorkLimit", 3, "--max-planar-work", work-1)
+        huge = self.record(original, 18, "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(9223372036854775808.),#10)")
+        actual, observed = self.invoke(huge)
+        self.assertEqual(8, actual.returncode, actual.stderr or actual.stdout)
+        self.assertEqual("Indeterminate", observed["status"])
+        self.assertEqual([], observed["faces"])
+
+    def test_long_conversion_chain_resolves_without_recursive_call_stack(self):
+        data = self.record(self.input("S203-P11"), 18, "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10000)")
+        rows = []
+        for i in range(120):
+            unit = 10000 + 2*i
+            target = unit+2 if i < 119 else 10
+            rows += [f"#{unit}=(CONVERSION_BASED_UNIT('u',#{unit+1}) LENGTH_UNIT() NAMED_UNIT(#17));",
+                     f"#{unit+1}=MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#{target});"]
+        data = data.replace(b"ENDSEC;\nEND-ISO", ("\n".join(rows)+"\n").encode() + b"ENDSEC;\nEND-ISO")
+        observed = self.checked(data)
+        self.assertEqual(121, len(observed["unit_conversions"]))
+        primary = next(d for d in observed["unit_conversions"] if d["unit_id"] == "19")
+        self.assertEqual(exact(F(127, 5)), primary["scale_mm"])
 
     def test_checker_tampering_controls(self):
         cases = {c["case_id"]: c for c in self.cases}

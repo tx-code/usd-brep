@@ -12,17 +12,98 @@ from collections import Counter
 from fractions import Fraction as F
 from math import isqrt
 from pathlib import Path
+import re
 
 from tools.step_import_validation.common import InvalidEvidence, digest, load_json
 from tools.step_import_validation.oracle import add, sub, dot, cross, exact, decode, input_facts
 from tools.step_import_validation.records import inventory, by_id, ref, vector, aggregate
 from tools.step_inspect_validation.oracle import position
-from tools.step_semantic_validation.oracle import compare as compare_semantic, REJECTIONS, DEFERRED
+from tools.step_semantic_validation.oracle import compare as compare_semantic, REJECTIONS, PREFIX
+from tools.step_import_validation.records import SIMPLE, split_args
+
+def facets(record):
+    if record.kind != "COMPLEX":
+        return {record.kind: record.args}
+    text, offset, result = record.raw[1:-1], 0, {}
+    while offset < len(text):
+        while offset < len(text) and text[offset].isspace():
+            offset += 1
+        match = re.match(r"([A-Z][A-Z_0-9]*)\(", text[offset:])
+        assert match, "test-unit constituent"
+        start = offset + match.end()
+        i, depth, quoted = start, 1, False
+        while depth:
+            ch = text[i]
+            if ch == "'":
+                if quoted and i+1 < len(text) and text[i+1] == "'":
+                    i += 2
+                    continue
+                quoted = not quoted
+            elif not quoted:
+                depth += (ch == "(") - (ch == ")")
+            i += 1
+        result[match[1]] = tuple(split_args(text[start:i-1]))
+        offset = i
+    return result
+
+
+def primary_length(index):
+    contexts = [facets(r)["GLOBAL_UNIT_ASSIGNED_CONTEXT"] for r in index.values()
+                if "GLOBAL_UNIT_ASSIGNED_CONTEXT" in facets(r)]
+    context, = contexts
+    unit, = [ref(v) for v in aggregate(context[0]) if "LENGTH_UNIT" in facets(index[ref(v)])]
+    return unit
+
+
+def dimensions(index, unit):
+    parts = facets(index[unit])
+    if "SI_UNIT" in parts:
+        return (F(1), *([F(0)] * 6)) if parts["SI_UNIT"][1] == ".METRE." else (F(0),) * 7
+    return tuple(F(v) for v in index[ref(parts["NAMED_UNIT"][0])].args)
+
+
+def scale_for(index, start):
+    # Expand a physical value all the way to a metre root. No native output or shared product memo is used.
+    factor, unit, seen = F(1), start, set()
+    while unit not in seen:
+        seen.add(unit)
+        parts = facets(index[unit])
+        assert "LENGTH_UNIT" in parts and dimensions(index, unit) == (F(1), *([F(0)] * 6))
+        if "SI_UNIT" in parts:
+            prefix, name = parts["SI_UNIT"]
+            assert name == ".METRE."
+            return factor * F(10) ** (PREFIX[None if prefix == "$" else prefix.strip(".")] + 3)
+        measure = index[ref(parts["CONVERSION_BASED_UNIT"][1])]
+        value = SIMPLE.fullmatch(measure.args[0])
+        assert value and value[1] in {"LENGTH_MEASURE", "POSITIVE_LENGTH_MEASURE", "NON_NEGATIVE_LENGTH_MEASURE"}
+        numeric = F(value[2])
+        assert numeric > 0
+        factor *= numeric
+        unit = ref(measure.args[1])
+    raise AssertionError("cyclic test-unit definition")
+
+
+def source_units(data):
+    index = by_id(inventory(data))
+    primary = primary_length(index)
+    definitions = []
+    for r in index.values():
+        parts = facets(r)
+        if "CONVERSION_BASED_UNIT" not in parts:
+            continue
+        factor = index[ref(parts["CONVERSION_BASED_UNIT"][1])]
+        value = SIMPLE.fullmatch(factor.args[0])
+        definitions.append(dict(source_unit=str(r.entity_id), source_dimensions=str(ref(parts["NAMED_UNIT"][0])),
+            source_factor=str(factor.entity_id), source_base_unit=str(ref(factor.args[1])), value_type=value[1],
+            factor_value=F(value[2]), scale_mm=scale_for(index, r.entity_id),
+            dimensions=dimensions(index, r.entity_id)))
+    return primary, scale_for(index, primary), definitions
+
 
 REFERENCE = Path(__file__).parent / "contracts/n2635-rules-v1.json"
 REFERENCE_SHA = "970d8ac65d56cad561004e72865fb3340000a6431e967b9a9bc9bd98cc6639b6"
-NEW_REJECTIONS = {f"S203-N{i:02}" for i in [10, 11, 12, 13, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30]}
-LATER = ("conversion_units", "native_build", "full_import", "target_uv", "tolerance_setting",
+NEW_REJECTIONS = {f"S203-N{i:02}" for i in [10, 11, 12, 13, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34]}
+LATER = ("native_build", "full_import", "target_uv", "tolerance_setting",
          "shell_self_intersection", "material_volume")
 
 
@@ -112,8 +193,57 @@ def check_rules(observed, witness, index):
                 all(r["facts"]["using_representation_count"] == "1" for r in ri_rules), "indirect RI uses lost")
 
 
+def check_units(observed, index):
+    conversions = [r for r in index.values() if "CONVERSION_BASED_UNIT" in facets(r)]
+    local_ok = observed["checks"]["local_rules"] == "Passed"
+    global_ok = observed["checks"]["global_rules_47"] == "Passed"
+    expected = ("NotRun" if not conversions or not local_ok or not global_ok else
+                "Failed" if observed["diagnostics"] else "Passed")
+    require(observed["checks"]["conversion_units"] == expected, "explicit conversion interpretation phase")
+    if not local_ok:
+        for rule in observed["rules"]:
+            if rule["name"] == "CONVERSION_BASED_UNIT.WR1" and rule["logical_value"] == "FALSE":
+                unit = int(rule["owner_id"])
+                factor = index[ref(facets(index[unit])["CONVERSION_BASED_UNIT"][1])]
+                base = ref(factor.args[1])
+                require(dimensions(index, unit) != dimensions(index, base),
+                        "independent conversion dimension counterexample")
+        return
+    for metric in observed["metrics"]:
+        if metric["kind"] == "unit_scale":
+            unit = int(metric["owner_id"])
+            factor = index[ref(facets(index[unit])["CONVERSION_BASED_UNIT"][1])]
+            value = F(SIMPLE.fullmatch(factor.args[0])[2])
+            base = scale_for(index, ref(factor.args[1]))
+            require({k: decode(v) for k, v in metric["exact"].items()} ==
+                    dict(factor_value=value, base_scale_mm=base, scale_mm=value * base),
+                    "independent exact scale evidence")
+        if metric["kind"] == "unit_cycle":
+            ids = list(map(int, metric["witness_ids"]))
+            require(len(ids) >= 3 and len(ids) % 2 == 1 and ids[0] == ids[-1], "closed concrete unit dependency cycle")
+            for unit, factor, target in zip(ids[::2], ids[1::2], ids[2::2]):
+                require(ref(facets(index[unit])["CONVERSION_BASED_UNIT"][1]) == factor and
+                        ref(index[factor].args[1]) == target, "cycle follows original factor and unit fields")
+    if expected == "Passed":
+        expected_rows = []
+        for record in conversions:
+            parts = facets(record)
+            factor = index[ref(parts["CONVERSION_BASED_UNIT"][1])]
+            value = SIMPLE.fullmatch(factor.args[0])
+            expected_rows.append(dict(unit_id=str(record.entity_id), dimensions_id=str(ref(parts["NAMED_UNIT"][0])),
+                factor_id=str(factor.entity_id), base_unit_id=str(ref(factor.args[1])), value_type=value[1],
+                factor_value=exact(F(value[2])), scale_mm=exact(scale_for(index, record.entity_id)),
+                dimensions=[exact(v) for v in dimensions(index, record.entity_id)]))
+        require(sorted(observed["unit_conversions"], key=lambda v: v["unit_id"]) ==
+                sorted(expected_rows, key=lambda v: v["unit_id"]),
+                "complete independently expanded conversion definitions")
+
+
 def check_geometry(observed, index, truth):
-    scale = decode(observed["source_semantics"]["snapshot"]["units"]["length_scale_mm"])
+    if not observed["edges"] and not observed["faces"]:
+        require(not observed["qualified_source_evidence"], "missing qualified geometry")
+        return
+    scale = scale_for(index, primary_length(index))
 
     def point(i):
         return times(vector(index[i].args[1]), scale)
@@ -158,6 +288,8 @@ def check_geometry(observed, index, truth):
     for metric in observed["metrics"]:
         values = {k: decode(v) for k, v in metric["exact"].items()}
         kind = metric["kind"]
+        if kind in {"unit_scale", "unit_cycle"}:
+            continue
         if kind == "endpoint_curve":
             p, q, curve = edge(int(metric["owner_id"]))
             a, d, _ = line(curve)
@@ -281,8 +413,7 @@ def compare(case, observation, exit_code, data, ledger, witness=None):
     require(observation["quality"] == {"id": "Q-P0-mm-01", "consistency_mm": exact(F(1, 10**7)),
                                        "production_default": False, "repair": "None"}, "quality contract")
     key = case["case_id"]
-    status = ("UpstreamFailure" if key in REJECTIONS else "Deferred" if key in DEFERRED else
-              "Rejected" if key in NEW_REJECTIONS else "Checked")
+    status = "UpstreamFailure" if key in REJECTIONS else "Rejected" if key in NEW_REJECTIONS else "Checked"
     require(observation["status"] == status and observation["qualified_source_evidence"] == (status == "Checked"),
             "stage outcome / qualification")
     require(exit_code == (upstream_exit if status == "UpstreamFailure" else
@@ -294,12 +425,10 @@ def compare(case, observation, exit_code, data, ledger, witness=None):
                 "upstream block entered rules/geometry")
         require([d["key"] for d in observation["diagnostics"]] == [case["expected"]["diagnostic_key"]],
                 "upstream diagnostic")
-    elif status == "Deferred":
-        require(not observation["rules"] and not observation["edges"] and not observation["faces"] and
-                observation["deferred_reason"] == "ConversionLengthInterpretationPendingTicket09", "deferred scope")
     else:
         index = by_id(inventory(data))
         check_rules(observation, witness, index)
+        check_units(observation, index)
         check_geometry(observation, index, case["truth"])
         if status == "Rejected":
             require(len(observation["diagnostics"]) == 1, "single first blocker")

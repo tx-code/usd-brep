@@ -10,7 +10,8 @@ from tools.step_import_validation.corpus import quality_contract
 from tools.step_import_validation.oracle import decode
 from tools.step_import_validation.records import inventory, by_id, ref, aggregate, vector as source_vector
 from tools.step_inspect_validation.oracle import position
-from tools.step_semantic_validation.oracle import DEFERRED, UNSUPPORTED
+from tools.step_semantic_validation.oracle import UNSUPPORTED
+from tools.step_planar_validation.oracle import source_units, primary_length, scale_for
 
 
 def require(value, message):
@@ -39,8 +40,11 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
             "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088", "schema identity")
     require(observed["source"]["sha256"] == hashlib.sha256(data).hexdigest(), "captured input identity")
     require(observed["source"]["captured"] and not observed["candidate_discarded"], "accepted capture/candidate")
-    require(observed["source"]["read"] == "Inspected" and observed["source"]["semantics"] == "Checked" and
+    unit, scale, conversions = source_units(data)
+    require(observed["source"]["read"] == "Inspected" and observed["source"]["semantics"] ==
+            ("Deferred" if any(d["source_unit"] == str(unit) for d in conversions) else "Checked") and
             observed["source"]["planar"] == "Checked" and not observed["diagnostics"], "source qualification")
+    unit_observation(observed, unit, scale, conversions)
     require(observed["repair"] == "None", "repair contract")
     source_role(observed, data, role)
     fields = {"definition_mm": "definition_error_mm", "consistency_mm": "consistency_error_mm",
@@ -128,6 +132,25 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     face_observations(observed, data)
 
 
+def unit_observation(observed, unit, scale, definitions):
+    u = observed["unit_normalization"]
+    require(u["interpretation"] == "Checked" and u["source_length_unit"] == str(unit) and
+            decode(u["length_to_mm"]) == decode(u["source_plane_uv_to_native_scale"]) == scale,
+            "independent physical length and source plane UV mapping")
+    require(u["line_parameter"] == "DimensionlessUnchanged" and u["direction_ratios"] == "Dimensionless" and
+            (u["canonical_length"], u["canonical_area"], u["canonical_volume"]) == ("mm", "mm^2", "mm^3"),
+            "canonical geometry and budgets are distinct from source parameters")
+    rows = {d["source_unit"]: d for d in u["definitions"]}
+    require(len(rows) == len(u["definitions"]) == len(definitions), "all unique conversion definitions")
+    for expected in definitions:
+        actual = rows[expected["source_unit"]]
+        require(all(actual[k] == expected[k] for k in ("source_unit", "source_dimensions", "source_factor",
+                    "source_base_unit", "value_type")), "source factor and base identities")
+        require(decode(actual["factor_value"]) == expected["factor_value"] and
+                decode(actual["scale_mm"]) == expected["scale_mm"] and
+                tuple(map(decode, actual["dimensions"])) == expected["dimensions"], "exact unit chain and dimensions")
+
+
 def source_role(observed, data, expected):
     rows = inventory(data)
     representation, = [r for r in rows if r.kind in {
@@ -170,7 +193,8 @@ def loop_provenance(observed, data):
 
 def source_frame(index, face):
     placement = index[ref(index[ref(face.args[2])].args[1])]
-    origin = source_vector(index[ref(placement.args[1])].args[1])
+    scale = scale_for(index, primary_length(index))
+    origin = tuple(v * scale for v in source_vector(index[ref(placement.args[1])].args[1]))
     def unit(values):
         length = math.sqrt(sum(v * v for v in values))
         return tuple(float(v) / length for v in values)
@@ -185,9 +209,10 @@ def source_frame(index, face):
 def face_loop_provenance(observed, index, face):
     bounds = [ref(x) for x in aggregate(face.args[1])]
     origin, x, y, z = source_frame(index, face)
+    scale = scale_for(index, primary_length(index))
 
     def uv(vertex):
-        point = source_vector(index[ref(index[vertex].args[1])].args[1])
+        point = tuple(v * scale for v in source_vector(index[ref(index[vertex].args[1])].args[1]))
         delta = [float(a - b) for a, b in zip(point, origin)]
         return tuple(F(sum(a * b for a, b in zip(delta, axis))) for axis in (x, y))
 
@@ -254,6 +279,7 @@ def edge_parameters(observed, data):
 def face_observations(observed, data):
     from tools.step_import_validation.oracle import sub, cross, dot
     index = by_id(inventory(data))
+    scale = scale_for(index, primary_length(index))
     faces = {str(r.entity_id): r for r in index.values() if r.kind == "ADVANCED_FACE"}
     rows = observed["face_mappings"]
     require(len(rows) == len(faces) and {r["source_face"] for r in rows} == set(faces), "all face observations")
@@ -270,7 +296,7 @@ def face_observations(observed, data):
         ids = set()
         for loop in [r for r in observed["loop_mappings"] if r["source_face"] == row["source_face"]]:
             vertices = [int(u["start_vertex"]) for u in loop["uses"]]
-            points = [source_vector(index[ref(index[v].args[1])].args[1]) for v in vertices]
+            points = [tuple(c * scale for c in source_vector(index[ref(index[v].args[1])].args[1])) for v in vertices]
             all_points += points
             ids.update(vertices)
             for a, b in zip(points, points[1:] + points[:1]):
@@ -298,16 +324,16 @@ def face_observations(observed, data):
 
 def corpus_case(case, observed, exit_code, data):
     key = case["case_id"]
-    if key in {"S203-P01", "S203-P02", "S203-P03", "S203-P04", "S203-P05"}:
+    if key in {"S203-P01", "S203-P02", "S203-P03", "S203-P04", "S203-P05", "S203-P06", "S203-P07", "S203-P11"}:
         require(exit_code == 0, "qualified native success exit")
-        if key in {"S203-P04", "S203-P05"}:
+        if key in {"S203-P04", "S203-P05", "S203-P11"}:
             accepted(observed, data, case["truth"])
             return
         window = case["truth"]["source_definition"]["source_uv_window"]
-        accepted(observed, data, case["truth"], uv_bounds=tuple(decode(v) for corner in window for v in corner))
+        scale = decode(case["truth"]["source_definition"]["source_length_scale_mm"])
+        accepted(observed, data, case["truth"], uv_bounds=tuple(decode(v) * scale for corner in window for v in corner))
         return
-    status = ("Deferred" if key in DEFERRED else "Unsupported" if key in UNSUPPORTED or "-P" in key
-              else "Rejected")
+    status = "Unsupported" if key in UNSUPPORTED or "-P" in key else "Rejected"
     require(observed["status"] == status and exit_code == {"Deferred": 7, "Unsupported": 2, "Rejected": 1}[status],
             "frozen source/target scope outcome " + key)
     require(observed["model"] is None and observed["native_measurements"] is None and
@@ -316,7 +342,7 @@ def corpus_case(case, observed, exit_code, data):
             not observed["tolerances"] and not observed["edge_mappings"] and not observed["loop_mappings"],
             "unexecuted native checks")
     require(observed["source"]["sha256"] == hashlib.sha256(data).hexdigest(), "rejected input identity")
-    if "-N" in key and key not in DEFERRED:
+    if "-N" in key:
         diagnostic = observed["diagnostics"][0]
         require((diagnostic["key"], diagnostic["stage"]) == (
             case["expected"]["diagnostic_key"], case["expected"]["expected_stage"]), "original diagnostic")

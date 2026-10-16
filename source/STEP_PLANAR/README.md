@@ -70,8 +70,12 @@ shell nonintersection, material interior, volume, modeling/query eligibility or 
 
 The CLI requires both `--fixture-limits` and `--quality Q-P0-mm-01`. The frozen test candidate supplies 1e-7 mm consistency
 error; it is not a production default. The internal API also accepts an explicit separately named quality configuration.
-Source uncertainty is checked as source semantics, and does not enlarge this threshold. Conversion length interpretation
-retains `Deferred` until ticket 09, so its dependent rules/geometry remain `NotRun`.
+Source uncertainty is checked as source semantics, and does not enlarge this threshold. Ticket 09 resumes only the
+explicitly deferred typed-unit handoff from 03, after binding/types/part passed. Local rules check seven-value declared
+dimensions against nominal quantities and factor units before geometric interpretation. Scale resolution is a separate
+bounded iterative walk with a shared memo, a positive SI root and concrete cycle diagnostics; it never guesses a scale
+from a unit name. `conversion_units` reports its actual progress; resolved definitions retain factors, base identities,
+typed values and exact canonical scales. Zero/negative scales and cycles are project D4 failures, not invented WHEREs.
 
 ```powershell
 cmake -S source/STEP_PLANAR -B <external-build> -DCMAKE_CXX_STANDARD=20

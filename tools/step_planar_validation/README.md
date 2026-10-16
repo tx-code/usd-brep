@@ -28,10 +28,13 @@ truth, invocation/exit/binary identity, native stdout and independent comparison
 checked in staging before directory publication. Incomplete attempts stay in staging. Recheck verifies frozen truth
 identity as well as stdout, comparisons and declared status counts. It never upgrades full-import `NotChecked`.
 
-All 49 current-stage contracts must match: 11 `Checked`, 15 newly `Rejected`, 17 `UpstreamFailure`, 6 conversion `Deferred`.
-The 17 preceding failures contain 10 source failures and 7 unsupported cases. The 32 total blockers are not all source
+After ticket 09 all 49 current-stage contracts must match: 13 `Checked`, 19 `Rejected`, 17 `UpstreamFailure`.
+The 17 preceding failures contain 10 source failures and 7 unsupported cases. The 36 total blockers are not all source
 invalidity. A single mutation may have further consequences after its first blocker; reporting those is not required.
 For every case, full import/native build remains `NotRun` and import-success count remains null.
+The 03 source-type/SI contract retains its explicit conversion `Deferred`; 04 completes dimensions, positive scale and
+cycle interpretation before geometry. The independent checker expands source unit definitions, not native output.
+Historical evidence retains the scope of its original comparator/version; this adds no migration or publication mechanism.
 
 
 The execution/publication/recheck implementation is now shared by

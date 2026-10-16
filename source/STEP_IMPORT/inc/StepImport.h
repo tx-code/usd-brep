@@ -154,6 +154,12 @@ struct SourceShapeObservation
 {
     std::string role, representationId, representationType, shapeId, shapeType, shellId, shellType;
 };
+struct UnitNormalization
+{
+    std::string sourceLengthUnitId;
+    Fraction lengthToMm;
+    std::vector<step_planar::UnitConversion> definitions; // Source record indices refer to Report::source.
+};
 struct NativeRoleObservation
 {
     std::size_t regions = 0, shells = 0, materialRegions = 0, boundedVoidRegions = 0;
@@ -172,6 +178,7 @@ struct Report
     std::vector<EdgeAdjacency> adjacency;
     std::optional<SourceShapeObservation> sourceShape;
     std::optional<NativeRoleObservation> nativeRole;
+    std::optional<UnitNormalization> units;
     std::optional<double> volumeBoundMm3, volumeJunctionBoundMm;
     std::optional<double> volumeGapFluxBoundMm3, volumeSkippedFluxBoundMm3;
     std::optional<std::size_t> solidRegions, voidCavities;

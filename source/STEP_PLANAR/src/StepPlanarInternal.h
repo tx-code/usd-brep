@@ -16,6 +16,11 @@ struct Stop
     Status status;
 };
 Vector Add(Vector a, Vector b);
+struct FailureContext
+{
+    std::vector<std::size_t> related;
+    std::string expected, actual;
+};
 Vector Subtract(Vector a, Vector b);
 Vector Times(Vector a, Rational factor);
 Rational Dot(Vector a, Vector b);
@@ -76,11 +81,14 @@ private:
         std::size_t owner,
         std::string field,
         std::string responsibility,
-        Status status = Status::Rejected
+        Status status = Status::Rejected,
+        FailureContext context = {}
     );
     Vector Components(std::size_t r, const std::string& field) const;
     Vector Point(std::size_t r) const;
     Vector Direction(std::size_t r) const;
+    std::array<Rational, 7> UnitDimensions(std::size_t r, std::vector<std::size_t>& witnesses) const;
+    Rational UnitScale(std::size_t r, std::map<std::size_t, Rational>& memo);
     std::pair<std::size_t, std::size_t> Ends(std::size_t oe) const;
     bool LocalValue(const Clause& clause, std::size_t r, RuleEvidence& evidence);
     bool TypeValue(LocalRuleId id, const Value& value) const;

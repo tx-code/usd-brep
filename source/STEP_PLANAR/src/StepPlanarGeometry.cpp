@@ -485,15 +485,117 @@ void Validator::Shell()
         Fail("DisconnectedSourceShell", "D4", shell, "cfs_faces", "CONNECTED_FACE_SET source claim is disconnected by shared edge identity");
     }
 }
+Rational Validator::UnitScale(std::size_t root, std::map<std::size_t, Rational>& memo)
+{
+    // The admitted conversion has one dependency. An explicit path avoids recursion/stack growth;
+    // the shared memo resolves each unit once even when several factors reference the same base.
+    std::vector<std::size_t> path;
+    std::map<std::size_t, std::size_t> active;
+    auto unit = root;
+    while (!memo.contains(unit))
+    {
+        Tick(unit);
+        if (const auto repeated = active.find(unit); repeated != active.end())
+        {
+            std::vector<std::size_t> witnesses;
+            std::string cycle;
+            for (std::size_t i = repeated->second; i < path.size(); ++i)
+            {
+                const auto factor = Ref(path[i], "conversion_factor");
+                witnesses.push_back(path[i]);
+                witnesses.push_back(factor);
+                cycle += Record(path[i]).id + "->" + Record(factor).id + "->";
+            }
+            witnesses.push_back(unit);
+            cycle += Record(unit).id;
+            const auto closingFactor = Ref(path.back(), "conversion_factor");
+            out.evidence.metrics.push_back({ "unit_cycle", unit, witnesses, {} });
+            Fail(
+                "CyclicUnitDefinition",
+                "D4",
+                closingFactor,
+                "unit_component",
+                "Project unit interpretation requires an acyclic chain to a positive SI root; dimensions alone do not establish a scale",
+                Status::Rejected,
+                { witnesses, "acyclic positive SI-rooted unit chain", cycle }
+            );
+        }
+        bool si = false;
+        for (const auto& definition : sem.UnitContext().siDefinitions)
+        {
+            if (definition.recordIndex == unit)
+            {
+                if (definition.quantity != "Length")
+                {
+                    throw std::domain_error("UnsupportedConversionQuantity");
+                }
+                memo.emplace(unit, Rational::Decimal("1E" + std::to_string(definition.canonicalPower10)));
+                si = true;
+                break;
+            }
+        }
+        if (si)
+        {
+            break;
+        }
+        if (!Is(unit, "CONVERSION_BASED_UNIT") || !Is(unit, "LENGTH_UNIT"))
+        {
+            throw std::domain_error("UnsupportedConversionUnitDefinition");
+        }
+        active.emplace(unit, path.size());
+        path.push_back(unit);
+        const auto factor = Ref(unit, "conversion_factor");
+        Tick(factor);
+        unit = Ref(factor, "unit_component");
+    }
+    while (!path.empty())
+    {
+        const auto currentUnit = path.back();
+        path.pop_back();
+        const auto factor = Ref(currentUnit, "conversion_factor"), base = Ref(factor, "unit_component");
+        const auto& value = Field(factor, "value_component");
+        const auto numeric = Rational::Decimal(value.children.at(0).text);
+        const auto scale = numeric * memo.at(base);
+        std::vector<std::size_t> witnesses{ currentUnit, factor, base };
+        const auto dimensions = UnitDimensions(currentUnit, witnesses);
+        out.evidence.metrics.push_back(
+            { "unit_scale", currentUnit, witnesses, { { "factor_value", numeric }, { "base_scale_mm", memo.at(base) }, { "scale_mm", scale } } }
+        );
+        if (!(scale > Rational()))
+        {
+            Fail(
+                "UnitScaleNotPositive",
+                "D4",
+                factor,
+                "value_component",
+                "Project canonical unit scale must be positive and reversible; base LENGTH_MEASURE has no positivity WHERE",
+                Status::Rejected,
+                { witnesses, ">0 mm/source-length-unit", std::to_string(scale.Numerator()) + "/" + std::to_string(scale.Denominator()) }
+            );
+        }
+        memo.emplace(currentUnit, scale);
+        out.evidence.conversions.push_back({ currentUnit, Ref(currentUnit, "dimensions"), factor, base, value.text, numeric, scale, dimensions });
+    }
+    return memo.at(root);
+}
 void Validator::Geometry()
 {
     const auto power = sem.UnitContext().lengthPower10Mm;
-    if (!power)
-    {
-        throw std::logic_error("Conversion length interpretation must not enter planar geometry");
-    }
     Tick(sem.UnitContext().lengthUnit);
-    const auto scale = Power(*power);
+    std::map<std::size_t, Rational> memo;
+    if (!Population("CONVERSION_BASED_UNIT").empty())
+    {
+        out.conversionUnits = "Running";
+    }
+    const auto scale = power ? Power(*power) : UnitScale(sem.UnitContext().lengthUnit, memo);
+    for (const auto unit : Population("CONVERSION_BASED_UNIT"))
+    {
+        (void)UnitScale(unit, memo);
+    }
+    if (out.conversionUnits == "Running")
+    {
+        out.conversionUnits = "Passed";
+    }
     for (const auto placement : Population("AXIS2_PLACEMENT_3D"))
     {
         Vector normal;

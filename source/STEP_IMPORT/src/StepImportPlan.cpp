@@ -10,10 +10,12 @@ namespace step_import::detail
 {
 namespace
 {
-ExactPoint PointAt(const step_semantics::Snapshot& source, std::size_t vertex)
+ExactPoint PointAt(const step_semantics::Snapshot& source, std::size_t vertex, Fraction scale)
 {
     const auto& values = source.Field(vertex, "coordinates").Value().children;
-    return { Fraction::Decimal(values.at(0).text), Fraction::Decimal(values.at(1).text), Fraction::Decimal(values.at(2).text) };
+    return { Fraction::Decimal(values.at(0).text) * scale,
+             Fraction::Decimal(values.at(1).text) * scale,
+             Fraction::Decimal(values.at(2).text) * scale };
 }
 ExactPoint Add(ExactPoint a, ExactPoint b)
 {
@@ -214,15 +216,15 @@ Plan MakePlan(const step_planar::Outcome& checked)
                        "Native scope is one open planar face or a qualified rectangular box boundary with its declared role",
                        {} };
     }
-    if (source.UnitContext().lengthPower10Mm != std::optional<int>(0))
-    {
-        throw Failure{ Status::Unsupported,
-                       "UnsupportedNativeUnitScope",
-                       "Target SI unit restatements and conversion qualification belong to ticket 09",
-                       {} };
-    }
     Plan plan{};
     plan.source = evidence.source;
+    plan.units.lengthToMm = evidence.faces.at(0).sourceLengthScaleMm;
+    plan.units.sourceLengthUnitId = source.Source().Records().at(source.UnitContext().lengthUnit).id;
+    plan.units.definitions = evidence.conversions;
+    if (!(plan.units.lengthToMm > Fraction()))
+    {
+        throw std::logic_error("Native plan requires a proved positive canonical length scale");
+    }
     plan.sourceShape.role = role;
     plan.materialSolid = role == "MaterialSolid";
     plan.closedBoundary = role == "MaterialSolid" || role == "ClosedSurfaceModel";
@@ -265,7 +267,9 @@ Plan MakePlan(const step_planar::Outcome& checked)
             {
                 if (vertexIndices.emplace(vertex, plan.vertices.size()).second)
                 {
-                    plan.vertices.push_back({ vertex, PointAt(source, source.Field(vertex, "vertex_geometry").ReferenceTarget()) });
+                    plan.vertices.push_back(
+                        { vertex, PointAt(source, source.Field(vertex, "vertex_geometry").ReferenceTarget(), plan.units.lengthToMm) }
+                    );
                 }
             }
         }
@@ -276,7 +280,7 @@ Plan MakePlan(const step_planar::Outcome& checked)
         const auto line = source.Field(record, "edge_geometry").ReferenceTarget();
         const auto vector = source.Field(line, "dir").ReferenceTarget();
         const auto direction = source.Field(vector, "orientation").ReferenceTarget();
-        const auto a = PointAt(source, source.Field(line, "pnt").ReferenceTarget());
+        const auto a = PointAt(source, source.Field(line, "pnt").ReferenceTarget(), plan.units.lengthToMm);
         const auto& ratios = source.Field(direction, "direction_ratios").Value().children;
         const ExactPoint d{ Fraction::Decimal(ratios.at(0).text), Fraction::Decimal(ratios.at(1).text), Fraction::Decimal(ratios.at(2).text) };
         const auto norm = Dot(d, d);

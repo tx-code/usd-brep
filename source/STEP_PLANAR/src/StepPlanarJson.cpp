@@ -92,8 +92,10 @@ bool InspectJson(const step_source::InspectOutcome& source, const step_semantics
             json.String(planar.globalRules);
             json.Add(",\"planar_regions\":");
             json.String(planar.geometry);
+            json.Add(",\"conversion_units\":");
+            json.String(planar.conversionUnits);
             json.Add(
-                ",\"conversion_units\":\"NotRun\",\"native_build\":\"NotRun\",\"full_import\":\"NotRun\","
+                ",\"native_build\":\"NotRun\",\"full_import\":\"NotRun\","
                 "\"target_uv\":\"NotRun\",\"tolerance_setting\":\"NotRun\",\"shell_self_intersection\":\"NotRun\",\"material_volume\":\"NotRun\"}"
             );
             json.Add(",\"deferred_reason\":");
@@ -201,7 +203,46 @@ bool InspectJson(const step_source::InspectOutcome& source, const step_semantics
                 Fractions(json, metric.exact);
                 json.Add("}");
             }
-            json.Add("],\"edges\":[");
+            json.Add("]");
+            if (!evidence.conversions.empty())
+            {
+                json.Add(",\"unit_conversions\":[");
+                bool entry = false;
+                for (const auto& unit : evidence.conversions)
+                {
+                    if (entry)
+                    {
+                        json.Add(",");
+                    }
+                    entry = true;
+                    json.Add("{\"unit_id\":");
+                    Id(json, evidence, unit.unit);
+                    json.Add(",\"dimensions_id\":");
+                    Id(json, evidence, unit.dimensions);
+                    json.Add(",\"factor_id\":");
+                    Id(json, evidence, unit.factor);
+                    json.Add(",\"base_unit_id\":");
+                    Id(json, evidence, unit.baseUnit);
+                    json.Add(",\"value_type\":");
+                    json.String(unit.valueType);
+                    json.Add(",\"factor_value\":");
+                    Fraction(json, unit.factorValue);
+                    json.Add(",\"scale_mm\":");
+                    Fraction(json, unit.scaleMm);
+                    json.Add(",\"dimensions\":[");
+                    for (std::size_t i = 0; i < 7; ++i)
+                    {
+                        if (i)
+                        {
+                            json.Add(",");
+                        }
+                        Fraction(json, unit.exponents[i]);
+                    }
+                    json.Add("]}");
+                }
+                json.Add("]");
+            }
+            json.Add(",\"edges\":[");
             comma = false;
             for (const auto& edge : evidence.edges)
             {
@@ -357,6 +398,22 @@ bool InspectJson(const step_source::InspectOutcome& source, const step_semantics
                 json.Range(d.source.primary);
                 json.Add(",\"location\":");
                 json.Position(source, d.source.primary.begin);
+                if (planar.status != Status::UpstreamFailure && !d.source.related.empty())
+                {
+                    json.Add(",\"related_spans\":[");
+                    for (std::size_t i = 0; i < d.source.related.size(); ++i)
+                    {
+                        if (i)
+                        {
+                            json.Add(",");
+                        }
+                        json.Range(d.source.related[i]);
+                    }
+                    json.Add("],\"expected\":");
+                    json.String(d.expected);
+                    json.Add(",\"actual\":");
+                    json.String(d.actual);
+                }
                 json.Add(",\"responsibility\":");
                 json.String(d.responsibility);
                 json.Add("}");

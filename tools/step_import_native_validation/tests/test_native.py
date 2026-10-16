@@ -65,11 +65,25 @@ class NativeTests(unittest.TestCase):
                 actual, observed = self.invoke(data)
                 corpus_case(case, observed, actual.returncode, data)
                 counts[observed["status"]] += 1
-        self.assertEqual(Counter(Accepted=5, Rejected=25, Unsupported=13, Deferred=6), counts)
+        self.assertEqual(Counter(Accepted=8, Rejected=29, Unsupported=12), counts)
 
     def box(self):
         return (CORPUS / "cases/S203-P04/input.step").read_bytes(), next(
             c["truth"] for c in self.cases if c["case_id"] == "S203-P04")
+
+    def test_unit_scale_and_parameter_maps_are_explicit(self):
+        for case, scale, unit in (("P06", F(10), "10"), ("P07", F(10), "10"), ("P11", F(127, 5), "19")):
+            data = (CORPUS / f"cases/S203-{case}/input.step").read_bytes()
+            actual, observed = self.invoke(data)
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            mapping = observed["unit_normalization"]
+            self.assertEqual(unit, mapping["source_length_unit"])
+            self.assertEqual(scale, decode(mapping["length_to_mm"]))
+            self.assertEqual(scale, decode(mapping["source_plane_uv_to_native_scale"]))
+            self.assertEqual("DimensionlessUnchanged", mapping["line_parameter"])
+            for edge in observed["edge_mappings"]:
+                self.assertEqual((F(0), F(1)), (decode(edge["source_start_coefficient"]),
+                                              decode(edge["source_end_coefficient"])))
 
     def test_closed_surface_matches_boundary_without_material_qualification(self):
         data = (CORPUS / "cases/S203-P05/input.step").read_bytes()
@@ -89,6 +103,94 @@ class NativeTests(unittest.TestCase):
         for field in ("volume_bound_mm3", "volume_junction_bound_mm", "volume_gap_flux_bound_mm3",
                       "volume_skipped_flux_bound_mm3"):
             self.assertIsNone(imported[field])
+
+    def test_unit_queries_and_quality_remain_canonical(self):
+        for key in ("S203-P06", "S203-P07", "S203-P11"):
+            data = (CORPUS / f"cases/{key}/input.step").read_bytes()
+            truth = next(c["truth"] for c in self.cases if c["case_id"] == key)
+            query = truth["queries"]["off_face"]
+            actual, observed = self.invoke(data, "--query", *map(float, map(decode, query["point_mm"])))
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            scale = decode(truth["source_definition"]["source_length_scale_mm"])
+            window = truth["source_definition"].get("source_uv_window")
+            bounds = tuple(decode(v) * scale for p in window for v in p) if window else (0, 0, 12, 8)
+            accepted(observed["import"], data, truth, uv_bounds=bounds)
+            vector(observed["query"]["closest_point_mm"], list(map(decode, query["closest_point_mm"])),
+                   F(1, 10**7), "unit-normalized boundary query")
+            self.assertLessEqual(abs(F(observed["query"]["distance_mm"]) - 3), F(1, 10**7))
+
+    def test_conversion_uses_factor_values_and_dimension_values_instead_of_names_or_identity(self):
+        original = (CORPUS / "cases/S203-P11/input.step").read_bytes()
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P11")
+        renamed = original.replace(b"'inch'", b"'not a unit table: SI_UNIT(fake)'" )
+        self.assertNotEqual(renamed, original)
+        actual, observed = self.invoke(renamed)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, renamed, truth)
+        # Keep the name 'inch', but deliberately define 2mm per source unit.
+        changed = self.record(original, 18, "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(2.),#10)")
+        small = deepcopy(truth)
+        small["measures"] = dict(area=exact(88), perimeter=exact(48), volume=exact(48))
+        small["centroid"] = list(map(exact, (1, 2, 3)))
+        small["bounds"] = [list(map(exact, p)) for p in ((0, 0, 0), (2, 4, 6))]
+        actual, observed = self.invoke(changed)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, changed, small)
+        # Two conversion nodes use different dimensions identities with the same seven values.
+        chain = self.record(original, 18, "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#29)")
+        rows = ("#28=MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#10);\n"
+                "#29=(CONVERSION_BASED_UNIT('anything',#28) LENGTH_UNIT() NAMED_UNIT(#37));\n"
+                "#37=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n")
+        chain = chain.replace(b"ENDSEC;\nEND-ISO", rows.encode() + b"ENDSEC;\nEND-ISO")
+        actual, observed = self.invoke(chain)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, chain, truth)
+        self.assertEqual(2, len(observed["unit_normalization"]["definitions"]))
+
+    def test_nondefault_line_parameters_survive_centimetre_units(self):
+        original = (CORPUS / "cases/S203-P07/input.step").read_bytes()
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P07")
+        nonunit = self.record(original, 200, "DIRECTION('',(3.,4.,0.))")
+        actual, observed = self.invoke(nonunit)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, nonunit, truth)
+        edge = next(e for e in observed["edge_mappings"] if e["source_edge"] == "203")
+        self.assertEqual((F(5), F(25)), (decode(edge["source_end_coefficient"]),
+                                       decode(edge["source_direction_norm_squared"])))
+        shifted = self.record(original, 202, "LINE('',#101,#201)")
+        actual, observed = self.invoke(shifted)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, shifted, truth)
+        edge = next(e for e in observed["edge_mappings"] if e["source_edge"] == "203")
+        self.assertEqual((F(-1), F(0)), (decode(edge["source_start_coefficient"]),
+                                       decode(edge["source_end_coefficient"])))
+
+    def test_unit_checker_rejects_wrong_physical_and_parameter_metadata(self):
+        data = (CORPUS / "cases/S203-P11/input.step").read_bytes()
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P11")
+        actual, original = self.invoke(data)
+        self.assertEqual(0, actual.returncode)
+        for defect in ("scale", "uv", "t", "unit", "factor", "dimensions", "missing", "budget_unit"):
+            observed = deepcopy(original)
+            mapping = observed["unit_normalization"]
+            if defect == "scale":
+                mapping["length_to_mm"] = exact(1)
+            if defect == "uv":
+                mapping["source_plane_uv_to_native_scale"] = exact(1)
+            if defect == "t":
+                observed["edge_mappings"][0]["source_end_coefficient"] = exact(F(127, 5))
+            if defect == "unit":
+                mapping["source_length_unit"] = "10"
+            if defect == "factor":
+                mapping["definitions"][0]["factor_value"] = exact(1)
+            if defect == "dimensions":
+                mapping["definitions"][0]["dimensions"][0] = exact(0)
+            if defect == "missing":
+                mapping["definitions"].clear()
+            if defect == "budget_unit":
+                mapping["canonical_length"] = "inch"
+            with self.subTest(defect=defect), self.assertRaises(AssertionError):
+                accepted(observed, data, truth)
 
     def test_material_box_independent_queries_and_classifications(self):
         data, truth = self.box()

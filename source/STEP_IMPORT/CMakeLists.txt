@@ -57,6 +57,10 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_link_libraries(step_import_surface_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_surface_contracts COMMAND step_import_surface_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
+    add_executable(step_import_unit_tests tests/StepImportUnitTests.cpp)
+    target_link_libraries(step_import_unit_tests PRIVATE STEP_IMPORT)
+    add_test(NAME step_import_unit_contracts COMMAND step_import_unit_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
     if(WIN32)
         add_executable(step_import_resources tests/StepImportResources.cpp)
         target_compile_definitions(step_import_resources PRIVATE NOMINMAX)
@@ -69,10 +73,12 @@ if(STEP_IMPORT_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step")
         add_test(NAME step_import_surface_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P05/input.step")
+        add_test(NAME step_import_unit_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P11/input.step")
     endif()
 endif()
 
-foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests)
+foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

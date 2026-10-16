@@ -242,6 +242,7 @@ public:
         try
         {
             m_report.sourceShape = m_plan.sourceShape;
+            m_report.units = m_plan.units;
             m_report.kernelPath = LoadedKernel();
             Step(m_plan.record);
             m_model->context = std::make_unique<SmContext>();

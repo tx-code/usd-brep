@@ -1,6 +1,7 @@
 # STEP_IMPORT（内部 C++20）
 
-05—08 的 STEP→SMLib 闭环：单零件、SI 毫米；开放 LINE/PLANE 平面及孔，或经过独立证明的矩形盒体边界，
+05—09 的 STEP→SMLib 闭环：单零件、canonical 毫米；源长度可SI前缀或已验证conversion链，
+几何为开放 LINE/PLANE 平面及孔，或经过独立证明的矩形盒体边界，
 基于 02—04 自研读取和源检查。没有 OCCT 读取依赖。
 
 `ImportFile` / `ImportBytes` 显式接收 `Options`。先保存不可变原始文档，完成类型、单位、规则与区域检查，
@@ -60,7 +61,11 @@ P04材料路径继续计算材料属性；P05全部材料分类返回空值/NotA
 `nativeCalls` 只计构造、UV 安装、validator、主要测量的调用检查点；系数/拓扑只读访问不逐项计费，
 它不是计时、总内存或硬取消限制。任意 OOM、崩溃恢复、worker、公开绑定均未在本票授予资格。
 
-转换单位及可选声明的目标资格分别留 09/10；
+09保留源单位与参数：VP/LINE/PLANE位置统一到毫米，方向比和源LINE t保持无量纲，
+源PLANE UV通过单独长度比例映射到目标UV。unit_normalization记录原单位、精确尺度、typed factor和共享定义链。
+03的conversion类型快照仍Deferred，04补齐源量纲及正尺度/无环解释，完整Checked后才准入native。
+名字不决定factor；零负尺度、环、量纲反证各归正确D3/D4，容差与误差预算继续是canonical单位。
+可选声明的目标资格仍留10；
 一般多面体、开放共享片、截面/切割及一般修复没有因材料盒体通过而自动获得资格。
 原始来源仍保留；不支持时返回明确诊断，不静默少件。`Repair=None`。
 

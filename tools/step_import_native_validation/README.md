@@ -1,4 +1,4 @@
-# 05—08 原生导入验证
+# 05—09 原生导入验证
 
 使用 01 冻结的输入、数学真值和完整 Q，通过真实 `step_native_import` CLI 验证结果。
 读取原有 03 的延期/不支持清单；不依赖 OCCT，也不从 SMLib 输出生成期望值。
@@ -17,9 +17,11 @@ python -m unittest tools.step_import_native_validation.tests.test_native -v
 以及13种错误材料观测反控（包含有限边界补缝与微小 du 省略的通量证据）。
 08 增加P04/P05独立同形对照、闭合表面源链和native材料标志、材料查询不适用、
 源顺序/稀疏ID/参数/刚体控制及11种错误角色/材料化/来源/证据观测反控。
-当前每配置23组，产品报告为v2（新增角色观察，表面体积证据政策显式NotApplicable）；原始三层源报告及测试包机制不改。
-49 项当前为 5 Accepted、25 源 Rejected、13 Unsupported、6 Deferred；
-13 Unsupported 包含 7 项既有源范围阻断及 6 项尚未授予目标资格的正例。
+09增加厘米重述、无量纲源t/毫米UV、精确转换链、名字不决定尺度、等值维数不按身份比较，
+以及8种错误单位/参数/预算元数据反控。当前每配置28组，产品报告为v2，新增unit_normalization；测试包机制不改。
+49 项当前为 8 Accepted、29 源 Rejected、12 Unsupported；
+12 Unsupported 包含 7 项既有源范围阻断及 5 项尚未授予目标资格的正例（含P13组合声明）。
+03类型/SI检查的conversion仍Deferred，只有04接续解释和几何证据完整Checked才进入native。
 没有将 49 项“合同符合”解释成 49 个模型导入成功。
 
 所有权和普通失败清理由 `source/STEP_IMPORT/tests` 在同进程接口验证；

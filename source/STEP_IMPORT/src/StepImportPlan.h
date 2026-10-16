@@ -57,6 +57,7 @@ struct Plan
     std::shared_ptr<const step_semantics::Snapshot> source;
     SourceShapeObservation sourceShape;
     std::size_t record, shell;
+    UnitNormalization units;
     bool materialSolid = false, closedBoundary = false;
     std::vector<VertexPlan> vertices;
     std::vector<EdgePlan> edges;

@@ -7,6 +7,47 @@
 
 namespace step_planar
 {
+std::array<Rational, 7> Validator::UnitDimensions(std::size_t r, std::vector<std::size_t>& witnesses) const
+{
+    for (const auto& unit : sem.UnitContext().siDefinitions)
+    {
+        if (unit.recordIndex == r)
+        {
+            std::array<Rational, 7> result{};
+            for (std::size_t i = 0; i < result.size(); ++i)
+            {
+                result[i] = Rational(unit.dimensions[i]);
+            }
+            return result;
+        }
+    }
+    if (!Is(r, "CONVERSION_BASED_UNIT"))
+    {
+        throw std::domain_error("UnsupportedNamedUnitDimensions");
+    }
+    const auto dims = Ref(r, "dimensions");
+    for (const auto witness : { r, dims })
+    {
+        if (std::find(witnesses.begin(), witnesses.end(), witness) == witnesses.end())
+        {
+            witnesses.push_back(witness);
+        }
+    }
+    constexpr std::array names{ "length_exponent",
+                                "mass_exponent",
+                                "time_exponent",
+                                "electric_current_exponent",
+                                "thermodynamic_temperature_exponent",
+                                "amount_of_substance_exponent",
+                                "luminous_intensity_exponent" };
+    std::array<Rational, 7> result{};
+    for (std::size_t i = 0; i < result.size(); ++i)
+    {
+        result[i] = Rational::Decimal(Field(dims, names[i]).text);
+    }
+    return result;
+}
+
 bool Validator::LocalValue(const Clause& c, std::size_t r, RuleEvidence& e)
 {
     const std::string type(c.type);
@@ -474,13 +515,21 @@ bool Validator::LocalValue(const Clause& c, std::size_t r, RuleEvidence& e)
                     return unit.dimensions == expected;
                 }
             }
-            throw std::logic_error("Conversion unit must have been explicitly deferred");
+            std::array<Rational, 7> expected{};
+            if (c.id == LocalRuleId::LengthUnitWr1)
+            {
+                expected[0] = Rational(1);
+            }
+            e.proof = "Explicit conversion dimensions must match the nominal quantity's seven physical exponents";
+            return UnitDimensions(r, e.witnesses) == expected;
         }
         case LocalRuleId::LengthMeasureWithUnitWr1:
         case LocalRuleId::MeasureWithUnitWr1:
         {
             e.proof = "Length-family measure value retains base LENGTH_MEASURE type; actual unit has LENGTH_UNIT and length dimensions";
-            return Is(Ref(r, "unit_component"), "LENGTH_UNIT");
+            std::array<Rational, 7> length{};
+            length[0] = Rational(1);
+            return Is(Ref(r, "unit_component"), "LENGTH_UNIT") && UnitDimensions(Ref(r, "unit_component"), e.witnesses) == length;
         }
         case LocalRuleId::UncertaintyMeasureWithUnitWr1:
         {
@@ -497,8 +546,33 @@ bool Validator::LocalValue(const Clause& c, std::size_t r, RuleEvidence& e)
             e.proof = "Actual inherited life_cycle_stage = design";
             return Field(r, "life_cycle_stage").text == "design";
         }
-        // These clauses are retained through their empty-population guards, never an invented active pass.
         case LocalRuleId::ConversionBasedUnitWr1:
+        {
+            const auto factor = Ref(r, "conversion_factor"), base = Ref(factor, "unit_component");
+            const auto declared = UnitDimensions(r, e.witnesses);
+            e.witnesses.push_back(factor);
+            e.witnesses.push_back(base);
+            const auto actual = UnitDimensions(base, e.witnesses);
+            e.proof = "Explicit conversion dimensions equal derive_dimensional_exponents(unit_component), by seven values; no factor recursion";
+            std::array<Rational, 7> length{};
+            length[0] = Rational(1);
+            if (Is(r, "LENGTH_UNIT") && declared != length)
+            {
+                e.facts["nominal_length_rule"] = "FALSE";
+            }
+            for (std::size_t i = 0; i < declared.size(); ++i)
+            {
+                if (i)
+                {
+                    e.facts["declared_dimensions"] += ",";
+                    e.facts["factor_unit_dimensions"] += ",";
+                }
+                e.facts["declared_dimensions"] += std::to_string(declared[i].Numerator()) + "/" + std::to_string(declared[i].Denominator());
+                e.facts["factor_unit_dimensions"] += std::to_string(actual[i].Numerator()) + "/" + std::to_string(actual[i].Denominator());
+            }
+            return declared == actual;
+        }
+        // These clauses are retained through their empty-population guards, never an invented active pass.
         case LocalRuleId::DerivedUnitWr1:
         case LocalRuleId::DerivedUnitWr2:
         case LocalRuleId::FoundedItemWr1:
@@ -563,7 +637,21 @@ void Validator::Local()
             active.value = value ? Logical::True : Logical::False;
             if (!value)
             {
-                Fail("SourceRuleViolation:" + active.name, "D3", r, std::string(clause.failureField), active.proof);
+                const bool conversion = clause.id == LocalRuleId::ConversionBasedUnitWr1;
+                const auto key = conversion && active.facts.contains("nominal_length_rule") ?
+                                     "SourceRuleViolation:LENGTH_UNIT.WR1+CONVERSION_BASED_UNIT.WR1" :
+                                     "SourceRuleViolation:" + active.name;
+                Fail(
+                    key,
+                    "D3",
+                    r,
+                    std::string(clause.failureField),
+                    active.proof,
+                    Status::Rejected,
+                    { conversion ? active.witnesses : std::vector<std::size_t>{},
+                      conversion ? active.facts["factor_unit_dimensions"] : "",
+                      conversion ? active.facts["declared_dimensions"] : "" }
+                );
             }
         }
     }

@@ -271,8 +271,9 @@ int main(int argc, char** argv)
 
         result = Inspect(Read(corpus / "S203-P11/input.step"));
         Require(
-            result.status == Status::Deferred && result.evidence.rules.empty() && result.geometry == "NotRun",
-            "Conversion still deferred without native build"
+            result.status == Status::Checked && result.conversionUnits == "Passed" && result.evidence.conversions.size() == 1 &&
+                result.evidence.conversions[0].scaleMm == Rational(127, 5),
+            "Typed conversion handoff resolves an exact scale before geometry; no native build"
         );
         ++groups;
     }

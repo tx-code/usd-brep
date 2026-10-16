@@ -108,6 +108,10 @@ void Validator::PublishProgress(Status status)
     out.localRules = ProgressName(State(Phase::Local));
     out.globalRules = ProgressName(State(Phase::Global));
     out.geometry = ProgressName(State(Phase::Geometry));
+    if (out.conversionUnits == "Running")
+    {
+        out.conversionUnits = ProgressName(failure);
+    }
     if (status == Status::Indeterminate && !out.evidence.rules.empty() && !out.evidence.rules.back().value)
     {
         out.evidence.rules.back().evaluation = "Indeterminate";
@@ -170,7 +174,15 @@ void Validator::Tick(std::size_t owner)
     }
     ++out.work;
 }
-void Validator::Fail(std::string key, std::string stage, std::size_t owner, std::string field, std::string responsibility, Status status)
+void Validator::Fail(
+    std::string key,
+    std::string stage,
+    std::size_t owner,
+    std::string field,
+    std::string responsibility,
+    Status status,
+    FailureContext context
+)
 {
     step_semantics::Diagnostic diagnostic;
     diagnostic.source.key = std::move(key);
@@ -195,6 +207,15 @@ void Validator::Fail(std::string key, std::string stage, std::size_t owner, std:
                                 status == Status::ResourceLimit ? "ResourceLimit" :
                                                                   "Indeterminate";
     diagnostic.responsibility = std::move(responsibility);
+    diagnostic.expected = std::move(context.expected);
+    diagnostic.actual = std::move(context.actual);
+    for (const auto witness : context.related)
+    {
+        if (witness != owner)
+        {
+            diagnostic.source.related.push_back(Record(witness).span);
+        }
+    }
     out.diagnostics.push_back(std::move(diagnostic));
     throw Stop{ status };
 }
@@ -265,8 +286,11 @@ Outcome Check(const step_semantics::Outcome& semantics, Quality quality, Limits 
     result.evidence.source = semantics.snapshot;
     if (semantics.status == step_semantics::Status::Deferred)
     {
-        result.status = Status::Deferred;
-        return result;
+        if (semantics.binding != "Passed" || semantics.types != "Passed" || semantics.part != "Passed" || semantics.siUnits != "Deferred" ||
+            !semantics.diagnostics.empty())
+        {
+            throw std::invalid_argument("Only the complete typed conversion-unit handoff can be resumed");
+        }
     }
     std::unique_ptr<Validator> validator;
     try

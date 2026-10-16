@@ -200,6 +200,63 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             {
                 w.Add("null");
             }
+            w.Add(",\"unit_normalization\":");
+            if (report.units)
+            {
+                const auto& units = *report.units;
+                w.Add("{\"interpretation\":\"Checked\",\"source_length_unit\":");
+                w.String(units.sourceLengthUnitId);
+                w.Add(",\"length_to_mm\":");
+                FractionJson(w, units.lengthToMm);
+                w.Add(",\"source_plane_uv_to_native_scale\":");
+                FractionJson(w, units.lengthToMm);
+                w.Add(
+                    ",\"line_parameter\":\"DimensionlessUnchanged\",\"direction_ratios\":\"Dimensionless\","
+                    "\"canonical_length\":\"mm\",\"canonical_area\":\"mm^2\",\"canonical_volume\":\"mm^3\",\"definitions\":["
+                );
+                bool comma = false;
+                for (const auto& definition : units.definitions)
+                {
+                    if (comma)
+                    {
+                        w.Add(",");
+                    }
+                    comma = true;
+                    const auto id = [&](std::size_t r) -> const std::string&
+                    {
+                        return report.source->Records().at(r).id;
+                    };
+                    w.Add("{\"source_unit\":");
+                    w.String(id(definition.unit));
+                    w.Add(",\"source_dimensions\":");
+                    w.String(id(definition.dimensions));
+                    w.Add(",\"source_factor\":");
+                    w.String(id(definition.factor));
+                    w.Add(",\"source_base_unit\":");
+                    w.String(id(definition.baseUnit));
+                    w.Add(",\"value_type\":");
+                    w.String(definition.valueType);
+                    w.Add(",\"factor_value\":");
+                    FractionJson(w, definition.factorValue);
+                    w.Add(",\"scale_mm\":");
+                    FractionJson(w, definition.scaleMm);
+                    w.Add(",\"dimensions\":[");
+                    for (std::size_t i = 0; i < 7; ++i)
+                    {
+                        if (i)
+                        {
+                            w.Add(",");
+                        }
+                        FractionJson(w, definition.exponents[i]);
+                    }
+                    w.Add("]}");
+                }
+                w.Add("]}");
+            }
+            else
+            {
+                w.Add("null");
+            }
             w.Add(",\"native_role\":");
             if (report.nativeRole)
             {

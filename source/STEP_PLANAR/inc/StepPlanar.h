@@ -112,6 +112,13 @@ struct FaceEvidence
     Vector centroidMm{}, minimumMm{}, maximumMm{};
     std::vector<LoopEvidence> loops;
 };
+struct UnitConversion
+{
+    std::size_t unit = 0, dimensions = 0, factor = 0, baseUnit = 0;
+    std::string valueType;
+    Rational factorValue, scaleMm;
+    std::array<Rational, 7> exponents{};
+};
 struct Evidence
 {
     std::shared_ptr<const step_semantics::Snapshot> source;
@@ -119,6 +126,7 @@ struct Evidence
     std::vector<Metric> metrics;
     std::vector<EdgeEvidence> edges;
     std::vector<FaceEvidence> faces;
+    std::vector<UnitConversion> conversions; // Resolved definitions, shared bases are not copied into geometry.
 };
 enum class Status
 {
@@ -137,6 +145,7 @@ struct Outcome
     Limits limits;
     std::size_t work = 0;
     std::string localRules = "NotRun", globalRules = "NotRun", geometry = "NotRun";
+    std::string conversionUnits = "NotRun";
     Evidence evidence; // Partial diagnostic evidence may survive failure; never a model/accepted snapshot.
     std::vector<step_semantics::Diagnostic> diagnostics;
 };
