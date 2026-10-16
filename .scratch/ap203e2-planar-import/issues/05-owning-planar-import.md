@@ -4,11 +4,11 @@
 
 **Blocked by:** [04：平面的必要规则与有向区域可独立验收](04-planar-source-validation.md)。
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-**Assignee:** None
+**Assignee:** codex
 
-**Execution:** on-hold。用户于2026-10-15明确要求暂不编码；本票仅已建档，获得后续明确开工指令前不得开始实现、生成样件或运行实施验收。
+**Execution:** in-progress。2026-10-16用户在确认05—12后续计划后要求“继续”，本轮开始05最小开放平面纵向切片。01—04继续回归，06—12仍on-hold；不扩展为GUI、公开绑定或一般修复。
 
 **Context:** 遵守[票组约束与来源](../README.md)；用户已确认12票拆分及依赖关系。
 

@@ -113,7 +113,7 @@ public:
   double m_dPrevStep  = SM_UNDEF_DOUBLE ;  // the step used to get to this m_dT previous step.
 
   // To satisfy what is needed to be in SmTArray:
-  inline int operator==( const SmIterationValue & crIV2 )
+  inline int operator==( const SmIterationValue & crIV2 ) const
   {
     SM_REF1(crIV2) ; 
     return FALSE;
