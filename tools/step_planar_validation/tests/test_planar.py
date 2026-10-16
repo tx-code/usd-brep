@@ -92,6 +92,19 @@ class PlanarTests(unittest.TestCase):
                 counts[observed["status"]] += 1
         self.assertEqual(Counter(Checked=11, Rejected=15, UpstreamFailure=17, Deferred=6), counts)
 
+    def test_upstream_failure_keeps_captured_source_location(self):
+        for case in ("S203-N02", "S203-N03"):
+            with self.subTest(case=case):
+                actual, observed = self.invoke(self.input(case))
+                self.assertEqual(1, actual.returncode)
+                self.assertEqual("UpstreamFailure", observed["status"])
+                diagnostic = observed["diagnostics"][0]
+                raw = observed["source_semantics"]["source"]["diagnostics"][0]
+                self.assertIsNotNone(raw["location"])
+                self.assertEqual(raw["key"], diagnostic["key"])
+                self.assertEqual(raw["span"], diagnostic["span"])
+                self.assertEqual(raw["location"], diagnostic["location"])
+
     def test_47_global_and_ancestor_population_proofs(self):
         observed = self.checked(self.p01)
         rules = [r for r in observed["rules"] if r["kind"] == "GLOBAL"]

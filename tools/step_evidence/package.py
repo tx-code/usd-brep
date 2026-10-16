@@ -23,7 +23,7 @@ from tools.step_import_validation.evidence import identifier, now
 from tools.step_import_validation.oracle import reference_truth, verify_input_definition
 from tools.step_import_validation.records import inventory, ledger
 from tools.step_import_validation.reference import anchors
-from .dependencies import required_sources
+from .dependencies import PROVENANCE, VERSIONS, required_sources
 from .presentation import case_body, page
 
 PROTOCOL = "step-evidence.v2"
@@ -145,7 +145,7 @@ class Runner:
         if self.stage.witness:
             (stage / "reference.json").write_bytes(self.stage.witness.path.read_bytes())
         metadata = {"format_version": self.stage.format, "package_protocol": PROTOCOL,
-                    "source_provenance": "execution-dependencies.v1", "execution_directory": str(stage),
+                    "source_provenance": PROVENANCE, "execution_directory": str(stage),
                     "run_id": run_id, "started_utc": now(), "finished_utc": None,
                     "selected": materials["selected"], "manifest_sha256": materials["manifest_sha256"],
                     "reference_sha256": self.stage.witness.sha256 if self.stage.witness else
@@ -258,8 +258,9 @@ class Runner:
                 "recorded binary identity")
         if "package_protocol" in metadata:
             require(metadata["package_protocol"] == PROTOCOL and
-                    metadata["source_provenance"] == "execution-dependencies.v1", "unknown package protocol")
-            require(required_sources(self.stage.components, self.stage.dependencies) <= set(sources),
+                    metadata["source_provenance"] in VERSIONS, "unknown package protocol")
+            require(required_sources(self.stage.components, self.stage.dependencies,
+                                     metadata["source_provenance"]) <= set(sources),
                     "missing execution dependency identity")
 
     @staticmethod

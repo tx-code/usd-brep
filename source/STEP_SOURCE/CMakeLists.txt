@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(STEP_SOURCE LANGUAGES CXX)
 
-add_library(STEP_SOURCE STATIC src/StepSource.cpp src/StepInspectJson.cpp)
+add_library(STEP_SOURCE STATIC src/StepSource.cpp src/StepInspectJson.cpp src/StepSourceReport.cpp)
 target_include_directories(STEP_SOURCE PUBLIC inc)
 target_compile_features(STEP_SOURCE PUBLIC cxx_std_17)
 add_executable(step_inspect app/step_inspect.cpp)

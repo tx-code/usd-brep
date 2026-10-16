@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Versioned project-owned source inventory for execution-dependencies.v1, checked without live source files.
+"""Versioned project-owned source inventories, checked without live source files.
 
 This protocol inventory is intentionally versioned: changed dependency structure requires review of this contract.
 File contents may change, and historical hashes never need to match the current checkout.
@@ -87,9 +87,24 @@ INVENTORIES = {
     ),
 }
 
+PROVENANCE = "execution-dependencies.v2"
+VERSIONS = {
+    "execution-dependencies.v1": INVENTORIES,
+    PROVENANCE: {
+        **INVENTORIES,
+        "native:STEP_SOURCE": INVENTORIES["native:STEP_SOURCE"] + (
+            "source/STEP_SOURCE/inc/StepSourceReport.h",
+            "source/STEP_SOURCE/src/StepSourceReport.cpp",
+        ),
+        "native:STEP_SEMANTICS": INVENTORIES["native:STEP_SEMANTICS"] + (
+            "source/STEP_SEMANTICS/inc/StepSemanticReport.h",
+        ),
+    },
+}
 
-def required_sources(components, dependencies):
+
+def required_sources(components, dependencies, provenance):
     groups = ["tool:step_evidence"]
     groups.extend("native:" + name for name in components)
     groups.extend("tool:" + name for name in dependencies)
-    return {path for group in groups for path in INVENTORIES[group]}
+    return {path for group in groups for path in VERSIONS[provenance][group]}

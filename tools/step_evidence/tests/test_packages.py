@@ -53,10 +53,54 @@ class PackageTests(unittest.TestCase):
                 package = adapter.run(binary, CORPUS, self.root / ("shared-" + ticket), selected)
                 metadata = load_json(package / "run.json")
                 self.assertEqual("step-evidence.v2", metadata.get("package_protocol"))
+                self.assertEqual("execution-dependencies.v2", metadata["source_provenance"])
+                self.assertIn("source/STEP_SOURCE/inc/StepSourceReport.h", metadata["sources"])
                 self.assertEqual(selected, metadata["selected"])
                 self.assertTrue("tools/step_evidence/package.py" in metadata["sources"])
                 self.assertTrue("tools/step_import_validation/corpus.py" in metadata["sources"])
                 self.assertEqual("Complete", adapter.check(package)["evidence_completeness"])
+
+    def test_new_dependency_inventory_requires_shared_report_sources(self):
+        for ticket, _, _ in self.stages:
+            with self.subTest(ticket=ticket):
+                adapter, package = self.copy_package(ticket, "missing-shared-report")
+                path = package / "run.json"
+                metadata = load_json(path)
+                metadata["sources"].pop("source/STEP_SOURCE/src/StepSourceReport.cpp")
+                write_json(path, metadata)
+                self.reseal(package)
+                with self.assertRaises(InvalidEvidence):
+                    adapter.check(package)
+
+    def test_report_locations_across_newlines_eof_and_capture_failure(self):
+        lf = (CORPUS / "cases/S203-N02/input.step").read_bytes()
+        for ticket, _, binary in self.stages:
+            for data in (lf, lf.replace(b"\n", b"\r\n"), lf.replace(b"\n", b"\r"), b"", b"\r\n"):
+                with self.subTest(ticket=ticket, prefix=data[:20]):
+                    path = self.root / "location.step"
+                    path.write_bytes(data)
+                    command = [str(binary), "--fixture-limits"]
+                    if ticket == "04":
+                        command += ["--quality", "Q-P0-mm-01"]
+                    result = subprocess.run(command + [str(path)], capture_output=True, timeout=15)
+                    self.assertEqual(1, result.returncode, result.stderr)
+                    report = json.loads(result.stdout)
+                    layers = [report]
+                    if ticket == "04":
+                        layers.append(report["source_semantics"])
+                    if ticket != "02":
+                        layers.append(layers[-1]["source"])
+                    for layer in layers:
+                        for diagnostic in layer["diagnostics"]:
+                            prefix = data[:diagnostic["span"][0]].replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+                            lines = prefix.split(b"\n")
+                            self.assertEqual({"line": len(lines), "column": len(lines[-1]) + 1},
+                                             diagnostic["location"])
+                    limited = subprocess.run(command + [str(path), "--max-input-bytes", "0"],
+                                             capture_output=True, timeout=15)
+                    if data:
+                        self.assertEqual(3, limited.returncode)
+                        self.assertIsNone(json.loads(limited.stdout)["diagnostics"][0]["location"])
 
     def copy_package(self, ticket, label):
         _, adapter, binary = next(s for s in self.stages if s[0] == ticket)

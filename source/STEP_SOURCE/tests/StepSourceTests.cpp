@@ -148,6 +148,35 @@ int main()
         }
         Require(spanRejected, "invalid source span was accepted");
         ++checks;
+
+        auto failed = InspectBytes("A\r\nB\rC\nD", limits);
+        // Literal expectations include the LF byte inside CRLF, lone CR/LF and EOF.
+        const Location positions[] = { { 1, 1 }, { 1, 2 }, { 1, 3 }, { 2, 1 }, { 2, 2 }, { 3, 1 }, { 3, 2 }, { 4, 1 }, { 4, 2 } };
+        for (std::size_t offset = 0; offset < std::size(positions); ++offset)
+        {
+            failed.diagnostics[0].primary = { offset, offset };
+            Require(InspectJson(failed, json), "Captured rejection location report");
+            const auto expected = "\"location\":{\"line\":" + std::to_string(positions[offset].line) +
+                                  ",\"column\":" + std::to_string(positions[offset].column) + "}";
+            Require(json.find(expected) != std::string::npos, "Captured CR/LF/CRLF/EOF byte location incorrect");
+        }
+        Require(
+            InspectJson(empty, json) && json.find("\"location\":{\"line\":1,\"column\":1}") != std::string::npos,
+            "Empty capture has EOF location"
+        );
+        Require(InspectJson(exceeded, json) && json.find("\"location\":null") != std::string::npos, "Incomplete capture has no location");
+        const auto lf = crlf.find('\n');
+        const auto indexed = windows.source->Locate(lf);
+        Require(indexed.line == 1 && indexed.column == lf + 1, "Indexed CRLF byte location differs from captured policy");
+        ++checks;
+
+        failed.diagnostics[0].message = std::string("\"\\\0\t\x7f\x80\xff", 7);
+        Require(InspectJson(failed, json), "Diagnostic byte escaping report");
+        Require(
+            json.find("\"message\":\"\\\"\\\\\\u0000\\u0009\\u007f\\u0080\\u00ff\"") != std::string::npos && json.back() == '\n',
+            "Diagnostic escaping must preserve arbitrary bytes and final LF"
+        );
+        ++checks;
         std::cout << "Passed " << checks << " native source contract groups\n";
         return 0;
     }

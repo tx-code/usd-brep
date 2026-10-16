@@ -1,139 +1,24 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepSemantics.h"
+#include "StepSemanticReport.h"
 
 #include <algorithm>
-#include <stdexcept>
 
 namespace step_semantics
 {
 namespace
 {
-class Json
+using step_source::report::Writer;
+
+void Scale(Writer& out, int power)
 {
-public:
-
-    explicit Json(std::size_t maximum) : m_maximum(maximum)
-    {
-    }
-    std::string data;
-    void Add(std::string_view text)
-    {
-        if (text.size() > m_maximum - data.size())
-        {
-            throw std::length_error("ReportByteLimit");
-        }
-        data.append(text);
-    }
-    void String(std::string_view text)
-    {
-        Add("\"");
-        const char hex[] = "0123456789abcdef";
-        for (unsigned char c : text)
-        {
-            if (c == '"')
-            {
-                Add("\\\"");
-            }
-            else if (c == '\\')
-            {
-                Add("\\\\");
-            }
-            else if (c < 32 || c >= 127)
-            {
-                const char escaped[]{ '\\', 'u', '0', '0', hex[c >> 4], hex[c & 15] };
-                Add(std::string_view(escaped, 6));
-            }
-            else
-            {
-                Add(std::string_view(reinterpret_cast<const char*>(&c), 1));
-            }
-        }
-        Add("\"");
-    }
-    void Number(std::size_t n)
-    {
-        Add(std::to_string(n));
-    }
-    void Range(step_source::Span span)
-    {
-        Add("[");
-        Number(span.begin);
-        Add(",");
-        Number(span.end);
-        Add("]");
-    }
-    void Path(const std::vector<std::size_t>& path)
-    {
-        Add("[");
-        for (std::size_t i = 0; i < path.size(); ++i)
-        {
-            if (i)
-            {
-                Add(",");
-            }
-            Number(path[i]);
-        }
-        Add("]");
-    }
-    void Scale(int power)
-    {
-        Add("{\"kind\":\"rational\",\"num\":");
-        String("1" + std::string(static_cast<std::size_t>(std::max(power, 0)), '0'));
-        Add(",\"den\":");
-        String("1" + std::string(static_cast<std::size_t>(std::max(-power, 0)), '0'));
-        Add("}");
-    }
-
-private:
-
-    std::size_t m_maximum;
-};
-
-step_source::Location Locate(const step_source::InspectOutcome& input, std::size_t offset)
-{
-    if (input.source)
-    {
-        return input.source->Locate(offset);
-    }
-    step_source::Location result;
-    if (input.captured)
-    {
-        for (std::size_t i = 0; i < std::min(offset, input.captured->size()); ++i)
-        {
-            const char c = (*input.captured)[i];
-            if (c == '\r' || c == '\n')
-            {
-                if (c == '\r' && i + 1 < offset && (*input.captured)[i + 1] == '\n')
-                {
-                    ++i;
-                }
-                ++result.line;
-                result.column = 1;
-            }
-            else
-            {
-                ++result.column;
-            }
-        }
-    }
-    return result;
-}
-void Position(Json& out, const step_source::InspectOutcome& input, std::size_t offset)
-{
-    if (!input.captured)
-    {
-        out.Add("null");
-        return;
-    }
-    const auto position = Locate(input, offset);
-    out.Add("{\"line\":");
-    out.Number(position.line);
-    out.Add(",\"column\":");
-    out.Number(position.column);
+    out.Add("{\"kind\":\"rational\",\"num\":");
+    out.String("1" + std::string(static_cast<std::size_t>(std::max(power, 0)), '0'));
+    out.Add(",\"den\":");
+    out.String("1" + std::string(static_cast<std::size_t>(std::max(-power, 0)), '0'));
     out.Add("}");
 }
-void RecordIds(Json& out, const Snapshot& data, const std::vector<std::size_t>& indices)
+void RecordIds(Writer& out, const Snapshot& data, const std::vector<std::size_t>& indices)
 {
     out.Add("[");
     for (std::size_t i = 0; i < indices.size(); ++i)
@@ -148,328 +33,324 @@ void RecordIds(Json& out, const Snapshot& data, const std::vector<std::size_t>& 
 }
 } // namespace
 
-bool InspectJson(const step_source::InspectOutcome& source, const Outcome& result, std::string& output)
+void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, const Outcome& result)
 {
-    output.clear();
-    try
+    out.Add("{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":");
+    out.String(StatusName(result.status));
+    out.Add(",\"deferred_reason\":");
+    if (result.status == Status::Deferred)
     {
-        std::string raw;
-        if (!step_source::InspectJson(source, raw))
-        {
-            return false;
-        }
-        Json out(source.limits.reportBytes);
-        out.Add("{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":");
-        out.String(StatusName(result.status));
-        out.Add(",\"deferred_reason\":");
-        if (result.status == Status::Deferred)
-        {
-            out.String("ConversionLengthInterpretationPendingTicket09");
-        }
-        else
-        {
-            out.Add("null");
-        }
-        out.Add(",\"source\":");
-        out.Add(raw);
-        out.Add(",\"checks\":{\"schema_binding\":");
-        out.String(result.binding);
-        out.Add(",\"type_fields\":");
-        out.String(result.types);
-        out.Add(",\"single_part_profile\":");
-        out.String(result.part);
-        out.Add(",\"si_units\":");
-        out.String(result.siUnits);
-        out.Add(
-            ",\"global_rules_47\":\"NotRun\",\"other_entity_where\":\"NotRun\",\"named_measure_predicates\":\"NotRun\","
-            "\"geometry_consistency\":\"NotRun\",\"conversion_units\":\"NotRun\","
-            "\"uncertainty_evaluation\":\"NotRun\",\"native_build\":\"NotRun\",\"full_import\":\"NotRun\"}"
-        );
-        out.Add(",\"limits\":{\"dependency_visits\":");
-        out.Number(result.limits.dependencyVisits);
-        out.Add("},\"statistics\":{\"dependency_visits\":");
-        out.Number(result.dependencyVisits);
+        out.String("ConversionLengthInterpretationPendingTicket09");
+    }
+    else
+    {
+        out.Add("null");
+    }
+    out.Add(",\"source\":");
+    step_source::report::WriteJson(out, source);
+    out.Add(",\"checks\":{\"schema_binding\":");
+    out.String(result.binding);
+    out.Add(",\"type_fields\":");
+    out.String(result.types);
+    out.Add(",\"single_part_profile\":");
+    out.String(result.part);
+    out.Add(",\"si_units\":");
+    out.String(result.siUnits);
+    out.Add(
+        ",\"global_rules_47\":\"NotRun\",\"other_entity_where\":\"NotRun\",\"named_measure_predicates\":\"NotRun\","
+        "\"geometry_consistency\":\"NotRun\",\"conversion_units\":\"NotRun\","
+        "\"uncertainty_evaluation\":\"NotRun\",\"native_build\":\"NotRun\",\"full_import\":\"NotRun\"}"
+    );
+    out.Add(",\"limits\":{\"dependency_visits\":");
+    out.Number(result.limits.dependencyVisits);
+    out.Add("},\"statistics\":{\"dependency_visits\":");
+    out.Number(result.dependencyVisits);
+    out.Add("}");
+    out.Add(",\"snapshot\":");
+    if (!result.snapshot)
+    {
+        out.Add("null");
+    }
+    else
+    {
+        const auto& data = *result.snapshot;
+        out.Add("{\"schema\":{\"name\":");
+        out.String(SchemaName);
+        out.Add(",\"oid\":[1,0,10303,403,2,1,2],\"express_sha256\":");
+        out.String(SchemaSha256);
+        out.Add(",\"profile\":");
+        out.String(Profile);
         out.Add("}");
-        out.Add(",\"snapshot\":");
-        if (!result.snapshot)
+        out.Add(",\"type_index_complete\":true,\"type_catalog_scope\":\"ProfileAncestorClosureAndRegisteredGuards\",\"type_populations\":{");
+        bool first = true;
+        for (const auto& type : data.RegisteredTypes())
         {
-            out.Add("null");
+            if (!first)
+            {
+                out.Add(",");
+            }
+            first = false;
+            out.String(type);
+            out.Add(":");
+            RecordIds(out, data, *data.Instances(type));
         }
-        else
+        out.Add("},\"records\":[");
+        const auto& records = data.Source().Records();
+        for (std::size_t r = 0; r < records.size(); ++r)
         {
-            const auto& data = *result.snapshot;
-            out.Add("{\"schema\":{\"name\":");
-            out.String(SchemaName);
-            out.Add(",\"oid\":[1,0,10303,403,2,1,2],\"express_sha256\":");
-            out.String(SchemaSha256);
-            out.Add(",\"profile\":");
-            out.String(Profile);
-            out.Add("}");
-            out.Add(",\"type_index_complete\":true,\"type_catalog_scope\":\"ProfileAncestorClosureAndRegisteredGuards\",\"type_populations\":{");
-            bool first = true;
-            for (const auto& type : data.RegisteredTypes())
+            if (r)
             {
-                if (!first)
-                {
-                    out.Add(",");
-                }
-                first = false;
-                out.String(type);
-                out.Add(":");
-                RecordIds(out, data, *data.Instances(type));
+                out.Add(",");
             }
-            out.Add("},\"records\":[");
-            const auto& records = data.Source().Records();
-            for (std::size_t r = 0; r < records.size(); ++r)
+            out.Add("{\"source_record_index\":");
+            out.Number(r);
+            out.Add(",\"id\":");
+            out.String(records[r].id);
+            out.Add(",\"types\":[");
+            const auto types = data.TypesOf(r);
+            for (std::size_t i = 0; i < types.size(); ++i)
             {
-                if (r)
-                {
-                    out.Add(",");
-                }
-                out.Add("{\"source_record_index\":");
-                out.Number(r);
-                out.Add(",\"id\":");
-                out.String(records[r].id);
-                out.Add(",\"types\":[");
-                const auto types = data.TypesOf(r);
-                for (std::size_t i = 0; i < types.size(); ++i)
-                {
-                    if (i)
-                    {
-                        out.Add(",");
-                    }
-                    out.String(types[i]);
-                }
-                out.Add("],\"used_by_representation\":");
-                out.Add(data.UsedByRepresentation(r) ? "true" : "false");
-                out.Add(",\"attributes\":[");
-                bool firstAttribute = true;
-                for (std::size_t c = 0; c < records[r].components.size(); ++c)
-                {
-                    for (std::size_t p = 0; p < records[r].components[c].parameters.size(); ++p)
-                    {
-                        const auto view = data.Attribute(r, c, p);
-                        if (!firstAttribute)
-                        {
-                            out.Add(",");
-                        }
-                        firstAttribute = false;
-                        out.Add("{\"component_index\":");
-                        out.Number(c);
-                        out.Add(",\"parameter_index\":");
-                        out.Number(p);
-                        out.Add(",\"name\":");
-                        out.String(view.name);
-                        out.Add(",\"declared_in\":");
-                        out.String(view.declaredIn);
-                        out.Add(",\"declared_type\":");
-                        out.String(view.declaredType);
-                        out.Add(",\"redeclared_by\":");
-                        out.String(view.redeclaredBy);
-                        out.Add(",\"optional\":");
-                        out.Add(view.optional ? "true" : "false");
-                        out.Add(",\"derived_slot\":");
-                        out.Add(view.derivedSlot ? "true" : "false");
-                        out.Add(",\"aggregate\":");
-                        out.String(view.aggregate);
-                        out.Add(",\"minimum\":");
-                        out.Number(view.minimum);
-                        out.Add(",\"maximum\":");
-                        if (view.maximum)
-                        {
-                            out.Number(*view.maximum);
-                        }
-                        else
-                        {
-                            out.Add("null");
-                        }
-                        out.Add(",\"unique_elements\":");
-                        out.Add(view.uniqueElements ? "true" : "false");
-                        out.Add(",\"span\":");
-                        out.Range(view.value->span);
-                        out.Add("}");
-                    }
-                }
-                out.Add("]}");
-            }
-            out.Add("],\"part\":{\"roles\":{");
-            first = true;
-            for (const auto& role : data.PartDefinition().roles)
-            {
-                if (!first)
-                {
-                    out.Add(",");
-                }
-                first = false;
-                out.String(role.name);
-                out.Add(":");
-                out.String(records[role.recordIndex].id);
-            }
-            out.Add("},\"source_shape_role\":");
-            out.String(data.PartDefinition().shapeRole);
-            out.Add(",\"shape_geometry_verified\":false,\"apd_status\":");
-            out.String(data.PartDefinition().apdStatus);
-            out.Add(",\"apd_schema_claim\":");
-            out.String(data.PartDefinition().apdSchemaClaim);
-            out.Add(",\"apd_year_lexeme\":");
-            out.String(data.PartDefinition().apdYear);
-            out.Add(",\"apd_global_rule\":\"NotRun\",\"inverse_roles\":{\"ac_context_elements\":");
-            std::vector<std::size_t> owners;
-            const auto findRole = [&](std::string_view name)
-            {
-                const auto& roles = data.PartDefinition().roles;
-                return std::find_if(
-                           roles.begin(),
-                           roles.end(),
-                           [&](const Role& role)
-                           {
-                               return role.name == name;
-                           }
-                )->recordIndex;
-            };
-            const auto ac = records[findRole("application_context")].id;
-            for (auto ref : data.UsedIn(ac, "APPLICATION_CONTEXT_ELEMENT", "frame_of_reference"))
-            {
-                owners.push_back(data.Source().References()[ref].recordIndex);
-            }
-            RecordIds(out, data, owners);
-            owners.clear();
-            out.Add(",\"context_representations\":");
-            const auto context = records[findRole("unit_context")].id;
-            for (auto ref : data.UsedIn(context, "REPRESENTATION", "context_of_items"))
-            {
-                owners.push_back(data.Source().References()[ref].recordIndex);
-            }
-            RecordIds(out, data, owners);
-            out.Add("}},\"units\":{\"length_unit\":");
-            out.String(records[data.UnitContext().lengthUnit].id);
-            out.Add(",\"plane_angle_unit\":");
-            out.String(records[data.UnitContext().planeAngleUnit].id);
-            out.Add(",\"solid_angle_unit\":");
-            if (data.UnitContext().solidAngleUnit)
-            {
-                out.String(records[*data.UnitContext().solidAngleUnit].id);
-            }
-            else
-            {
-                out.Add("null");
-            }
-            out.Add(",\"length_scale_mm\":");
-            if (data.UnitContext().lengthPower10Mm)
-            {
-                out.Scale(*data.UnitContext().lengthPower10Mm);
-            }
-            else
-            {
-                out.Add("null");
-            }
-            out.Add(",\"conversion_status\":\"NotRun\",\"si_definitions\":[");
-            for (std::size_t i = 0; i < data.UnitContext().siDefinitions.size(); ++i)
-            {
-                const auto& unit = data.UnitContext().siDefinitions[i];
                 if (i)
                 {
                     out.Add(",");
                 }
-                out.Add("{\"source_id\":");
-                out.String(records[unit.recordIndex].id);
-                out.Add(",\"quantity\":");
-                out.String(unit.quantity);
-                out.Add(",\"name\":");
-                out.String(unit.siName);
-                out.Add(",\"prefix\":");
-                if (unit.prefix.empty())
+                out.String(types[i]);
+            }
+            out.Add("],\"used_by_representation\":");
+            out.Add(data.UsedByRepresentation(r) ? "true" : "false");
+            out.Add(",\"attributes\":[");
+            bool firstAttribute = true;
+            for (std::size_t c = 0; c < records[r].components.size(); ++c)
+            {
+                for (std::size_t p = 0; p < records[r].components[c].parameters.size(); ++p)
                 {
-                    out.Add("null");
-                }
-                else
-                {
-                    out.String(unit.prefix);
-                }
-                out.Add(",\"canonical_unit\":");
-                out.String(unit.quantity == "Length" ? "mm" : unit.quantity == "PlaneAngle" ? "rad" : "sr");
-                out.Add(",\"scale\":");
-                out.Scale(unit.canonicalPower10);
-                out.Add(",\"dimensions\":[");
-                for (std::size_t d = 0; d < unit.dimensions.size(); ++d)
-                {
-                    if (d)
+                    const auto view = data.Attribute(r, c, p);
+                    if (!firstAttribute)
                     {
                         out.Add(",");
                     }
-                    out.Number(static_cast<std::size_t>(unit.dimensions[d]));
+                    firstAttribute = false;
+                    out.Add("{\"component_index\":");
+                    out.Number(c);
+                    out.Add(",\"parameter_index\":");
+                    out.Number(p);
+                    out.Add(",\"name\":");
+                    out.String(view.name);
+                    out.Add(",\"declared_in\":");
+                    out.String(view.declaredIn);
+                    out.Add(",\"declared_type\":");
+                    out.String(view.declaredType);
+                    out.Add(",\"redeclared_by\":");
+                    out.String(view.redeclaredBy);
+                    out.Add(",\"optional\":");
+                    out.Add(view.optional ? "true" : "false");
+                    out.Add(",\"derived_slot\":");
+                    out.Add(view.derivedSlot ? "true" : "false");
+                    out.Add(",\"aggregate\":");
+                    out.String(view.aggregate);
+                    out.Add(",\"minimum\":");
+                    out.Number(view.minimum);
+                    out.Add(",\"maximum\":");
+                    if (view.maximum)
+                    {
+                        out.Number(*view.maximum);
+                    }
+                    else
+                    {
+                        out.Add("null");
+                    }
+                    out.Add(",\"unique_elements\":");
+                    out.Add(view.uniqueElements ? "true" : "false");
+                    out.Add(",\"span\":");
+                    out.Range(view.value->span);
+                    out.Add("}");
                 }
-                out.Add("]}");
             }
-            out.Add(
-                "]},\"parameter_contract\":{\"coordinates\":\"Length\",\"direction_ratios\":\"Dimensionless\","
-                "\"vector_magnitude\":\"Length\",\"line_parameter\":\"Dimensionless\",\"plane_parameters\":\"Length\","
-                "\"target_mapping\":\"NotRun\",\"geometry_conversion\":\"NotRun\"}}"
-            );
+            out.Add("]}");
         }
-        out.Add(",\"diagnostics\":[");
-        for (std::size_t i = 0; i < result.diagnostics.size(); ++i)
+        out.Add("],\"part\":{\"roles\":{");
+        first = true;
+        for (const auto& role : data.PartDefinition().roles)
         {
-            const auto& diagnostic = result.diagnostics[i];
-            const auto& error = diagnostic.source;
+            if (!first)
+            {
+                out.Add(",");
+            }
+            first = false;
+            out.String(role.name);
+            out.Add(":");
+            out.String(records[role.recordIndex].id);
+        }
+        out.Add("},\"source_shape_role\":");
+        out.String(data.PartDefinition().shapeRole);
+        out.Add(",\"shape_geometry_verified\":false,\"apd_status\":");
+        out.String(data.PartDefinition().apdStatus);
+        out.Add(",\"apd_schema_claim\":");
+        out.String(data.PartDefinition().apdSchemaClaim);
+        out.Add(",\"apd_year_lexeme\":");
+        out.String(data.PartDefinition().apdYear);
+        out.Add(",\"apd_global_rule\":\"NotRun\",\"inverse_roles\":{\"ac_context_elements\":");
+        std::vector<std::size_t> owners;
+        const auto findRole = [&](std::string_view name)
+        {
+            const auto& roles = data.PartDefinition().roles;
+            return std::find_if(
+                       roles.begin(),
+                       roles.end(),
+                       [&](const Role& role)
+                       {
+                           return role.name == name;
+                       }
+            )->recordIndex;
+        };
+        const auto ac = records[findRole("application_context")].id;
+        for (auto ref : data.UsedIn(ac, "APPLICATION_CONTEXT_ELEMENT", "frame_of_reference"))
+        {
+            owners.push_back(data.Source().References()[ref].recordIndex);
+        }
+        RecordIds(out, data, owners);
+        owners.clear();
+        out.Add(",\"context_representations\":");
+        const auto context = records[findRole("unit_context")].id;
+        for (auto ref : data.UsedIn(context, "REPRESENTATION", "context_of_items"))
+        {
+            owners.push_back(data.Source().References()[ref].recordIndex);
+        }
+        RecordIds(out, data, owners);
+        out.Add("}},\"units\":{\"length_unit\":");
+        out.String(records[data.UnitContext().lengthUnit].id);
+        out.Add(",\"plane_angle_unit\":");
+        out.String(records[data.UnitContext().planeAngleUnit].id);
+        out.Add(",\"solid_angle_unit\":");
+        if (data.UnitContext().solidAngleUnit)
+        {
+            out.String(records[*data.UnitContext().solidAngleUnit].id);
+        }
+        else
+        {
+            out.Add("null");
+        }
+        out.Add(",\"length_scale_mm\":");
+        if (data.UnitContext().lengthPower10Mm)
+        {
+            Scale(out, *data.UnitContext().lengthPower10Mm);
+        }
+        else
+        {
+            out.Add("null");
+        }
+        out.Add(",\"conversion_status\":\"NotRun\",\"si_definitions\":[");
+        for (std::size_t i = 0; i < data.UnitContext().siDefinitions.size(); ++i)
+        {
+            const auto& unit = data.UnitContext().siDefinitions[i];
             if (i)
             {
                 out.Add(",");
             }
-            out.Add("{\"key\":");
-            out.String(error.key);
-            out.Add(",\"stage\":");
-            out.String(error.stage);
-            out.Add(",\"classification\":");
-            out.String(diagnostic.classification);
-            out.Add(",\"message\":");
-            out.String(error.message);
-            out.Add(",\"span\":");
-            out.Range(error.primary);
-            out.Add(",\"location\":");
-            Position(out, source, error.primary.begin);
-            out.Add(",\"record_id\":");
-            out.String(error.recordId);
-            out.Add(",\"component\":");
-            out.String(error.component);
-            out.Add(",\"parameter_path\":");
-            out.Path(error.parameterPath);
-            out.Add(",\"target_id\":");
-            out.String(error.targetId);
-            out.Add(",\"field\":");
-            out.String(diagnostic.field);
-            out.Add(",\"declared_in\":");
-            out.String(diagnostic.declaredIn);
-            out.Add(",\"declared_type\":");
-            out.String(diagnostic.declaredType);
-            out.Add(",\"expected\":");
-            out.String(diagnostic.expected);
-            out.Add(",\"actual\":");
-            out.String(diagnostic.actual);
-            out.Add(",\"responsibility\":");
-            out.String(diagnostic.responsibility);
-            out.Add(",\"related\":[");
-            for (std::size_t r = 0; r < error.related.size(); ++r)
+            out.Add("{\"source_id\":");
+            out.String(records[unit.recordIndex].id);
+            out.Add(",\"quantity\":");
+            out.String(unit.quantity);
+            out.Add(",\"name\":");
+            out.String(unit.siName);
+            out.Add(",\"prefix\":");
+            if (unit.prefix.empty())
             {
-                if (r)
+                out.Add("null");
+            }
+            else
+            {
+                out.String(unit.prefix);
+            }
+            out.Add(",\"canonical_unit\":");
+            out.String(unit.quantity == "Length" ? "mm" : unit.quantity == "PlaneAngle" ? "rad" : "sr");
+            out.Add(",\"scale\":");
+            Scale(out, unit.canonicalPower10);
+            out.Add(",\"dimensions\":[");
+            for (std::size_t d = 0; d < unit.dimensions.size(); ++d)
+            {
+                if (d)
                 {
                     out.Add(",");
                 }
-                out.Add("{\"span\":");
-                out.Range(error.related[r]);
-                out.Add(",\"location\":");
-                Position(out, source, error.related[r].begin);
-                out.Add("}");
+                out.Number(static_cast<std::size_t>(unit.dimensions[d]));
             }
             out.Add("]}");
         }
-        out.Add("]}\n");
-        output = std::move(out.data);
-        return true;
+        out.Add(
+            "]},\"parameter_contract\":{\"coordinates\":\"Length\",\"direction_ratios\":\"Dimensionless\","
+            "\"vector_magnitude\":\"Length\",\"line_parameter\":\"Dimensionless\",\"plane_parameters\":\"Length\","
+            "\"target_mapping\":\"NotRun\",\"geometry_conversion\":\"NotRun\"}}"
+        );
     }
-    catch (const std::length_error&)
+    out.Add(",\"diagnostics\":[");
+    for (std::size_t i = 0; i < result.diagnostics.size(); ++i)
     {
-        return false;
+        const auto& diagnostic = result.diagnostics[i];
+        const auto& error = diagnostic.source;
+        if (i)
+        {
+            out.Add(",");
+        }
+        out.Add("{\"key\":");
+        out.String(error.key);
+        out.Add(",\"stage\":");
+        out.String(error.stage);
+        out.Add(",\"classification\":");
+        out.String(diagnostic.classification);
+        out.Add(",\"message\":");
+        out.String(error.message);
+        out.Add(",\"span\":");
+        out.Range(error.primary);
+        out.Add(",\"location\":");
+        out.Position(source, error.primary.begin);
+        out.Add(",\"record_id\":");
+        out.String(error.recordId);
+        out.Add(",\"component\":");
+        out.String(error.component);
+        out.Add(",\"parameter_path\":");
+        out.Path(error.parameterPath);
+        out.Add(",\"target_id\":");
+        out.String(error.targetId);
+        out.Add(",\"field\":");
+        out.String(diagnostic.field);
+        out.Add(",\"declared_in\":");
+        out.String(diagnostic.declaredIn);
+        out.Add(",\"declared_type\":");
+        out.String(diagnostic.declaredType);
+        out.Add(",\"expected\":");
+        out.String(diagnostic.expected);
+        out.Add(",\"actual\":");
+        out.String(diagnostic.actual);
+        out.Add(",\"responsibility\":");
+        out.String(diagnostic.responsibility);
+        out.Add(",\"related\":[");
+        for (std::size_t r = 0; r < error.related.size(); ++r)
+        {
+            if (r)
+            {
+                out.Add(",");
+            }
+            out.Add("{\"span\":");
+            out.Range(error.related[r]);
+            out.Add(",\"location\":");
+            out.Position(source, error.related[r].begin);
+            out.Add("}");
+        }
+        out.Add("]}");
     }
+    out.Add("]}\n");
+}
+
+bool InspectJson(const step_source::InspectOutcome& source, const Outcome& result, std::string& output)
+{
+    return Writer::Publish(
+        source.limits.reportBytes,
+        output,
+        [&](Writer& out)
+        {
+            report::WriteJson(out, source, result);
+        }
+    );
 }
 } // namespace step_semantics

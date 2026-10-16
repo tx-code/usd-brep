@@ -201,6 +201,14 @@ int main(int argc, char** argv)
         Require(InspectJson(raw, semantic, result, json) && json.size() == bytes, "Exact report byte limit");
         raw.limits.reportBytes = bytes - 1;
         Require(!InspectJson(raw, semantic, result, json) && json.empty(), "No truncated success JSON at N-1");
+        std::string upstream;
+        raw.limits.reportBytes = bytes;
+        Require(step_semantics::InspectJson(raw, semantic, upstream), "Nested report budget control");
+        raw.limits.reportBytes = upstream.size() + 32;
+        Require(!InspectJson(raw, semantic, result, json) && json.empty(), "Late outer report exhaustion must discard the upstream JSON too");
+        raw.limits.reportBytes = 0;
+        json = "stale prior report";
+        Require(!InspectJson(raw, semantic, result, json) && json.empty(), "Zero report budget must clear prior output");
         ++groups;
 
         result = Inspect(Read(corpus / "S203-P11/input.step"));
