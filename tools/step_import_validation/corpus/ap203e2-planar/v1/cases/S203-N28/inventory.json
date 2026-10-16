@@ -1,0 +1,1902 @@
+{
+    "data_record_occurrences": 145,
+    "format_version": "t01.v1",
+    "records": [
+        {
+            "kind": "APPLICATION_CONTEXT",
+            "raw": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+            "record_occurrence": 1,
+            "references": [],
+            "source_id": 1,
+            "span": [
+                351,
+                448
+            ]
+        },
+        {
+            "kind": "APPLICATION_PROTOCOL_DEFINITION",
+            "raw": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+            "record_occurrence": 2,
+            "references": [
+                1
+            ],
+            "source_id": 2,
+            "span": [
+                448,
+                596
+            ]
+        },
+        {
+            "kind": "PRODUCT_CONTEXT",
+            "raw": "PRODUCT_CONTEXT('',#1,'mechanical')",
+            "record_occurrence": 3,
+            "references": [
+                1
+            ],
+            "source_id": 3,
+            "span": [
+                596,
+                636
+            ]
+        },
+        {
+            "kind": "PRODUCT",
+            "raw": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+            "record_occurrence": 4,
+            "references": [
+                3
+            ],
+            "source_id": 4,
+            "span": [
+                636,
+                688
+            ]
+        },
+        {
+            "kind": "PRODUCT_DEFINITION_FORMATION",
+            "raw": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+            "record_occurrence": 5,
+            "references": [
+                4
+            ],
+            "source_id": 5,
+            "span": [
+                688,
+                731
+            ]
+        },
+        {
+            "kind": "PRODUCT_DEFINITION_CONTEXT",
+            "raw": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+            "record_occurrence": 6,
+            "references": [
+                1
+            ],
+            "source_id": 6,
+            "span": [
+                731,
+                793
+            ]
+        },
+        {
+            "kind": "PRODUCT_DEFINITION",
+            "raw": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+            "record_occurrence": 7,
+            "references": [
+                5,
+                6
+            ],
+            "source_id": 7,
+            "span": [
+                793,
+                830
+            ]
+        },
+        {
+            "kind": "PRODUCT_DEFINITION_SHAPE",
+            "raw": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+            "record_occurrence": 8,
+            "references": [
+                7
+            ],
+            "source_id": 8,
+            "span": [
+                830,
+                868
+            ]
+        },
+        {
+            "kind": "SHAPE_DEFINITION_REPRESENTATION",
+            "raw": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)",
+            "record_occurrence": 9,
+            "references": [
+                8,
+                20
+            ],
+            "source_id": 9,
+            "span": [
+                868,
+                912
+            ]
+        },
+        {
+            "kind": "COMPLEX",
+            "raw": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+            "record_occurrence": 10,
+            "references": [],
+            "source_id": 10,
+            "span": [
+                912,
+                972
+            ]
+        },
+        {
+            "kind": "COMPLEX",
+            "raw": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+            "record_occurrence": 11,
+            "references": [],
+            "source_id": 11,
+            "span": [
+                972,
+                1032
+            ]
+        },
+        {
+            "kind": "COMPLEX",
+            "raw": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+            "record_occurrence": 12,
+            "references": [
+                10,
+                11
+            ],
+            "source_id": 12,
+            "span": [
+                1032,
+                1152
+            ]
+        },
+        {
+            "kind": "ADVANCED_BREP_SHAPE_REPRESENTATION",
+            "raw": "ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12)",
+            "record_occurrence": 13,
+            "references": [
+                21,
+                12
+            ],
+            "source_id": 20,
+            "span": [
+                1152,
+                1210
+            ]
+        },
+        {
+            "kind": "MANIFOLD_SOLID_BREP",
+            "raw": "MANIFOLD_SOLID_BREP('',#22)",
+            "record_occurrence": 14,
+            "references": [
+                22
+            ],
+            "source_id": 21,
+            "span": [
+                1210,
+                1243
+            ]
+        },
+        {
+            "kind": "CLOSED_SHELL",
+            "raw": "CLOSED_SHELL('',(#517,#527,#537,#547,#557))",
+            "record_occurrence": 15,
+            "references": [
+                517,
+                527,
+                537,
+                547,
+                557
+            ],
+            "source_id": 22,
+            "span": [
+                1243,
+                1292
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(2.,-3.,5.))",
+            "record_occurrence": 16,
+            "references": [],
+            "source_id": 100,
+            "span": [
+                1292,
+                1330
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(12.,-3.,5.))",
+            "record_occurrence": 17,
+            "references": [],
+            "source_id": 101,
+            "span": [
+                1330,
+                1369
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(12.,17.,5.))",
+            "record_occurrence": 18,
+            "references": [],
+            "source_id": 102,
+            "span": [
+                1369,
+                1408
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(2.,17.,5.))",
+            "record_occurrence": 19,
+            "references": [],
+            "source_id": 103,
+            "span": [
+                1408,
+                1446
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(2.,-3.,35.))",
+            "record_occurrence": 20,
+            "references": [],
+            "source_id": 104,
+            "span": [
+                1446,
+                1485
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(12.,-3.,35.))",
+            "record_occurrence": 21,
+            "references": [],
+            "source_id": 105,
+            "span": [
+                1485,
+                1525
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(12.,17.,35.))",
+            "record_occurrence": 22,
+            "references": [],
+            "source_id": 106,
+            "span": [
+                1525,
+                1565
+            ]
+        },
+        {
+            "kind": "CARTESIAN_POINT",
+            "raw": "CARTESIAN_POINT('',(2.,17.,35.))",
+            "record_occurrence": 23,
+            "references": [],
+            "source_id": 107,
+            "span": [
+                1565,
+                1604
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#100)",
+            "record_occurrence": 24,
+            "references": [
+                100
+            ],
+            "source_id": 110,
+            "span": [
+                1604,
+                1632
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#101)",
+            "record_occurrence": 25,
+            "references": [
+                101
+            ],
+            "source_id": 111,
+            "span": [
+                1632,
+                1660
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#102)",
+            "record_occurrence": 26,
+            "references": [
+                102
+            ],
+            "source_id": 112,
+            "span": [
+                1660,
+                1688
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#103)",
+            "record_occurrence": 27,
+            "references": [
+                103
+            ],
+            "source_id": 113,
+            "span": [
+                1688,
+                1716
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#104)",
+            "record_occurrence": 28,
+            "references": [
+                104
+            ],
+            "source_id": 114,
+            "span": [
+                1716,
+                1744
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#105)",
+            "record_occurrence": 29,
+            "references": [
+                105
+            ],
+            "source_id": 115,
+            "span": [
+                1744,
+                1772
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#106)",
+            "record_occurrence": 30,
+            "references": [
+                106
+            ],
+            "source_id": 116,
+            "span": [
+                1772,
+                1800
+            ]
+        },
+        {
+            "kind": "VERTEX_POINT",
+            "raw": "VERTEX_POINT('',#107)",
+            "record_occurrence": 31,
+            "references": [
+                107
+            ],
+            "source_id": 117,
+            "span": [
+                1800,
+                1828
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(1.,0.,0.))",
+            "record_occurrence": 32,
+            "references": [],
+            "source_id": 200,
+            "span": [
+                1828,
+                1859
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#200,10.)",
+            "record_occurrence": 33,
+            "references": [
+                200
+            ],
+            "source_id": 201,
+            "span": [
+                1859,
+                1885
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#100,#201)",
+            "record_occurrence": 34,
+            "references": [
+                100,
+                201
+            ],
+            "source_id": 202,
+            "span": [
+                1885,
+                1910
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#110,#111,#202,.T.)",
+            "record_occurrence": 35,
+            "references": [
+                110,
+                111,
+                202
+            ],
+            "source_id": 203,
+            "span": [
+                1910,
+                1950
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,1.,0.))",
+            "record_occurrence": 36,
+            "references": [],
+            "source_id": 210,
+            "span": [
+                1950,
+                1981
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#210,20.)",
+            "record_occurrence": 37,
+            "references": [
+                210
+            ],
+            "source_id": 211,
+            "span": [
+                1981,
+                2007
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#101,#211)",
+            "record_occurrence": 38,
+            "references": [
+                101,
+                211
+            ],
+            "source_id": 212,
+            "span": [
+                2007,
+                2032
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#111,#112,#212,.T.)",
+            "record_occurrence": 39,
+            "references": [
+                111,
+                112,
+                212
+            ],
+            "source_id": 213,
+            "span": [
+                2032,
+                2072
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(-1.,0.,0.))",
+            "record_occurrence": 40,
+            "references": [],
+            "source_id": 220,
+            "span": [
+                2072,
+                2104
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#220,10.)",
+            "record_occurrence": 41,
+            "references": [
+                220
+            ],
+            "source_id": 221,
+            "span": [
+                2104,
+                2130
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#102,#221)",
+            "record_occurrence": 42,
+            "references": [
+                102,
+                221
+            ],
+            "source_id": 222,
+            "span": [
+                2130,
+                2155
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#112,#113,#222,.T.)",
+            "record_occurrence": 43,
+            "references": [
+                112,
+                113,
+                222
+            ],
+            "source_id": 223,
+            "span": [
+                2155,
+                2195
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,-1.,0.))",
+            "record_occurrence": 44,
+            "references": [],
+            "source_id": 230,
+            "span": [
+                2195,
+                2227
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#230,20.)",
+            "record_occurrence": 45,
+            "references": [
+                230
+            ],
+            "source_id": 231,
+            "span": [
+                2227,
+                2253
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#103,#231)",
+            "record_occurrence": 46,
+            "references": [
+                103,
+                231
+            ],
+            "source_id": 232,
+            "span": [
+                2253,
+                2278
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#113,#110,#232,.T.)",
+            "record_occurrence": 47,
+            "references": [
+                113,
+                110,
+                232
+            ],
+            "source_id": 233,
+            "span": [
+                2278,
+                2318
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(1.,0.,0.))",
+            "record_occurrence": 48,
+            "references": [],
+            "source_id": 240,
+            "span": [
+                2318,
+                2349
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#240,10.)",
+            "record_occurrence": 49,
+            "references": [
+                240
+            ],
+            "source_id": 241,
+            "span": [
+                2349,
+                2375
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#104,#241)",
+            "record_occurrence": 50,
+            "references": [
+                104,
+                241
+            ],
+            "source_id": 242,
+            "span": [
+                2375,
+                2400
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#114,#115,#242,.T.)",
+            "record_occurrence": 51,
+            "references": [
+                114,
+                115,
+                242
+            ],
+            "source_id": 243,
+            "span": [
+                2400,
+                2440
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,1.,0.))",
+            "record_occurrence": 52,
+            "references": [],
+            "source_id": 250,
+            "span": [
+                2440,
+                2471
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#250,20.)",
+            "record_occurrence": 53,
+            "references": [
+                250
+            ],
+            "source_id": 251,
+            "span": [
+                2471,
+                2497
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#105,#251)",
+            "record_occurrence": 54,
+            "references": [
+                105,
+                251
+            ],
+            "source_id": 252,
+            "span": [
+                2497,
+                2522
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#115,#116,#252,.T.)",
+            "record_occurrence": 55,
+            "references": [
+                115,
+                116,
+                252
+            ],
+            "source_id": 253,
+            "span": [
+                2522,
+                2562
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(-1.,0.,0.))",
+            "record_occurrence": 56,
+            "references": [],
+            "source_id": 260,
+            "span": [
+                2562,
+                2594
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#260,10.)",
+            "record_occurrence": 57,
+            "references": [
+                260
+            ],
+            "source_id": 261,
+            "span": [
+                2594,
+                2620
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#106,#261)",
+            "record_occurrence": 58,
+            "references": [
+                106,
+                261
+            ],
+            "source_id": 262,
+            "span": [
+                2620,
+                2645
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#116,#117,#262,.T.)",
+            "record_occurrence": 59,
+            "references": [
+                116,
+                117,
+                262
+            ],
+            "source_id": 263,
+            "span": [
+                2645,
+                2685
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,-1.,0.))",
+            "record_occurrence": 60,
+            "references": [],
+            "source_id": 270,
+            "span": [
+                2685,
+                2717
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#270,20.)",
+            "record_occurrence": 61,
+            "references": [
+                270
+            ],
+            "source_id": 271,
+            "span": [
+                2717,
+                2743
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#107,#271)",
+            "record_occurrence": 62,
+            "references": [
+                107,
+                271
+            ],
+            "source_id": 272,
+            "span": [
+                2743,
+                2768
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#117,#114,#272,.T.)",
+            "record_occurrence": 63,
+            "references": [
+                117,
+                114,
+                272
+            ],
+            "source_id": 273,
+            "span": [
+                2768,
+                2808
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 64,
+            "references": [],
+            "source_id": 280,
+            "span": [
+                2808,
+                2839
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#280,30.)",
+            "record_occurrence": 65,
+            "references": [
+                280
+            ],
+            "source_id": 281,
+            "span": [
+                2839,
+                2865
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#100,#281)",
+            "record_occurrence": 66,
+            "references": [
+                100,
+                281
+            ],
+            "source_id": 282,
+            "span": [
+                2865,
+                2890
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#110,#114,#282,.T.)",
+            "record_occurrence": 67,
+            "references": [
+                110,
+                114,
+                282
+            ],
+            "source_id": 283,
+            "span": [
+                2890,
+                2930
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 68,
+            "references": [],
+            "source_id": 290,
+            "span": [
+                2930,
+                2961
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#290,30.)",
+            "record_occurrence": 69,
+            "references": [
+                290
+            ],
+            "source_id": 291,
+            "span": [
+                2961,
+                2987
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#101,#291)",
+            "record_occurrence": 70,
+            "references": [
+                101,
+                291
+            ],
+            "source_id": 292,
+            "span": [
+                2987,
+                3012
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#111,#115,#292,.T.)",
+            "record_occurrence": 71,
+            "references": [
+                111,
+                115,
+                292
+            ],
+            "source_id": 293,
+            "span": [
+                3012,
+                3052
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 72,
+            "references": [],
+            "source_id": 300,
+            "span": [
+                3052,
+                3083
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#300,30.)",
+            "record_occurrence": 73,
+            "references": [
+                300
+            ],
+            "source_id": 301,
+            "span": [
+                3083,
+                3109
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#102,#301)",
+            "record_occurrence": 74,
+            "references": [
+                102,
+                301
+            ],
+            "source_id": 302,
+            "span": [
+                3109,
+                3134
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#112,#116,#302,.T.)",
+            "record_occurrence": 75,
+            "references": [
+                112,
+                116,
+                302
+            ],
+            "source_id": 303,
+            "span": [
+                3134,
+                3174
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 76,
+            "references": [],
+            "source_id": 310,
+            "span": [
+                3174,
+                3205
+            ]
+        },
+        {
+            "kind": "VECTOR",
+            "raw": "VECTOR('',#310,30.)",
+            "record_occurrence": 77,
+            "references": [
+                310
+            ],
+            "source_id": 311,
+            "span": [
+                3205,
+                3231
+            ]
+        },
+        {
+            "kind": "LINE",
+            "raw": "LINE('',#103,#311)",
+            "record_occurrence": 78,
+            "references": [
+                103,
+                311
+            ],
+            "source_id": 312,
+            "span": [
+                3231,
+                3256
+            ]
+        },
+        {
+            "kind": "EDGE_CURVE",
+            "raw": "EDGE_CURVE('',#113,#117,#312,.T.)",
+            "record_occurrence": 79,
+            "references": [
+                113,
+                117,
+                312
+            ],
+            "source_id": 313,
+            "span": [
+                3256,
+                3296
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#233,.F.)",
+            "record_occurrence": 80,
+            "references": [
+                233
+            ],
+            "source_id": 400,
+            "span": [
+                3296,
+                3333
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#223,.F.)",
+            "record_occurrence": 81,
+            "references": [
+                223
+            ],
+            "source_id": 401,
+            "span": [
+                3333,
+                3370
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#213,.F.)",
+            "record_occurrence": 82,
+            "references": [
+                213
+            ],
+            "source_id": 402,
+            "span": [
+                3370,
+                3407
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#203,.F.)",
+            "record_occurrence": 83,
+            "references": [
+                203
+            ],
+            "source_id": 403,
+            "span": [
+                3407,
+                3444
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#243,.T.)",
+            "record_occurrence": 84,
+            "references": [
+                243
+            ],
+            "source_id": 404,
+            "span": [
+                3444,
+                3481
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#253,.T.)",
+            "record_occurrence": 85,
+            "references": [
+                253
+            ],
+            "source_id": 405,
+            "span": [
+                3481,
+                3518
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#263,.T.)",
+            "record_occurrence": 86,
+            "references": [
+                263
+            ],
+            "source_id": 406,
+            "span": [
+                3518,
+                3555
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#273,.T.)",
+            "record_occurrence": 87,
+            "references": [
+                273
+            ],
+            "source_id": 407,
+            "span": [
+                3555,
+                3592
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#203,.T.)",
+            "record_occurrence": 88,
+            "references": [
+                203
+            ],
+            "source_id": 408,
+            "span": [
+                3592,
+                3629
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#293,.T.)",
+            "record_occurrence": 89,
+            "references": [
+                293
+            ],
+            "source_id": 409,
+            "span": [
+                3629,
+                3666
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#243,.F.)",
+            "record_occurrence": 90,
+            "references": [
+                243
+            ],
+            "source_id": 410,
+            "span": [
+                3666,
+                3703
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#283,.F.)",
+            "record_occurrence": 91,
+            "references": [
+                283
+            ],
+            "source_id": 411,
+            "span": [
+                3703,
+                3740
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#313,.T.)",
+            "record_occurrence": 92,
+            "references": [
+                313
+            ],
+            "source_id": 412,
+            "span": [
+                3740,
+                3777
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#263,.F.)",
+            "record_occurrence": 93,
+            "references": [
+                263
+            ],
+            "source_id": 413,
+            "span": [
+                3777,
+                3814
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#303,.F.)",
+            "record_occurrence": 94,
+            "references": [
+                303
+            ],
+            "source_id": 414,
+            "span": [
+                3814,
+                3851
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#223,.T.)",
+            "record_occurrence": 95,
+            "references": [
+                223
+            ],
+            "source_id": 415,
+            "span": [
+                3851,
+                3888
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#283,.T.)",
+            "record_occurrence": 96,
+            "references": [
+                283
+            ],
+            "source_id": 416,
+            "span": [
+                3888,
+                3925
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#273,.F.)",
+            "record_occurrence": 97,
+            "references": [
+                273
+            ],
+            "source_id": 417,
+            "span": [
+                3925,
+                3962
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#313,.F.)",
+            "record_occurrence": 98,
+            "references": [
+                313
+            ],
+            "source_id": 418,
+            "span": [
+                3962,
+                3999
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#233,.T.)",
+            "record_occurrence": 99,
+            "references": [
+                233
+            ],
+            "source_id": 419,
+            "span": [
+                3999,
+                4036
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#213,.T.)",
+            "record_occurrence": 100,
+            "references": [
+                213
+            ],
+            "source_id": 420,
+            "span": [
+                4036,
+                4073
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#303,.T.)",
+            "record_occurrence": 101,
+            "references": [
+                303
+            ],
+            "source_id": 421,
+            "span": [
+                4073,
+                4110
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#253,.F.)",
+            "record_occurrence": 102,
+            "references": [
+                253
+            ],
+            "source_id": 422,
+            "span": [
+                4110,
+                4147
+            ]
+        },
+        {
+            "kind": "ORIENTED_EDGE",
+            "raw": "ORIENTED_EDGE('',*,*,#293,.F.)",
+            "record_occurrence": 103,
+            "references": [
+                293
+            ],
+            "source_id": 423,
+            "span": [
+                4147,
+                4184
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,-1.))",
+            "record_occurrence": 104,
+            "references": [],
+            "source_id": 501,
+            "span": [
+                4184,
+                4216
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,1.,0.))",
+            "record_occurrence": 105,
+            "references": [],
+            "source_id": 502,
+            "span": [
+                4216,
+                4247
+            ]
+        },
+        {
+            "kind": "AXIS2_PLACEMENT_3D",
+            "raw": "AXIS2_PLACEMENT_3D('',#100,#501,#502)",
+            "record_occurrence": 106,
+            "references": [
+                100,
+                501,
+                502
+            ],
+            "source_id": 503,
+            "span": [
+                4247,
+                4291
+            ]
+        },
+        {
+            "kind": "PLANE",
+            "raw": "PLANE('',#503)",
+            "record_occurrence": 107,
+            "references": [
+                503
+            ],
+            "source_id": 504,
+            "span": [
+                4291,
+                4312
+            ]
+        },
+        {
+            "kind": "EDGE_LOOP",
+            "raw": "EDGE_LOOP('',(#400,#401,#402,#403))",
+            "record_occurrence": 108,
+            "references": [
+                400,
+                401,
+                402,
+                403
+            ],
+            "source_id": 505,
+            "span": [
+                4312,
+                4354
+            ]
+        },
+        {
+            "kind": "FACE_OUTER_BOUND",
+            "raw": "FACE_OUTER_BOUND('',#505,.T.)",
+            "record_occurrence": 109,
+            "references": [
+                505
+            ],
+            "source_id": 506,
+            "span": [
+                4354,
+                4390
+            ]
+        },
+        {
+            "kind": "ADVANCED_FACE",
+            "raw": "ADVANCED_FACE('',(#506),#504,.T.)",
+            "record_occurrence": 110,
+            "references": [
+                506,
+                504
+            ],
+            "source_id": 507,
+            "span": [
+                4390,
+                4430
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 111,
+            "references": [],
+            "source_id": 511,
+            "span": [
+                4430,
+                4461
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(1.,0.,0.))",
+            "record_occurrence": 112,
+            "references": [],
+            "source_id": 512,
+            "span": [
+                4461,
+                4492
+            ]
+        },
+        {
+            "kind": "AXIS2_PLACEMENT_3D",
+            "raw": "AXIS2_PLACEMENT_3D('',#104,#511,#512)",
+            "record_occurrence": 113,
+            "references": [
+                104,
+                511,
+                512
+            ],
+            "source_id": 513,
+            "span": [
+                4492,
+                4536
+            ]
+        },
+        {
+            "kind": "PLANE",
+            "raw": "PLANE('',#513)",
+            "record_occurrence": 114,
+            "references": [
+                513
+            ],
+            "source_id": 514,
+            "span": [
+                4536,
+                4557
+            ]
+        },
+        {
+            "kind": "EDGE_LOOP",
+            "raw": "EDGE_LOOP('',(#404,#405,#406,#407))",
+            "record_occurrence": 115,
+            "references": [
+                404,
+                405,
+                406,
+                407
+            ],
+            "source_id": 515,
+            "span": [
+                4557,
+                4599
+            ]
+        },
+        {
+            "kind": "FACE_OUTER_BOUND",
+            "raw": "FACE_OUTER_BOUND('',#515,.T.)",
+            "record_occurrence": 116,
+            "references": [
+                515
+            ],
+            "source_id": 516,
+            "span": [
+                4599,
+                4635
+            ]
+        },
+        {
+            "kind": "ADVANCED_FACE",
+            "raw": "ADVANCED_FACE('',(#516),#514,.T.)",
+            "record_occurrence": 117,
+            "references": [
+                516,
+                514
+            ],
+            "source_id": 517,
+            "span": [
+                4635,
+                4675
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,-1.,0.))",
+            "record_occurrence": 118,
+            "references": [],
+            "source_id": 521,
+            "span": [
+                4675,
+                4707
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(1.,0.,0.))",
+            "record_occurrence": 119,
+            "references": [],
+            "source_id": 522,
+            "span": [
+                4707,
+                4738
+            ]
+        },
+        {
+            "kind": "AXIS2_PLACEMENT_3D",
+            "raw": "AXIS2_PLACEMENT_3D('',#100,#521,#522)",
+            "record_occurrence": 120,
+            "references": [
+                100,
+                521,
+                522
+            ],
+            "source_id": 523,
+            "span": [
+                4738,
+                4782
+            ]
+        },
+        {
+            "kind": "PLANE",
+            "raw": "PLANE('',#523)",
+            "record_occurrence": 121,
+            "references": [
+                523
+            ],
+            "source_id": 524,
+            "span": [
+                4782,
+                4803
+            ]
+        },
+        {
+            "kind": "EDGE_LOOP",
+            "raw": "EDGE_LOOP('',(#408,#409,#410,#411))",
+            "record_occurrence": 122,
+            "references": [
+                408,
+                409,
+                410,
+                411
+            ],
+            "source_id": 525,
+            "span": [
+                4803,
+                4845
+            ]
+        },
+        {
+            "kind": "FACE_OUTER_BOUND",
+            "raw": "FACE_OUTER_BOUND('',#525,.T.)",
+            "record_occurrence": 123,
+            "references": [
+                525
+            ],
+            "source_id": 526,
+            "span": [
+                4845,
+                4881
+            ]
+        },
+        {
+            "kind": "ADVANCED_FACE",
+            "raw": "ADVANCED_FACE('',(#526),#524,.T.)",
+            "record_occurrence": 124,
+            "references": [
+                526,
+                524
+            ],
+            "source_id": 527,
+            "span": [
+                4881,
+                4921
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,1.,0.))",
+            "record_occurrence": 125,
+            "references": [],
+            "source_id": 531,
+            "span": [
+                4921,
+                4952
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 126,
+            "references": [],
+            "source_id": 532,
+            "span": [
+                4952,
+                4983
+            ]
+        },
+        {
+            "kind": "AXIS2_PLACEMENT_3D",
+            "raw": "AXIS2_PLACEMENT_3D('',#103,#531,#532)",
+            "record_occurrence": 127,
+            "references": [
+                103,
+                531,
+                532
+            ],
+            "source_id": 533,
+            "span": [
+                4983,
+                5027
+            ]
+        },
+        {
+            "kind": "PLANE",
+            "raw": "PLANE('',#533)",
+            "record_occurrence": 128,
+            "references": [
+                533
+            ],
+            "source_id": 534,
+            "span": [
+                5027,
+                5048
+            ]
+        },
+        {
+            "kind": "EDGE_LOOP",
+            "raw": "EDGE_LOOP('',(#412,#413,#414,#415))",
+            "record_occurrence": 129,
+            "references": [
+                412,
+                413,
+                414,
+                415
+            ],
+            "source_id": 535,
+            "span": [
+                5048,
+                5090
+            ]
+        },
+        {
+            "kind": "FACE_OUTER_BOUND",
+            "raw": "FACE_OUTER_BOUND('',#535,.T.)",
+            "record_occurrence": 130,
+            "references": [
+                535
+            ],
+            "source_id": 536,
+            "span": [
+                5090,
+                5126
+            ]
+        },
+        {
+            "kind": "ADVANCED_FACE",
+            "raw": "ADVANCED_FACE('',(#536),#534,.T.)",
+            "record_occurrence": 131,
+            "references": [
+                536,
+                534
+            ],
+            "source_id": 537,
+            "span": [
+                5126,
+                5166
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(-1.,0.,0.))",
+            "record_occurrence": 132,
+            "references": [],
+            "source_id": 541,
+            "span": [
+                5166,
+                5198
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,0.,1.))",
+            "record_occurrence": 133,
+            "references": [],
+            "source_id": 542,
+            "span": [
+                5198,
+                5229
+            ]
+        },
+        {
+            "kind": "AXIS2_PLACEMENT_3D",
+            "raw": "AXIS2_PLACEMENT_3D('',#100,#541,#542)",
+            "record_occurrence": 134,
+            "references": [
+                100,
+                541,
+                542
+            ],
+            "source_id": 543,
+            "span": [
+                5229,
+                5273
+            ]
+        },
+        {
+            "kind": "PLANE",
+            "raw": "PLANE('',#543)",
+            "record_occurrence": 135,
+            "references": [
+                543
+            ],
+            "source_id": 544,
+            "span": [
+                5273,
+                5294
+            ]
+        },
+        {
+            "kind": "EDGE_LOOP",
+            "raw": "EDGE_LOOP('',(#416,#417,#418,#419))",
+            "record_occurrence": 136,
+            "references": [
+                416,
+                417,
+                418,
+                419
+            ],
+            "source_id": 545,
+            "span": [
+                5294,
+                5336
+            ]
+        },
+        {
+            "kind": "FACE_OUTER_BOUND",
+            "raw": "FACE_OUTER_BOUND('',#545,.T.)",
+            "record_occurrence": 137,
+            "references": [
+                545
+            ],
+            "source_id": 546,
+            "span": [
+                5336,
+                5372
+            ]
+        },
+        {
+            "kind": "ADVANCED_FACE",
+            "raw": "ADVANCED_FACE('',(#546),#544,.T.)",
+            "record_occurrence": 138,
+            "references": [
+                546,
+                544
+            ],
+            "source_id": 547,
+            "span": [
+                5372,
+                5412
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(1.,0.,0.))",
+            "record_occurrence": 139,
+            "references": [],
+            "source_id": 551,
+            "span": [
+                5412,
+                5443
+            ]
+        },
+        {
+            "kind": "DIRECTION",
+            "raw": "DIRECTION('',(0.,1.,0.))",
+            "record_occurrence": 140,
+            "references": [],
+            "source_id": 552,
+            "span": [
+                5443,
+                5474
+            ]
+        },
+        {
+            "kind": "AXIS2_PLACEMENT_3D",
+            "raw": "AXIS2_PLACEMENT_3D('',#101,#551,#552)",
+            "record_occurrence": 141,
+            "references": [
+                101,
+                551,
+                552
+            ],
+            "source_id": 553,
+            "span": [
+                5474,
+                5518
+            ]
+        },
+        {
+            "kind": "PLANE",
+            "raw": "PLANE('',#553)",
+            "record_occurrence": 142,
+            "references": [
+                553
+            ],
+            "source_id": 554,
+            "span": [
+                5518,
+                5539
+            ]
+        },
+        {
+            "kind": "EDGE_LOOP",
+            "raw": "EDGE_LOOP('',(#420,#421,#422,#423))",
+            "record_occurrence": 143,
+            "references": [
+                420,
+                421,
+                422,
+                423
+            ],
+            "source_id": 555,
+            "span": [
+                5539,
+                5581
+            ]
+        },
+        {
+            "kind": "FACE_OUTER_BOUND",
+            "raw": "FACE_OUTER_BOUND('',#555,.T.)",
+            "record_occurrence": 144,
+            "references": [
+                555
+            ],
+            "source_id": 556,
+            "span": [
+                5581,
+                5617
+            ]
+        },
+        {
+            "kind": "ADVANCED_FACE",
+            "raw": "ADVANCED_FACE('',(#556),#554,.T.)",
+            "record_occurrence": 145,
+            "references": [
+                556,
+                554
+            ],
+            "source_id": 557,
+            "span": [
+                5617,
+                5657
+            ]
+        }
+    ],
+    "unique_entity_ids": 145
+}

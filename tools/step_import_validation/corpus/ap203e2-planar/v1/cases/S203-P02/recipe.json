@@ -1,0 +1,22 @@
+{
+    "case_id": "S203-P02",
+    "edits": [
+        {
+            "end": 2481,
+            "new_text": "#302=ADVANCED_FACE('',(#301,#311),#134,.T.);",
+            "old_text": "#302=ADVANCED_FACE('',(#301),#134,.T.);",
+            "start": 2442
+        },
+        {
+            "end": 2513,
+            "new_text": "#104=CARTESIAN_POINT('',(2.6,0.8,5.));\n#105=CARTESIAN_POINT('',(1.,2.,5.));\n#106=CARTESIAN_POINT('',(3.4,5.2,5.));\n#107=CARTESIAN_POINT('',(5.,4.,5.));\n#114=VERTEX_POINT('',#104);\n#115=VERTEX_POINT('',#105);\n#116=VERTEX_POINT('',#106);\n#117=VERTEX_POINT('',#107);\n#240=DIRECTION('',(-0.8,0.6,0.));\n#241=VECTOR('',#240,2.);\n#242=LINE('',#104,#241);\n#243=EDGE_CURVE('',#114,#115,#242,.T.);\n#244=ORIENTED_EDGE('',*,*,#243,.T.);\n#250=DIRECTION('',(0.6,0.8,0.));\n#251=VECTOR('',#250,4.);\n#252=LINE('',#105,#251);\n#253=EDGE_CURVE('',#115,#116,#252,.T.);\n#254=ORIENTED_EDGE('',*,*,#253,.T.);\n#260=DIRECTION('',(0.8,-0.6,0.));\n#261=VECTOR('',#260,2.);\n#262=LINE('',#106,#261);\n#263=EDGE_CURVE('',#116,#117,#262,.T.);\n#264=ORIENTED_EDGE('',*,*,#263,.T.);\n#270=DIRECTION('',(-0.6,-0.8,0.));\n#271=VECTOR('',#270,4.);\n#272=LINE('',#107,#271);\n#273=EDGE_CURVE('',#117,#114,#272,.T.);\n#274=ORIENTED_EDGE('',*,*,#273,.T.);\n#310=EDGE_LOOP('',(#244,#254,#264,#274));\n#311=FACE_BOUND('',#310,.T.);\nENDSEC;\nEND-ISO-10303-21;\n",
+            "old_text": "ENDSEC;\nEND-ISO-10303-21;\n",
+            "start": 2487
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "1508ce55f4d23101d1537b1b53a11e49bcb31c47a4881b2755888cc6e0f2e33c",
+    "kind": "DerivedPositive",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+}

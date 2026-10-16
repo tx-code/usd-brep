@@ -1,0 +1,38 @@
+{
+    "canonical_units": {
+        "length": "mm",
+        "squared_length": "mm^2"
+    },
+    "case_id": "S203-N28",
+    "facts": {
+        "free_length": {
+            "den": "1",
+            "kind": "rational",
+            "num": "60"
+        },
+        "orphans": [
+            501,
+            502,
+            503,
+            504,
+            505,
+            506,
+            507,
+            400,
+            401,
+            402,
+            403
+        ],
+        "remaining_area": {
+            "den": "1",
+            "kind": "rational",
+            "num": "2000"
+        }
+    },
+    "kind": "NegativeFacts",
+    "whole_shape": {
+        "applicability": "NotEstablished",
+        "reason": "Only specified input facts are proved; no imported model exists.",
+        "value": null
+    }
+}

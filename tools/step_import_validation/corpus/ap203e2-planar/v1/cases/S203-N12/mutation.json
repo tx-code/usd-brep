@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N12",
+    "diagnostic": "SourceRuleViolation:VECTOR.WR1",
+    "edits": [
+        {
+            "end": 1775,
+            "new_bytes_b64": "IzIwMT1WRUNUT1IoJycsIzIwMCwtMTIuKQ==",
+            "new_text": "#201=VECTOR('',#200,-12.)",
+            "old_bytes_b64": "IzIwMT1WRUNUT1IoJycsIzIwMCwxMi4p",
+            "old_text": "#201=VECTOR('',#200,12.)",
+            "start": 1751
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "00c739f2d9d24119463f982ca69f74545718984f44638cd6ad8ff011de9441f1",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D3"
+}

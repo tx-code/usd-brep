@@ -1,0 +1,22 @@
+{
+    "case_id": "S203-P13",
+    "edits": [
+        {
+            "end": 1101,
+            "new_text": "GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#13)) GLOBAL_UNIT_ASSIGNED_CONTEXT",
+            "old_text": "GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT",
+            "start": 1037
+        },
+        {
+            "end": 5879,
+            "new_text": "#13=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001),#10,'distance_accuracy_A',$);\nENDSEC;\nEND-ISO-10303-21;\n",
+            "old_text": "ENDSEC;\nEND-ISO-10303-21;\n",
+            "start": 5853
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "74e089c5d64c3d273e11612e36276f1f5e811bb5ebf1282e8d5eb4ab826e8cb3",
+    "kind": "DerivedPositive",
+    "parent": "S203-P11",
+    "parent_input_sha256": "176a62d5981367bc24d771b2d2232722a385ae548ee8bb7b9bef4efb63fc4284"
+}

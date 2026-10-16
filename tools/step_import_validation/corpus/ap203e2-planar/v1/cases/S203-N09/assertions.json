@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N09",
+    "diagnostic_key": "SetDuplicateMember",
+    "expected_result": "Rejected",
+    "expected_stage": "D1",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        1263,
+        1299
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

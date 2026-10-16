@@ -1,0 +1,20 @@
+{
+    "canonical_units": {
+        "length": "mm",
+        "squared_length": "mm^2"
+    },
+    "case_id": "S203-N33",
+    "facts": {
+        "factor": {
+            "den": "5",
+            "kind": "rational",
+            "num": "-127"
+        }
+    },
+    "kind": "NegativeFacts",
+    "whole_shape": {
+        "applicability": "NotEstablished",
+        "reason": "Only specified input facts are proved; no imported model exists.",
+        "value": null
+    }
+}

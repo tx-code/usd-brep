@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N08",
+    "diagnostic_key": "AggregateUniqueViolation",
+    "expected_result": "Rejected",
+    "expected_stage": "D1",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        2382,
+        2403
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

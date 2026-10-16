@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N19",
+    "diagnostic": "NonzeroDefiningLineRequired",
+    "edits": [
+        {
+            "end": 1775,
+            "new_bytes_b64": "IzIwMT1WRUNUT1IoJycsIzIwMCwwLik=",
+            "new_text": "#201=VECTOR('',#200,0.)",
+            "old_bytes_b64": "IzIwMT1WRUNUT1IoJycsIzIwMCwxMi4p",
+            "old_text": "#201=VECTOR('',#200,12.)",
+            "start": 1751
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "59a4f2ff4d16b698f58d87cc99ebeef7516bbe2c14662e661d55d02fbe8fa838",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D4"
+}

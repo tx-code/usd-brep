@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+cmake_minimum_required(VERSION 3.20)
+project(STEP_SOURCE LANGUAGES CXX)
+
+add_library(STEP_SOURCE STATIC src/StepSource.cpp src/StepInspectJson.cpp)
+target_include_directories(STEP_SOURCE PUBLIC inc)
+target_compile_features(STEP_SOURCE PUBLIC cxx_std_17)
+add_executable(step_inspect app/step_inspect.cpp)
+target_link_libraries(step_inspect PRIVATE STEP_SOURCE)
+
+option(STEP_SOURCE_BUILD_TESTS "Build standalone source contract tests" ON)
+if(STEP_SOURCE_BUILD_TESTS)
+    enable_testing()
+    add_executable(step_source_tests tests/StepSourceTests.cpp)
+    target_link_libraries(step_source_tests PRIVATE STEP_SOURCE)
+    add_test(NAME step_source_contracts COMMAND step_source_tests)
+endif()
+
+foreach(target STEP_SOURCE step_inspect step_source_tests)
+    if(TARGET ${target})
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /W4 /WX /permissive- /utf-8)
+        else()
+            target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+        endif()
+    endif()
+endforeach()

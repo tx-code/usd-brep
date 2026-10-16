@@ -1,0 +1,70 @@
+{
+    "case_id": "S203-P07",
+    "edits": [
+        {
+            "end": 969,
+            "new_text": "SI_UNIT(.CENTI.,.METRE.)",
+            "old_text": "SI_UNIT(.MILLI.,.METRE.)",
+            "start": 945
+        },
+        {
+            "end": 1318,
+            "new_text": "#100=CARTESIAN_POINT('',(0.3,-0.2,0.5));",
+            "old_text": "#100=CARTESIAN_POINT('',(3.,-2.,5.));",
+            "start": 1281
+        },
+        {
+            "end": 1361,
+            "new_text": "#101=CARTESIAN_POINT('',(1.02,0.76,0.5));",
+            "old_text": "#101=CARTESIAN_POINT('',(10.2,7.6,5.));",
+            "start": 1322
+        },
+        {
+            "end": 1403,
+            "new_text": "#102=CARTESIAN_POINT('',(0.38,1.24,0.5));",
+            "old_text": "#102=CARTESIAN_POINT('',(3.8,12.4,5.));",
+            "start": 1364
+        },
+        {
+            "end": 1445,
+            "new_text": "#103=CARTESIAN_POINT('',(-0.34,0.28,0.5));",
+            "old_text": "#103=CARTESIAN_POINT('',(-3.4,2.8,5.));",
+            "start": 1406
+        },
+        {
+            "end": 1598,
+            "new_text": "#130=CARTESIAN_POINT('',(0.3,-0.2,0.5));",
+            "old_text": "#130=CARTESIAN_POINT('',(3.,-2.,5.));",
+            "start": 1561
+        },
+        {
+            "end": 1789,
+            "new_text": "#201=VECTOR('',#200,1.2);",
+            "old_text": "#201=VECTOR('',#200,12.);",
+            "start": 1764
+        },
+        {
+            "end": 1950,
+            "new_text": "#211=VECTOR('',#210,0.8);",
+            "old_text": "#211=VECTOR('',#210,8.);",
+            "start": 1926
+        },
+        {
+            "end": 2114,
+            "new_text": "#221=VECTOR('',#220,1.2);",
+            "old_text": "#221=VECTOR('',#220,12.);",
+            "start": 2089
+        },
+        {
+            "end": 2275,
+            "new_text": "#231=VECTOR('',#230,0.8);",
+            "old_text": "#231=VECTOR('',#230,8.);",
+            "start": 2251
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "6a55d139b2a22877a67b3aeabdc861b34c9341a10e51a3ede03b9a6e9c55b014",
+    "kind": "DerivedPositive",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+}

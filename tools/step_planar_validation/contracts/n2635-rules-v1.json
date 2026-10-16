@@ -1,0 +1,1472 @@
+{
+    "entities": {
+        "ADVANCED_BREP_SHAPE_REPRESENTATION": {
+            "line": 2122,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 2125,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 2127,
+                            "name": "WR2"
+                        },
+                        {
+                            "line": 2129,
+                            "name": "WR3"
+                        },
+                        {
+                            "line": 2134,
+                            "name": "WR4"
+                        },
+                        {
+                            "line": 2137,
+                            "name": "WR5"
+                        },
+                        {
+                            "line": 2141,
+                            "name": "WR6"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF ( \r\nQUERY ( it <* SELF.items| NOT ( SIZEOF ([ 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MANIFOLD_SOLID_BREP', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.FACETED_BREP', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MAPPED_ITEM', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.AXIS2_PLACEMENT_3D' ] * TYPEOF (it)) = 1) )) = 0;\r\n\tWR2 : SIZEOF ( \r\nQUERY ( it <* SELF.items| ( SIZEOF ([ 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MANIFOLD_SOLID_BREP', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MAPPED_ITEM' ] * TYPEOF (it)) = 1) )) > 0;\r\n\tWR3 : SIZEOF ( \r\nQUERY ( msb <* \r\nQUERY ( it <* SELF.items| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MANIFOLD_SOLID_BREP' IN TYPEOF (it)) )| NOT ( SIZEOF ( \r\nQUERY ( csh <* msb_shells(msb)| NOT ( SIZEOF ( \r\nQUERY ( fcs <* csh\\connected_face_set.cfs_faces| NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fcs)) )) = 0) )) = 0) )) = 0;\r\n\tWR4 : SIZEOF ( \r\nQUERY ( msb <* \r\nQUERY ( it <* items| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MANIFOLD_SOLID_BREP' IN TYPEOF (it)) )| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ORIENTED_CLOSED_SHELL' IN TYPEOF (msb\\manifold_solid_brep.outer)) )) = 0;\r\n\tWR5 : SIZEOF ( \r\nQUERY ( brv <* \r\nQUERY ( it <* items| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.BREP_WITH_VOIDS' IN TYPEOF (it)) )| NOT ( SIZEOF ( \r\nQUERY ( csh <* brv\\brep_with_voids.voids| csh\\oriented_closed_shell.orientation )) = 0) )) = 0;\r\n\tWR6 : SIZEOF ( \r\nQUERY ( mi <* \r\nQUERY ( it <* items| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MAPPED_ITEM' IN TYPEOF (it)) )| NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_BREP_SHAPE_REPRESENTATION' IN TYPEOF (mi\\mapped_item.mapping_source.mapped_representation)) )) = 0;"
+                }
+            }
+        },
+        "ADVANCED_FACE": {
+            "line": 2147,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 2150,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 2151,
+                            "name": "WR2"
+                        },
+                        {
+                            "line": 2155,
+                            "name": "WR3"
+                        },
+                        {
+                            "line": 2159,
+                            "name": "WR4"
+                        },
+                        {
+                            "line": 2163,
+                            "name": "WR5"
+                        },
+                        {
+                            "line": 2166,
+                            "name": "WR6"
+                        },
+                        {
+                            "line": 2167,
+                            "name": "WR7"
+                        },
+                        {
+                            "line": 2170,
+                            "name": "WR8"
+                        },
+                        {
+                            "line": 2172,
+                            "name": "WR9"
+                        },
+                        {
+                            "line": 2177,
+                            "name": "WR10"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF ([ 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ELEMENTARY_SURFACE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.B_SPLINE_SURFACE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SWEPT_SURFACE' ] * TYPEOF (face_geometry)) = 1;\r\n\tWR2 : SIZEOF ( \r\nQUERY ( elp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) )| NOT ( SIZEOF ( \r\nQUERY ( oe <* elp_fbnds.bound\\path.edge_list| NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_CURVE' IN TYPEOF (oe\\oriented_edge.edge_element)) )) = 0) )) = 0;\r\n\tWR3 : SIZEOF ( \r\nQUERY ( elp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) )| NOT ( SIZEOF ( \r\nQUERY ( oe <* elp_fbnds.bound\\path.edge_list| NOT ( SIZEOF ([ 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.LINE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CONIC', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POLYLINE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SURFACE_CURVE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.B_SPLINE_CURVE' ] * TYPEOF (oe.edge_element\\edge_curve.edge_geometry)) = 1) )) = 0) )) = 0;\r\n\tWR4 : SIZEOF ( \r\nQUERY ( elp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) )| NOT ( SIZEOF ( \r\nQUERY ( oe <* elp_fbnds.bound\\path.edge_list| NOT ((('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_POINT' IN TYPEOF (oe\\edge.edge_start)) AND ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CARTESIAN_POINT' IN TYPEOF (oe\\edge.edge_start\\vertex_point.vertex_geometry))) AND (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_POINT' IN TYPEOF (oe\\edge.edge_end)) AND ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CARTESIAN_POINT' IN TYPEOF (oe\\edge.edge_end\\vertex_point.vertex_geometry)))) )) = 0) )) = 0;\r\n\tWR5 : SIZEOF ( \r\nQUERY ( elp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) )| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ORIENTED_PATH' IN TYPEOF (elp_fbnds.bound)) )) = 0;\r\n\tWR6 : NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SWEPT_SURFACE' IN TYPEOF (face_geometry)) OR ( SIZEOF ([ 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.LINE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CONIC', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POLYLINE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.B_SPLINE_CURVE' ] * TYPEOF (face_geometry\\swept_surface.swept_curve)) = 1);\r\n\tWR7 : SIZEOF ( \r\nQUERY ( vlp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_LOOP' IN TYPEOF (bnds.bound)) )| NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_POINT' IN TYPEOF (vlp_fbnds\\face_bound.bound\\vertex_loop.loop_vertex)) AND ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CARTESIAN_POINT' IN TYPEOF (vlp_fbnds\\face_bound.bound\\vertex_loop.loop_vertex\\vertex_point.vertex_geometry))) )) = 0;\r\n\tWR8 : SIZEOF ( \r\nQUERY ( bnd <* bounds| NOT ( SIZEOF ([ 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_LOOP' ] * TYPEOF (bnd.bound)) = 1) )) = 0;\r\n\tWR9 : SIZEOF ( \r\nQUERY ( elp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) )| NOT ( SIZEOF ( \r\nQUERY ( oe <* elp_fbnds.bound\\path.edge_list| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SURFACE_CURVE' IN TYPEOF (oe\\oriented_edge.edge_element\\edge_curve.edge_geometry)) AND NOT ( SIZEOF ( \r\nQUERY ( sc_ag <* oe.edge_element\\edge_curve.edge_geometry\\surface_curve.associated_geometry| NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PCURVE' IN TYPEOF (sc_ag)) )) = 0) )) = 0) )) = 0;\r\n\tWR10 : (NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SWEPT_SURFACE' IN TYPEOF (face_geometry)) OR (NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POLYLINE' IN TYPEOF (face_geometry\\swept_surface.swept_curve)) OR ( SIZEOF (face_geometry\\swept_surface.swept_curve\\polyline.points) >= 3))) AND ( SIZEOF ( \r\nQUERY ( elp_fbnds <* \r\nQUERY ( bnds <* bounds| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) )| NOT ( SIZEOF ( \r\nQUERY ( oe <* elp_fbnds.bound\\path.edge_list| ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POLYLINE' IN TYPEOF (oe\\oriented_edge.edge_element\\edge_curve.edge_geometry)) AND NOT ( SIZEOF (oe\\oriented_edge.edge_element\\edge_curve.edge_geometry\\polyline.points) >= 3) )) = 0) )) = 0);"
+                }
+            }
+        },
+        "APPLICATION_CONTEXT": {
+            "line": 2393,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 2396,
+                            "name": "description"
+                        },
+                        {
+                            "line": 2397,
+                            "name": "id"
+                        }
+                    ],
+                    "text": "description : text := get_description_value(SELF);\r\n\tid : identifier := get_id_value(SELF);"
+                },
+                "INVERSE": {
+                    "clauses": [
+                        {
+                            "line": 2399,
+                            "name": "context_elements"
+                        }
+                    ],
+                    "text": "context_elements: SET [1:?] OF application_context_element FOR frame_of_reference;"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 2401,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 2402,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'DESCRIPTION_ATTRIBUTE.DESCRIBED_ITEM')) <= 1;\r\n\tWR2 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'ID_ATTRIBUTE.IDENTIFIED_ITEM')) <= 1;"
+                }
+            }
+        },
+        "APPLICATION_CONTEXT_ELEMENT": {
+            "line": 2406,
+            "sections": {}
+        },
+        "APPLICATION_PROTOCOL_DEFINITION": {
+            "line": 2413,
+            "sections": {}
+        },
+        "AXIS2_PLACEMENT_3D": {
+            "line": 2744,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 2749,
+                            "name": "p"
+                        }
+                    ],
+                    "text": "p : LIST [3:3] OF direction := build_axes(axis,ref_direction);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 2751,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 2752,
+                            "name": "WR2"
+                        },
+                        {
+                            "line": 2753,
+                            "name": "WR3"
+                        },
+                        {
+                            "line": 2754,
+                            "name": "WR4"
+                        }
+                    ],
+                    "text": "WR1 : SELF\\placement.location.dim = 3;\r\n\tWR2 : (NOT (EXISTS (axis))) OR (axis.dim = 3);\r\n\tWR3 : (NOT (EXISTS (ref_direction))) OR (ref_direction.dim = 3);\r\n\tWR4 : (NOT (EXISTS (axis))) OR (NOT (EXISTS (ref_direction))) OR\r\n          (cross_product(axis,ref_direction).magnitude > 0.0);"
+                }
+            }
+        },
+        "CARTESIAN_POINT": {
+            "line": 3159,
+            "sections": {}
+        },
+        "CLOSED_SHELL": {
+            "line": 3441,
+            "sections": {}
+        },
+        "CONNECTED_FACE_SET": {
+            "line": 3856,
+            "sections": {}
+        },
+        "CONVERSION_BASED_UNIT": {
+            "line": 3990,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 3995,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SELF\\named_unit.dimensions = derive_dimensional_exponents(conversion_factor\\measure_with_unit.unit_component);"
+                }
+            }
+        },
+        "CURVE": {
+            "line": 4055,
+            "sections": {}
+        },
+        "DERIVED_UNIT": {
+            "line": 4385,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 4389,
+                            "name": "name"
+                        }
+                    ],
+                    "text": "name : label := get_name_value(SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 4391,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 4392,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : (SIZEOF(elements) > 1) OR ((SIZEOF(elements) = 1) AND (elements[1].exponent <> 1.0));\r\n\tWR2 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'NAME_ATTRIBUTE.NAMED_ITEM')) <= 1;"
+                }
+            }
+        },
+        "DERIVED_UNIT_ELEMENT": {
+            "line": 4396,
+            "sections": {}
+        },
+        "DESIGN_CONTEXT": {
+            "line": 4415,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 4418,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SELF.life_cycle_stage = 'design';"
+                }
+            }
+        },
+        "DIMENSIONAL_EXPONENTS": {
+            "line": 4625,
+            "sections": {}
+        },
+        "DIRECTION": {
+            "line": 4674,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 4678,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(QUERY(tmp <* direction_ratios | tmp <> 0.0)) > 0;"
+                }
+            }
+        },
+        "EDGE": {
+            "line": 5251,
+            "sections": {}
+        },
+        "EDGE_CURVE": {
+            "line": 5312,
+            "sections": {}
+        },
+        "EDGE_LOOP": {
+            "line": 5319,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 5322,
+                            "name": "ne"
+                        }
+                    ],
+                    "text": "ne : INTEGER := SIZEOF(SELF\\path.edge_list);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 5324,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : (SELF\\path.edge_list[1].edge_start) :=:\r\n        (SELF\\path.edge_list[ne].edge_end);"
+                }
+            }
+        },
+        "ELEMENTARY_SURFACE": {
+            "line": 5531,
+            "sections": {}
+        },
+        "FACE": {
+            "line": 5941,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 5946,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 5947,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : NOT (mixed_loop_type_set(list_to_set(list_face_loops(SELF))));\r\n\tWR2 : SIZEOF(QUERY(temp <* bounds | 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.FACE_OUTER_BOUND' IN\r\n                                               TYPEOF(temp))) <= 1;"
+                }
+            }
+        },
+        "FACE_BOUND": {
+            "line": 5958,
+            "sections": {}
+        },
+        "FACE_OUTER_BOUND": {
+            "line": 5965,
+            "sections": {}
+        },
+        "FACE_SURFACE": {
+            "line": 5970,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 5975,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ORIENTED_SURFACE' IN TYPEOF(face_geometry));"
+                }
+            }
+        },
+        "FOUNDED_ITEM": {
+            "line": 6130,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 6133,
+                            "name": "users"
+                        }
+                    ],
+                    "text": "users : SET [0:?] OF founded_item_select := using_items(SELF,[]);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 6135,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 6136,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(users) > 0;\r\n\tWR2 : NOT(SELF IN users);"
+                }
+            }
+        },
+        "GEOMETRIC_REPRESENTATION_CONTEXT": {
+            "line": 6278,
+            "sections": {}
+        },
+        "GEOMETRIC_REPRESENTATION_ITEM": {
+            "line": 6284,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 6288,
+                            "name": "dim"
+                        }
+                    ],
+                    "text": "dim : dimension_count := dimension_of(SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 6290,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF (QUERY (using_rep <* using_representations (SELF) |\r\n      NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.GEOMETRIC_REPRESENTATION_CONTEXT' IN\r\n      TYPEOF (using_rep.context_of_items)))) = 0;"
+                }
+            }
+        },
+        "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT": {
+            "line": 6461,
+            "sections": {}
+        },
+        "GLOBAL_UNIT_ASSIGNED_CONTEXT": {
+            "line": 6467,
+            "sections": {}
+        },
+        "LENGTH_MEASURE_WITH_UNIT": {
+            "line": 6821,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 6824,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.LENGTH_UNIT' IN TYPEOF(SELF\\measure_with_unit.unit_component);"
+                }
+            }
+        },
+        "LENGTH_UNIT": {
+            "line": 6828,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 6831,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : (SELF\\named_unit.dimensions.length_exponent = 1.0) AND \r\n    (SELF\\named_unit.dimensions.mass_exponent = 0.0) AND \r\n    (SELF\\named_unit.dimensions.time_exponent = 0.0) AND \r\n    (SELF\\named_unit.dimensions.electric_current_exponent = 0.0) AND \r\n    (SELF\\named_unit.dimensions.thermodynamic_temperature_exponent = 0.0) AND \r\n    (SELF\\named_unit.dimensions.amount_of_substance_exponent = 0.0) AND \r\n    (SELF\\named_unit.dimensions.luminous_intensity_exponent = 0.0);"
+                }
+            }
+        },
+        "LINE": {
+            "line": 6889,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 6894,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : dir.dim  = pnt.dim;"
+                }
+            }
+        },
+        "LOOP": {
+            "line": 6950,
+            "sections": {}
+        },
+        "MANIFOLD_SOLID_BREP": {
+            "line": 7035,
+            "sections": {}
+        },
+        "MANIFOLD_SURFACE_SHAPE_REPRESENTATION": {
+            "line": 7165,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 7168,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 7172,
+                            "name": "WR2"
+                        },
+                        {
+                            "line": 7175,
+                            "name": "WR3"
+                        },
+                        {
+                            "line": 7184,
+                            "name": "WR4"
+                        },
+                        {
+                            "line": 7192,
+                            "name": "WR5"
+                        },
+                        {
+                            "line": 7199,
+                            "name": "WR6"
+                        },
+                        {
+                            "line": 7208,
+                            "name": "WR7"
+                        },
+                        {
+                            "line": 7219,
+                            "name": "WR8"
+                        },
+                        {
+                            "line": 7231,
+                            "name": "WR9"
+                        },
+                        {
+                            "line": 7253,
+                            "name": "WR10"
+                        },
+                        {
+                            "line": 7265,
+                            "name": "WR11"
+                        },
+                        {
+                            "line": 7281,
+                            "name": "WR12"
+                        },
+                        {
+                            "line": 7303,
+                            "name": "WR13"
+                        },
+                        {
+                            "line": 7315,
+                            "name": "WR14"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF (QUERY (it <* SELF.items |\r\n       NOT (SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MAPPED_ITEM',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.AXIS2_PLACEMENT_3D'] * TYPEOF (it)) = 1))) = 0;\r\n\tWR2 : SIZEOF (QUERY (it <* SELF.items |\r\n       SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MAPPED_ITEM'] * TYPEOF (it)) = 1)) > 0;\r\n\tWR3 : SIZEOF (QUERY (mi <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MAPPED_ITEM' IN TYPEOF (it)) |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MANIFOLD_SURFACE_SHAPE_REPRESENTATION'\r\n       IN TYPEOF (mi\\mapped_item.mapping_source.mapped_representation))\r\n       AND\r\n       (SIZEOF(QUERY (mr_it <*\r\n       mi\\mapped_item.mapping_source.mapped_representation.items |\r\n       ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL'\r\n       IN TYPEOF (mr_it)))) > 0 )))) = 0;\r\n\tWR4 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (sh <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.OPEN_SHELL',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ORIENTED_CLOSED_SHELL',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CLOSED_SHELL']\r\n       * TYPEOF (sh)) = 1))) = 0))) = 0;\r\n\tWR5 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.FACE_SURFACE' IN TYPEOF (fa)) )) = 0)))\r\n       = 0))) = 0;\r\n\tWR6 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (msf_surface_check(fa\\face_surface.face_geometry))))) = 0))) \r\n       = 0))) = 0;\r\n\tWR7 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (bnds <* fa.bounds |\r\n       NOT (SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_LOOP']\r\n       * TYPEOF (bnds.bound)) = 1))) = 0)))) = 0))) = 0))) = 0;\r\n\tWR8 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items|\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (elp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT (SIZEOF (QUERY (oe <* elp_fbnds\\path.edge_list |\r\n       NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_CURVE' IN TYPEOF \r\n       (oe.edge_element)))) = 0))) = 0)))) = 0))) = 0))) = 0;\r\n\tWR9 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (elp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT (SIZEOF (QUERY (oe_cv <* QUERY (oe <* \r\n       elp_fbnds\\path.edge_list |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_CURVE' IN TYPEOF (oe.edge_element)) |\r\n       NOT (SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.B_SPLINE_CURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CONIC',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CURVE_REPLICA',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.LINE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.OFFSET_CURVE_3D',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PCURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POLYLINE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SURFACE_CURVE'] * \r\n       TYPEOF (oe_cv.edge_element\\edge_curve.edge_geometry)) \r\n       = 1))) = 0))) = 0)))) = 0))) = 0))) = 0;\r\n\tWR10 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (elp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT (SIZEOF (QUERY (oe <* elp_fbnds\\path.edge_list |\r\n       NOT (msf_curve_check (oe.edge_element\\edge_curve.edge_geometry)))) \r\n       = 0))) = 0)))) = 0))) = 0))) = 0;\r\n\tWR11 : SIZEOF (QUERY(sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (elp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT (SIZEOF (QUERY (oe <* elp_fbnds\\path.edge_list|\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_POINT' IN TYPEOF\r\n       (oe.edge_element.edge_start))\r\n       AND\r\n       ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_POINT' IN\r\n       TYPEOF (oe.edge_element.edge_end))))) \r\n       = 0))) = 0)))) = 0))) = 0))) = 0;\r\n\tWR12 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <*\r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (elp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.EDGE_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT (SIZEOF (QUERY (oe <* elp_fbnds\\path.edge_list |\r\n       NOT ((SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CARTESIAN_POINT',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DEGENERATE_PCURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POINT_ON_CURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POINT_ON_SURFACE'] * TYPEOF\r\n       (oe.edge_element.edge_start\\vertex_point.vertex_geometry)) = 1)\r\n       AND\r\n       (SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CARTESIAN_POINT',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DEGENERATE_PCURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POINT_ON_CURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POINT_ON_SURFACE'] * TYPEOF\r\n       (oe.edge_element.edge_end\\vertex_point.vertex_geometry)) = 1\r\n       )))) = 0))) = 0)))) = 0))) = 0))) = 0;\r\n\tWR13 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <* \r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (vlp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_POINT' IN TYPEOF\r\n       (vlp_fbnds\\vertex_loop.loop_vertex)))) = 0)))) = 0))) \r\n       = 0))) = 0;\r\n\tWR14 : SIZEOF (QUERY (sbsm <* QUERY (it <* SELF.items |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHELL_BASED_SURFACE_MODEL' IN TYPEOF (it)) |\r\n       NOT (SIZEOF (QUERY (cfs <* \r\n       sbsm\\shell_based_surface_model.sbsm_boundary |\r\n       NOT (SIZEOF (QUERY (fa <* cfs\\connected_face_set.cfs_faces |\r\n       NOT (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ADVANCED_FACE' IN TYPEOF (fa))\r\n       OR\r\n       (SIZEOF (QUERY (vlp_fbnds <* QUERY (bnds <* fa.bounds |\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VERTEX_LOOP' IN TYPEOF (bnds.bound)) |\r\n       NOT (SIZEOF (['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CARTESIAN_POINT',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DEGENERATE_PCURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POINT_ON_CURVE',\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POINT_ON_SURFACE'] * TYPEOF\r\n       (vlp_fbnds\\vertex_loop.loop_vertex\\vertex_point.vertex_geometry)) \r\n       = 1))) = 0)))) = 0))) = 0))) = 0;"
+                }
+            }
+        },
+        "MASS_UNIT": {
+            "line": 7349,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 7352,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : (SELF\\named_unit.dimensions.length_exponent = 0.0) AND (SELF\\named_unit.dimensions.mass_exponent = 1.0) AND (SELF\\named_unit.dimensions.time_exponent = 0.0) AND (SELF\\named_unit.dimensions.electric_current_exponent = 0.0) AND (SELF\\named_unit.dimensions.thermodynamic_temperature_exponent = 0.0) AND (SELF\\named_unit.dimensions.amount_of_substance_exponent = 0.0) AND (SELF\\named_unit.dimensions.luminous_intensity_exponent = 0.0);"
+                }
+            }
+        },
+        "MEASURE_WITH_UNIT": {
+            "line": 7414,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 7419,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : valid_units(SELF);"
+                }
+            }
+        },
+        "MECHANICAL_CONTEXT": {
+            "line": 7423,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 7426,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SELF.discipline_type = 'mechanical';"
+                }
+            }
+        },
+        "NAMED_UNIT": {
+            "line": 8373,
+            "sections": {}
+        },
+        "OPEN_SHELL": {
+            "line": 8615,
+            "sections": {}
+        },
+        "ORIENTED_EDGE": {
+            "line": 8716,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [],
+                    "text": "SELF\\edge.edge_end : vertex := boolean_choose (SELF.orientation,\r\n                                            SELF.edge_element.edge_end,\r\n                                            SELF.edge_element.edge_start);\r\n\tSELF\\edge.edge_start : vertex := boolean_choose (SELF.orientation,\r\n                                            SELF.edge_element.edge_start,\r\n                                            SELF.edge_element.edge_end);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 8728,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ORIENTED_EDGE' IN TYPEOF (SELF.edge_element));"
+                }
+            }
+        },
+        "PATH": {
+            "line": 8847,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 8852,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : path_head_to_tail(SELF);"
+                }
+            }
+        },
+        "PLACEMENT": {
+            "line": 9013,
+            "sections": {}
+        },
+        "PLANE": {
+            "line": 9033,
+            "sections": {}
+        },
+        "PLANE_ANGLE_UNIT": {
+            "line": 9045,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 9048,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : (SELF\\named_unit.dimensions.length_exponent = 0.0) AND (SELF\\named_unit.dimensions.mass_exponent = 0.0) AND (SELF\\named_unit.dimensions.time_exponent = 0.0) AND (SELF\\named_unit.dimensions.electric_current_exponent = 0.0) AND (SELF\\named_unit.dimensions.thermodynamic_temperature_exponent = 0.0) AND (SELF\\named_unit.dimensions.amount_of_substance_exponent = 0.0) AND (SELF\\named_unit.dimensions.luminous_intensity_exponent = 0.0);"
+                }
+            }
+        },
+        "POINT": {
+            "line": 9091,
+            "sections": {}
+        },
+        "PRODUCT": {
+            "line": 9460,
+            "sections": {}
+        },
+        "PRODUCT_CATEGORY": {
+            "line": 9468,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 9472,
+                            "name": "id"
+                        }
+                    ],
+                    "text": "id : identifier := get_id_value(SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 9474,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'ID_ATTRIBUTE.IDENTIFIED_ITEM')) <= 1;"
+                }
+            }
+        },
+        "PRODUCT_CONTEXT": {
+            "line": 9559,
+            "sections": {}
+        },
+        "PRODUCT_DEFINITION": {
+            "line": 9565,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 9572,
+                            "name": "name"
+                        }
+                    ],
+                    "text": "name : label := get_name_value(SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 9574,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'NAME_ATTRIBUTE.NAMED_ITEM')) <= 1;"
+                }
+            }
+        },
+        "PRODUCT_DEFINITION_CONTEXT": {
+            "line": 9578,
+            "sections": {}
+        },
+        "PRODUCT_DEFINITION_FORMATION": {
+            "line": 9610,
+            "sections": {
+                "UNIQUE": {
+                    "clauses": [
+                        {
+                            "line": 9615,
+                            "name": "UR1"
+                        }
+                    ],
+                    "text": "UR1 : id, of_product;"
+                }
+            }
+        },
+        "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE": {
+            "line": 9628,
+            "sections": {}
+        },
+        "PRODUCT_DEFINITION_SHAPE": {
+            "line": 9665,
+            "sections": {
+                "UNIQUE": {
+                    "clauses": [
+                        {
+                            "line": 9668,
+                            "name": "UR1"
+                        }
+                    ],
+                    "text": "UR1: SELF\\property_definition.definition;"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 9670,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CHARACTERIZED_PRODUCT_DEFINITION', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CHARACTERIZED_OBJECT'] * TYPEOF(SELF\\property_definition.definition)) > 0;"
+                }
+            }
+        },
+        "PRODUCT_RELATED_PRODUCT_CATEGORY": {
+            "line": 9738,
+            "sections": {}
+        },
+        "PROPERTY_DEFINITION": {
+            "line": 9782,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 9787,
+                            "name": "id"
+                        }
+                    ],
+                    "text": "id : identifier := get_id_value(SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 9789,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'ID_ATTRIBUTE.IDENTIFIED_ITEM')) <= 1;"
+                }
+            }
+        },
+        "PROPERTY_DEFINITION_REPRESENTATION": {
+            "line": 9801,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 9805,
+                            "name": "description"
+                        },
+                        {
+                            "line": 9806,
+                            "name": "name"
+                        }
+                    ],
+                    "text": "description : text := get_description_value(SELF);\r\n\tname : label := get_name_value(SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 9808,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 9809,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'DESCRIPTION_ATTRIBUTE.DESCRIBED_ITEM')) <= 1;\r\n\tWR2 : SIZEOF(USEDIN(SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'NAME_ATTRIBUTE.NAMED_ITEM')) <= 1;"
+                }
+            }
+        },
+        "REPRESENTATION": {
+            "line": 10004,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [
+                        {
+                            "line": 10009,
+                            "name": "description"
+                        },
+                        {
+                            "line": 10010,
+                            "name": "id"
+                        }
+                    ],
+                    "text": "description : text := get_description_value (SELF);\r\n\tid : identifier := get_id_value (SELF);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 10012,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 10015,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF (USEDIN (SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +\r\n                                 'ID_ATTRIBUTE.IDENTIFIED_ITEM'))\r\n         <= 1;\r\n\tWR2 : SIZEOF (USEDIN (SELF, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +\r\n                                 'DESCRIPTION_ATTRIBUTE.DESCRIBED_ITEM'))\r\n         <= 1;"
+                }
+            }
+        },
+        "REPRESENTATION_CONTEXT": {
+            "line": 10021,
+            "sections": {
+                "INVERSE": {
+                    "clauses": [
+                        {
+                            "line": 10025,
+                            "name": "representations_in_context"
+                        }
+                    ],
+                    "text": "representations_in_context: SET [1:?] OF representation FOR context_of_items;"
+                }
+            }
+        },
+        "REPRESENTATION_ITEM": {
+            "line": 10029,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 10033,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : SIZEOF(using_representations(SELF)) > 0;"
+                }
+            }
+        },
+        "SHAPE_DEFINITION_REPRESENTATION": {
+            "line": 10415,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 10418,
+                            "name": "WR1"
+                        },
+                        {
+                            "line": 10419,
+                            "name": "WR2"
+                        }
+                    ],
+                    "text": "WR1 : ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION_SHAPE' IN TYPEOF(SELF.definition)) OR ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHAPE_DEFINITION' IN TYPEOF(SELF.definition.definition));\r\n\tWR2 : 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SHAPE_REPRESENTATION' IN TYPEOF(SELF.used_representation);"
+                }
+            }
+        },
+        "SHAPE_REPRESENTATION": {
+            "line": 10442,
+            "sections": {}
+        },
+        "SHELL_BASED_SURFACE_MODEL": {
+            "line": 10461,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 10465,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : constraints_geometry_shell_based_surface_model(SELF);"
+                }
+            }
+        },
+        "SI_UNIT": {
+            "line": 10702,
+            "sections": {
+                "DERIVE": {
+                    "clauses": [],
+                    "text": "SELF\\named_unit.dimensions : dimensional_exponents := dimensions_for_si_unit(name);"
+                },
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 10709,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : NOT(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MASS_UNIT' IN TYPEOF(SELF)) AND\r\n             (SIZEOF(USEDIN(SELF,'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DERIVED_UNIT_ELEMENT.UNIT')) > 0)) OR\r\n            (prefix = si_prefix.kilo);"
+                }
+            }
+        },
+        "SOLID_ANGLE_UNIT": {
+            "line": 10755,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 10758,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : (SELF\\named_unit.dimensions.length_exponent = 0.0) AND (SELF\\named_unit.dimensions.mass_exponent = 0.0) AND (SELF\\named_unit.dimensions.time_exponent = 0.0) AND (SELF\\named_unit.dimensions.electric_current_exponent = 0.0) AND (SELF\\named_unit.dimensions.thermodynamic_temperature_exponent = 0.0) AND (SELF\\named_unit.dimensions.amount_of_substance_exponent = 0.0) AND (SELF\\named_unit.dimensions.luminous_intensity_exponent = 0.0);"
+                }
+            }
+        },
+        "SOLID_MODEL": {
+            "line": 10767,
+            "sections": {}
+        },
+        "SURFACE": {
+            "line": 11283,
+            "sections": {}
+        },
+        "TOPOLOGICAL_REPRESENTATION_ITEM": {
+            "line": 11961,
+            "sections": {}
+        },
+        "UNCERTAINTY_MEASURE_WITH_UNIT": {
+            "line": 12095,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 12100,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : valid_measure_value (SELF\\measure_with_unit.value_component);"
+                }
+            }
+        },
+        "VECTOR": {
+            "line": 12204,
+            "sections": {
+                "WHERE": {
+                    "clauses": [
+                        {
+                            "line": 12209,
+                            "name": "WR1"
+                        }
+                    ],
+                    "text": "WR1 : magnitude >= 0.0;"
+                }
+            }
+        },
+        "VERTEX": {
+            "line": 12241,
+            "sections": {}
+        },
+        "VERTEX_POINT": {
+            "line": 12252,
+            "sections": {}
+        }
+    },
+    "format": "n2635-planar-rule-witness.v1",
+    "provenance": "Pinned N2635 EXPRESS bytes",
+    "rules": [
+        {
+            "for": [
+                "PRODUCT_DEFINITION_FORMATION"
+            ],
+            "line": 12358,
+            "name": "alternative_solution_requires_solution_definition",
+            "sha256": "9608678be39363015f6b28eefd240b7406f8d15add6d241faa029f515d87b325",
+            "text": "RULE alternative_solution_requires_solution_definition FOR (product_definition_formation);\r\n    LOCAL\r\n      solution_versions: SET OF product_definition_formation := [];\r\n    END_LOCAL;\r\n    solution_versions :=  QUERY( pdf <* product_definition_formation |\r\n\t  SIZEOF( QUERY( prpc <* USEDIN(pdf.of_product, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS') | \r\n      prpc.name = 'alternative solution')) = 1);\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( pdf <* solution_versions |\r\n        SIZEOF( QUERY( pd <* USEDIN(pdf, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.PRODUCT_DEFINITION.FORMATION') | \r\n        pd.frame_of_reference.name = 'alternative definition')) <> 1))= 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "APPLICATION_CONTEXT"
+            ],
+            "line": 12371,
+            "name": "application_protocol_definition_required",
+            "sha256": "b17474c3a9eb2af1d307e616ddb2d7e19431e6b169ad6e787be0976ba23fcd12",
+            "text": "RULE application_protocol_definition_required FOR (application_context);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( ac <* application_context | \r\n              (SIZEOF (QUERY (apd <* USEDIN(ac,'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.APPLICATION_PROTOCOL_DEFINITION.APPLICATION') | \r\n                apd.application_interpreted_model_schema_name = 'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies' \r\n                )) > 0) \r\n              )) > 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_FORMATION"
+            ],
+            "line": 12381,
+            "name": "breakdown_element_requires_product_definition",
+            "sha256": "48d4694cc08cd75c5903d7aeae761ecbde8a8e95abaf423d08b24990f15039ea",
+            "text": "RULE breakdown_element_requires_product_definition FOR (product_definition_formation);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdf <* product_definition_formation | \r\n        ( SIZEOF ( QUERY ( prpc <* USEDIN ( pdf.of_product ,\r\n        'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS' ) | \r\n\t    prpc.name =  'functionality' ) ) =  1 ) AND \r\n\t    ( SIZEOF ( QUERY ( pd <* USEDIN ( pdf ,'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION.FORMATION') | \r\n\t    pd.frame_of_reference.name =  'functional definition' ) ) <1 ) ) ) =  0;\r\n\tWR2 : SIZEOF ( QUERY ( pdf <* product_definition_formation | \r\n        ( SIZEOF ( QUERY ( prpc <* USEDIN ( pdf.of_product , \r\n\t    'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS' ) | \r\n        prpc.name =  'conceptual design' ) ) =  1 ) AND \r\n        ( SIZEOF (QUERY ( pd <* USEDIN ( pdf , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION.FORMATION' ) | \r\n        pd.frame_of_reference.name =  'conceptual definition' ) ) <1) ) ) =  0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "CARTESIAN_POINT",
+                "DIRECTION",
+                "REPRESENTATION_CONTEXT",
+                "GEOMETRIC_REPRESENTATION_CONTEXT"
+            ],
+            "line": 12398,
+            "name": "compatible_dimension",
+            "sha256": "06373b87504504948ce48719f5d5a16b0f53f6298c6994bec629bab009a69498",
+            "text": "RULE compatible_dimension FOR (cartesian_point, direction, representation_context, geometric_representation_context);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY(x <* cartesian_point| SIZEOF(QUERY\r\n       (y <* geometric_representation_context | item_in_context(x,y) AND\r\n       (HIINDEX(x.coordinates) <> y.coordinate_space_dimension))) > 0 )) =0;\r\n\tWR2 : SIZEOF(QUERY(x <* direction | SIZEOF( QUERY\r\n       (y <* geometric_representation_context | item_in_context(x,y) AND\r\n       (HIINDEX(x.direction_ratios) <> y.coordinate_space_dimension)))\r\n       > 0 )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "COMPOSITE_ASSEMBLY_SEQUENCE_DEFINITION",
+                "NEXT_ASSEMBLY_USAGE_OCCURRENCE",
+                "PRODUCT_RELATED_PRODUCT_CATEGORY"
+            ],
+            "line": 12410,
+            "name": "component_class_for_assembly_select",
+            "sha256": "9224363574f1d463103cb82bc3e46f20b7115f387470b63c7ddc268213a25d35",
+            "text": "RULE component_class_for_assembly_select FOR (composite_assembly_sequence_definition, next_assembly_usage_occurrence, product_related_product_category);\r\n    LOCAL\r\n      i,j,k :  INTEGER :=0;\r\n      dkuhr :  LOGICAL :=TRUE;\r\n      nnauo :  INTEGER :=0;\r\n      nprpc :  INTEGER :=0;\r\n      rp    :  product;\r\n    END_LOCAL;\r\n    REPEAT i:= LOINDEX (composite_assembly_sequence_definition) TO\r\n               HIINDEX (composite_assembly_sequence_definition);\r\n      nnauo := 0;  \r\n      REPEAT j:= LOINDEX (next_assembly_usage_occurrence) TO\r\n                 HIINDEX (next_assembly_usage_occurrence);\r\n        IF (composite_assembly_sequence_definition[i] = \r\n          next_assembly_usage_occurrence[j].relating_product_definition) THEN\r\n          rp := next_assembly_usage_occurrence[j].related_product_definition.\r\n                formation.of_product;\r\n          nprpc := 0;\r\n          REPEAT k:= LOINDEX (product_related_product_category) TO\r\n                     HIINDEX (product_related_product_category);\r\n            IF ((rp IN product_related_product_category[k].products) AND\r\n                (product_related_product_category[k].name IN ['ply',\r\n                 'ply laminate', 'filament laminate', 'processed core',\r\n                 'composite assembly'])) THEN\r\n                nprpc := nprpc + 1;\r\n            END_IF;\r\n          END_REPEAT;\r\n          IF (nprpc = 1) THEN\r\n            nnauo := nnauo + 1;\r\n          ELSE\r\n            dkuhr := FALSE;\r\n            ESCAPE;\r\n          END_IF;\r\n        END_IF;\r\n      END_REPEAT;\r\n      IF (dkuhr = FALSE) THEN\r\n        ESCAPE; \r\n      END_IF;\r\n      IF(nnauo = 0) THEN\r\n        dkuhr := FALSE;\r\n        ESCAPE;\r\n      END_IF;\r\n    END_REPEAT;\r\nWHERE\r\n\tWR1 : dkuhr;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+                "QUALIFIED_REPRESENTATION_ITEM",
+                "UNCERTAINTY_ASSIGNED_REPRESENTATION"
+            ],
+            "line": 12457,
+            "name": "consistent_uncertainty",
+            "sha256": "d333de2cee50c336831e6751f2f0a0bfa453a99c1270e41589af32b80c5b1108",
+            "text": "RULE consistent_uncertainty FOR (global_uncertainty_assigned_context, qualified_representation_item, uncertainty_assigned_representation);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( guac <* global_uncertainty_assigned_context | \r\n    SIZEOF ( QUERY ( u1 <* guac.uncertainty | \r\n\tSIZEOF ( QUERY ( u2 <* guac.uncertainty | u2.name =  u1.name ) ) >1 ) ) >0 ) ) =  0;\r\n\tWR2 : SIZEOF ( QUERY ( uar <* uncertainty_assigned_representation | \r\n\tSIZEOF ( QUERY ( u1<* uar.uncertainty | \r\n\tSIZEOF ( QUERY ( u2 <* uar.uncertainty | u2.name =  u1.name ) ) >1 ) ) >0 ) ) =  0;\r\n\tWR3 : SIZEOF ( QUERY ( qri <* qualified_representation_item |\r\n     SIZEOF ( QUERY ( u1 <* qri.qualifiers |\r\n     ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.UNCERTAINTY_QUALIFIER' IN TYPEOF ( u1 ) ) AND \r\n\t( SIZEOF ( QUERY ( u2 <* qri.qualifiers |\r\n     ( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.UNCERTAINTY_QUALIFIER' IN TYPEOF ( u2 ) ) AND \r\n\t( u2\\uncertainty_qualifier.measure_name =  u1\\uncertainty_qualifier.measure_name ) )\r\n     ) >1 ) ) ) >0 ) ) =  0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12475,
+            "name": "constraint_definition_requires_constraint_category",
+            "sha256": "0d8508de7cf92a81459fbc4c1ea98009a8b5eee080b51ea7e93eab317454c74e",
+            "text": "RULE constraint_definition_requires_constraint_category FOR (product_definition);\r\n    LOCAL\r\n      constraint_definitions: SET OF product_definition := [];\r\n    END_LOCAL;\r\n      constraint_definitions :=  QUERY( pd <* product_definition |\r\n      (pd.frame_of_reference.name = 'design constraint definition'));\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pd <* constraint_definitions | \r\n\t    ( SIZEOF ( QUERY ( prpc <* USEDIN ( pd.formation.of_product ,\r\n        'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS' ) | \r\n\t    prpc. name ='requirement' ) ) =0 ) ) ) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_FORMATION"
+            ],
+            "line": 12488,
+            "name": "design_constraint_requires_product_definition",
+            "sha256": "f15fc23f66468b94b42f440783c30e4433e88f5d582775776e3c03f236517349",
+            "text": "RULE design_constraint_requires_product_definition FOR (product_definition_formation);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdf <* product_definition_formation | (\r\n        SIZEOF ( QUERY ( prpc <* USEDIN ( pdf.of_product ,\r\n        'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS' ) | \r\n\t    prpc.name =  'requirement' ) ) >0 ) AND \r\n        ( SIZEOF ( QUERY ( pd <* USEDIN ( pdf , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION.FORMATION') | \r\n\t    pd.frame_of_reference.name = 'design constraint definition' ) ) <1 ) ) ) =  0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "DRAUGHTING_MODEL"
+            ],
+            "line": 12499,
+            "name": "draughting_model_items_constraint",
+            "sha256": "cabc7eede2d79f8601c1cbe75869591d693ed9d5ecfa574fb6c8646fcd89ded1",
+            "text": "RULE draughting_model_items_constraint FOR (draughting_model);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY(dm <* draughting_model |\r\n        NOT(SIZEOF(QUERY(it1 <* dm\\representation.items |\r\n        (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ANNOTATION_OCCURRENCE' IN TYPEOF(it1))\r\n        AND\r\n        NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'DRAUGHTING_ANNOTATION_OCCURRENCE' IN TYPEOF(it1)))\r\n          )) = 0)\r\n        )) = 0;\r\n\tWR2 : SIZEOF(QUERY(dm <* draughting_model |\r\n        NOT(SIZEOF(QUERY(it1 <* dm\\representation.items |\r\n        (('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DRAUGHTING_CALLOUT' IN TYPEOF(it1))\r\n        AND\r\n        NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DRAUGHTING_ELEMENTS' IN TYPEOF(it1)))\r\n          )) = 0)\r\n        )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "APPLIED_EXTERNAL_IDENTIFICATION_ASSIGNMENT"
+            ],
+            "line": 12518,
+            "name": "external_version_assignments_are_valid",
+            "sha256": "f5ea692888bd34269f21ff0996ddc3605ea8a2bb313dcf69727639fd9887c1ff",
+            "text": "RULE external_version_assignments_are_valid FOR (applied_external_identification_assignment);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY(aia <* applied_external_identification_assignment | \r\n        NOT external_version_assignment_is_valid(aia)))=0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "SHAPE_ASPECT"
+            ],
+            "line": 12525,
+            "name": "material_for_coating_layer",
+            "sha256": "eb1d252025d80e639303e61451c8fdaf28767770bce0d8d255fde28ab7401a9c",
+            "text": "RULE material_for_coating_layer FOR (shape_aspect);\r\n    LOCAL\r\n      coating_layers: SET OF shape_aspect := [];\r\n    END_LOCAL;\r\n    coating_layers:= QUERY( r <* shape_aspect | \r\n\t  (r.name = 'coating layer') );\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( r <* coating_layers |\r\n\t    SIZEOF(USEDIN(r , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MATERIAL_DESIGNATION.DEFINITIONS'))<>1\r\n        )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "EXTERNALLY_DEFINED_GENERAL_PROPERTY"
+            ],
+            "line": 12537,
+            "name": "plib_property_reference_requires_name_scope",
+            "sha256": "db172d2736521c1cd4c6e59568e153473d0d153880321e5a251a2823bcddbc3d",
+            "text": "RULE plib_property_reference_requires_name_scope FOR (externally_defined_general_property);\r\n    LOCAL\r\n      known_sourced_properties : SET OF externally_defined_general_property;\r\n    END_LOCAL;\r\n      known_sourced_properties := QUERY( edc <* externally_defined_general_property | \r\n\t    'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'KNOWN_SOURCE' IN TYPEOF(edc.source) );\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( edgp <* known_sourced_properties | \r\n        ( SIZEOF ( QUERY ( edir <* USEDIN ( edgp, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'EXTERNALLY_DEFINED_ITEM_RELATIONSHIP.RELATING_ITEM' )| \r\n        ( edir.name =  'name scope' ) AND \r\n        ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'EXTERNALLY_DEFINED_CLASS' IN  TYPEOF ( edir.related_item ) ) AND \r\n        ( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'KNOWN_SOURCE' IN TYPEOF ( edir.related_item.source ) ) ) ) <>1 ) ) ) =  0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "EXTERNALLY_DEFINED_GENERAL_PROPERTY"
+            ],
+            "line": 12551,
+            "name": "plib_property_reference_requires_version",
+            "sha256": "011b470cc01e2f74dc77eb69433aae02e7003f6679e6bd684e50f3761f572670",
+            "text": "RULE plib_property_reference_requires_version FOR (externally_defined_general_property);\r\n\tLOCAL\r\n\t  plib_properties : SET OF externally_defined_general_property := [];\r\n\tEND_LOCAL;\r\n\t  plib_properties := QUERY ( edgp <* externally_defined_general_property | \r\n\t\t( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'KNOWN_SOURCE' IN TYPEOF ( edgp.source ) ) AND\r\n\t\t( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'KNOWN_SOURCE' + '.NAME' = 'ISO 13584 library' ) );\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( edgp <* plib_properties | \r\n\t\t(SIZEOF( QUERY( edir <* USEDIN(edgp, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'APPLIED_EXTERNAL_IDENTIFICATION_ASSIGNMENT.ITEMS') | \r\n\t\t(edir.role.name = 'version') )) <> 1) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PLY_LAMINATE_SEQUENCE_DEFINITION",
+                "NEXT_ASSEMBLY_USAGE_OCCURRENCE",
+                "PRODUCT_RELATED_PRODUCT_CATEGORY"
+            ],
+            "line": 12564,
+            "name": "ply_reference",
+            "sha256": "94635314e8b71cf8bc6d9cb4120b6e45b13f78174fa5e7efc7e31a33834afac2",
+            "text": "RULE ply_reference FOR (ply_laminate_sequence_definition, next_assembly_usage_occurrence, product_related_product_category);\r\n    LOCAL\r\n      i,j,k :  INTEGER;\r\n      dkuhr :  LOGICAL := TRUE;\r\n      nnauo :  INTEGER;\r\n      nprpc :  INTEGER := 0;\r\n      rp    :  product;\r\n    END_LOCAL;\r\n    REPEAT i:= LOINDEX (ply_laminate_sequence_definition) TO\r\n               HIINDEX (ply_laminate_sequence_definition);\r\n      nnauo := 0;  \r\n      REPEAT j:= LOINDEX (next_assembly_usage_occurrence) TO \r\n                 HIINDEX (next_assembly_usage_occurrence);\r\n        IF (ply_laminate_sequence_definition[i] = \r\n          next_assembly_usage_occurrence[j].relating_product_definition) THEN\r\n          rp := next_assembly_usage_occurrence[j].related_product_definition.\r\n                formation.of_product;\r\n          nprpc := 0;\r\n          REPEAT k:= LOINDEX (product_related_product_category) TO\r\n                     HIINDEX (product_related_product_category);\r\n            IF ((product_related_product_category[k].name = 'ply') AND\r\n                (rp IN product_related_product_category[k].products)) THEN\r\n                nprpc := nprpc + 1;\r\n            END_IF;\r\n          END_REPEAT;\r\n          IF (nprpc = 1) THEN\r\n            nnauo := nnauo + 1;\r\n          ELSE\r\n            dkuhr := FALSE;\r\n            ESCAPE;\r\n          END_IF;\r\n        END_IF;\r\n      END_REPEAT;\r\n      IF (dkuhr = FALSE) THEN\r\n        ESCAPE; \r\n      END_IF;\r\n      IF(nnauo = 0) THEN\r\n        dkuhr := FALSE;\r\n        ESCAPE;\r\n      END_IF;\r\n    END_REPEAT;\r\nWHERE\r\n\tWR1 : dkuhr;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_RELATED_PRODUCT_CATEGORY",
+                "MAKE_FROM_USAGE_OPTION"
+            ],
+            "line": 12609,
+            "name": "ply_stock_material_select",
+            "sha256": "a2afe5c1adf347de4998eef1c27a1653222f59e74451c9cdcca7fab4340d1dd6",
+            "text": "RULE ply_stock_material_select FOR (product_related_product_category, make_from_usage_option);\r\n  LOCAL\r\n    i,j,k,kp :  INTEGER;\r\n    dkuhr    :  LOGICAL;\r\n    nmfuo    :  INTEGER;\r\n    nprpc    :  INTEGER := 0;\r\n    rp       :  product;\r\n  END_LOCAL;\r\n\r\n  dkuhr := TRUE;\r\n  REPEAT kp:= LOINDEX (product_related_product_category) TO\r\n              HIINDEX (product_related_product_category);\r\n \r\n    IF (product_related_product_category[kp].name = 'ply') THEN\r\n    REPEAT i:= LOINDEX (product_related_product_category[kp].products) TO\r\n               HIINDEX (product_related_product_category[kp].products);\r\n\r\n      nmfuo := 0;  \r\n      REPEAT j:= LOINDEX (make_from_usage_option) TO \r\n                 HIINDEX (make_from_usage_option);\r\n\r\n          rp := make_from_usage_option[j].related_product_definition.\r\n                formation.of_product;\r\n\r\n        IF (product_related_product_category[kp].products[i] = rp) THEN\r\n\r\n          REPEAT k:= LOINDEX (product_related_product_category) TO\r\n                     HIINDEX (product_related_product_category);\r\n\r\n            IF ((rp IN product_related_product_category[k].products) AND\r\n                (product_related_product_category[k].name IN \r\n                 ['isotropic material', 'filament assembly', \r\n                  'discontinuous fiber assembly'])) THEN\r\n                nprpc := nprpc + 1;\r\n            END_IF;\r\n\r\n          END_REPEAT;\r\n\r\n          IF (nprpc = 1) THEN\r\n            nmfuo := nmfuo + 1;\r\n          ELSE\r\n            dkuhr := FALSE;\r\n            ESCAPE;\r\n          END_IF;\r\n\r\n        END_IF;\r\n\r\n      END_REPEAT;\r\n\r\n      IF (dkuhr = FALSE) THEN\r\n        ESCAPE; \r\n      END_IF;\r\n      IF(nmfuo <> 1) THEN\r\n        dkuhr := FALSE;\r\n        ESCAPE;\r\n      END_IF;\r\n\r\n    END_REPEAT;\r\n    END_IF;\r\n\r\n  END_REPEAT;\r\nWHERE\r\n\tWR1 : dkuhr;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_CONCEPT_FEATURE"
+            ],
+            "line": 12674,
+            "name": "product_concept_feature_requires_category",
+            "sha256": "45477c94b313198e8063e243c2e7d1fad53c3ac6c251c8d6b1d8c37d9b23ebfe",
+            "text": "RULE product_concept_feature_requires_category FOR (product_concept_feature);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pcf <* product_concept_feature |\r\n(SIZEOF(['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'INCLUSION_PRODUCT_CONCEPT_FEATURE',\r\n'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'CONDITIONAL_CONCEPT_FEATURE'] * TYPEOF(pcf)) = 0) AND \r\n(SIZEOF ( QUERY ( aga <* USEDIN ( pcf , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'APPLIED_GROUP_ASSIGNMENT.' + 'ITEMS' ) | \r\n( aga.role.name = 'specification category member' ) AND \r\n('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'PRODUCT_CONCEPT_FEATURE_CATEGORY' IN TYPEOF ( aga.assigned_group )))) <>1 ) ) ) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_RELATIONSHIP"
+            ],
+            "line": 12685,
+            "name": "product_definition_replacement_requires_effectivity_assignment",
+            "sha256": "f28294974da99edcad96f6b512c422d60ed82a49e37224b5602483ef5541bfea",
+            "text": "RULE product_definition_replacement_requires_effectivity_assignment FOR (product_definition_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( pdr <* product_definition_relationship | \r\n        (pdr.name = 'definition replacement') AND \r\n        (SIZEOF( USEDIN(pdr,'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.APPLIED_EFFECTIVITY_ASSIGNMENT.ITEMS') ) = 0) ))\r\n        = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12694,
+            "name": "restrict_alternative_definition",
+            "sha256": "bf7f2f78f37fe2434329d5a61067d4b6694705adc6ce971f2cad5e3a8e2f3410",
+            "text": "RULE restrict_alternative_definition FOR (product_definition);\r\n    LOCAL\r\n      solution_definitions: SET OF product_definition := [];\r\n    END_LOCAL;\r\n      solution_definitions :=  QUERY( pd <* product_definition |\r\n\t (pd.frame_of_reference.name = 'alternative definition'));\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pd <* solution_definitions | \r\n\t    ( SIZEOF ( QUERY ( pdr <* USEDIN ( pd ,\r\n\t    'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.PRODUCT_DEFINITION_RELATIONSHIP.RELATED_PRODUCT_DEFINITION' ) | \r\n\t    pdr.name = 'solution alternative definition' ) ) <>1 ) ) ) = 0;\r\n\tWR2 : SIZEOF ( QUERY ( pd <* solution_definitions | \r\n\t    NOT ( pd.name IN ['technical' , 'supplier' , 'technical supplier' , ''] ) ) ) = 0;\r\n\tWR3 : SIZEOF ( QUERY ( pd <* solution_definitions | \r\n\t    ( pd.name IN ['supplier' , 'technical supplier'] ) AND (\r\n\t    SIZEOF ( QUERY ( aoa <* USEDIN ( pd.formation ,\r\n\t    'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.APPLIED_ORGANIZATION_ASSIGNMENT.ITEMS' ) | \r\n\t    aoa.role.name = 'supplier' )) <>1 ) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12714,
+            "name": "restrict_assembly_category",
+            "sha256": "cd0098e53061fca087951383f4d05b2e2fedb62608fdac4b9d113165abe8906d",
+            "text": "RULE restrict_assembly_category FOR (product_definition);\r\n    LOCAL\r\n      assembly_definitions: SET OF product_definition := [];\r\n    END_LOCAL;\r\n      assembly_definitions :=  QUERY( pd <* product_definition | \r\n        SIZEOF( QUERY( pdca <* USEDIN( pd, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION_CONTEXT_ASSOCIATION.DEFINITION') |\r\n        pdca.frame_of_reference.name= 'assembly definition')) > 0 );\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( pd <* assembly_definitions | \r\n          NOT ('assembly' IN categories_of_product(pd.formation.of_product)) ))= 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "REPRESENTATION"
+            ],
+            "line": 12726,
+            "name": "restrict_centre_of_mass_representation",
+            "sha256": "dd2cc81389d466d66ac400cff8694c1439b8e551ce40fca40b26592313556682",
+            "text": "RULE restrict_centre_of_mass_representation FOR (representation);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( r <* representation | \r\n\t( r.name ='centre of mass' ) AND \r\n\t( ( SIZEOF ( r.items ) <>1 ) OR \r\n\t(SIZEOF ( QUERY ( i <* r.items | \r\n\t( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'POINT' IN TYPEOF ( i ) ) AND \r\n\t( i.name = 'centre point' ) )) <>1 ) ) ) ) \r\n\t=0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "APPLIED_CLASSIFICATION_ASSIGNMENT"
+            ],
+            "line": 12738,
+            "name": "restrict_classification_assignments",
+            "sha256": "b699565f7144cd7af924bb4cd996f859fdbe05f4402fa88b1735ae8381368055",
+            "text": "RULE restrict_classification_assignments FOR (applied_classification_assignment);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY(aia <* applied_classification_assignment | \r\n\t\tNOT class_assignment_is_valid(aia)))=0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12745,
+            "name": "restrict_collection_category",
+            "sha256": "b94e1bbb3cdd50b21859df5df45fc67c8895da22e870119a13f4955e3e80602d",
+            "text": "RULE restrict_collection_category FOR (product_definition);\r\n    LOCAL\r\n      collection_definitions: SET OF product_definition := [];\r\n    END_LOCAL;\r\n      collection_definitions :=  QUERY( pd <* product_definition | \r\n        SIZEOF( QUERY( pdca <* USEDIN( pd, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.PRODUCT_DEFINITION_CONTEXT_ASSOCIATION.DEFINITION') |\r\n        pdca.frame_of_reference.name= 'collection definition')) > 0 );\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( pd <* collection_definitions | \r\n\t    NOT ('collection' IN categories_of_product(pd.formation.of_product)) ))= 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "CONCEPT_FEATURE_OPERATOR"
+            ],
+            "line": 12757,
+            "name": "restrict_concept_feature_operator",
+            "sha256": "ef83b2a867f4679322d0e9f362c77a07b891fe7431e0bcfd673082b85c0bd4da",
+            "text": "RULE restrict_concept_feature_operator FOR (concept_feature_operator);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( cfo <* concept_feature_operator | NOT\r\n\t\t( cfo.name IN ['and' , 'or' , 'oneof' , 'not' , 'implication'] ) ) ) = 0;\r\n\tWR2 : SIZEOF ( QUERY ( cfo <* concept_feature_operator | (cfo.name = 'implication' ) AND\r\n\t ( SIZEOF ( QUERY (cfrwc <* USEDIN ( cfo , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'CONCEPT_FEATURE_RELATIONSHIP_WITH_CONDITION.' +\r\n\t'CONDITIONAL_OPERATOR' ) | \r\n\t\tSIZEOF ( QUERY ( ccf <* USEDIN( cfrwc , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'CONDITIONAL_CONCEPT_FEATURE.CONDITION' ) | \r\n\t\tNOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'INCLUSION_PRODUCT_CONCEPT_FEATURE' IN TYPEOF ( ccf )))) >0 )) >0 ))) = 0;\r\n\tWR3 : SIZEOF( QUERY (cfo <* concept_feature_operator | (cfo.name = 'not')\r\n\tAND (SIZEOF(QUERY(cfrwc <* USEDIN(cfo, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'CONCEPT_FEATURE_RELATIONSHIP_WITH_CONDITION.CONDITIONAL_OPERATOR') | \r\n\t\tcfrwc.related_product_concept_feature :<>: cfrwc.relating_product_concept_feature)) >0 ))) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "CONFIGURATION_DESIGN"
+            ],
+            "line": 12772,
+            "name": "restrict_configuration_design_for_class_breakdown_association",
+            "sha256": "dfd0f52ed5fc76703e531717aab10d5513c39a77d51d5dd06e75cf3edf6d7c68",
+            "text": "RULE restrict_configuration_design_for_class_breakdown_association FOR (configuration_design);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( cd <* configuration_design | \r\n\t    ( cd.name ='functionality' ) AND \r\n        ( NOT ( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION' IN TYPEOF ( cd. design ) ) OR \r\n        ( cd.design\\product_definition.frame_of_reference.name<> 'functional definition' ) ) \r\n        ) ) =0;\r\n\tWR2 : SIZEOF ( QUERY ( cd <* configuration_design | \r\n        ( cd.name='realization' ) AND \r\n        ( NOT ( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION' IN TYPEOF ( cd.design ) ) OR \r\n        ( cd.design\\product_definition.frame_of_reference.name<> 'conceptual definition' ) ) \r\n        ) ) =0;\r\n\tWR3 : SIZEOF ( QUERY ( cd <* configuration_design | \r\n        ( cd.name IN ['functionality' , 'realization'] ) AND \r\n        ( NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_CLASS' IN TYPEOF ( cd.configuration.item_concept ) ) ) \r\n        ) ) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "CONFIGURATION_DESIGN"
+            ],
+            "line": 12791,
+            "name": "restrict_configuration_design_for_design_constraint",
+            "sha256": "f3b0b48181c17aa6455242b0a447fa2d95822df4baaecc1c00a42d4df14b92f0",
+            "text": "RULE restrict_configuration_design_for_design_constraint FOR (configuration_design);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY (cd <* configuration_design | \r\n\t    (cd.name = 'design constraint usage') AND \r\n        (NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_DEFINITION' IN TYPEOF ( cd.design ) ) OR \r\n        (cd.design\\product_definition.frame_of_reference.name <> 'design constraint definition')))) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "GROUP_RELATIONSHIP"
+            ],
+            "line": 12800,
+            "name": "restrict_group_relationship_for_classification_hierarchy",
+            "sha256": "2df57caaf2c9deb51cecb5a2258613c6e2649fac09594afe0fc27fe70e591f6a",
+            "text": "RULE restrict_group_relationship_for_classification_hierarchy FOR (group_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( gr <* group_relationship | \r\n  (gr\\group_relationship.name = 'class hierarchy') AND \r\n  (NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CLASS' IN TYPEOF(gr\\group_relationship.related_group)) OR \r\n  NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CLASS' IN TYPEOF(gr\\group_relationship.relating_group))) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "GROUP_RELATIONSHIP"
+            ],
+            "line": 12809,
+            "name": "restrict_group_relationship_for_specification_category",
+            "sha256": "603e72dcd0cbbcd46746c93c018bd92c35c1805bc05623ee9eb3bc9b20fcddfc",
+            "text": "RULE restrict_group_relationship_for_specification_category FOR (group_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( gr <* group_relationship | \r\n  (gr.name = 'specification category hierarchy') AND \r\n  (NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_CONCEPT_FEATURE_CATEGORY' IN TYPEOF(gr.related_group)) \r\n  OR NOT('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_CONCEPT_FEATURE_CATEGORY' IN TYPEOF(gr.relating_group))) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "ATTRIBUTE_LANGUAGE_ASSIGNMENT"
+            ],
+            "line": 12818,
+            "name": "restrict_language_assignment_per_attribute",
+            "sha256": "481fc66f7dc8e4382287ad0791b508decb0472a989b072f849079e4ed9174c93",
+            "text": "RULE restrict_language_assignment_per_attribute FOR (attribute_language_assignment);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( ala1 <* attribute_language_assignment |\r\n\tSIZEOF(QUERY( it <* ala1.items |\r\n\t   SIZEOF ( QUERY ( ala2 <* USEDIN ( it ,'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ATTRIBUTE_LANGUAGE_ASSIGNMENT.ITEMS' ) | \r\n\t\t( ala1\\attribute_classification_assignment.attribute_name = ala2\\attribute_classification_assignment.attribute_name ) AND \r\n\t\t( ala1\\attribute_classification_assignment.assigned_class :=: ala2\\attribute_classification_assignment.assigned_class )\r\n\t\t )) >1 \r\n\t   )) >0 \r\n\t)) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12831,
+            "name": "restrict_part_occurrence",
+            "sha256": "394de46147430187f7c6182075b8e9fae1cd487fd2ae891102e41db08f1e5d67",
+            "text": "RULE restrict_part_occurrence FOR (product_definition);\r\n    LOCAL\r\n      part_occurrences: SET OF product_definition := QUERY(pd <* product_definition | \r\n\t    ( pd.frame_of_reference.name = 'part occurrence' ));\r\n    END_LOCAL;\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pd <* part_occurrences | \r\n\t    ( NOT( pd.name IN \r\n        ['single instance' , 'selected instance' ,'quantified instance' , 'specified instance' ] ) ) ) ) = 0;\r\n\tWR2 : SIZEOF ( QUERY ( pd <* part_occurrences | \r\n \t    (SIZEOF ( QUERY ( pdr <* USEDIN ( pd ,\r\n        'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'PRODUCT_DEFINITION_RELATIONSHIP.RELATED_PRODUCT_DEFINITION' ) | \r\n\t    pdr.name = 'definition usage' ) ) <>1 ) AND \r\n        ( SIZEOF ( QUERY ( cd <* USEDIN ( pd , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'CONFIGURATION_DESIGN.DESIGN' ) | \r\n        ( cd.name = 'occurrence usage definition' ) AND \r\n        ( NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'PRODUCT_IDENTIFICATION' IN TYPEOF( cd.configuration ) ) ) ) ) <>1 ) ) ) = 0;\r\n\tWR3 : SIZEOF ( QUERY ( pd <* part_occurrences |  \r\n        (SIZEOF ( QUERY ( cd <* USEDIN ( pd , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.'+ 'PRODUCT_DEFINITION_RELATIONSHIP.RELATED_PRODUCT_DEFINITION' ) |\r\n        ( 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +'PRODUCT_DEFINITION_USAGE' IN TYPEOF ( cd ) ) ) ) = 0 )AND\r\n        ( SIZEOF ( USEDIN ( pd , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'PRODUCT_DEFINITION_OCCURRENCE_RELATIONSHIP.OCCURRENCE' ) ) = 0 ) ) ) = 0;\r\n\tWR4 : SIZEOF ( QUERY ( pd <* part_occurrences | \r\n        ( pd.name = 'selected instance' ) AND \r\n        NOT valid_selected_instance_representation(pd) ))=0;\r\n\tWR5 : SIZEOF ( QUERY ( pd <* part_occurrences | \r\n        ( pd.name = 'quantified instance' ) AND \r\n        ( SIZEOF ( QUERY (ppd <* USEDIN ( pd , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +'PROPERTY_DEFINITION.DEFINITION' ) |\r\n        ( ppd.name ='occurrence quantity' ) AND \r\n        ( SIZEOF ( QUERY ( pdr <*USEDIN ( ppd , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +'PROPERTY_DEFINITION_REPRESENTATION.DEFINITION' ) | (\r\n        pdr.used_representation.name = 'quantity' ) AND \r\n        (SIZEOF ( pdr.used_representation.items ) = 1 ) AND \r\n        (SIZEOF ( QUERY ( i <* pdr.used_representation.items | \r\n        ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' + 'MEASURE_REPRESENTATION_ITEM' IN TYPEOF ( i ) ) AND\r\n        ( i.name = 'quantity measure' ) ) ) = 1)))= 1 )))= 0 )))= 0;\r\n\tWR6 : SIZEOF ( QUERY ( pd <* part_occurrences | \r\n        ( pd.name = 'specified instance' ) AND \r\n        ( SIZEOF ( QUERY (\r\n        pdor <* USEDIN ( pd , 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +'PRODUCT_DEFINITION_OCCURRENCE_RELATIONSHIP.OCCURRENCE' ) | \r\n        'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.' +'SPECIFIED_HIGHER_USAGE_OCCURRENCE' IN TYPEOF ( pdor.occurrence_usage ) ) ) = 0 ) ) ) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12871,
+            "name": "restrict_part_occurrence_category",
+            "sha256": "8aa9f22a528e9cfc1111547523c3542032de4bf08758ef27eb906ea71c886541",
+            "text": "RULE restrict_part_occurrence_category FOR (product_definition);\r\n    LOCAL\r\n      part_occurrences: SET OF product_definition := QUERY( pd <* product_definition |(\r\n        pd.frame_of_reference.name = 'part occurrence'));\r\n    END_LOCAL;\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( pd <* part_occurrences | \r\n        (SIZEOF( QUERY( prpc <* USEDIN(pd.formation.of_product, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS') | \r\n        prpc.name IN ['part','raw material','tool'] )) = 0 ) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_RELATIONSHIP"
+            ],
+            "line": 12882,
+            "name": "restrict_product_definitions_for_base_element",
+            "sha256": "1a2404a7bb503b5dbe6708121d49e9ca90e0d1651dc4778a5af692e349e24eba",
+            "text": "RULE restrict_product_definitions_for_base_element FOR (product_definition_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdr <* product_definition_relationship |\r\n       ( pdr. name = 'solution alternative definition' ) AND \r\n       ( NOT( pdr. relating_product_definition.frame_of_reference.name\r\n        IN [ 'alternative definition' , 'functional definition' , 'conceptual definition' ] ) OR \r\n       ( pdr.related_product_definition.frame_of_reference.name<>'alternative definition' ) ) ) ) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_RELATIONSHIP"
+            ],
+            "line": 12892,
+            "name": "restrict_product_definitions_for_collection",
+            "sha256": "257498e87e221234f50fca01931f73f9464b368d0e96660fae9d39ab0d8e53b4",
+            "text": "RULE restrict_product_definitions_for_collection FOR (product_definition_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdr <* product_definition_relationship |\r\n       ( pdr. name = 'collection membership' ) AND \r\n       ( ( pdr.relating_product_definition.frame_of_reference.name<>'part definition' ) OR \r\n       ( pdr.related_product_definition.frame_of_reference.name<>'part occurrence' ) OR \r\n       ( SIZEOF ( QUERY ( pdca <* USEDIN (pdr.relating_product_definition ,\r\n       'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.PRODUCT_DEFINITION_CONTEXT_ASSOCIATION.DEFINITION') | \r\n       ( pdca.role.name = 'part definition type' ) AND \r\n       ( pdca.frame_of_reference.name = 'collection definition' ) )) =0 ) ) ) ) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_RELATIONSHIP"
+            ],
+            "line": 12905,
+            "name": "restrict_product_definitions_for_definition_usage",
+            "sha256": "18d55d9fc4aacf33fc504a3d191ef7a456d1022deadb942c4c85cc6e2da34121",
+            "text": "RULE restrict_product_definitions_for_definition_usage FOR (product_definition_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdr <* product_definition_relationship |\r\n        ( pdr.name = 'definition usage' ) AND \r\n        ( ( pdr.relating_product_definition.frame_of_reference.name<> 'part definition' ) OR \r\n        ( pdr.related_product_definition.frame_of_reference.name<>'part occurrence' )))) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_RELATIONSHIP"
+            ],
+            "line": 12914,
+            "name": "restrict_product_definitions_for_design_constraint_association",
+            "sha256": "0703b3e0a35d07a220b8a828f1c105acd54c1b729a8b0c5cd60f096749a45183",
+            "text": "RULE restrict_product_definitions_for_design_constraint_association FOR (product_definition_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdr <* product_definition_relationship |\r\n        ( pdr. name = 'design constraint association' ) AND \r\n\t    ( (pdr. relating_product_definition.frame_of_reference.name<>'design constraint definition' ) OR \r\n\t    NOT ( pdr.related_product_definition.frame_of_reference.name IN \r\n\t    ['alternative definition' , 'functional definition' ,'conceptual definition' ] ) ) ) ) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION_RELATIONSHIP"
+            ],
+            "line": 12924,
+            "name": "restrict_product_definitions_for_part_definition_relationship",
+            "sha256": "61f11dd09dc46636e29efacb4d24678e8d09d3c7bbf4adc610bc603974bb5d3a",
+            "text": "RULE restrict_product_definitions_for_part_definition_relationship FOR (product_definition_relationship);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( pdr <* product_definition_relationship |\r\n        ( pdr.name IN [ 'geometrical relationship' , 'definition replacement' ] ) AND \r\n\t    ( ( pdr.relating_product_definition.frame_of_reference.name <>'part definition' ) OR \r\n        ( pdr.related_product_definition.frame_of_reference.name <>'part definition' ) ) ) ) =0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PROPERTY_DEFINITION_REPRESENTATION"
+            ],
+            "line": 12933,
+            "name": "restrict_representation_for_surface_condition",
+            "sha256": "b617e7cdc77434e46bb783774700d37a80d7a417ef2906c3f0bf0f96bf7fd2a3",
+            "text": "RULE restrict_representation_for_surface_condition FOR (property_definition_representation);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY(pdr <* property_definition_representation | \r\n        NOT surface_condition_correlation(pdr.definition, pdr.used_representation) ))=0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "REPRESENTATION"
+            ],
+            "line": 12940,
+            "name": "restrict_treatment_result",
+            "sha256": "91d9bc2c61847c8c185b3d3ef5be29642a7bca14343b0c52aacd952316c53857",
+            "text": "RULE restrict_treatment_result FOR (representation);\r\n    LOCAL\r\n      treatment_results: SET OF representation := [];\r\n    END_LOCAL;\r\n    treatment_results:= QUERY( r <* representation | \r\n\t  (r.name = 'treatment result') );\r\nWHERE\r\n\tWR1 : (SIZEOF( QUERY( r <* treatment_results | (SIZEOF(r.items) > 2) )) = 0) AND\r\n        (SIZEOF( QUERY( r <* treatment_results |\r\n        (SIZEOF( QUERY( i <* r.items | \r\n         NOT ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.DESCRIPTIVE_REPRESENTATION_ITEM' IN TYPEOF(i)) )) > 0) )) = 0);\r\n\tWR2 : SIZEOF( QUERY( r <* treatment_results | \r\n        (SIZEOF( QUERY( i <* r.items | i.name = 'result' )) = 0) )) = 0;\r\n\tWR3 : SIZEOF( QUERY( r <* treatment_results | \r\n        (SIZEOF( QUERY( i <* r.items | i.name = 'purpose' )) > 1) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "ASSEMBLY_COMPONENT_USAGE"
+            ],
+            "line": 12957,
+            "name": "selected_instance_usage_requires_representation",
+            "sha256": "fc017f08b94b6b487855914a433f139893fbda4c12b5e0b0bd13b354f6cdcead",
+            "text": "RULE selected_instance_usage_requires_representation FOR (assembly_component_usage);\r\n    LOCAL\r\n      selected_instance_usages: SET OF assembly_component_usage := QUERY( acr <* assembly_component_usage|\r\n        (acr.name = 'selected instance usage'));\r\n    END_LOCAL;\r\nWHERE\r\n\tWR1 : SIZEOF ( QUERY ( acr <* selected_instance_usages | \r\n        NOT valid_selected_instance_representation(acr) ))=0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PRODUCT_DEFINITION"
+            ],
+            "line": 12967,
+            "name": "solution_definition_requires_solution_category",
+            "sha256": "7127bc22c08a640579b4a45693fdae6dc0f851fa3ca5b92c936c6ffd8c8a4ab1",
+            "text": "RULE solution_definition_requires_solution_category FOR (product_definition);\r\n    LOCAL\r\n      solution_definitions: SET OF product_definition := [];\r\n    END_LOCAL;\r\n      solution_definitions :=  QUERY( pd <* product_definition |\r\n        (pd.frame_of_reference.name = 'alternative definition'));\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( pd <* solution_definitions | \r\n        (SIZEOF( QUERY( prpc <* USEDIN(pd.formation.of_product, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF' + '.PRODUCT_RELATED_PRODUCT_CATEGORY.PRODUCTS') | \r\n\t     prpc.name = 'alternative solution')) = 0 ) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "PERCENTAGE_PLY_DEFINITION",
+                "MAKE_FROM_USAGE_OPTION",
+                "PRODUCT_RELATED_PRODUCT_CATEGORY"
+            ],
+            "line": 12979,
+            "name": "stock_material_reference",
+            "sha256": "c2c0792239de43c23d81859ee38f0e3659c4724f2d48fc14e764213a69362e24",
+            "text": "RULE stock_material_reference FOR (percentage_ply_definition, make_from_usage_option, product_related_product_category);\r\n    LOCAL\r\n      i,j,k :  INTEGER;\r\n      dkuhr :  LOGICAL;\r\n      nmfuo :  INTEGER;\r\n      nprpc :  INTEGER;\r\n      rp     :  product;\r\n    END_LOCAL;\r\n    dkuhr := TRUE;\r\n    REPEAT i:= LOINDEX (percentage_ply_definition) TO\r\n               HIINDEX (percentage_ply_definition);\r\n      nmfuo := 0;  \r\n      REPEAT j:= LOINDEX (make_from_usage_option) TO \r\n                 HIINDEX (make_from_usage_option);\r\n        IF (percentage_ply_definition[i] = \r\n          make_from_usage_option[j].relating_product_definition) THEN\r\n          rp := make_from_usage_option[j].related_product_definition.\r\n                formation.of_product;\r\n          nprpc := 0;\r\n          REPEAT k:= LOINDEX (product_related_product_category) TO\r\n                     HIINDEX (product_related_product_category);\r\n            IF ((rp IN product_related_product_category[k].products) AND\r\n                (product_related_product_category[k].name IN \r\n                ['anisotropic material', 'isotropic material', 'stock core',\r\n                 'filament assembly', 'discontinuous fiber assembly'])) THEN\r\n                nprpc := nprpc + 1;\r\n            END_IF;\r\n          END_REPEAT;\r\n          IF (nprpc = 1) THEN\r\n            nmfuo := nmfuo + 1;\r\n          ELSE\r\n            dkuhr := FALSE;\r\n            ESCAPE;\r\n          END_IF;\r\n        END_IF;\r\n      END_REPEAT;\r\n      IF (dkuhr = FALSE) THEN\r\n        ESCAPE; \r\n      END_IF;\r\n      IF(nmfuo = 0) THEN\r\n        dkuhr := FALSE;\r\n        ESCAPE;\r\n      END_IF;\r\n    END_REPEAT;\r\nWHERE\r\n\tWR1 : dkuhr;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "STYLED_ITEM"
+            ],
+            "line": 13027,
+            "name": "styled_curve",
+            "sha256": "ce94d0a597c07fcb24cb185319b2024dc92a72ba4b363acea9094bf5d40868e5",
+            "text": "RULE styled_curve FOR (styled_item);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF( QUERY( si <* styled_item | ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CURVE' IN TYPEOF (si.item)) AND (SIZEOF (QUERY (psa <* si.styles | (SIZEOF (QUERY (cs <* psa.styles | ('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CURVE_STYLE' IN TYPEOF (cs)) )) > 0) )) <> 1) )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "GEOMETRIC_TOLERANCE"
+            ],
+            "line": 13033,
+            "name": "subtype_exclusiveness_geometric_tolerance",
+            "sha256": "8763bb3e26e7e22cdff84eba372f1835ec451b86a058af7fa5f701512ecb54c3",
+            "text": "RULE subtype_exclusiveness_geometric_tolerance FOR (geometric_tolerance);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY (gt <* geometric_tolerance | NOT (type_check_function(gt, ['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ANGULARITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CIRCULAR_RUNOUT_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.COAXIALITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CONCENTRICITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CYLINDRICITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.FLATNESS_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.LINE_PROFILE_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PARALLELISM_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PERPENDICULARITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POSITION_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ROUNDNESS_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.STRAIGHTNESS_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SURFACE_PROFILE_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SYMMETRY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.TOTAL_RUNOUT_TOLERANCE'] , 3)))) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "REPRESENTATION_ITEM"
+            ],
+            "line": 13039,
+            "name": "subtype_exclusiveness_representation_item",
+            "sha256": "f8e83f52549310f3c7a0e7df11ad12ceb0231bf6179e5e3aa0522cabb92d9879",
+            "text": "RULE subtype_exclusiveness_representation_item FOR (representation_item);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY (cri <* representation_item | \r\n      NOT (type_check_function(cri,['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.MEASURE_REPRESENTATION_ITEM',\r\n                                    'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.VALUE_REPRESENTATION_ITEM',\r\n                                    'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.COMPOUND_REPRESENTATION_ITEM'] , 3)))) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "GEOMETRIC_TOLERANCE"
+            ],
+            "line": 13048,
+            "name": "subtype_mandatory_geometric_tolerance",
+            "sha256": "56634d1965429a334124f9e6112c683c2158c1916006a2b8d664d4184c45da2b",
+            "text": "RULE subtype_mandatory_geometric_tolerance FOR (geometric_tolerance);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF(QUERY (gt <* geometric_tolerance | NOT (type_check_function(gt, ['AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ANGULARITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CIRCULAR_RUNOUT_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.COAXIALITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CONCENTRICITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.CYLINDRICITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.FLATNESS_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.LINE_PROFILE_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PARALLELISM_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.PERPENDICULARITY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.POSITION_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.ROUNDNESS_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.STRAIGHTNESS_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SURFACE_PROFILE_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.SYMMETRY_TOLERANCE', 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.TOTAL_RUNOUT_TOLERANCE'] , 0)))) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "EXTERNALLY_DEFINED_TEXT_FONT",
+                "PRE_DEFINED_TEXT_FONT"
+            ],
+            "line": 13054,
+            "name": "text_font_usage",
+            "sha256": "5c97f6840a75a33f5bc8dd520bb362b699a9d39503b0e448874939fbbc73fa0f",
+            "text": "RULE text_font_usage FOR (externally_defined_text_font, pre_defined_text_font);\r\n\r\nWHERE\r\n\tWR1 : SIZEOF (QUERY (pdtf <* pre_defined_text_font | SIZEOF (USEDIN (pdtf, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.TEXT_LITERAL.FONT')) = 0 )) = 0;\r\n\tWR2 : SIZEOF (QUERY (edtf <* externally_defined_text_font | SIZEOF (USEDIN (edtf, 'AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF.TEXT_LITERAL.FONT')) = 0 )) = 0;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "THICKNESS_LAMINATE_DEFINITION",
+                "NEXT_ASSEMBLY_USAGE_OCCURRENCE",
+                "PRODUCT_RELATED_PRODUCT_CATEGORY"
+            ],
+            "line": 13061,
+            "name": "thickness_laminate_table_component_select",
+            "sha256": "9538b7c9b7a5c62e2d0e369a37e0c245ae7285a55e0c3b20f23b2f58fe0bd6bb",
+            "text": "RULE thickness_laminate_table_component_select FOR (thickness_laminate_definition, next_assembly_usage_occurrence, product_related_product_category);\r\n    LOCAL\r\n      i,j,k :  INTEGER;\r\n      dkuhr :  LOGICAL;\r\n      nnauo :  INTEGER;\r\n      nprpc :  INTEGER;\r\n      rp    :  product;\r\n    END_LOCAL;\r\n    dkuhr := TRUE;\r\n    REPEAT i:= LOINDEX (thickness_laminate_definition) TO\r\n               HIINDEX (thickness_laminate_definition);\r\n      nnauo := 0;  \r\n      REPEAT j:= LOINDEX (next_assembly_usage_occurrence) TO \r\n                 HIINDEX (next_assembly_usage_occurrence);\r\n        IF (thickness_laminate_definition[i] = \r\n          next_assembly_usage_occurrence[j].relating_product_definition) THEN\r\n          rp := next_assembly_usage_occurrence[j].related_product_definition.\r\n                formation.of_product;\r\n          nprpc := 0;\r\n          REPEAT k:= LOINDEX (product_related_product_category) TO\r\n                     HIINDEX (product_related_product_category);\r\n            IF ((rp IN product_related_product_category[k].products) AND\r\n                (product_related_product_category[k].name IN \r\n                 ['ply', 'filament laminate', 'processed core'])) THEN\r\n                nprpc := nprpc + 1;\r\n            END_IF;\r\n          END_REPEAT;\r\n          IF (nprpc = 1) THEN\r\n            nnauo := nnauo + 1;\r\n          ELSE\r\n            dkuhr := FALSE;\r\n            ESCAPE;\r\n          END_IF;\r\n        END_IF;\r\n      END_REPEAT;\r\n      IF (dkuhr = FALSE) THEN\r\n        ESCAPE;\r\n      END_IF;\r\n      IF (nnauo <> 1) THEN\r\n        dkuhr := FALSE;\r\n        ESCAPE;\r\n      END_IF;\r\n    END_REPEAT;\r\nWHERE\r\n\tWR1 : dkuhr;\r\nEND_RULE;"
+        },
+        {
+            "for": [
+                "ACTION_METHOD_ROLE",
+                "ANNOTATION_TEXT",
+                "ATTRIBUTE_VALUE_ROLE",
+                "AUXILIARY_GEOMETRIC_REPRESENTATION_ITEM",
+                "BINARY_NUMERIC_EXPRESSION",
+                "BOOLEAN_EXPRESSION",
+                "BOUNDED_CURVE",
+                "BOUNDED_SURFACE",
+                "CARTESIAN_TRANSFORMATION_OPERATOR",
+                "COMPARISON_EXPRESSION",
+                "CONCEPT_FEATURE_RELATIONSHIP",
+                "CONCEPT_FEATURE_RELATIONSHIP_WITH_CONDITION",
+                "CONNECTED_EDGE_SET",
+                "DOCUMENT_USAGE_CONSTRAINT",
+                "EDGE_BLENDED_SOLID",
+                "EFFECTIVITY_CONTEXT_ROLE",
+                "EVENT_OCCURRENCE_ROLE",
+                "EXPLICIT_PROCEDURAL_REPRESENTATION_ITEM_RELATIONSHIP",
+                "EXPRESSION",
+                "FOUNDED_ITEM",
+                "GENERIC_EXPRESSION",
+                "GENERIC_VARIABLE",
+                "INDIRECTLY_SELECTED_ELEMENTS",
+                "INTERVAL_EXPRESSION",
+                "LITERAL_NUMBER",
+                "LOCAL_TIME",
+                "LOOP",
+                "MODIFIED_SOLID_WITH_PLACED_CONFIGURATION",
+                "MULTIPLE_ARITY_BOOLEAN_EXPRESSION",
+                "MULTIPLE_ARITY_GENERIC_EXPRESSION",
+                "MULTIPLE_ARITY_NUMERIC_EXPRESSION",
+                "NUMERIC_EXPRESSION",
+                "ONE_DIRECTION_REPEAT_FACTOR",
+                "ORIENTED_OPEN_SHELL",
+                "ORIENTED_PATH",
+                "POSITIONED_SKETCH",
+                "PROCEDURAL_REPRESENTATION",
+                "PROCEDURAL_REPRESENTATION_SEQUENCE",
+                "PRODUCT_DEFINITION_CONTEXT_ROLE",
+                "PRODUCT_DEFINITION_EFFECTIVITY",
+                "RUNOUT_ZONE_ORIENTATION",
+                "SIMPLE_BOOLEAN_EXPRESSION",
+                "SIMPLE_GENERIC_EXPRESSION",
+                "SIMPLE_NUMERIC_EXPRESSION",
+                "SOLID_WITH_DEPRESSION",
+                "SOLID_WITH_HOLE",
+                "SOLID_WITH_POCKET",
+                "SOLID_WITH_PROTRUSION",
+                "SOLID_WITH_SHAPE_ELEMENT_PATTERN",
+                "SOLID_WITH_SLOT",
+                "SWEPT_AREA_SOLID",
+                "SYMBOL_TARGET",
+                "TOLERANCE_ZONE_FORM",
+                "TWO_DIRECTION_REPEAT_FACTOR",
+                "UNARY_GENERIC_EXPRESSION",
+                "UNARY_NUMERIC_EXPRESSION",
+                "USER_SELECTED_ELEMENTS",
+                "VARIATIONAL_REPRESENTATION_ITEM",
+                "VIEW_VOLUME"
+            ],
+            "line": 13108,
+            "name": "validate_dependently_instantiable_entity_data_types",
+            "sha256": "7f41bad322f503dc3c3396d9fb0803806f250ca03a587e00d3f559ae9ecbaece",
+            "text": "RULE validate_dependently_instantiable_entity_data_types FOR (action_method_role, annotation_text, attribute_value_role, auxiliary_geometric_representation_item, binary_numeric_expression, boolean_expression, bounded_curve, bounded_surface, cartesian_transformation_operator, comparison_expression, concept_feature_relationship, concept_feature_relationship_with_condition, connected_edge_set, document_usage_constraint, edge_blended_solid, effectivity_context_role, event_occurrence_role, explicit_procedural_representation_item_relationship, expression, founded_item, generic_expression, generic_variable, indirectly_selected_elements, interval_expression, literal_number, local_time, loop, modified_solid_with_placed_configuration, multiple_arity_boolean_expression, multiple_arity_generic_expression, multiple_arity_numeric_expression, numeric_expression, one_direction_repeat_factor, oriented_open_shell, oriented_path, positioned_sketch, procedural_representation, procedural_representation_sequence, product_definition_context_role, product_definition_effectivity, runout_zone_orientation, simple_boolean_expression, simple_generic_expression, simple_numeric_expression, solid_with_depression, solid_with_hole, solid_with_pocket, solid_with_protrusion, solid_with_shape_element_pattern, solid_with_slot, swept_area_solid, symbol_target, tolerance_zone_form, two_direction_repeat_factor, unary_generic_expression, unary_numeric_expression, user_selected_elements, variational_representation_item, view_volume);\r\nLOCAL\r\n  number_of_input_instances : INTEGER;\r\n  previous_in_chain : LIST OF GENERIC := [];\r\n  set_of_input_types : SET OF STRING := [];\r\n  all_instances : SET OF GENERIC := [];\r\nEND_LOCAL;\r\n\r\n  all_instances := all_instances + action_method_role + annotation_text + attribute_value_role + auxiliary_geometric_representation_item + binary_numeric_expression + boolean_expression + bounded_curve + bounded_surface + cartesian_transformation_operator + comparison_expression + concept_feature_relationship + concept_feature_relationship_with_condition + connected_edge_set + document_usage_constraint + edge_blended_solid + effectivity_context_role + event_occurrence_role + explicit_procedural_representation_item_relationship + expression + founded_item + generic_expression + generic_variable + indirectly_selected_elements + interval_expression + literal_number + local_time + loop + modified_solid_with_placed_configuration + multiple_arity_boolean_expression + multiple_arity_generic_expression + multiple_arity_numeric_expression + numeric_expression + one_direction_repeat_factor + oriented_open_shell + oriented_path + positioned_sketch + procedural_representation + procedural_representation_sequence + product_definition_context_role + product_definition_effectivity + runout_zone_orientation + simple_boolean_expression + simple_generic_expression + simple_numeric_expression + solid_with_depression + solid_with_hole + solid_with_pocket + solid_with_protrusion + solid_with_shape_element_pattern + solid_with_slot + swept_area_solid + symbol_target + tolerance_zone_form + two_direction_repeat_factor + unary_generic_expression + unary_numeric_expression + user_selected_elements + variational_representation_item + view_volume;--<make a union of all implicit populations of the FOR-clause>\r\nnumber_of_input_instances := SIZEOF(all_instances);\r\n(* Collect all type strings of all FOR instances into one set. *)\r\nREPEAT i:=1 TO number_of_input_instances;\r\n  set_of_input_types := set_of_input_types + TYPEOF(all_instances[i]);\r\nEND_REPEAT;\r\nWHERE\r\n\tWR1 : dependently_instantiated(all_instances, set_of_input_types,\r\n                                previous_in_chain);\r\nEND_RULE;"
+        }
+    ],
+    "schema_sha256": "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088",
+    "types": {
+        "DIMENSION_COUNT": {
+            "line": 839,
+            "text": "TYPE dimension_count = INTEGER;\r\nWHERE\r\n\tWR1 : SELF > 0;\r\nEND_TYPE;"
+        },
+        "NON_NEGATIVE_LENGTH_MEASURE": {
+            "line": 1357,
+            "text": "TYPE non_negative_length_measure = length_measure;\r\nWHERE\r\n\tWR1 : SELF >= 0.0;\r\nEND_TYPE;"
+        },
+        "POSITIVE_LENGTH_MEASURE": {
+            "line": 1483,
+            "text": "TYPE positive_length_measure = non_negative_length_measure;\r\nWHERE\r\n\tWR1 : SELF > 0.0;\r\nEND_TYPE;"
+        }
+    }
+}

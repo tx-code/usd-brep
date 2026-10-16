@@ -1,0 +1,16 @@
+{
+    "format_version": "t01.v1",
+    "max_case_bytes": 11932,
+    "max_case_depth": 16,
+    "max_records": 1000,
+    "max_report_bytes": 10000000,
+    "max_total_input_bytes": 325812,
+    "measured": {
+        "max_input_bytes": 5966,
+        "max_record_nesting": 3,
+        "max_record_occurrences": 149,
+        "nesting_definition": "parenthesis nesting within DATA record value, excluding quoted text",
+        "total_input_bytes": 162906
+    },
+    "production_default": false
+}

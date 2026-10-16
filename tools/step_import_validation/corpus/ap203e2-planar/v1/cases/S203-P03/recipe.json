@@ -1,0 +1,16 @@
+{
+    "case_id": "S203-P03",
+    "edits": [
+        {
+            "end": 1588,
+            "new_text": "#130=CARTESIAN_POINT('',(3.4,5.2,5.));",
+            "old_text": "#130=CARTESIAN_POINT('',(3.,-2.,5.));",
+            "start": 1551
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "0c70e9f7d70a1ffe1f3b0fab17933d2510eb2a48d21b8a17190bba193c9d4852",
+    "kind": "DerivedPositive",
+    "parent": "S203-P02",
+    "parent_input_sha256": "1508ce55f4d23101d1537b1b53a11e49bcb31c47a4881b2755888cc6e0f2e33c"
+}

@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N02",
+    "diagnostic": "DuplicateInstanceId",
+    "edits": [
+        {
+            "end": 2482,
+            "new_bytes_b64": "IzEwMD1DQVJURVNJQU5fUE9JTlQoJycsKDMuLC0yLiw1LikpOwo=",
+            "new_text": "#100=CARTESIAN_POINT('',(3.,-2.,5.));\n",
+            "old_bytes_b64": "",
+            "old_text": "",
+            "start": 2482
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "0e247c3442f90abbcdb0fd5a3ac0de1db2ff5ba8a9c0f5529b2a66637613ff7c",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D0"
+}

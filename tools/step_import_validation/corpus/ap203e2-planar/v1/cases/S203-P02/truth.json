@@ -1,0 +1,708 @@
+{
+    "bounds": [
+        [
+            {
+                "den": "5",
+                "kind": "rational",
+                "num": "-17"
+            },
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "-2"
+            },
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "5"
+            }
+        ],
+        [
+            {
+                "den": "5",
+                "kind": "rational",
+                "num": "51"
+            },
+            {
+                "den": "5",
+                "kind": "rational",
+                "num": "62"
+            },
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "5"
+            }
+        ]
+    ],
+    "canonical_units": {
+        "area": "mm^2",
+        "length": "mm",
+        "parameter": "dimensionless",
+        "volume": "mm^3"
+    },
+    "case_id": "S203-P02",
+    "centroid": [
+        {
+            "den": "55",
+            "kind": "rational",
+            "num": "189"
+        },
+        {
+            "den": "5",
+            "kind": "rational",
+            "num": "27"
+        },
+        {
+            "den": "1",
+            "kind": "rational",
+            "num": "5"
+        }
+    ],
+    "kind": "ExactShape",
+    "material_volume": {
+        "applicability": "NotApplicable",
+        "reason": "surface model",
+        "value": null
+    },
+    "measures": {
+        "area": {
+            "den": "1",
+            "kind": "rational",
+            "num": "88"
+        },
+        "perimeter": {
+            "den": "1",
+            "kind": "rational",
+            "num": "52"
+        }
+    },
+    "methods": [
+        "exact plane projection and shoelace",
+        "reviewed rectangle minus hole dimensions"
+    ],
+    "queries": {
+        "classifications": [
+            {
+                "frame_uv": [
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "10"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "6"
+                    }
+                ],
+                "location": "InsideFace",
+                "point_mm": [
+                    {
+                        "den": "5",
+                        "kind": "rational",
+                        "num": "21"
+                    },
+                    {
+                        "den": "5",
+                        "kind": "rational",
+                        "num": "48"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "5"
+                    }
+                ]
+            },
+            {
+                "frame_uv": [
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "4"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "3"
+                    }
+                ],
+                "location": "OutsideFace",
+                "point_mm": [
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "3"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "3"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "5"
+                    }
+                ]
+            },
+            {
+                "frame_uv": [
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "2"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "3"
+                    }
+                ],
+                "location": "OnBoundary",
+                "point_mm": [
+                    {
+                        "den": "5",
+                        "kind": "rational",
+                        "num": "9"
+                    },
+                    {
+                        "den": "5",
+                        "kind": "rational",
+                        "num": "7"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "5"
+                    }
+                ]
+            },
+            {
+                "frame_uv": [
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "13"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "1"
+                    }
+                ],
+                "location": "OutsideFace",
+                "point_mm": [
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "10"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "9"
+                    },
+                    {
+                        "den": "1",
+                        "kind": "rational",
+                        "num": "5"
+                    }
+                ]
+            }
+        ],
+        "hole": {
+            "closest_point_mm": [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "16"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "8"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            "distance_mm": {
+                "lower": {
+                    "den": "1000000000000",
+                    "kind": "rational",
+                    "num": "3041381265149"
+                },
+                "proof": "lower^2 <= radicand <= upper^2; nonnegative bounds",
+                "radicand": {
+                    "den": "4",
+                    "kind": "rational",
+                    "num": "37"
+                },
+                "upper": {
+                    "den": "20000000000",
+                    "kind": "rational",
+                    "num": "60827625303"
+                }
+            },
+            "point_mm": [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "14"
+                },
+                {
+                    "den": "10",
+                    "kind": "rational",
+                    "num": "19"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "8"
+                }
+            ]
+        },
+        "method": "exact plane projection, ray crossings and minimum finite segment distance",
+        "off_face": {
+            "closest_point_mm": [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "21"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "48"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            "distance_mm": {
+                "lower": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "3"
+                },
+                "proof": "lower^2 <= radicand <= upper^2; nonnegative bounds",
+                "radicand": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "9"
+                },
+                "upper": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "3"
+                }
+            },
+            "point_mm": [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "21"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "48"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "8"
+                }
+            ]
+        }
+    },
+    "role": "SurfaceModel",
+    "source_definition": {
+        "bound_orientation": true,
+        "edge_curve_ids": [
+            203,
+            213,
+            223,
+            233,
+            243,
+            253,
+            263,
+            273
+        ],
+        "edge_same_sense": true,
+        "edge_vertex_indices": [
+            [
+                0,
+                1
+            ],
+            [
+                1,
+                2
+            ],
+            [
+                2,
+                3
+            ],
+            [
+                3,
+                0
+            ],
+            [
+                4,
+                5
+            ],
+            [
+                5,
+                6
+            ],
+            [
+                6,
+                7
+            ],
+            [
+                7,
+                4
+            ]
+        ],
+        "face_paths": [
+            [
+                0,
+                1,
+                2,
+                3
+            ]
+        ],
+        "face_same_sense": true,
+        "line_endpoint_parameters": [
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "0"
+            },
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "1"
+            }
+        ],
+        "loop_paths": [
+            [
+                0,
+                1,
+                2,
+                3
+            ],
+            [
+                4,
+                5,
+                6,
+                7
+            ]
+        ],
+        "plane_origin_mm": [
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "3"
+            },
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "-2"
+            },
+            {
+                "den": "1",
+                "kind": "rational",
+                "num": "5"
+            }
+        ],
+        "source_length_scale_mm": {
+            "den": "1",
+            "kind": "rational",
+            "num": "1"
+        },
+        "source_uv_points": [
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "12"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "12"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "8"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "8"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "4"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "6"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "4"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "6"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2"
+                }
+            ]
+        ],
+        "source_uv_window": [
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "12"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "8"
+                }
+            ]
+        ],
+        "vertex_point_ids": [
+            110,
+            111,
+            112,
+            113,
+            114,
+            115,
+            116,
+            117
+        ],
+        "world_points_mm": [
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "3"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "-2"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "51"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "38"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "19"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "62"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "-17"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "14"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "13"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "4"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "1"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "17"
+                },
+                {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "26"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ],
+            [
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "4"
+                },
+                {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "5"
+                }
+            ]
+        ]
+    },
+    "source_topology": {
+        "edges": 8,
+        "faces": 1,
+        "vertices": 8
+    }
+}

@@ -1,0 +1,22 @@
+{
+    "case_id": "S203-P05",
+    "edits": [
+        {
+            "end": 1190,
+            "new_text": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+            "old_text": "ADVANCED_BREP_SHAPE_REPRESENTATION",
+            "start": 1156
+        },
+        {
+            "end": 1245,
+            "new_text": "#21=SHELL_BASED_SURFACE_MODEL('',(#22));",
+            "old_text": "#21=MANIFOLD_SOLID_BREP('',#22);",
+            "start": 1213
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "e02d39294d6f29c22818285ed50422f80d44553668802cd21dd258bb84216172",
+    "kind": "DerivedPositive",
+    "parent": "S203-P04",
+    "parent_input_sha256": "5a91e5faf826341114cf7b36b1c414284ae9ef94319ae69bded945d2d7f34dd2"
+}

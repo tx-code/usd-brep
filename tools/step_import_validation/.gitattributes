@@ -1,0 +1,5 @@
+# Frozen bytes and their hashes must survive Windows checkouts unchanged.
+*.step -text
+*.json -text
+*.py text eol=lf
+*.md text eol=lf

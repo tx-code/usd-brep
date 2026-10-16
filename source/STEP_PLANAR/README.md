@@ -1,0 +1,67 @@
+# STEP_PLANAR
+
+Internal source validation above STEP_SEMANTICS. No SMLib, OCCT, USD, STEPcode runtime, native BRep or repair dependency.
+The transport and closed AP203e2 N2635 profile remain those of tickets 02/03. This layer checks supported source rules
+and directed LINE/PLANE boundary regions; `Checked` is not complete AP validity or an imported model.
+
+`Check(semanticOutcome, explicitQuality, limits)` returns owning diagnostic evidence sharing the immutable semantic/source
+snapshot. Source IDs, attributes and raw bytes retain their original meanings. Partial evidence can accompany failure;
+`qualified_source_evidence` is true only after all current checks complete. The JSON report embeds the preceding report
+once and always reports `model=null`, native build/full import/target UV/tolerance setting/material volume/shell
+self-intersection as `NotRun`.
+
+The compiled N2635 clause metadata covers the 72 registered entity declarations and their 77 WHERE/UNIQUE/INVERSE
+clauses, including guard populations with no instances. Active clauses are evaluated per instance; ancestor populations
+include actual subtypes. Singleton product guards prove the two UNIQUE clauses. Explicit metadata-assignment exclusions
+prove inverse WHERE counts, while context inverse cardinalities use actual role-filtered references. Named length TYPE
+predicates include their inherited predicates. This is a dedicated equivalent evaluation inside the closed profile,
+not a general EXPRESS interpreter.
+
+Complete type populations are shared through the embedded semantic snapshot. Per-instance local rows state
+`population_scope=OwnerInstance` and list only their owner; global FOR populations use `FullFile`. This keeps local
+evidence storage linear in applicable instance/clause pairs rather than copying a whole class into every row.
+
+The 47 global rules record 5 mandatory, 1 conditional and 41 guarded classifications. Every FOR population is reported,
+including nonempty PRPC/PD/representation populations whose name filter or outer loop is inactive. An unregistered type
+is never an empty public query result; only the known global rule declarations use the explicitly validated closed
+signature universe to establish exclusion. Source LOGICAL UNKNOWN is a computed value: G36 records its ordinary-name
+correlation UNKNOWN and the outer QUERY's empty failing set. Unevaluated expressions have no logical value. MSSR
+WR6–WR14 use the ADVANCED_FACE first-disjunct proof; the original plain-FS access paths remain unexecuted and unchanged.
+
+Geometry decisions use reduced signed 63-bit-magnitude rational arithmetic with checked intermediate operations.
+Finite LINE parameter intervals, squared endpoint/plane residuals and threshold comparisons are exact. Placement axes
+are kept in an unnormalised orthogonal basis; normalisation radicals and metric factors are explicit in evidence.
+Thus irrational normalisation need not round the defining geometry. Numerals or intermediate operations exceeding this
+bounded representation return `Indeterminate`, with source provenance and no numeric fallback. This is a current
+capability limit, not a source-invalid diagnosis; it does not limit the source parser's exact numeric text retention.
+
+LINE parameters are dimensionless; PLANE u/v have source length units. Evidence gives the exact algebraic mapping back
+to source UV. `projected_region_*` values describe the independently checked projection of the source vertex boundary
+onto the source plane. Residuals remain visible, even when nonzero within Q. This projection is diagnostic evidence;
+no source vertex, curve, plane, topology or sense is rewritten. No target trim/window is created here.
+
+Regions require explicit outer bounds, identity-connected simple loops, nonzero area, correct effective winding,
+strict hole containment and disjoint, nonnested holes. Incidence checks detect free edges in claimed closed shells,
+wrong shared-use direction, disconnected shells and repeated/nonmanifold uses. Passing these checks does not establish
+shell nonintersection, material interior, volume, modeling/query eligibility or native construction.
+
+The CLI requires both `--fixture-limits` and `--quality Q-P0-mm-01`. The frozen test candidate supplies 1e-7 mm consistency
+error; it is not a production default. The internal API also accepts an explicit separately named quality configuration.
+Source uncertainty is checked as source semantics, and does not enlarge this threshold. Conversion length interpretation
+retains `Deferred` until ticket 09, so its dependent rules/geometry remain `NotRun`.
+
+```powershell
+cmake -S source/STEP_PLANAR -B <external-build> -DCMAKE_CXX_STANDARD=17
+cmake --build <external-build> --config Release
+ctest --test-dir <external-build> -C Release --output-on-failure
+<external-build>/Release/step_planar_inspect --fixture-limits --quality Q-P0-mm-01 input.step
+```
+
+C++17 is the minimum. Set `CMAKE_CXX_STANDARD=20` in a separate build directory to validate the same component closure
+under C++20; this does not change the repository's global standard or promise cross-standard ABI mixing.
+
+Exit codes: 0 checked source evidence; 1 source rejection; 2 upstream profile/transport unsupported; 3 resource limit;
+4 input I/O; 5 report limit (no partial stdout); 6 infrastructure; 7 conversion deferred; 8 unestablished numeric/derived
+evidence; 64 invalid configuration. `UpstreamFailure` retains the preceding layer's precise diagnostic and exit code.
+
+Formal results and limitations: [ticket 04 acceptance](../../docs/step-import/ticket04-acceptance.md).

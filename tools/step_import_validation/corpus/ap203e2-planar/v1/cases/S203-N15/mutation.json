@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N15",
+    "diagnostic": "EnumerationValueInvalid",
+    "edits": [
+        {
+            "end": 1029,
+            "new_bytes_b64": "U0lfVU5JVCguUVVFVFRBLiwuUkFESUFOLik=",
+            "new_text": "SI_UNIT(.QUETTA.,.RADIAN.)",
+            "old_bytes_b64": "U0lfVU5JVCgkLC5SQURJQU4uKQ==",
+            "old_text": "SI_UNIT($,.RADIAN.)",
+            "start": 1010
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "1e3e967f3464a860b4828eb4a121692635b1d6c02351077153a743c2d7062dce",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D1"
+}

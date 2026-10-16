@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N35",
+    "diagnostic_key": "UnsupportedProductCategory",
+    "expected_result": "Rejected",
+    "expected_stage": "D2",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        2486,
+        2524
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N20",
+    "diagnostic": "EndpointCurveMismatch",
+    "edits": [
+        {
+            "end": 1800,
+            "new_bytes_b64": "IzIwMj1MSU5FKCcnLCMxMDIsIzIwMSk=",
+            "new_text": "#202=LINE('',#102,#201)",
+            "old_bytes_b64": "IzIwMj1MSU5FKCcnLCMxMDAsIzIwMSk=",
+            "old_text": "#202=LINE('',#100,#201)",
+            "start": 1777
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "c566bc24f7389c525ccc1143b388ff331028d23b6d58d4f03b43b33de618ff8a",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D4"
+}

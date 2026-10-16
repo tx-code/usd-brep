@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N16",
+    "diagnostic": "UnsupportedDefinitionContextRole",
+    "edits": [
+        {
+            "end": 778,
+            "new_bytes_b64": "IzY9UFJPRFVDVF9ERUZJTklUSU9OX0NPTlRFWFQoJ3BhcnQgb2NjdXJyZW5jZSc=",
+            "new_text": "#6=PRODUCT_DEFINITION_CONTEXT('part occurrence'",
+            "old_bytes_b64": "IzY9UFJPRFVDVF9ERUZJTklUSU9OX0NPTlRFWFQoJ3BhcnQgZGVmaW5pdGlvbic=",
+            "old_text": "#6=PRODUCT_DEFINITION_CONTEXT('part definition'",
+            "start": 731
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "cdcdb0612bc39e1d97b9ac76a2e0d61a7ebc3569638a34273a67371e5b458fdd",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D2"
+}

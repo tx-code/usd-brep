@@ -1,0 +1,909 @@
+{
+    "authority": "pinned MBx N2635 implementation artifact, not certified final ISO",
+    "entities": {
+        "ADVANCED_BREP_SHAPE_REPRESENTATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "SHAPE_REPRESENTATION"
+            ]
+        },
+        "ADVANCED_FACE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "FACE_SURFACE"
+            ]
+        },
+        "APPLICATION_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "application"
+                }
+            ],
+            "parents": []
+        },
+        "APPLICATION_CONTEXT_ELEMENT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "APPLICATION_CONTEXT",
+                    "name": "frame_of_reference"
+                }
+            ],
+            "parents": []
+        },
+        "APPLICATION_PROTOCOL_DEFINITION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "status"
+                },
+                {
+                    "declaration": "LABEL",
+                    "name": "application_interpreted_model_schema_name"
+                },
+                {
+                    "declaration": "YEAR_NUMBER",
+                    "name": "application_protocol_year"
+                },
+                {
+                    "declaration": "APPLICATION_CONTEXT",
+                    "name": "application"
+                }
+            ],
+            "parents": []
+        },
+        "AXIS2_PLACEMENT_3D": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "OPTIONAL DIRECTION",
+                    "name": "axis"
+                },
+                {
+                    "declaration": "OPTIONAL DIRECTION",
+                    "name": "ref_direction"
+                }
+            ],
+            "parents": [
+                "PLACEMENT"
+            ]
+        },
+        "CARTESIAN_POINT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LIST [1:3] OF LENGTH_MEASURE",
+                    "name": "coordinates"
+                }
+            ],
+            "parents": [
+                "POINT"
+            ]
+        },
+        "CLOSED_SHELL": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "CONNECTED_FACE_SET"
+            ]
+        },
+        "CONNECTED_FACE_SET": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF FACE",
+                    "name": "cfs_faces"
+                }
+            ],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "CONVERSION_BASED_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "MEASURE_WITH_UNIT",
+                    "name": "conversion_factor"
+                }
+            ],
+            "parents": [
+                "NAMED_UNIT"
+            ]
+        },
+        "CURVE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "DERIVED_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF DERIVED_UNIT_ELEMENT",
+                    "name": "elements"
+                }
+            ],
+            "parents": []
+        },
+        "DERIVED_UNIT_ELEMENT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "NAMED_UNIT",
+                    "name": "unit"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "exponent"
+                }
+            ],
+            "parents": []
+        },
+        "DESIGN_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "PRODUCT_DEFINITION_CONTEXT"
+            ]
+        },
+        "DIMENSIONAL_EXPONENTS": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "REAL",
+                    "name": "length_exponent"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "mass_exponent"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "time_exponent"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "electric_current_exponent"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "thermodynamic_temperature_exponent"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "amount_of_substance_exponent"
+                },
+                {
+                    "declaration": "REAL",
+                    "name": "luminous_intensity_exponent"
+                }
+            ],
+            "parents": []
+        },
+        "DIRECTION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LIST [2:3] OF REAL",
+                    "name": "direction_ratios"
+                }
+            ],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "EDGE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "VERTEX",
+                    "name": "edge_start"
+                },
+                {
+                    "declaration": "VERTEX",
+                    "name": "edge_end"
+                }
+            ],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "EDGE_CURVE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "CURVE",
+                    "name": "edge_geometry"
+                },
+                {
+                    "declaration": "BOOLEAN",
+                    "name": "same_sense"
+                }
+            ],
+            "parents": [
+                "EDGE",
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "EDGE_LOOP": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "LOOP",
+                "PATH"
+            ]
+        },
+        "ELEMENTARY_SURFACE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "AXIS2_PLACEMENT_3D",
+                    "name": "position"
+                }
+            ],
+            "parents": [
+                "SURFACE"
+            ]
+        },
+        "FACE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF FACE_BOUND",
+                    "name": "bounds"
+                }
+            ],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "FACE_BOUND": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LOOP",
+                    "name": "bound"
+                },
+                {
+                    "declaration": "BOOLEAN",
+                    "name": "orientation"
+                }
+            ],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "FACE_OUTER_BOUND": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "FACE_BOUND"
+            ]
+        },
+        "FACE_SURFACE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SURFACE",
+                    "name": "face_geometry"
+                },
+                {
+                    "declaration": "BOOLEAN",
+                    "name": "same_sense"
+                }
+            ],
+            "parents": [
+                "FACE",
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "FOUNDED_ITEM": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": []
+        },
+        "GEOMETRIC_REPRESENTATION_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "DIMENSION_COUNT",
+                    "name": "coordinate_space_dimension"
+                }
+            ],
+            "parents": [
+                "REPRESENTATION_CONTEXT"
+            ]
+        },
+        "GEOMETRIC_REPRESENTATION_ITEM": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "REPRESENTATION_ITEM"
+            ]
+        },
+        "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF UNCERTAINTY_MEASURE_WITH_UNIT",
+                    "name": "uncertainty"
+                }
+            ],
+            "parents": [
+                "REPRESENTATION_CONTEXT"
+            ]
+        },
+        "GLOBAL_UNIT_ASSIGNED_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF UNIT",
+                    "name": "units"
+                }
+            ],
+            "parents": [
+                "REPRESENTATION_CONTEXT"
+            ]
+        },
+        "LENGTH_MEASURE_WITH_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "MEASURE_WITH_UNIT"
+            ]
+        },
+        "LENGTH_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "NAMED_UNIT"
+            ]
+        },
+        "LINE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "CARTESIAN_POINT",
+                    "name": "pnt"
+                },
+                {
+                    "declaration": "VECTOR",
+                    "name": "dir"
+                }
+            ],
+            "parents": [
+                "CURVE"
+            ]
+        },
+        "LOOP": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "MANIFOLD_SOLID_BREP": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "CLOSED_SHELL",
+                    "name": "outer"
+                }
+            ],
+            "parents": [
+                "SOLID_MODEL"
+            ]
+        },
+        "MANIFOLD_SURFACE_SHAPE_REPRESENTATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "SHAPE_REPRESENTATION"
+            ]
+        },
+        "MASS_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "NAMED_UNIT"
+            ]
+        },
+        "MEASURE_WITH_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "MEASURE_VALUE",
+                    "name": "value_component"
+                },
+                {
+                    "declaration": "UNIT",
+                    "name": "unit_component"
+                }
+            ],
+            "parents": []
+        },
+        "MECHANICAL_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "PRODUCT_CONTEXT"
+            ]
+        },
+        "NAMED_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "DIMENSIONAL_EXPONENTS",
+                    "name": "dimensions"
+                }
+            ],
+            "parents": []
+        },
+        "OPEN_SHELL": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "CONNECTED_FACE_SET"
+            ]
+        },
+        "ORIENTED_EDGE": {
+            "derived_redeclarations": [
+                {
+                    "name": "edge_end",
+                    "origin": "EDGE"
+                },
+                {
+                    "name": "edge_start",
+                    "origin": "EDGE"
+                }
+            ],
+            "explicit_fields": [
+                {
+                    "declaration": "EDGE",
+                    "name": "edge_element"
+                },
+                {
+                    "declaration": "BOOLEAN",
+                    "name": "orientation"
+                }
+            ],
+            "parents": [
+                "EDGE"
+            ]
+        },
+        "PATH": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LIST [1:?] OF UNIQUE ORIENTED_EDGE",
+                    "name": "edge_list"
+                }
+            ],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "PLACEMENT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "CARTESIAN_POINT",
+                    "name": "location"
+                }
+            ],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "PLANE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "ELEMENTARY_SURFACE"
+            ]
+        },
+        "PLANE_ANGLE_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "NAMED_UNIT"
+            ]
+        },
+        "POINT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "PRODUCT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "IDENTIFIER",
+                    "name": "id"
+                },
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "OPTIONAL TEXT",
+                    "name": "description"
+                },
+                {
+                    "declaration": "SET [1:?] OF PRODUCT_CONTEXT",
+                    "name": "frame_of_reference"
+                }
+            ],
+            "parents": []
+        },
+        "PRODUCT_CATEGORY": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "OPTIONAL TEXT",
+                    "name": "description"
+                }
+            ],
+            "parents": []
+        },
+        "PRODUCT_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "discipline_type"
+                }
+            ],
+            "parents": [
+                "APPLICATION_CONTEXT_ELEMENT"
+            ]
+        },
+        "PRODUCT_DEFINITION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "IDENTIFIER",
+                    "name": "id"
+                },
+                {
+                    "declaration": "OPTIONAL TEXT",
+                    "name": "description"
+                },
+                {
+                    "declaration": "PRODUCT_DEFINITION_FORMATION",
+                    "name": "formation"
+                },
+                {
+                    "declaration": "PRODUCT_DEFINITION_CONTEXT",
+                    "name": "frame_of_reference"
+                }
+            ],
+            "parents": []
+        },
+        "PRODUCT_DEFINITION_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "life_cycle_stage"
+                }
+            ],
+            "parents": [
+                "APPLICATION_CONTEXT_ELEMENT"
+            ]
+        },
+        "PRODUCT_DEFINITION_FORMATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "IDENTIFIER",
+                    "name": "id"
+                },
+                {
+                    "declaration": "OPTIONAL TEXT",
+                    "name": "description"
+                },
+                {
+                    "declaration": "PRODUCT",
+                    "name": "of_product"
+                }
+            ],
+            "parents": []
+        },
+        "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SOURCE",
+                    "name": "make_or_buy"
+                }
+            ],
+            "parents": [
+                "PRODUCT_DEFINITION_FORMATION"
+            ]
+        },
+        "PRODUCT_DEFINITION_SHAPE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "PROPERTY_DEFINITION"
+            ]
+        },
+        "PRODUCT_RELATED_PRODUCT_CATEGORY": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF PRODUCT",
+                    "name": "products"
+                }
+            ],
+            "parents": [
+                "PRODUCT_CATEGORY"
+            ]
+        },
+        "PROPERTY_DEFINITION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "OPTIONAL TEXT",
+                    "name": "description"
+                },
+                {
+                    "declaration": "CHARACTERIZED_DEFINITION",
+                    "name": "definition"
+                }
+            ],
+            "parents": []
+        },
+        "PROPERTY_DEFINITION_REPRESENTATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "REPRESENTED_DEFINITION",
+                    "name": "definition"
+                },
+                {
+                    "declaration": "REPRESENTATION",
+                    "name": "used_representation"
+                }
+            ],
+            "parents": []
+        },
+        "REPRESENTATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "SET [1:?] OF REPRESENTATION_ITEM",
+                    "name": "items"
+                },
+                {
+                    "declaration": "REPRESENTATION_CONTEXT",
+                    "name": "context_of_items"
+                }
+            ],
+            "parents": []
+        },
+        "REPRESENTATION_CONTEXT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "IDENTIFIER",
+                    "name": "context_identifier"
+                },
+                {
+                    "declaration": "TEXT",
+                    "name": "context_type"
+                }
+            ],
+            "parents": []
+        },
+        "REPRESENTATION_ITEM": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                }
+            ],
+            "parents": []
+        },
+        "SHAPE_DEFINITION_REPRESENTATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "PROPERTY_DEFINITION_REPRESENTATION"
+            ]
+        },
+        "SHAPE_REPRESENTATION": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "REPRESENTATION"
+            ]
+        },
+        "SHELL_BASED_SURFACE_MODEL": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "SET [1:?] OF SHELL",
+                    "name": "sbsm_boundary"
+                }
+            ],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "SI_UNIT": {
+            "derived_redeclarations": [
+                {
+                    "name": "dimensions",
+                    "origin": "NAMED_UNIT"
+                }
+            ],
+            "explicit_fields": [
+                {
+                    "declaration": "OPTIONAL SI_PREFIX",
+                    "name": "prefix"
+                },
+                {
+                    "declaration": "SI_UNIT_NAME",
+                    "name": "name"
+                }
+            ],
+            "parents": [
+                "NAMED_UNIT"
+            ]
+        },
+        "SOLID_ANGLE_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "NAMED_UNIT"
+            ]
+        },
+        "SOLID_MODEL": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "SURFACE": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "TOPOLOGICAL_REPRESENTATION_ITEM": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "REPRESENTATION_ITEM"
+            ]
+        },
+        "UNCERTAINTY_MEASURE_WITH_UNIT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "LABEL",
+                    "name": "name"
+                },
+                {
+                    "declaration": "OPTIONAL TEXT",
+                    "name": "description"
+                }
+            ],
+            "parents": [
+                "MEASURE_WITH_UNIT"
+            ]
+        },
+        "VECTOR": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "DIRECTION",
+                    "name": "orientation"
+                },
+                {
+                    "declaration": "LENGTH_MEASURE",
+                    "name": "magnitude"
+                }
+            ],
+            "parents": [
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        },
+        "VERTEX": {
+            "derived_redeclarations": [],
+            "explicit_fields": [],
+            "parents": [
+                "TOPOLOGICAL_REPRESENTATION_ITEM"
+            ]
+        },
+        "VERTEX_POINT": {
+            "derived_redeclarations": [],
+            "explicit_fields": [
+                {
+                    "declaration": "POINT",
+                    "name": "vertex_geometry"
+                }
+            ],
+            "parents": [
+                "VERTEX",
+                "GEOMETRIC_REPRESENTATION_ITEM"
+            ]
+        }
+    },
+    "method": "independent source-declaration extraction; no native output or C++ catalog used",
+    "schema_sha256": "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088",
+    "simple_profile_leaves": [
+        "ADVANCED_BREP_SHAPE_REPRESENTATION",
+        "ADVANCED_FACE",
+        "APPLICATION_CONTEXT",
+        "APPLICATION_PROTOCOL_DEFINITION",
+        "AXIS2_PLACEMENT_3D",
+        "CARTESIAN_POINT",
+        "CLOSED_SHELL",
+        "DESIGN_CONTEXT",
+        "DIMENSIONAL_EXPONENTS",
+        "DIRECTION",
+        "EDGE_CURVE",
+        "EDGE_LOOP",
+        "FACE_BOUND",
+        "FACE_OUTER_BOUND",
+        "LENGTH_MEASURE_WITH_UNIT",
+        "LINE",
+        "MANIFOLD_SOLID_BREP",
+        "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+        "MEASURE_WITH_UNIT",
+        "MECHANICAL_CONTEXT",
+        "OPEN_SHELL",
+        "ORIENTED_EDGE",
+        "PLANE",
+        "PRODUCT",
+        "PRODUCT_CONTEXT",
+        "PRODUCT_DEFINITION",
+        "PRODUCT_DEFINITION_CONTEXT",
+        "PRODUCT_DEFINITION_FORMATION",
+        "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE",
+        "PRODUCT_DEFINITION_SHAPE",
+        "PRODUCT_RELATED_PRODUCT_CATEGORY",
+        "SHAPE_DEFINITION_REPRESENTATION",
+        "SHELL_BASED_SURFACE_MODEL",
+        "UNCERTAINTY_MEASURE_WITH_UNIT",
+        "VECTOR",
+        "VERTEX_POINT"
+    ],
+    "source_url": "https://github.com/stepcode/stepcode/blob/24783b448511b8f6bce2829286a3f00015430236/data/ap203e2/ap203e2_mim_lf.exp"
+}

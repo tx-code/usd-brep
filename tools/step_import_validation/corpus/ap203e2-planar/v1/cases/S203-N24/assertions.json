@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N24",
+    "diagnostic_key": "SourceRuleViolation:EDGE_LOOP.WR1",
+    "expected_result": "Rejected",
+    "expected_stage": "D3",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        2287,
+        2316
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

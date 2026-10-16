@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N25",
+    "diagnostic": "InnerBoundaryOrientationMismatch",
+    "edits": [
+        {
+            "end": 3465,
+            "new_bytes_b64": "IzMxMT1GQUNFX0JPVU5EKCcnLCMzMTAsLkYuKQ==",
+            "new_text": "#311=FACE_BOUND('',#310,.F.)",
+            "old_bytes_b64": "IzMxMT1GQUNFX0JPVU5EKCcnLCMzMTAsLlQuKQ==",
+            "old_text": "#311=FACE_BOUND('',#310,.T.)",
+            "start": 3437
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "c322238cb8e7dbb0325bbb2d61f93e27fcb4c0d1be0eaee673e09e46880bdae6",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P02",
+    "parent_input_sha256": "1508ce55f4d23101d1537b1b53a11e49bcb31c47a4881b2755888cc6e0f2e33c",
+    "stage": "D4"
+}

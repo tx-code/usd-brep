@@ -1,0 +1,22 @@
+{
+    "case_id": "S203-P12",
+    "edits": [
+        {
+            "end": 1112,
+            "new_text": "GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11,#16))",
+            "old_text": "GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+            "start": 1073
+        },
+        {
+            "end": 2512,
+            "new_text": "#16=(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT());\nENDSEC;\nEND-ISO-10303-21;\n",
+            "old_text": "ENDSEC;\nEND-ISO-10303-21;\n",
+            "start": 2486
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "b99009e283c858ad5fb5607aa51e7d77d57417114d786b0654beffbc4e8b4466",
+    "kind": "DerivedPositive",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+}

@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N35",
+    "diagnostic": "UnsupportedProductCategory",
+    "edits": [
+        {
+            "end": 2525,
+            "new_bytes_b64": "UFJPRFVDVF9SRUxBVEVEX1BST0RVQ1RfQ0FURUdPUlkoJ3BseSc=",
+            "new_text": "PRODUCT_RELATED_PRODUCT_CATEGORY('ply'",
+            "old_bytes_b64": "UFJPRFVDVF9SRUxBVEVEX1BST0RVQ1RfQ0FURUdPUlkoJ3BhcnQn",
+            "old_text": "PRODUCT_RELATED_PRODUCT_CATEGORY('part'",
+            "start": 2486
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "70d4d7c700390cfbec1b7e5c7abf4cedebdc16f09bc5171e18ea19e0144e3ca2",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P09",
+    "parent_input_sha256": "aadaf4e9590a73924b48129117ee025870b370abf233e358c9578d37288a4784",
+    "stage": "D2"
+}

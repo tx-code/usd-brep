@@ -1,0 +1,28 @@
+{
+    "case_id": "S203-P10",
+    "edits": [
+        {
+            "end": 614,
+            "new_text": "#3=MECHANICAL_CONTEXT",
+            "old_text": "#3=PRODUCT_CONTEXT",
+            "start": 596
+        },
+        {
+            "end": 763,
+            "new_text": "#6=DESIGN_CONTEXT",
+            "old_text": "#6=PRODUCT_DEFINITION_CONTEXT",
+            "start": 734
+        },
+        {
+            "end": 733,
+            "new_text": "#5=PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE('A',$,#4,.NOT_KNOWN.);",
+            "old_text": "#5=PRODUCT_DEFINITION_FORMATION('A',$,#4);",
+            "start": 691
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "ec79047a8f4495b7abc8e45e6c6c10c7593d307f1c978d9ce9283bef822eb3d7",
+    "kind": "DerivedPositive",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+}

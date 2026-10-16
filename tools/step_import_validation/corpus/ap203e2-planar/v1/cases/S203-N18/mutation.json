@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N18",
+    "diagnostic": "UnsupportedFaceSubtype",
+    "edits": [
+        {
+            "end": 2460,
+            "new_bytes_b64": "IzMwMj1GQUNFX1NVUkZBQ0U=",
+            "new_text": "#302=FACE_SURFACE",
+            "old_bytes_b64": "IzMwMj1BRFZBTkNFRF9GQUNF",
+            "old_text": "#302=ADVANCED_FACE",
+            "start": 2442
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "436766192302f75f9be2d9386530472ebd9669ec8625cfec0e75d8084e9c0095",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D2"
+}

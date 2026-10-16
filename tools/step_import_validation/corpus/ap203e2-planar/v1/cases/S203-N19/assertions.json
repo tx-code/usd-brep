@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N19",
+    "diagnostic_key": "NonzeroDefiningLineRequired",
+    "expected_result": "Rejected",
+    "expected_stage": "D4",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        1751,
+        1774
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

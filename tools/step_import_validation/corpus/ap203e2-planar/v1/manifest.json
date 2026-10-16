@@ -1,0 +1,2367 @@
+{
+    "cases": [
+        {
+            "case_id": "S203-N01",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N01/case.json",
+                "role": "case",
+                "sha256": "2ba1c38e66208af5a9c141b8d0b3cbff852da6d448ea61f710849dbf0d460bef"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N02",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N02/case.json",
+                "role": "case",
+                "sha256": "9d3ba70b9bcbef3d2ac380356ecd57aac56e93d2c46f4439af79887565705e67"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N03",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N03/case.json",
+                "role": "case",
+                "sha256": "a9e5978b196749c6eb71a3fddfc195ee2e0e8b209478f0390b7977e7c11a8054"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N04",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N04/case.json",
+                "role": "case",
+                "sha256": "1f98e6d57875ccab44c199af6eedc6d807793f0334e6d7e523374e3cfd73a5ac"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N05",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N05/case.json",
+                "role": "case",
+                "sha256": "e715e28e37cd113ed65c05fbc877b382e8b6a2eeead097c6a04fedc9cf5a7d11"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N06",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N06/case.json",
+                "role": "case",
+                "sha256": "ba1a0f85fe9b4c3ccaa9af89cfe3e882fae9f9802f4258dd281b3ecfd37ad0a2"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N07",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N07/case.json",
+                "role": "case",
+                "sha256": "a5c0e0b7a8f00513247ac3d644f7725d2c39e567c061d3ba7e927caf87df48e1"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N08",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N08/case.json",
+                "role": "case",
+                "sha256": "b1c5ee50a62d692e0e0f010f86f4ade4957558c599956790849ab94c47c70237"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N09",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N09/case.json",
+                "role": "case",
+                "sha256": "9086b07757a2aecc85a9aae67fcc2edfe8a2d233d7d8fb52b14eb5d1bd40b234"
+            },
+            "kind": "Negative",
+            "parent": "S203-P04"
+        },
+        {
+            "case_id": "S203-N10",
+            "case_ref": {
+                "byte_length": 1454,
+                "path": "cases/S203-N10/case.json",
+                "role": "case",
+                "sha256": "cf4098ca414efeea9bc094315922e3d7d439f0225c6d662c180ecc11af75f898"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N11",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N11/case.json",
+                "role": "case",
+                "sha256": "f8a8f2cbcb669d68401b15e42a86362c8296753c921717d45675931ffb3e563f"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N12",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N12/case.json",
+                "role": "case",
+                "sha256": "462d4b2492d4fff0d5456df66c43726088639827ae3893ae67c9a3368c78f3ec"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N13",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N13/case.json",
+                "role": "case",
+                "sha256": "3e395855174fcd144060d61bc156e4f3d067f621960825340d0e1cfe2c8f39ed"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N14",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N14/case.json",
+                "role": "case",
+                "sha256": "4a0779900cd6d40edd812f7204ce3c8b63bb282e5196a6ad581f02d414c71bc5"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N15",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N15/case.json",
+                "role": "case",
+                "sha256": "006cfce5f89c691dce6fd3ffbe53d63af02e7cf4798ba39ccc7ee728fb182946"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N16",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N16/case.json",
+                "role": "case",
+                "sha256": "363228891ae53e7009e0ba6e455477bb4fb32dfd379a0832532d5bafc4a8c8c9"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N17",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N17/case.json",
+                "role": "case",
+                "sha256": "0ce7ceebad72e99480c8256941135559efbf9f8d373910847a4bf9ecf123b045"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N18",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N18/case.json",
+                "role": "case",
+                "sha256": "733328545d3853a06fa928963961b355a04d0ef99e637d082fe6ab27530d84ec"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N19",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N19/case.json",
+                "role": "case",
+                "sha256": "fc033e54e92f04d216dcb0ef70128cefc713bf8fe868f1a61ebaea3a93ebf33b"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N20",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N20/case.json",
+                "role": "case",
+                "sha256": "5c51042b0917c5d9022426cfee345dea52e66e45cb80b59e926178e1175ce688"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N21",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N21/case.json",
+                "role": "case",
+                "sha256": "b5a0c364dde5bb3ece55712561207d92d9d741b82f826bfe0a719998c4632bab"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N22",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N22/case.json",
+                "role": "case",
+                "sha256": "1b3cd61301029d03c76f00777e513eae09ff4f2997e1c6f53af074e069d1110c"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N23",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N23/case.json",
+                "role": "case",
+                "sha256": "42a4adfbc24a2f6b1331966d87943ab5b1459e8e72014abed6f1a1c8161526ac"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N24",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N24/case.json",
+                "role": "case",
+                "sha256": "26f17fce8a6550cd57175c6c854bd571c03bf0b98ac751e39d21db05a3f5f909"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N25",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N25/case.json",
+                "role": "case",
+                "sha256": "5fc2c59a8fcb77f9a337f35b8f85c0c337adef3a434de364d9f99a02054ef051"
+            },
+            "kind": "Negative",
+            "parent": "S203-P02"
+        },
+        {
+            "case_id": "S203-N26",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N26/case.json",
+                "role": "case",
+                "sha256": "430f914d90d9e30fe76a003e2bc35b924ae3f13986ec9cac92f901d48be36272"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-N27",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N27/case.json",
+                "role": "case",
+                "sha256": "edf2c122c8d9b031808b21943c71cfc50830d46348a36debe15d9c72dc94b6ff"
+            },
+            "kind": "Negative",
+            "parent": "S203-P04"
+        },
+        {
+            "case_id": "S203-N28",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N28/case.json",
+                "role": "case",
+                "sha256": "65b2ecc84d608d2be09fb8691b004c98f87e039cc2f384c2030f13da5072580d"
+            },
+            "kind": "Negative",
+            "parent": "S203-P04"
+        },
+        {
+            "case_id": "S203-N29",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N29/case.json",
+                "role": "case",
+                "sha256": "742dc2b89cd9159cc8a0a02a4f3100835f1219c7ae21d1b08256c7ab72b76562"
+            },
+            "kind": "Negative",
+            "parent": "S203-P08"
+        },
+        {
+            "case_id": "S203-N30",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N30/case.json",
+                "role": "case",
+                "sha256": "f4d7f0e86cdeec960a4440e9b806fb9b0c5bf116b679c211c8fb1537197fd91f"
+            },
+            "kind": "Negative",
+            "parent": "S203-P08"
+        },
+        {
+            "case_id": "S203-N31",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N31/case.json",
+                "role": "case",
+                "sha256": "70491a13f7c87b6e38191a3f18ba27ae37db2f41847424463240af48876900dd"
+            },
+            "kind": "Negative",
+            "parent": "S203-P11"
+        },
+        {
+            "case_id": "S203-N32",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N32/case.json",
+                "role": "case",
+                "sha256": "20fbe56127d2d4f8a9796bb87ec0dfb880c6f215df67b8215d5afd498ca9019a"
+            },
+            "kind": "Negative",
+            "parent": "S203-P11"
+        },
+        {
+            "case_id": "S203-N33",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N33/case.json",
+                "role": "case",
+                "sha256": "88e35a859779a2b2a1aa2ef971ee81fc1d6b87cdf301ec86ecf892f8ec7d1b90"
+            },
+            "kind": "Negative",
+            "parent": "S203-P11"
+        },
+        {
+            "case_id": "S203-N34",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N34/case.json",
+                "role": "case",
+                "sha256": "7d4cd303961ed4315dd70ad3ff75accad8642175f6c2bfc520785051cbc4fe82"
+            },
+            "kind": "Negative",
+            "parent": "S203-P13"
+        },
+        {
+            "case_id": "S203-N35",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N35/case.json",
+                "role": "case",
+                "sha256": "2d5c3ddcb720cf1bff29fcad54a2c556a8179e20b3db9fb52becda368b762a80"
+            },
+            "kind": "Negative",
+            "parent": "S203-P09"
+        },
+        {
+            "case_id": "S203-N36",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-N36/case.json",
+                "role": "case",
+                "sha256": "5244e312243913d2c1478492856cf2ac323fc4210ba27349cbf615189e831769"
+            },
+            "kind": "Negative",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P01",
+            "case_ref": {
+                "byte_length": 1446,
+                "path": "cases/S203-P01/case.json",
+                "role": "case",
+                "sha256": "e0cf9a07b7658be99e49bd60f09b44da168f345d9b29e3c4cbdc87e53f667a13"
+            },
+            "kind": "Positive",
+            "parent": null
+        },
+        {
+            "case_id": "S203-P02",
+            "case_ref": {
+                "byte_length": 1454,
+                "path": "cases/S203-P02/case.json",
+                "role": "case",
+                "sha256": "a4062a757bb29cb812417964ecdbf112e138de9e3dbaf21ace75f386d491e819"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P03",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-P03/case.json",
+                "role": "case",
+                "sha256": "63b1952d9a3ce24f32fb20dfd7288f69573c9db9c5091cf15f21f7163fda3503"
+            },
+            "kind": "Positive",
+            "parent": "S203-P02"
+        },
+        {
+            "case_id": "S203-P04",
+            "case_ref": {
+                "byte_length": 1447,
+                "path": "cases/S203-P04/case.json",
+                "role": "case",
+                "sha256": "1cd3201b1cbb13814239a17e5f2abb7b30ae75ea2bb3aa2d3a7292b6b2b2e005"
+            },
+            "kind": "Positive",
+            "parent": null
+        },
+        {
+            "case_id": "S203-P05",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-P05/case.json",
+                "role": "case",
+                "sha256": "fc4c70f12ff125a72797e56c0d63df8cfc163763f4a73d0858fc2703ddc7482e"
+            },
+            "kind": "Positive",
+            "parent": "S203-P04"
+        },
+        {
+            "case_id": "S203-P06",
+            "case_ref": {
+                "byte_length": 1452,
+                "path": "cases/S203-P06/case.json",
+                "role": "case",
+                "sha256": "a6a3ba3b4c40b9b7caebdb550441086dd7a299206639549b5a54f12734c237cd"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P07",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-P07/case.json",
+                "role": "case",
+                "sha256": "905a4d772eda92d7b53337165325afb99b64d14a22974ca3f8cd00520bac96c9"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P08",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-P08/case.json",
+                "role": "case",
+                "sha256": "f5d913379b162517919d78bd5a438d8783a49ca22d18b1fbdd457a032dd8c733"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P09",
+            "case_ref": {
+                "byte_length": 1452,
+                "path": "cases/S203-P09/case.json",
+                "role": "case",
+                "sha256": "e1ef30c9173de920a20c60a7510a145088ff6b22476e56a3f1516a7a8fe8be11"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P10",
+            "case_ref": {
+                "byte_length": 1452,
+                "path": "cases/S203-P10/case.json",
+                "role": "case",
+                "sha256": "b13090c6b1cf0cb3d345afcfd6954c0cfd08566d9d1220a8158be756c01bf2ba"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P11",
+            "case_ref": {
+                "byte_length": 1454,
+                "path": "cases/S203-P11/case.json",
+                "role": "case",
+                "sha256": "bcbcc49021c5820f37712d087157709f0c1c6347d9810a25481b1fafa573a8e5"
+            },
+            "kind": "Positive",
+            "parent": "S203-P04"
+        },
+        {
+            "case_id": "S203-P12",
+            "case_ref": {
+                "byte_length": 1452,
+                "path": "cases/S203-P12/case.json",
+                "role": "case",
+                "sha256": "6dd55340dbf6c2e469f23883172ceb8549eff7eaa77742aaef50bf7899e10787"
+            },
+            "kind": "Positive",
+            "parent": "S203-P01"
+        },
+        {
+            "case_id": "S203-P13",
+            "case_ref": {
+                "byte_length": 1453,
+                "path": "cases/S203-P13/case.json",
+                "role": "case",
+                "sha256": "d703e8251ade317c24b04101a9877451e761b8b0c44aa772e9cc812701599570"
+            },
+            "kind": "Positive",
+            "parent": "S203-P11"
+        }
+    ],
+    "corpus_id": "ap203e2-planar",
+    "corpus_revision": "v1",
+    "format_version": "t01.v1",
+    "materials": [
+        {
+            "byte_length": 362,
+            "path": "cases/S203-N01/assertions.json",
+            "role": "assertions",
+            "sha256": "5bfe864a1d579f545a4fe9672e9cf01ed91416b084ca72f3ae67916dcb30cf38"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N01/case.json",
+            "role": "case",
+            "sha256": "2ba1c38e66208af5a9c141b8d0b3cbff852da6d448ea61f710849dbf0d460bef"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N01/input.step",
+            "role": "input",
+            "sha256": "0ee791c67039456aa3c04da40f55547dac4c92e42a05fe0afa59ed5709ed0da0"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N01/inventory.json",
+            "role": "inventory",
+            "sha256": "1c70b6fd86fdac087f19d8c41727e686f447654bf87cd12144424f5f77248ae4"
+        },
+        {
+            "byte_length": 685,
+            "path": "cases/S203-N01/mutation.json",
+            "role": "definition",
+            "sha256": "9067dbdf2c45dfe05b6aea6e18b21ebfdcac32b232e80faf2fc0d860ed5286a2"
+        },
+        {
+            "byte_length": 371,
+            "path": "cases/S203-N01/truth.json",
+            "role": "truth",
+            "sha256": "e3338cca1a0d2d97c625dd871f37a90ff7d0785945bbef2af59a16e0bbab0243"
+        },
+        {
+            "byte_length": 359,
+            "path": "cases/S203-N02/assertions.json",
+            "role": "assertions",
+            "sha256": "29edd9280453afaec3f2d856f0674b91b3892bf819acf04271f057af005bfe34"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N02/case.json",
+            "role": "case",
+            "sha256": "9d3ba70b9bcbef3d2ac380356ecd57aac56e93d2c46f4439af79887565705e67"
+        },
+        {
+            "byte_length": 2546,
+            "path": "cases/S203-N02/input.step",
+            "role": "input",
+            "sha256": "0e247c3442f90abbcdb0fd5a3ac0de1db2ff5ba8a9c0f5529b2a66637613ff7c"
+        },
+        {
+            "byte_length": 16921,
+            "path": "cases/S203-N02/inventory.json",
+            "role": "inventory",
+            "sha256": "f4d002c810e7e10219b4168d72bee91b58839958df3e223e42f7fc7ced13e30e"
+        },
+        {
+            "byte_length": 675,
+            "path": "cases/S203-N02/mutation.json",
+            "role": "definition",
+            "sha256": "f0442f7092e6d0efc93f63241012340da06687565aca078bef7870154ff522d9"
+        },
+        {
+            "byte_length": 430,
+            "path": "cases/S203-N02/truth.json",
+            "role": "truth",
+            "sha256": "eb711c5e198aabfccc0a789aa15b7ee80fd74a4603e020e9957a4283894224cf"
+        },
+        {
+            "byte_length": 365,
+            "path": "cases/S203-N03/assertions.json",
+            "role": "assertions",
+            "sha256": "b2c676fcc874b2db16b0b632722f1e2ac4efada4febee57311754694a8fab7ea"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N03/case.json",
+            "role": "case",
+            "sha256": "a9e5978b196749c6eb71a3fddfc195ee2e0e8b209478f0390b7977e7c11a8054"
+        },
+        {
+            "byte_length": 2512,
+            "path": "cases/S203-N03/input.step",
+            "role": "input",
+            "sha256": "d46127f08613669765c4b43d58e002b3226e7063856c66c4afe51df5421b6968"
+        },
+        {
+            "byte_length": 16639,
+            "path": "cases/S203-N03/inventory.json",
+            "role": "inventory",
+            "sha256": "de3ac1d065cf0ebdc4012f1f8aad438183decc32bbc6f04042af9b877e2cba4b"
+        },
+        {
+            "byte_length": 784,
+            "path": "cases/S203-N03/mutation.json",
+            "role": "definition",
+            "sha256": "f7aaa8749819b9371a98a1c0966148d291534a3bb58390f49f02611d208d9bd4"
+        },
+        {
+            "byte_length": 399,
+            "path": "cases/S203-N03/truth.json",
+            "role": "truth",
+            "sha256": "08cd4123a63aecd6569d3281e541a56307d2bf888b0e3980cb4f15b4d75c26e0"
+        },
+        {
+            "byte_length": 362,
+            "path": "cases/S203-N04/assertions.json",
+            "role": "assertions",
+            "sha256": "7b2a097c7fad07a4057759488a984c3ee42eb7bb337a304003cece8b54b019a9"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N04/case.json",
+            "role": "case",
+            "sha256": "1f98e6d57875ccab44c199af6eedc6d807793f0334e6d7e523374e3cfd73a5ac"
+        },
+        {
+            "byte_length": 2507,
+            "path": "cases/S203-N04/input.step",
+            "role": "input",
+            "sha256": "e6038336a742227672d4e9c41c6088199626848f9b248e92645fc2a5aa2d0385"
+        },
+        {
+            "byte_length": 16630,
+            "path": "cases/S203-N04/inventory.json",
+            "role": "inventory",
+            "sha256": "681fb298a5a5e494572815b90c3e7f3a0eefc905b59251256de676b15e879116"
+        },
+        {
+            "byte_length": 690,
+            "path": "cases/S203-N04/mutation.json",
+            "role": "definition",
+            "sha256": "f3c9f047db92d3cbbea04bc526b42cb9ff45b727629d844c9a947a217735ab3f"
+        },
+        {
+            "byte_length": 384,
+            "path": "cases/S203-N04/truth.json",
+            "role": "truth",
+            "sha256": "1399d0655f62b2a8874638db19aef093390a445d3a9f034f87d9d740e9c3ad64"
+        },
+        {
+            "byte_length": 365,
+            "path": "cases/S203-N05/assertions.json",
+            "role": "assertions",
+            "sha256": "a22e44f0f1dc8c03d84385e8c2b26e676879cfdccba21cc382d309572a2b0c2e"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N05/case.json",
+            "role": "case",
+            "sha256": "e715e28e37cd113ed65c05fbc877b382e8b6a2eeead097c6a04fedc9cf5a7d11"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N05/input.step",
+            "role": "input",
+            "sha256": "57e3efc5c4eaefcda649ea38bf41173e8c03fa4dabfa871de821e1e391cd003f"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N05/inventory.json",
+            "role": "inventory",
+            "sha256": "0fbaa7b4f4faa842e40eb10b2f71eae8aa6d29aba4eb605727c4568b0ba0e100"
+        },
+        {
+            "byte_length": 714,
+            "path": "cases/S203-N05/mutation.json",
+            "role": "definition",
+            "sha256": "f8d90cb93434cfdb05d98577104c3c9f5888d2382a4184c7394c64c63ce57b9a"
+        },
+        {
+            "byte_length": 384,
+            "path": "cases/S203-N05/truth.json",
+            "role": "truth",
+            "sha256": "77a7da4e49c8f96d88831980a63666639221f7ec72ab8375aa9bd079cbf0a26c"
+        },
+        {
+            "byte_length": 359,
+            "path": "cases/S203-N06/assertions.json",
+            "role": "assertions",
+            "sha256": "b712601211e5cdb197b9380a5fc1f5073faab797b6302feae333d514f96423a3"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N06/case.json",
+            "role": "case",
+            "sha256": "ba1a0f85fe9b4c3ccaa9af89cfe3e882fae9f9802f4258dd281b3ecfd37ad0a2"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N06/input.step",
+            "role": "input",
+            "sha256": "727ec5532deda416e57302b4bf083059adce48f362d715bbab8d21f020715dac"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N06/inventory.json",
+            "role": "inventory",
+            "sha256": "7dd6eeec141d979c0d6e947695b8ca26f0a2e1ff289adc424fff01253aeb3bd9"
+        },
+        {
+            "byte_length": 750,
+            "path": "cases/S203-N06/mutation.json",
+            "role": "definition",
+            "sha256": "0c87ccac814f5d3e64a137eb8a247f687a61bee389c32b54518495e6fef96082"
+        },
+        {
+            "byte_length": 380,
+            "path": "cases/S203-N06/truth.json",
+            "role": "truth",
+            "sha256": "bed0ccf9651016723a96a3fb31a03e09cd61bbee0f1e9800f285a5df4d77b454"
+        },
+        {
+            "byte_length": 361,
+            "path": "cases/S203-N07/assertions.json",
+            "role": "assertions",
+            "sha256": "3460116ab24e9145da72af6ac6d1cf2ce604a5244b9a264fb8ecccc32e8822f2"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N07/case.json",
+            "role": "case",
+            "sha256": "a5c0e0b7a8f00513247ac3d644f7725d2c39e567c061d3ba7e927caf87df48e1"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N07/input.step",
+            "role": "input",
+            "sha256": "415695da5ff50617562eaea132ab9dde9e28e3654d8a4b7de92d508185e5d20a"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N07/inventory.json",
+            "role": "inventory",
+            "sha256": "583b57302230521e82048800764f29d10657ea16a188131ebb2a757249d55b70"
+        },
+        {
+            "byte_length": 698,
+            "path": "cases/S203-N07/mutation.json",
+            "role": "definition",
+            "sha256": "8405200b5a02d775766accc312f72edffefae37d4dbd6019b18b4729b982a628"
+        },
+        {
+            "byte_length": 394,
+            "path": "cases/S203-N07/truth.json",
+            "role": "truth",
+            "sha256": "6849c4769b04e911913d01233a81a5696f85c4491642ca2bd25d44f08fb9aec9"
+        },
+        {
+            "byte_length": 364,
+            "path": "cases/S203-N08/assertions.json",
+            "role": "assertions",
+            "sha256": "37fffc930a42c384f522bdab64f3068dc1c11ddcee4804447ecc7dd558db8b1e"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N08/case.json",
+            "role": "case",
+            "sha256": "b1c5ee50a62d692e0e0f010f86f4ade4957558c599956790849ab94c47c70237"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N08/input.step",
+            "role": "input",
+            "sha256": "3cee55e1cbe8cb8fc45aa542da355a264d3a9567d2b4c410d507fac490f35b80"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N08/inventory.json",
+            "role": "inventory",
+            "sha256": "bf09ddd5fec144882eb36d95c247472a6f8bd68c8a51ffcc4a679180e89cd4de"
+        },
+        {
+            "byte_length": 687,
+            "path": "cases/S203-N08/mutation.json",
+            "role": "definition",
+            "sha256": "ae212b5a0933948c49620a93369d068fef4fc6aac48d8398b9e41b48bae84636"
+        },
+        {
+            "byte_length": 464,
+            "path": "cases/S203-N08/truth.json",
+            "role": "truth",
+            "sha256": "0daaa76d0ac3540b82eb07b3773f6ecd7962d7331d22f303e03e45a708eb1fbd"
+        },
+        {
+            "byte_length": 358,
+            "path": "cases/S203-N09/assertions.json",
+            "role": "assertions",
+            "sha256": "f4b978145f46aa406a1cb7d71db9fae44dc4539c51548898224baffb958602d4"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N09/case.json",
+            "role": "case",
+            "sha256": "9086b07757a2aecc85a9aae67fcc2edfe8a2d233d7d8fb52b14eb5d1bd40b234"
+        },
+        {
+            "byte_length": 5693,
+            "path": "cases/S203-N09/input.step",
+            "role": "input",
+            "sha256": "fb918e2c47e6008a452a05ace1620f6b3a7cb4ef8f587925a152e3f04ba19983"
+        },
+        {
+            "byte_length": 46784,
+            "path": "cases/S203-N09/inventory.json",
+            "role": "inventory",
+            "sha256": "3f170bcb53b81c899621e7890cb2ef91b1107de9a4b09e5f5f5768573a051c0d"
+        },
+        {
+            "byte_length": 742,
+            "path": "cases/S203-N09/mutation.json",
+            "role": "definition",
+            "sha256": "2b24556f4101165305f05e84541743886c3d86c4b3f9faaf942b6a7327ebe809"
+        },
+        {
+            "byte_length": 379,
+            "path": "cases/S203-N09/truth.json",
+            "role": "truth",
+            "sha256": "a710e3b2d26d227806a86c8796781efb55c5f747f04f156adc88a8eab5e8cfe4"
+        },
+        {
+            "byte_length": 402,
+            "path": "cases/S203-N10/assertions.json",
+            "role": "assertions",
+            "sha256": "b6741aa3c7aa341012e5068c6e52c3de19ce27aed8ce40ae5fc7e783815399d4"
+        },
+        {
+            "byte_length": 1454,
+            "path": "cases/S203-N10/case.json",
+            "role": "case",
+            "sha256": "cf4098ca414efeea9bc094315922e3d7d439f0225c6d662c180ecc11af75f898"
+        },
+        {
+            "byte_length": 2515,
+            "path": "cases/S203-N10/input.step",
+            "role": "input",
+            "sha256": "045978f32f89e38cf746752865954c0a8c2d378e3b3cae350142ab4c410a3bb9"
+        },
+        {
+            "byte_length": 16638,
+            "path": "cases/S203-N10/inventory.json",
+            "role": "inventory",
+            "sha256": "1530b2b0cbdc48a93511ed87fecfd28e5b63da97292d61e46371fd91e1bf444b"
+        },
+        {
+            "byte_length": 1030,
+            "path": "cases/S203-N10/mutation.json",
+            "role": "definition",
+            "sha256": "f1f32aed787f6f8caf7f0a0bc03e961b43d6dd40b008675e0962534d2ef5738b"
+        },
+        {
+            "byte_length": 381,
+            "path": "cases/S203-N10/truth.json",
+            "role": "truth",
+            "sha256": "e9e95540da4e89c7c3475021136353471fd266b764e05c48283d8c6f2510371b"
+        },
+        {
+            "byte_length": 373,
+            "path": "cases/S203-N11/assertions.json",
+            "role": "assertions",
+            "sha256": "fb8754d4ec041b675ddee0ede3ebd21f22bf9688d70d010d31d0468adb67899b"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N11/case.json",
+            "role": "case",
+            "sha256": "f8a8f2cbcb669d68401b15e42a86362c8296753c921717d45675931ffb3e563f"
+        },
+        {
+            "byte_length": 2506,
+            "path": "cases/S203-N11/input.step",
+            "role": "input",
+            "sha256": "ad8271983156ef13dfcba0e0fa905d9a4bc90dcaa5f83e61e0854a86df368d3e"
+        },
+        {
+            "byte_length": 16629,
+            "path": "cases/S203-N11/inventory.json",
+            "role": "inventory",
+            "sha256": "1a0e827d955e99e008fc93a920580234a6c2e91d01e526d2468c5ac7d25883cd"
+        },
+        {
+            "byte_length": 742,
+            "path": "cases/S203-N11/mutation.json",
+            "role": "definition",
+            "sha256": "ac677d01a9a4a35917b25c8596494e1f8b42b552926395467f2bbc38c2c6fb07"
+        },
+        {
+            "byte_length": 474,
+            "path": "cases/S203-N11/truth.json",
+            "role": "truth",
+            "sha256": "3cd7f26cc0768ed90e1b6114c1f3388693a7d72a5f03b650da4678b606f31fd4"
+        },
+        {
+            "byte_length": 370,
+            "path": "cases/S203-N12/assertions.json",
+            "role": "assertions",
+            "sha256": "47d3d230bde54ad3d458d0b73136f4903aabd211e3789e451bd667837179bb40"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N12/case.json",
+            "role": "case",
+            "sha256": "462d4b2492d4fff0d5456df66c43726088639827ae3893ae67c9a3368c78f3ec"
+        },
+        {
+            "byte_length": 2509,
+            "path": "cases/S203-N12/input.step",
+            "role": "input",
+            "sha256": "00c739f2d9d24119463f982ca69f74545718984f44638cd6ad8ff011de9441f1"
+        },
+        {
+            "byte_length": 16632,
+            "path": "cases/S203-N12/inventory.json",
+            "role": "inventory",
+            "sha256": "443191009edd7c50452bbe756153e880b1d6e89fee664320361955dea8d66b73"
+        },
+        {
+            "byte_length": 712,
+            "path": "cases/S203-N12/mutation.json",
+            "role": "definition",
+            "sha256": "68c7f61dda8784d370c301a7a8c6db3f75a68a4e5d6c0c891a5b9359911e62f3"
+        },
+        {
+            "byte_length": 463,
+            "path": "cases/S203-N12/truth.json",
+            "role": "truth",
+            "sha256": "4267d17a82e8245831bb34e4616bb3d0d8845d87cde090563971bafbb1e9d344"
+        },
+        {
+            "byte_length": 382,
+            "path": "cases/S203-N13/assertions.json",
+            "role": "assertions",
+            "sha256": "c845b1b716f5723ba7724556166b3c0dc0e630088ec4056a449045a30d4fa9e4"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N13/case.json",
+            "role": "case",
+            "sha256": "3e395855174fcd144060d61bc156e4f3d067f621960825340d0e1cfe2c8f39ed"
+        },
+        {
+            "byte_length": 2506,
+            "path": "cases/S203-N13/input.step",
+            "role": "input",
+            "sha256": "3acf8f73ac9dd71bb7a7c1408071a210346aa0f029d43d7b2e8a2a2ee56e3719"
+        },
+        {
+            "byte_length": 16629,
+            "path": "cases/S203-N13/inventory.json",
+            "role": "inventory",
+            "sha256": "9a2a1cf91741df4ece9e448185f9957617b8159497b47884c1f1f5fdd8792662"
+        },
+        {
+            "byte_length": 751,
+            "path": "cases/S203-N13/mutation.json",
+            "role": "definition",
+            "sha256": "5c3ad4c2c4a5a73c75977d34507db8fe8c2994834b8c2c0bd23656693230f328"
+        },
+        {
+            "byte_length": 475,
+            "path": "cases/S203-N13/truth.json",
+            "role": "truth",
+            "sha256": "80c697ac609e8828b8df0adf758d0449df288d468aed96f1c0dde9e68894ffa6"
+        },
+        {
+            "byte_length": 363,
+            "path": "cases/S203-N14/assertions.json",
+            "role": "assertions",
+            "sha256": "1fbc293cd5a24d023c8a2013207850a040bd298749aca2953329c507e2607c87"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N14/case.json",
+            "role": "case",
+            "sha256": "4a0779900cd6d40edd812f7204ce3c8b63bb282e5196a6ad581f02d414c71bc5"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N14/input.step",
+            "role": "input",
+            "sha256": "7cd3daeb8736ba69385d4a48a60bef0b37c21671e3ebb25d93137dfdc574e232"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N14/inventory.json",
+            "role": "inventory",
+            "sha256": "d968d41994e3d5c32f780788196a84c05da8555d6b888331e609918496befa8e"
+        },
+        {
+            "byte_length": 740,
+            "path": "cases/S203-N14/mutation.json",
+            "role": "definition",
+            "sha256": "dcf8438218aa0c55baeadc7ab39ac0a65a4ec44bf952af86c21576e467bc189f"
+        },
+        {
+            "byte_length": 384,
+            "path": "cases/S203-N14/truth.json",
+            "role": "truth",
+            "sha256": "b6155b1bf2e9ee2b080f54e7a446c7c712f2fc2214ff4c4a6c2e2266163e2765"
+        },
+        {
+            "byte_length": 363,
+            "path": "cases/S203-N15/assertions.json",
+            "role": "assertions",
+            "sha256": "ceb10e22aca97e1e044a5a7767ad918889835c4137245f012ac0d884fb6dcbe4"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N15/case.json",
+            "role": "case",
+            "sha256": "006cfce5f89c691dce6fd3ffbe53d63af02e7cf4798ba39ccc7ee728fb182946"
+        },
+        {
+            "byte_length": 2515,
+            "path": "cases/S203-N15/input.step",
+            "role": "input",
+            "sha256": "1e3e967f3464a860b4828eb4a121692635b1d6c02351077153a743c2d7062dce"
+        },
+        {
+            "byte_length": 16638,
+            "path": "cases/S203-N15/inventory.json",
+            "role": "inventory",
+            "sha256": "875c925ef80fb9f62e4263e71f802c656335503d469451624768ca2b87e490f2"
+        },
+        {
+            "byte_length": 697,
+            "path": "cases/S203-N15/mutation.json",
+            "role": "definition",
+            "sha256": "995f0c41a2a9ef90f480ef29accc5cdd85a5c814b44ef6fa404caefb918eaa29"
+        },
+        {
+            "byte_length": 378,
+            "path": "cases/S203-N15/truth.json",
+            "role": "truth",
+            "sha256": "aaed3bc13d0ed4aed15c0e738532990cc1e986137f77d4a3b78380d023d18cb5"
+        },
+        {
+            "byte_length": 370,
+            "path": "cases/S203-N16/assertions.json",
+            "role": "assertions",
+            "sha256": "8366fad5a606dcce139d302c4e0ca864e4e194e3a9e1a1c1d8665f980bd0407d"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N16/case.json",
+            "role": "case",
+            "sha256": "363228891ae53e7009e0ba6e455477bb4fb32dfd379a0832532d5bafc4a8c8c9"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N16/input.step",
+            "role": "input",
+            "sha256": "cdcdb0612bc39e1d97b9ac76a2e0d61a7ebc3569638a34273a67371e5b458fdd"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N16/inventory.json",
+            "role": "inventory",
+            "sha256": "4e104f1591f443e6605134f9421c2bd015831d42cf7d478f02e2ce3758abf182"
+        },
+        {
+            "byte_length": 817,
+            "path": "cases/S203-N16/mutation.json",
+            "role": "definition",
+            "sha256": "0b34ae931040b1a235a95580b2242dd5a669acfebe157764d54fad20050e2363"
+        },
+        {
+            "byte_length": 393,
+            "path": "cases/S203-N16/truth.json",
+            "role": "truth",
+            "sha256": "a26826424cce38377ebcba1e545cedec7e9dd1e0463dab4b7a8e499e7236e238"
+        },
+        {
+            "byte_length": 377,
+            "path": "cases/S203-N17/assertions.json",
+            "role": "assertions",
+            "sha256": "5f4aa00867c18a9e50b6962b40fb30cd894861764a00473000cd3b40fbf4d4bc"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N17/case.json",
+            "role": "case",
+            "sha256": "0ce7ceebad72e99480c8256941135559efbf9f8d373910847a4bf9ecf123b045"
+        },
+        {
+            "byte_length": 2502,
+            "path": "cases/S203-N17/input.step",
+            "role": "input",
+            "sha256": "31d94b6e2cc917218f07f157955de546121c7fefa0148eff5f0356f384d7e2c2"
+        },
+        {
+            "byte_length": 16619,
+            "path": "cases/S203-N17/inventory.json",
+            "role": "inventory",
+            "sha256": "0c2104ddeb5d859119394fc12a5a85c98c445cc5fd1985aa6fb9881dd1011aff"
+        },
+        {
+            "byte_length": 686,
+            "path": "cases/S203-N17/mutation.json",
+            "role": "definition",
+            "sha256": "4a2252ef1c64c0b51fcd677e38079160813c57c82c3ece774cff152c998ce1cb"
+        },
+        {
+            "byte_length": 384,
+            "path": "cases/S203-N17/truth.json",
+            "role": "truth",
+            "sha256": "568b3310ea356b3816ff2c00dfbc19498bd7b00ee801f599748cc54e9f0998bc"
+        },
+        {
+            "byte_length": 362,
+            "path": "cases/S203-N18/assertions.json",
+            "role": "assertions",
+            "sha256": "82d20fb2196e6b66e61b17994aca533f17892c2876eff891183dafcb58edf0a0"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N18/case.json",
+            "role": "case",
+            "sha256": "733328545d3853a06fa928963961b355a04d0ef99e637d082fe6ab27530d84ec"
+        },
+        {
+            "byte_length": 2507,
+            "path": "cases/S203-N18/input.step",
+            "role": "input",
+            "sha256": "436766192302f75f9be2d9386530472ebd9669ec8625cfec0e75d8084e9c0095"
+        },
+        {
+            "byte_length": 16629,
+            "path": "cases/S203-N18/inventory.json",
+            "role": "inventory",
+            "sha256": "beefd171bf9478db9d5cf52a3aa8fb0953ee93de0872d0856537c1167dc7bb57"
+        },
+        {
+            "byte_length": 670,
+            "path": "cases/S203-N18/mutation.json",
+            "role": "definition",
+            "sha256": "23e12b7f1d026b3911a496b28a1d761dac1744de356fc7ed845f0dd4a59415bf"
+        },
+        {
+            "byte_length": 385,
+            "path": "cases/S203-N18/truth.json",
+            "role": "truth",
+            "sha256": "5e7720ac61434ee03d938102f69c11694d142c6b762fd473c42aa96f9cb41c27"
+        },
+        {
+            "byte_length": 367,
+            "path": "cases/S203-N19/assertions.json",
+            "role": "assertions",
+            "sha256": "762f0f3ba8e6f942729d25fd4c04489c8efc3da29df78df5fb5e26365c8f8633"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N19/case.json",
+            "role": "case",
+            "sha256": "fc033e54e92f04d216dcb0ef70128cefc713bf8fe868f1a61ebaea3a93ebf33b"
+        },
+        {
+            "byte_length": 2507,
+            "path": "cases/S203-N19/input.step",
+            "role": "input",
+            "sha256": "59a4f2ff4d16b698f58d87cc99ebeef7516bbe2c14662e661d55d02fbe8fa838"
+        },
+        {
+            "byte_length": 16630,
+            "path": "cases/S203-N19/inventory.json",
+            "role": "inventory",
+            "sha256": "cec2dcac5a968143d102370b694d41b143afacdf1af5e8548989ed081bf40ced"
+        },
+        {
+            "byte_length": 703,
+            "path": "cases/S203-N19/mutation.json",
+            "role": "definition",
+            "sha256": "d5e484870cec0e6caa774d09d0f9d44fd10ab6fab2993a9c42bb767af1a15611"
+        },
+        {
+            "byte_length": 461,
+            "path": "cases/S203-N19/truth.json",
+            "role": "truth",
+            "sha256": "3db671d477ca15e41c750d0ae91e97b45a5b6836c8c17afb43c24de66e12780e"
+        },
+        {
+            "byte_length": 361,
+            "path": "cases/S203-N20/assertions.json",
+            "role": "assertions",
+            "sha256": "73d920e70ae605f49f4f6734f46a6f7706495e085c2afc6e27ad3a881eea524c"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N20/case.json",
+            "role": "case",
+            "sha256": "5c51042b0917c5d9022426cfee345dea52e66e45cb80b59e926178e1175ce688"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N20/input.step",
+            "role": "input",
+            "sha256": "c566bc24f7389c525ccc1143b388ff331028d23b6d58d4f03b43b33de618ff8a"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N20/inventory.json",
+            "role": "inventory",
+            "sha256": "07ca5c442dad125ecc3e0807a7d2e27993382e69561e016b43cbd44dea362b58"
+        },
+        {
+            "byte_length": 696,
+            "path": "cases/S203-N20/mutation.json",
+            "role": "definition",
+            "sha256": "491363dd968e0a02f2531c33f33f5da57837168b39a953eb2e63eff516779294"
+        },
+        {
+            "byte_length": 483,
+            "path": "cases/S203-N20/truth.json",
+            "role": "truth",
+            "sha256": "eeb0a8a846584928a08c4a24cab87bf2398b587c39a9b105eca3af546b16c64c"
+        },
+        {
+            "byte_length": 359,
+            "path": "cases/S203-N21/assertions.json",
+            "role": "assertions",
+            "sha256": "1703542b849455f03f5b49178b6f9eaddc1342c9f492cbb20fc97d1f4b5992d5"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N21/case.json",
+            "role": "case",
+            "sha256": "b5a0c364dde5bb3ece55712561207d92d9d741b82f826bfe0a719998c4632bab"
+        },
+        {
+            "byte_length": 2511,
+            "path": "cases/S203-N21/input.step",
+            "role": "input",
+            "sha256": "a52863d6f1347c094378836995ff77437aadb3ef1370ab6b6bdca72328ca3d7c"
+        },
+        {
+            "byte_length": 16634,
+            "path": "cases/S203-N21/inventory.json",
+            "role": "inventory",
+            "sha256": "2419103fec5b4feddba5941e5158eef628e96b10ef6fba25a46cc8f932fb35c2"
+        },
+        {
+            "byte_length": 759,
+            "path": "cases/S203-N21/mutation.json",
+            "role": "definition",
+            "sha256": "29dd7da9f22454e6b63c02126491f0e9e6773b349abaeb9342d35f7c18ecad89"
+        },
+        {
+            "byte_length": 474,
+            "path": "cases/S203-N21/truth.json",
+            "role": "truth",
+            "sha256": "ff21572e421aba184aba6bf260ee36c386a345746be9cff0708e6b43652097e5"
+        },
+        {
+            "byte_length": 362,
+            "path": "cases/S203-N22/assertions.json",
+            "role": "assertions",
+            "sha256": "530edcfbe93f25b8f4ad4943e965b321d2ab1e6612894e796b3b6f472219f71d"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N22/case.json",
+            "role": "case",
+            "sha256": "1b3cd61301029d03c76f00777e513eae09ff4f2997e1c6f53af074e069d1110c"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N22/input.step",
+            "role": "input",
+            "sha256": "621166be516e2937bc59be001de6fbc03eb325689c4e994c0b63328e23fe715d"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N22/inventory.json",
+            "role": "inventory",
+            "sha256": "e41bcb0727c9e84dfc483b76b97f8cb8a1ff72dc9b0fc89c6b513285809c562c"
+        },
+        {
+            "byte_length": 767,
+            "path": "cases/S203-N22/mutation.json",
+            "role": "definition",
+            "sha256": "6365386af773608e9f5589a504a2daa0de3db732aa4152242970c3cd9454f993"
+        },
+        {
+            "byte_length": 377,
+            "path": "cases/S203-N22/truth.json",
+            "role": "truth",
+            "sha256": "dc68f005790aafd13768fe8b8a08b578c9ebb277b97bfc3354f66bbc6648bf9c"
+        },
+        {
+            "byte_length": 368,
+            "path": "cases/S203-N23/assertions.json",
+            "role": "assertions",
+            "sha256": "290831464ea58e8919868d02a22e7c8f8b30ac14d76d5bba14937a7165d4b9c8"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N23/case.json",
+            "role": "case",
+            "sha256": "42a4adfbc24a2f6b1331966d87943ab5b1459e8e72014abed6f1a1c8161526ac"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N23/input.step",
+            "role": "input",
+            "sha256": "fae399d1867edfed67c32b3fa57256630f1f03ff2dd548159ee52db7e428adb9"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N23/inventory.json",
+            "role": "inventory",
+            "sha256": "e143062c9b0b6521745e7fa7d408d72737b8c31b6d5959e8dcfea74209c4f0c3"
+        },
+        {
+            "byte_length": 759,
+            "path": "cases/S203-N23/mutation.json",
+            "role": "definition",
+            "sha256": "82675c87fe82d69330d405a6a56b289f1d7b91fc1731a229dfdeec598f6b1ad8"
+        },
+        {
+            "byte_length": 410,
+            "path": "cases/S203-N23/truth.json",
+            "role": "truth",
+            "sha256": "2dcad649347253b3410afe57ed5117ca49b426c835660487d1d50474eee20b9c"
+        },
+        {
+            "byte_length": 373,
+            "path": "cases/S203-N24/assertions.json",
+            "role": "assertions",
+            "sha256": "c011b7c88d6a9d11ac2af11b0f2cc3d8458265db05dd1565381c848d9d3ed095"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N24/case.json",
+            "role": "case",
+            "sha256": "26f17fce8a6550cd57175c6c854bd571c03bf0b98ac751e39d21db05a3f5f909"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N24/input.step",
+            "role": "input",
+            "sha256": "00073c0e4ffb68c27a8226c744bb7b79a88258b1b67064bab816550f7b6bc02e"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N24/inventory.json",
+            "role": "inventory",
+            "sha256": "64db33d3e98ad580ed5b2449a2a63d3c9bf5572b93d732ef038da62a2b001f9c"
+        },
+        {
+            "byte_length": 736,
+            "path": "cases/S203-N24/mutation.json",
+            "role": "definition",
+            "sha256": "1ac1e51e8514823e2c7b10c39937c0960ea567bf9d97e10709390e33f8348576"
+        },
+        {
+            "byte_length": 536,
+            "path": "cases/S203-N24/truth.json",
+            "role": "truth",
+            "sha256": "b9c261d6a3bec457ebe907b2b1a9a64afe447ebab488108170acdf3443cd9d28"
+        },
+        {
+            "byte_length": 372,
+            "path": "cases/S203-N25/assertions.json",
+            "role": "assertions",
+            "sha256": "3053473d0179d10fb164fdd44ac7dd088c5d320963f0e2a9a57fbdae1dfbf2e2"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N25/case.json",
+            "role": "case",
+            "sha256": "5fc2c59a8fcb77f9a337f35b8f85c0c337adef3a434de364d9f99a02054ef051"
+        },
+        {
+            "byte_length": 3493,
+            "path": "cases/S203-N25/input.step",
+            "role": "input",
+            "sha256": "c322238cb8e7dbb0325bbb2d61f93e27fcb4c0d1be0eaee673e09e46880bdae6"
+        },
+        {
+            "byte_length": 26083,
+            "path": "cases/S203-N25/inventory.json",
+            "role": "inventory",
+            "sha256": "120087ffa66bad16db0bd7c1f13f65c03e787543188bc84b6c6528b4a63c04eb"
+        },
+        {
+            "byte_length": 733,
+            "path": "cases/S203-N25/mutation.json",
+            "role": "definition",
+            "sha256": "c6c5c09ed5fcab4e88f6f29be86858753e0096db42a60665868a539ffd4d7b19"
+        },
+        {
+            "byte_length": 471,
+            "path": "cases/S203-N25/truth.json",
+            "role": "truth",
+            "sha256": "f7b3f740fac04d5b6c9985485c978f7089654badbc1087711f8260e75c63d5fe"
+        },
+        {
+            "byte_length": 369,
+            "path": "cases/S203-N26/assertions.json",
+            "role": "assertions",
+            "sha256": "82a6febd5ed31423f0c6a30474a0246638834f6e63ef01c9952d8923a6f5ece2"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N26/case.json",
+            "role": "case",
+            "sha256": "430f914d90d9e30fe76a003e2bc35b924ae3f13986ec9cac92f901d48be36272"
+        },
+        {
+            "byte_length": 2510,
+            "path": "cases/S203-N26/input.step",
+            "role": "input",
+            "sha256": "19d7598821793f85df2c42dd1e71f8df4d1c33859ea75061ce2f8534f20375d4"
+        },
+        {
+            "byte_length": 16635,
+            "path": "cases/S203-N26/inventory.json",
+            "role": "inventory",
+            "sha256": "78451f580b23ec1423ab71c4469573667543fc85ed967be49bc676fc7bd4bdf2"
+        },
+        {
+            "byte_length": 668,
+            "path": "cases/S203-N26/mutation.json",
+            "role": "definition",
+            "sha256": "42eccddc12d2a6477a50dd2a05c89a297321560f6d0cc3d0fae3fd107038cdb9"
+        },
+        {
+            "byte_length": 489,
+            "path": "cases/S203-N26/truth.json",
+            "role": "truth",
+            "sha256": "72c6498b81cbd5773f661f9928863618de72282cd031be082ff105550ef29696"
+        },
+        {
+            "byte_length": 378,
+            "path": "cases/S203-N27/assertions.json",
+            "role": "assertions",
+            "sha256": "4260baaed0f5d1956e3b61b88dbe9ac4c0b09c17c509aad8cae9a85abdceec52"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N27/case.json",
+            "role": "case",
+            "sha256": "edf2c122c8d9b031808b21943c71cfc50830d46348a36debe15d9c72dc94b6ff"
+        },
+        {
+            "byte_length": 5688,
+            "path": "cases/S203-N27/input.step",
+            "role": "input",
+            "sha256": "ecb5e8603c292d5c05ac1a648493f1336538c084adbc1469bd3d81dacd100ede"
+        },
+        {
+            "byte_length": 46758,
+            "path": "cases/S203-N27/inventory.json",
+            "role": "inventory",
+            "sha256": "eb580cb80b5da479d15c419d7b009edb0f599e6d42e2b5240b4fdf8d36b6662e"
+        },
+        {
+            "byte_length": 783,
+            "path": "cases/S203-N27/mutation.json",
+            "role": "definition",
+            "sha256": "0b0d5e32f58ba901881a283719162a42d2df5f1a17773a5e859ce0540a074e65"
+        },
+        {
+            "byte_length": 439,
+            "path": "cases/S203-N27/truth.json",
+            "role": "truth",
+            "sha256": "6cb5ff924ea8d8c82e6d39edbf0cf1ec604ba48e5dbdf46e5b01a5b64a900ba4"
+        },
+        {
+            "byte_length": 369,
+            "path": "cases/S203-N28/assertions.json",
+            "role": "assertions",
+            "sha256": "65645aeb10964a0938e13782b32d9c3ffae8b052bf313c8c59b476bce1ae9702"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N28/case.json",
+            "role": "case",
+            "sha256": "65b2ecc84d608d2be09fb8691b004c98f87e039cc2f384c2030f13da5072580d"
+        },
+        {
+            "byte_length": 5683,
+            "path": "cases/S203-N28/input.step",
+            "role": "input",
+            "sha256": "7bae24b3c1b27081ca71bb1ec4095cdd5ea6aec215c26f84943f4ef7060ed4f0"
+        },
+        {
+            "byte_length": 46732,
+            "path": "cases/S203-N28/inventory.json",
+            "role": "inventory",
+            "sha256": "a0d2d0a81db8a81423476fccc4646673b07ef367efa1ed725e0b8719b24b5213"
+        },
+        {
+            "byte_length": 731,
+            "path": "cases/S203-N28/mutation.json",
+            "role": "definition",
+            "sha256": "b36c3bbc629acd1a600d6229f926bf6bc1305d6b7d8e9d205c9f109d14162622"
+        },
+        {
+            "byte_length": 803,
+            "path": "cases/S203-N28/truth.json",
+            "role": "truth",
+            "sha256": "75e977d71d49bbda71726801a552c29cfb03ed453327d25d0fd458d5019d6fd7"
+        },
+        {
+            "byte_length": 386,
+            "path": "cases/S203-N29/assertions.json",
+            "role": "assertions",
+            "sha256": "49901555ea9ebb53ae06f33c72dcdbf38fcf889297d65f995f63617681c61c62"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N29/case.json",
+            "role": "case",
+            "sha256": "742dc2b89cd9159cc8a0a02a4f3100835f1219c7ae21d1b08256c7ab72b76562"
+        },
+        {
+            "byte_length": 2729,
+            "path": "cases/S203-N29/input.step",
+            "role": "input",
+            "sha256": "ff8059f0235f35af1ccf202917c33f51c4ba6faad5c42291945792277632853a"
+        },
+        {
+            "byte_length": 17488,
+            "path": "cases/S203-N29/inventory.json",
+            "role": "inventory",
+            "sha256": "9539d8dab0a4d762c4abf830efc1097c1b16125b8aef0e4f3ddab02dd65dbd17"
+        },
+        {
+            "byte_length": 709,
+            "path": "cases/S203-N29/mutation.json",
+            "role": "definition",
+            "sha256": "f3718324fd6007266ab927199801eada4dc99e365f8149989619d37f3432f7d6"
+        },
+        {
+            "byte_length": 379,
+            "path": "cases/S203-N29/truth.json",
+            "role": "truth",
+            "sha256": "a121a73e21c260a13be9565fd39701638cef9aca58743fd9723575e4ebf1c980"
+        },
+        {
+            "byte_length": 393,
+            "path": "cases/S203-N30/assertions.json",
+            "role": "assertions",
+            "sha256": "8affb42f2eaa545615f49b9873286c8b907fb127d7d6239dfdccc320c07e0aa0"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N30/case.json",
+            "role": "case",
+            "sha256": "f4d7f0e86cdeec960a4440e9b806fb9b0c5bf116b679c211c8fb1537197fd91f"
+        },
+        {
+            "byte_length": 2725,
+            "path": "cases/S203-N30/input.step",
+            "role": "input",
+            "sha256": "587d7f30454b87e2fe2ae7a5246bba6e56f2a286fd09566fec22468d6d7d4637"
+        },
+        {
+            "byte_length": 17484,
+            "path": "cases/S203-N30/inventory.json",
+            "role": "inventory",
+            "sha256": "0801d204667676992f3045f0eb242b23323e0b51ca995cbbda04fcab411167a5"
+        },
+        {
+            "byte_length": 874,
+            "path": "cases/S203-N30/mutation.json",
+            "role": "definition",
+            "sha256": "65c5d0e5c2570712e50861399f82e722b3166f674acff368451106e1aad728d9"
+        },
+        {
+            "byte_length": 463,
+            "path": "cases/S203-N30/truth.json",
+            "role": "truth",
+            "sha256": "e40fd6dc9d74c5fa39e260a5f9d180d05eda34d7e50afb60676c5acb85416f1b"
+        },
+        {
+            "byte_length": 401,
+            "path": "cases/S203-N31/assertions.json",
+            "role": "assertions",
+            "sha256": "7aee2868df4e03aa3df8f7275fe6558fcb8195b81b1ff2184a4c6fd269bbe641"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N31/case.json",
+            "role": "case",
+            "sha256": "70491a13f7c87b6e38191a3f18ba27ae37db2f41847424463240af48876900dd"
+        },
+        {
+            "byte_length": 5836,
+            "path": "cases/S203-N31/input.step",
+            "role": "input",
+            "sha256": "b144fc4e51e89885be76fbe8721a008f0a52bce76aa0c07bf0dd538294465f5a"
+        },
+        {
+            "byte_length": 47756,
+            "path": "cases/S203-N31/inventory.json",
+            "role": "inventory",
+            "sha256": "5d6851c36e7669f0b76dd8b73dd4e4f9fcfba045209364be299cac4aff5c117a"
+        },
+        {
+            "byte_length": 764,
+            "path": "cases/S203-N31/mutation.json",
+            "role": "definition",
+            "sha256": "7f87d07c70c8288a39f7ef1a0f6516e724b6c0a07246b404de810d804363c0d6"
+        },
+        {
+            "byte_length": 476,
+            "path": "cases/S203-N31/truth.json",
+            "role": "truth",
+            "sha256": "ee332f4c0f71e4ed16af59d9457a648f33e3177ef0fe7f7b68e06859060a2e1e"
+        },
+        {
+            "byte_length": 360,
+            "path": "cases/S203-N32/assertions.json",
+            "role": "assertions",
+            "sha256": "b52aa564c8a46506fec8d1e6db0e4c709c82f472bd242651ca461e9422e35d68"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N32/case.json",
+            "role": "case",
+            "sha256": "20fbe56127d2d4f8a9796bb87ec0dfb880c6f215df67b8215d5afd498ca9019a"
+        },
+        {
+            "byte_length": 5834,
+            "path": "cases/S203-N32/input.step",
+            "role": "input",
+            "sha256": "34f8723de1bb01e6d4b9e3453f50214275670ff9b350cc6bab42cfa466cef1b4"
+        },
+        {
+            "byte_length": 47754,
+            "path": "cases/S203-N32/inventory.json",
+            "role": "inventory",
+            "sha256": "47b85bd9faedc2d653c2668ff8459e1a7fda07c353258ab589bd5a7ab8567183"
+        },
+        {
+            "byte_length": 675,
+            "path": "cases/S203-N32/mutation.json",
+            "role": "definition",
+            "sha256": "43957bd6949019664cd2cb17cf48174a220a3d7948a92360a02a6bb4836ffaec"
+        },
+        {
+            "byte_length": 458,
+            "path": "cases/S203-N32/truth.json",
+            "role": "truth",
+            "sha256": "b6c8d90fd19122e125fa9f4c917808a8be5437c54f52640c717232e0122db42e"
+        },
+        {
+            "byte_length": 360,
+            "path": "cases/S203-N33/assertions.json",
+            "role": "assertions",
+            "sha256": "c7b4ad448192368734a1c7c4f8c17e6684b9e1aee7b1780670ce6c877a4c9109"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N33/case.json",
+            "role": "case",
+            "sha256": "88e35a859779a2b2a1aa2ef971ee81fc1d6b87cdf301ec86ecf892f8ec7d1b90"
+        },
+        {
+            "byte_length": 5837,
+            "path": "cases/S203-N33/input.step",
+            "role": "input",
+            "sha256": "27cecfed7a03e12d570d42e3b7b7b3ba1bfec35c552c6c27dddf2e3ecada6b2a"
+        },
+        {
+            "byte_length": 47757,
+            "path": "cases/S203-N33/inventory.json",
+            "role": "inventory",
+            "sha256": "8eb195fb0a0aba327057f951f9ce1d631b625147a829b5e1b2ecf39e6a3ca39f"
+        },
+        {
+            "byte_length": 682,
+            "path": "cases/S203-N33/mutation.json",
+            "role": "definition",
+            "sha256": "2bb3245a2c202ff1a66b385c4b63b457a2dc46037bf28a90ec380d5dd61eb8a9"
+        },
+        {
+            "byte_length": 461,
+            "path": "cases/S203-N33/truth.json",
+            "role": "truth",
+            "sha256": "85c1fd7b039804089023aa11b0efaa782dad44552a6ccbb5ad3aeaabd58db1bf"
+        },
+        {
+            "byte_length": 360,
+            "path": "cases/S203-N34/assertions.json",
+            "role": "assertions",
+            "sha256": "5097bb0b2b5d3866a36ceeb7502e08fde2089c950c1d6d80ccd1fdd50abda1d6"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N34/case.json",
+            "role": "case",
+            "sha256": "7d4cd303961ed4315dd70ad3ff75accad8642175f6c2bfc520785051cbc4fe82"
+        },
+        {
+            "byte_length": 5966,
+            "path": "cases/S203-N34/input.step",
+            "role": "input",
+            "sha256": "b6705c469d1df0ce638b0c00f95b670c1fa4948e74883a790f6d489354917f66"
+        },
+        {
+            "byte_length": 48205,
+            "path": "cases/S203-N34/inventory.json",
+            "role": "inventory",
+            "sha256": "bdb92fc5fd82cde123b26e3ae5ed30cb31efa717a12e9c774395f0bfec872a23"
+        },
+        {
+            "byte_length": 837,
+            "path": "cases/S203-N34/mutation.json",
+            "role": "definition",
+            "sha256": "34558f7d32d765ff5bd6ea056c4f25c5e120282fe47e1760c012ae0df425871d"
+        },
+        {
+            "byte_length": 465,
+            "path": "cases/S203-N34/truth.json",
+            "role": "truth",
+            "sha256": "8d890207fd73c5ce8d60e39f737f1168175a1b73600f45e4a4474a2f2a16d9ca"
+        },
+        {
+            "byte_length": 366,
+            "path": "cases/S203-N35/assertions.json",
+            "role": "assertions",
+            "sha256": "351ab0e472e40578a96a5a3f0ad8db6bb006cd76827e4fd1333cd383712d82c5"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N35/case.json",
+            "role": "case",
+            "sha256": "2d5c3ddcb720cf1bff29fcad54a2c556a8179e20b3db9fb52becda368b762a80"
+        },
+        {
+            "byte_length": 2560,
+            "path": "cases/S203-N35/input.step",
+            "role": "input",
+            "sha256": "70d4d7c700390cfbec1b7e5c7abf4cedebdc16f09bc5171e18ea19e0144e3ca2"
+        },
+        {
+            "byte_length": 16983,
+            "path": "cases/S203-N35/inventory.json",
+            "role": "inventory",
+            "sha256": "73ed245bc98a7c7b1eef8ef0eeb4099bd1c87d9129319b8181da55d02f609bf9"
+        },
+        {
+            "byte_length": 772,
+            "path": "cases/S203-N35/mutation.json",
+            "role": "definition",
+            "sha256": "56f3ed93486e83f3575b5b20a1755cf93e4547547ef5b9a462d7ed4e5eed4b04"
+        },
+        {
+            "byte_length": 377,
+            "path": "cases/S203-N35/truth.json",
+            "role": "truth",
+            "sha256": "a15e9250afea0b7357fce3ff5dc086c510cd650ea3676a1cea578914e67d2ec9"
+        },
+        {
+            "byte_length": 373,
+            "path": "cases/S203-N36/assertions.json",
+            "role": "assertions",
+            "sha256": "03399ef10ab9b298afc7eb8fdb41e8c5f26f8e954b391ab9aa80336270683395"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-N36/case.json",
+            "role": "case",
+            "sha256": "5244e312243913d2c1478492856cf2ac323fc4210ba27349cbf615189e831769"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-N36/input.step",
+            "role": "input",
+            "sha256": "f3e8d300597ecad2813eaf1f068bc6055f5f88fb2d2e523ffa20bbfaeebfb95e"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-N36/inventory.json",
+            "role": "inventory",
+            "sha256": "f3a0c942e93449f967a3efaa980c7590b3299a367b00948dad9b04f78363398e"
+        },
+        {
+            "byte_length": 778,
+            "path": "cases/S203-N36/mutation.json",
+            "role": "definition",
+            "sha256": "657c361553a509d22e1632cbb15094c2d5a57fcb46870ff7cb78ca0df84a5272"
+        },
+        {
+            "byte_length": 386,
+            "path": "cases/S203-N36/truth.json",
+            "role": "truth",
+            "sha256": "bbc2dd9220077cdb4b6d9d6c0e61bb489246c995bc6d9604b713edc23f451295"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P01/assertions.json",
+            "role": "assertions",
+            "sha256": "75049943f8c38a433b243308ede490a5b08f6c1b6b66b0eac448793f687aa1b7"
+        },
+        {
+            "byte_length": 1446,
+            "path": "cases/S203-P01/case.json",
+            "role": "case",
+            "sha256": "e0cf9a07b7658be99e49bd60f09b44da168f345d9b29e3c4cbdc87e53f667a13"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-P01/input.step",
+            "role": "input",
+            "sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-P01/inventory.json",
+            "role": "inventory",
+            "sha256": "1c70b6fd86fdac087f19d8c41727e686f447654bf87cd12144424f5f77248ae4"
+        },
+        {
+            "byte_length": 198,
+            "path": "cases/S203-P01/recipe.json",
+            "role": "definition",
+            "sha256": "2226e42186c5631c5b9b939eb6cbd67b7c93a7e426836c5ea3462d0a70694b47"
+        },
+        {
+            "byte_length": 9103,
+            "path": "cases/S203-P01/truth.json",
+            "role": "truth",
+            "sha256": "641a02d8b1d3b5da53f9536ef98c55d1d095d8becee5ef27f526f3863390ec47"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P02/assertions.json",
+            "role": "assertions",
+            "sha256": "91fc3e451ff8be3f02697127eef79cf3755299859cda1fd71ab482b64aba82d2"
+        },
+        {
+            "byte_length": 1454,
+            "path": "cases/S203-P02/case.json",
+            "role": "case",
+            "sha256": "a4062a757bb29cb812417964ecdbf112e138de9e3dbaf21ace75f386d491e819"
+        },
+        {
+            "byte_length": 3493,
+            "path": "cases/S203-P02/input.step",
+            "role": "input",
+            "sha256": "1508ce55f4d23101d1537b1b53a11e49bcb31c47a4881b2755888cc6e0f2e33c"
+        },
+        {
+            "byte_length": 26083,
+            "path": "cases/S203-P02/inventory.json",
+            "role": "inventory",
+            "sha256": "cc222605d70ba249d8741ec368e8fdabc758f636bc21566a2b42053ef9ffd829"
+        },
+        {
+            "byte_length": 1728,
+            "path": "cases/S203-P02/recipe.json",
+            "role": "definition",
+            "sha256": "6e3ab922176f6e7b8cb31613a4907a5e803e06346fdd877b32c46d80b6320113"
+        },
+        {
+            "byte_length": 18123,
+            "path": "cases/S203-P02/truth.json",
+            "role": "truth",
+            "sha256": "0e3f63afb0462d4a8e4f0937ed343a0b84a5e4db2b4a58763e38f416ce388466"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P03/assertions.json",
+            "role": "assertions",
+            "sha256": "ab62260af0128889602d00bb5c06e1790a959951ec3bc299fc07f36620840375"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-P03/case.json",
+            "role": "case",
+            "sha256": "63b1952d9a3ce24f32fb20dfd7288f69573c9db9c5091cf15f21f7163fda3503"
+        },
+        {
+            "byte_length": 3494,
+            "path": "cases/S203-P03/input.step",
+            "role": "input",
+            "sha256": "0c70e9f7d70a1ffe1f3b0fab17933d2510eb2a48d21b8a17190bba193c9d4852"
+        },
+        {
+            "byte_length": 26084,
+            "path": "cases/S203-P03/inventory.json",
+            "role": "inventory",
+            "sha256": "be6a314472018dab18ab192ff6ef8815baa270370bf3c17d624d141aacb41823"
+        },
+        {
+            "byte_length": 526,
+            "path": "cases/S203-P03/recipe.json",
+            "role": "definition",
+            "sha256": "9c4dc7eb1531b0d9e09160969b54edb10fd5cffd56411c7623281fbbabf84426"
+        },
+        {
+            "byte_length": 18131,
+            "path": "cases/S203-P03/truth.json",
+            "role": "truth",
+            "sha256": "6291c285009f756aa1e7cb3f66d84a391b029c2a2e13739210047f49148d658e"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P04/assertions.json",
+            "role": "assertions",
+            "sha256": "656ffacad5d83b107491d56336ce61b11e425fc12f94167acd7ade7e11f9ebc8"
+        },
+        {
+            "byte_length": 1447,
+            "path": "cases/S203-P04/case.json",
+            "role": "case",
+            "sha256": "1cd3201b1cbb13814239a17e5f2abb7b30ae75ea2bb3aa2d3a7292b6b2b2e005"
+        },
+        {
+            "byte_length": 5688,
+            "path": "cases/S203-P04/input.step",
+            "role": "input",
+            "sha256": "5a91e5faf826341114cf7b36b1c414284ae9ef94319ae69bded945d2d7f34dd2"
+        },
+        {
+            "byte_length": 46758,
+            "path": "cases/S203-P04/inventory.json",
+            "role": "inventory",
+            "sha256": "0dee8fcc2d9b1593618b74e94a954446957685cf158bf2592550a050b34ccb6e"
+        },
+        {
+            "byte_length": 198,
+            "path": "cases/S203-P04/recipe.json",
+            "role": "definition",
+            "sha256": "e289bb2bf22526b82766445acfbedae14275ddd3b0b46147a127fe767deed27d"
+        },
+        {
+            "byte_length": 14890,
+            "path": "cases/S203-P04/truth.json",
+            "role": "truth",
+            "sha256": "7dc58708a0f33f1d81e2ce293db7c11181d7955dd6917ed212c96179b8039e9f"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P05/assertions.json",
+            "role": "assertions",
+            "sha256": "cf491976b53377f1acc6ebc6c49cd4b587abad327f444ef0f86ff02334d9de89"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-P05/case.json",
+            "role": "case",
+            "sha256": "fc4c70f12ff125a72797e56c0d63df8cfc163763f4a73d0858fc2703ddc7482e"
+        },
+        {
+            "byte_length": 5699,
+            "path": "cases/S203-P05/input.step",
+            "role": "input",
+            "sha256": "e02d39294d6f29c22818285ed50422f80d44553668802cd21dd258bb84216172"
+        },
+        {
+            "byte_length": 46778,
+            "path": "cases/S203-P05/inventory.json",
+            "role": "inventory",
+            "sha256": "baae9f18cbb4dc2966ac78628d2540ad9e54e5ee8fc20f1a2758424a553a8279"
+        },
+        {
+            "byte_length": 722,
+            "path": "cases/S203-P05/recipe.json",
+            "role": "definition",
+            "sha256": "72fba440bc78d532328350bc4ec8168380953f5196174ec22fa96c1ba95f4703"
+        },
+        {
+            "byte_length": 14666,
+            "path": "cases/S203-P05/truth.json",
+            "role": "truth",
+            "sha256": "6781104a2bf7b0ace34c79a562f5f9dd4ebfcd02930cd963f6b9886140959bda"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P06/assertions.json",
+            "role": "assertions",
+            "sha256": "546b5dc39e49fcc7209ab8e5543b94b0fc677baac0207c9c31847b0efc040b06"
+        },
+        {
+            "byte_length": 1452,
+            "path": "cases/S203-P06/case.json",
+            "role": "case",
+            "sha256": "a6a3ba3b4c40b9b7caebdb550441086dd7a299206639549b5a54f12734c237cd"
+        },
+        {
+            "byte_length": 2508,
+            "path": "cases/S203-P06/input.step",
+            "role": "input",
+            "sha256": "53b0a8c4fa935f76ffed829edcb1be09d720cba3746e1af98d73f193d748800f"
+        },
+        {
+            "byte_length": 16631,
+            "path": "cases/S203-P06/inventory.json",
+            "role": "inventory",
+            "sha256": "30d3b268200fb7a4539d152a948cc650e44bb778116726d7c875cead3aa60c5e"
+        },
+        {
+            "byte_length": 497,
+            "path": "cases/S203-P06/recipe.json",
+            "role": "definition",
+            "sha256": "f45a0f3c9d06421e2d5aea18aeb820f5590f059107aaf2291c38b4f2b02ecae1"
+        },
+        {
+            "byte_length": 9126,
+            "path": "cases/S203-P06/truth.json",
+            "role": "truth",
+            "sha256": "9c1320a1a5f56b08c1d4fc73e359f2bb8288f7df93910d64b507e1c2e00a1a9f"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P07/assertions.json",
+            "role": "assertions",
+            "sha256": "162f67e60a5ee1ff9aee40459cf668e67fde2d65409865847b86b506874de2bb"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-P07/case.json",
+            "role": "case",
+            "sha256": "905a4d772eda92d7b53337165325afb99b64d14a22974ca3f8cd00520bac96c9"
+        },
+        {
+            "byte_length": 2523,
+            "path": "cases/S203-P07/input.step",
+            "role": "input",
+            "sha256": "6a55d139b2a22877a67b3aeabdc861b34c9341a10e51a3ede03b9a6e9c55b014"
+        },
+        {
+            "byte_length": 16646,
+            "path": "cases/S203-P07/inventory.json",
+            "role": "inventory",
+            "sha256": "8a32e7c0b941779639786e0b441715b359467a396fa961473d799b86d4ec0a34"
+        },
+        {
+            "byte_length": 2242,
+            "path": "cases/S203-P07/recipe.json",
+            "role": "definition",
+            "sha256": "ccd1f003addc5a02a333dba6d0f4478dccdba7128ed9917d8f5405cd97f08be8"
+        },
+        {
+            "byte_length": 9101,
+            "path": "cases/S203-P07/truth.json",
+            "role": "truth",
+            "sha256": "158152a9cf62c3f59ea0bcb7a338fb07a094d21068ab214385fe27289b36e288"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P08/assertions.json",
+            "role": "assertions",
+            "sha256": "dcf47bfdabd584fffab265915181110118aad1a6e9c0f85027fab61cbd944186"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-P08/case.json",
+            "role": "case",
+            "sha256": "f5d913379b162517919d78bd5a438d8783a49ca22d18b1fbdd457a032dd8c733"
+        },
+        {
+            "byte_length": 2729,
+            "path": "cases/S203-P08/input.step",
+            "role": "input",
+            "sha256": "6704a196f2cef085bbc5c271beeead35e7bda000714ee2d18e251e52206bab1d"
+        },
+        {
+            "byte_length": 17488,
+            "path": "cases/S203-P08/inventory.json",
+            "role": "inventory",
+            "sha256": "4f07d6799c4d62ed51f199d159b1dadc4febd50b78a4a18e9733419a5714ced0"
+        },
+        {
+            "byte_length": 1018,
+            "path": "cases/S203-P08/recipe.json",
+            "role": "definition",
+            "sha256": "fcd44aedfcf080ed09b607bc87fe2331272ad4d4406ea650d2a6fff4bb65cb39"
+        },
+        {
+            "byte_length": 9103,
+            "path": "cases/S203-P08/truth.json",
+            "role": "truth",
+            "sha256": "70574f98d516f1973ed32423e25e9048e861e4d23c17adbe02592e386bc2c347"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P09/assertions.json",
+            "role": "assertions",
+            "sha256": "534cb7921f43f51ced5429497958422900770e4cece252d7404b5df8157754c1"
+        },
+        {
+            "byte_length": 1452,
+            "path": "cases/S203-P09/case.json",
+            "role": "case",
+            "sha256": "e1ef30c9173de920a20c60a7510a145088ff6b22476e56a3f1516a7a8fe8be11"
+        },
+        {
+            "byte_length": 2561,
+            "path": "cases/S203-P09/input.step",
+            "role": "input",
+            "sha256": "aadaf4e9590a73924b48129117ee025870b370abf233e358c9578d37288a4784"
+        },
+        {
+            "byte_length": 16984,
+            "path": "cases/S203-P09/inventory.json",
+            "role": "inventory",
+            "sha256": "0042559b555931570bfe17394034b357409a0528003b5cdb4c30c1235aaa5acf"
+        },
+        {
+            "byte_length": 561,
+            "path": "cases/S203-P09/recipe.json",
+            "role": "definition",
+            "sha256": "b0e71bd101b7cdc543d2f6834aa664c277fadb8b9273b390d3f06c919bc6b3f5"
+        },
+        {
+            "byte_length": 9103,
+            "path": "cases/S203-P09/truth.json",
+            "role": "truth",
+            "sha256": "31afa0d17ade7b293f866b0e83e9b4013a5cf54969d717e71d417750f8026469"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P10/assertions.json",
+            "role": "assertions",
+            "sha256": "ea3080974d1b8d95aac06a2789c6d20dc97e28a8454f105064476d04e62a76e7"
+        },
+        {
+            "byte_length": 1452,
+            "path": "cases/S203-P10/case.json",
+            "role": "case",
+            "sha256": "b13090c6b1cf0cb3d345afcfd6954c0cfd08566d9d1220a8158be756c01bf2ba"
+        },
+        {
+            "byte_length": 2533,
+            "path": "cases/S203-P10/input.step",
+            "role": "input",
+            "sha256": "ec79047a8f4495b7abc8e45e6c6c10c7593d307f1c978d9ce9283bef822eb3d7"
+        },
+        {
+            "byte_length": 16669,
+            "path": "cases/S203-P10/inventory.json",
+            "role": "inventory",
+            "sha256": "88f4376c3667c37c688917c120bba6840ed2557b29584e51f302318da694c6a6"
+        },
+        {
+            "byte_length": 904,
+            "path": "cases/S203-P10/recipe.json",
+            "role": "definition",
+            "sha256": "d122ab9d2ef00965398f7909facb5ac0b20caf79eddb17b87bde753a4e124928"
+        },
+        {
+            "byte_length": 9103,
+            "path": "cases/S203-P10/truth.json",
+            "role": "truth",
+            "sha256": "215a388c04f586ae92cc28d0444e46e7f70ed94160f5f22df67afc58588a37e5"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P11/assertions.json",
+            "role": "assertions",
+            "sha256": "39a904ce29576f5946a25c7668ce5708dd0ac529d34274957454f960f6665da9"
+        },
+        {
+            "byte_length": 1454,
+            "path": "cases/S203-P11/case.json",
+            "role": "case",
+            "sha256": "bcbcc49021c5820f37712d087157709f0c1c6347d9810a25481b1fafa573a8e5"
+        },
+        {
+            "byte_length": 5836,
+            "path": "cases/S203-P11/input.step",
+            "role": "input",
+            "sha256": "176a62d5981367bc24d771b2d2232722a385ae548ee8bb7b9bef4efb63fc4284"
+        },
+        {
+            "byte_length": 47756,
+            "path": "cases/S203-P11/inventory.json",
+            "role": "inventory",
+            "sha256": "6ce47c824ba67f247f1a0168c6d6740f3c2efe0805af55a86059a740f28c2bea"
+        },
+        {
+            "byte_length": 4632,
+            "path": "cases/S203-P11/recipe.json",
+            "role": "definition",
+            "sha256": "ef6cc9d3c24f89ba3127fc8c914be7f1a1e6386ebe0c400de172b51eeae7116b"
+        },
+        {
+            "byte_length": 14952,
+            "path": "cases/S203-P11/truth.json",
+            "role": "truth",
+            "sha256": "0fa73e30b2cd68f7ee1c8f34ea4ee1cf0ba12263ba2cf997dda90010d2a5c023"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P12/assertions.json",
+            "role": "assertions",
+            "sha256": "9e152d13a048b0911a64055b9e4a1ef8a1fa0bf28137e736d6f490f587b679ae"
+        },
+        {
+            "byte_length": 1452,
+            "path": "cases/S203-P12/case.json",
+            "role": "case",
+            "sha256": "6dd55340dbf6c2e469f23883172ceb8549eff7eaa77742aaef50bf7899e10787"
+        },
+        {
+            "byte_length": 2575,
+            "path": "cases/S203-P12/input.step",
+            "role": "input",
+            "sha256": "b99009e283c858ad5fb5607aa51e7d77d57417114d786b0654beffbc4e8b4466"
+        },
+        {
+            "byte_length": 16962,
+            "path": "cases/S203-P12/inventory.json",
+            "role": "inventory",
+            "sha256": "261566b111a76bd51a50f41e7e457479cef9727141b6072c07b871342f514ad1"
+        },
+        {
+            "byte_length": 781,
+            "path": "cases/S203-P12/recipe.json",
+            "role": "definition",
+            "sha256": "d0a928dcbb32c80d8944bae2ecd6a7506a6101a1cc3c70ba7fa5142a32dba300"
+        },
+        {
+            "byte_length": 9103,
+            "path": "cases/S203-P12/truth.json",
+            "role": "truth",
+            "sha256": "5ed834fc7c4b27491778f82465086ec7ab8ea3c2ba07dc7ae98427fcb901ff75"
+        },
+        {
+            "byte_length": 311,
+            "path": "cases/S203-P13/assertions.json",
+            "role": "assertions",
+            "sha256": "429ec1c12e4f802d42b7ed710497b62fcfd0f225d5433bf8bd9ff76310ebb52a"
+        },
+        {
+            "byte_length": 1453,
+            "path": "cases/S203-P13/case.json",
+            "role": "case",
+            "sha256": "d703e8251ade317c24b04101a9877451e761b8b0c44aa772e9cc812701599570"
+        },
+        {
+            "byte_length": 5966,
+            "path": "cases/S203-P13/input.step",
+            "role": "input",
+            "sha256": "74e089c5d64c3d273e11612e36276f1f5e811bb5ebf1282e8d5eb4ab826e8cb3"
+        },
+        {
+            "byte_length": 48205,
+            "path": "cases/S203-P13/inventory.json",
+            "role": "inventory",
+            "sha256": "4fed679016998364543fbb89ec198fafa0d1708dd638ec8d5a23f78f9d032d11"
+        },
+        {
+            "byte_length": 894,
+            "path": "cases/S203-P13/recipe.json",
+            "role": "definition",
+            "sha256": "24bf1cb000d6d6f63a9b05cfbc02a516bdb4bc6e93bd16bddb738054d34e514a"
+        },
+        {
+            "byte_length": 14952,
+            "path": "cases/S203-P13/truth.json",
+            "role": "truth",
+            "sha256": "f072e4c2d7cf138c4c539e1eecd50aef8ad43de1eafab95d24f91777613a15bd"
+        },
+        {
+            "byte_length": 1131,
+            "path": "quality/Q-P0-mm-01.json",
+            "role": "quality",
+            "sha256": "2ccb9b34f5d2ab2add0e547b5c7321814c6d50bce29e218587f56c87ca976f35"
+        },
+        {
+            "byte_length": 80804,
+            "path": "reference/anchors.json",
+            "role": "reference",
+            "sha256": "c8455f8c3d36150b37bf611ac8dacfe84d6f18b1327a53bcf7b53c7c971b6d4a"
+        },
+        {
+            "byte_length": 486,
+            "path": "resources/T01-corpus-limits.json",
+            "role": "resources",
+            "sha256": "b3320040dbeca77365b17c1031aae01433dfc26c396b9165f7466d84a8a8677c"
+        },
+        {
+            "byte_length": 168,
+            "path": "review/coverage.json",
+            "role": "review",
+            "sha256": "ed41e2049197579a748c6fb3c3d84e4e912d8b83a35c1390ad57815e77b07289"
+        },
+        {
+            "byte_length": 192,
+            "path": "review/generation-review.json",
+            "role": "review",
+            "sha256": "66818dced07516f05a772e7c9edbeb594690a14865e083340ec21e1e77e6ac19"
+        },
+        {
+            "byte_length": 158,
+            "path": "review/oracle-review.json",
+            "role": "review",
+            "sha256": "8d3b615f8bb62fe877bc227af88791abfcf9b2040ee26fa45690bbb6f284d7f7"
+        },
+        {
+            "byte_length": 174,
+            "path": "review/reference-review.json",
+            "role": "review",
+            "sha256": "c7ce5eb10b510a624389d629e3c08c91bb24dc8c2ba250f6a13afecfc9e030dc"
+        },
+        {
+            "byte_length": 3932,
+            "path": "sources.lock.json",
+            "role": "sources",
+            "sha256": "e1a7663765af2f6af301d18ae44c604e7c2eb82234d1e3616332583da85a1cce"
+        }
+    ],
+    "profile_id": "203e2-P0-Planar-0.1",
+    "reference": {
+        "byte_length": 80804,
+        "path": "reference/anchors.json",
+        "role": "reference",
+        "sha256": "c8455f8c3d36150b37bf611ac8dacfe84d6f18b1327a53bcf7b53c7c971b6d4a"
+    }
+}

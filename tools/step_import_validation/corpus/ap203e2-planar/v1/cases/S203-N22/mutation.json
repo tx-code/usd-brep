@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N22",
+    "diagnostic": "EdgeCurveSenseMismatch",
+    "edits": [
+        {
+            "end": 1840,
+            "new_bytes_b64": "IzIwMz1FREdFX0NVUlZFKCcnLCMxMTAsIzExMSwjMjAyLC5GLik=",
+            "new_text": "#203=EDGE_CURVE('',#110,#111,#202,.F.)",
+            "old_bytes_b64": "IzIwMz1FREdFX0NVUlZFKCcnLCMxMTAsIzExMSwjMjAyLC5ULik=",
+            "old_text": "#203=EDGE_CURVE('',#110,#111,#202,.T.)",
+            "start": 1802
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "621166be516e2937bc59be001de6fbc03eb325689c4e994c0b63328e23fe715d",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D4"
+}

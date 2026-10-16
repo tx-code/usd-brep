@@ -1,0 +1,2543 @@
+{
+    "cases": {
+        "S203-N01": {
+            "diagnostic_key": "UnsupportedSchemaBinding",
+            "expected_stage": "D2",
+            "facts": {
+                "oid_tail": 3
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "{1 0 10303 403 2 1 2}",
+                "{1 0 10303 403 2 1 3}"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N02": {
+            "diagnostic_key": "DuplicateInstanceId",
+            "expected_stage": "D0",
+            "facts": {
+                "duplicate_id": 100,
+                "occurrences": 52,
+                "unique_ids": 51
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "",
+                "#100=CARTESIAN_POINT('',(3.,-2.,5.));\n"
+            ],
+            "parent": "S203-P01",
+            "record_count": 52
+        },
+        "S203-N03": {
+            "diagnostic_key": "UnresolvedRequiredReference",
+            "expected_stage": "D1",
+            "facts": {
+                "dangling": [
+                    99999
+                ]
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "SHAPE_DEFINITION_REPRESENTATION(#8,#20)",
+                "SHAPE_DEFINITION_REPRESENTATION(#99999,#20)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N04": {
+            "diagnostic_key": "RequiredAttributeMissing",
+            "expected_stage": "D1",
+            "facts": {
+                "required_name_token": "$"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#3=PRODUCT_CONTEXT('',",
+                "#3=PRODUCT_CONTEXT($,"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N05": {
+            "diagnostic_key": "DerivedSlotMarkerRequired",
+            "expected_stage": "D1",
+            "facts": {
+                "derived_start_token": "$"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#204=ORIENTED_EDGE('',*,*,",
+                "#204=ORIENTED_EDGE('',$,*,"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N06": {
+            "diagnostic_key": "BooleanValueInvalid",
+            "expected_stage": "D1",
+            "facts": {
+                "boolean_token": ".U."
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#204=ORIENTED_EDGE('',*,*,#203,.T.)",
+                "#204=ORIENTED_EDGE('',*,*,#203,.U.)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N07": {
+            "diagnostic_key": "ReferenceTypeMismatch",
+            "expected_stage": "D1",
+            "facts": {
+                "edge_start_kind": "CARTESIAN_POINT"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#203=EDGE_CURVE('',#110,",
+                "#203=EDGE_CURVE('',#100,"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N08": {
+            "diagnostic_key": "AggregateUniqueViolation",
+            "expected_stage": "D1",
+            "facts": {
+                "orphans": [
+                    210,
+                    211,
+                    212,
+                    213,
+                    214
+                ]
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "(#204,#214,#224,#234)",
+                "(#204,#204,#224,#234)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N09": {
+            "diagnostic_key": "SetDuplicateMember",
+            "expected_stage": "D1",
+            "facts": {
+                "duplicate_face": 507
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "(#507,#517,#527,#537,#547,#557)",
+                "(#507,#517,#527,#537,#547,#557,#507)"
+            ],
+            "parent": "S203-P04",
+            "record_count": 145
+        },
+        "S203-N10": {
+            "diagnostic_key": "SourceRuleViolation:application_protocol_definition_required.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "apd_suffix": "_mim_lf"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011",
+                "'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies_mim_lf',2011"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N11": {
+            "diagnostic_key": "SourceRuleViolation:DIRECTION.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "direction_norm_squared": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#200=DIRECTION('',(0.6,0.8,0.))",
+                "#200=DIRECTION('',(0.,0.,0.))"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N12": {
+            "diagnostic_key": "SourceRuleViolation:VECTOR.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "magnitude": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "-12"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#201=VECTOR('',#200,12.)",
+                "#201=VECTOR('',#200,-12.)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N13": {
+            "diagnostic_key": "SourceRuleViolation:AXIS2_PLACEMENT_3D.WR4",
+            "expected_stage": "D3",
+            "facts": {
+                "axis_cross_norm_squared": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#132=DIRECTION('',(0.6,0.8,0.))",
+                "#132=DIRECTION('',(0.,0.,1.))"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N14": {
+            "diagnostic_key": "DerivedSlotMarkerRequired",
+            "expected_stage": "D1",
+            "facts": {
+                "si_dimensions_token": "$"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#10=(LENGTH_UNIT() NAMED_UNIT(*)",
+                "#10=(LENGTH_UNIT() NAMED_UNIT($)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N15": {
+            "diagnostic_key": "EnumerationValueInvalid",
+            "expected_stage": "D1",
+            "facts": {
+                "prefix": ".QUETTA."
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "SI_UNIT($,.RADIAN.)",
+                "SI_UNIT(.QUETTA.,.RADIAN.)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N16": {
+            "diagnostic_key": "UnsupportedDefinitionContextRole",
+            "expected_stage": "D2",
+            "facts": {
+                "context_role": "'part occurrence'"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#6=PRODUCT_DEFINITION_CONTEXT('part definition'",
+                "#6=PRODUCT_DEFINITION_CONTEXT('part occurrence'"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N17": {
+            "diagnostic_key": "UnsupportedExplicitOuterBoundRequired",
+            "expected_stage": "D2",
+            "facts": {
+                "explicit_outer_bounds": 0
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#301=FACE_OUTER_BOUND",
+                "#301=FACE_BOUND"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N18": {
+            "diagnostic_key": "UnsupportedFaceSubtype",
+            "expected_stage": "D2",
+            "facts": {
+                "face_kind": "FACE_SURFACE"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#302=ADVANCED_FACE",
+                "#302=FACE_SURFACE"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N19": {
+            "diagnostic_key": "NonzeroDefiningLineRequired",
+            "expected_stage": "D4",
+            "facts": {
+                "magnitude": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#201=VECTOR('',#200,12.)",
+                "#201=VECTOR('',#200,0.)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N20": {
+            "diagnostic_key": "EndpointCurveMismatch",
+            "expected_stage": "D4",
+            "facts": {
+                "endpoint_line_distance_squared": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "64"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#202=LINE('',#100,#201)",
+                "#202=LINE('',#102,#201)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N21": {
+            "diagnostic_key": "EdgeSurfaceMismatch",
+            "expected_stage": "D4",
+            "facts": {
+                "edge_plane_distance": {
+                    "den": "1000",
+                    "kind": "rational",
+                    "num": "1"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#130=CARTESIAN_POINT('',(3.,-2.,5.))",
+                "#130=CARTESIAN_POINT('',(3.,-2.,5.001))"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N22": {
+            "diagnostic_key": "EdgeCurveSenseMismatch",
+            "expected_stage": "D4",
+            "facts": {
+                "same_sense": ".F."
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#203=EDGE_CURVE('',#110,#111,#202,.T.)",
+                "#203=EDGE_CURVE('',#110,#111,#202,.F.)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N23": {
+            "diagnostic_key": "SourceRuleViolation:PATH.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "loop_closed": true,
+                "path_connected": false
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#214=ORIENTED_EDGE('',*,*,#213,.T.)",
+                "#214=ORIENTED_EDGE('',*,*,#213,.F.)"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N24": {
+            "diagnostic_key": "SourceRuleViolation:EDGE_LOOP.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "end_distance_squared": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "144"
+                },
+                "loop_closed": false,
+                "path_connected": true
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#233=EDGE_CURVE('',#113,#110,",
+                "#233=EDGE_CURVE('',#113,#111,"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N25": {
+            "diagnostic_key": "InnerBoundaryOrientationMismatch",
+            "expected_stage": "D4",
+            "facts": {
+                "effective_hole_area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "8"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#311=FACE_BOUND('',#310,.T.)",
+                "#311=FACE_BOUND('',#310,.F.)"
+            ],
+            "parent": "S203-P02",
+            "record_count": 81
+        },
+        "S203-N26": {
+            "diagnostic_key": "ClaimedClosedShellHasBoundary",
+            "expected_stage": "D4",
+            "facts": {
+                "free_edges": 4,
+                "free_length": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#22=OPEN_SHELL",
+                "#22=CLOSED_SHELL"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-N27": {
+            "diagnostic_key": "FaceBoundaryOrShellOrientationMismatch",
+            "expected_stage": "D4",
+            "facts": {
+                "selected_bottom_normal": [
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#507=ADVANCED_FACE('',(#506),#504,.T.)",
+                "#507=ADVANCED_FACE('',(#506),#504,.F.)"
+            ],
+            "parent": "S203-P04",
+            "record_count": 145
+        },
+        "S203-N28": {
+            "diagnostic_key": "UnownedOrOrphanProfileContent",
+            "expected_stage": "D2",
+            "facts": {
+                "free_length": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "60"
+                },
+                "orphans": [
+                    501,
+                    502,
+                    503,
+                    504,
+                    505,
+                    506,
+                    507,
+                    400,
+                    401,
+                    402,
+                    403
+                ],
+                "remaining_area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2000"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "(#507,#517,#527,#537,#547,#557)",
+                "(#517,#527,#537,#547,#557)"
+            ],
+            "parent": "S203-P04",
+            "record_count": 145
+        },
+        "S203-N29": {
+            "diagnostic_key": "SourceRuleViolation:consistent_uncertainty.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "names_unique": false
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "'distance_accuracy_B'",
+                "'distance_accuracy_A'"
+            ],
+            "parent": "S203-P08",
+            "record_count": 53
+        },
+        "S203-N30": {
+            "diagnostic_key": "SourceRuleViolation:UNCERTAINTY_MEASURE_WITH_UNIT.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "uncertainty": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#13=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001)",
+                "#13=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.)"
+            ],
+            "parent": "S203-P08",
+            "record_count": 53
+        },
+        "S203-N31": {
+            "diagnostic_key": "SourceRuleViolation:LENGTH_UNIT.WR1+CONVERSION_BASED_UNIT.WR1",
+            "expected_stage": "D3",
+            "facts": {
+                "declared_length_exponent": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#17=DIMENSIONAL_EXPONENTS(1.,",
+                "#17=DIMENSIONAL_EXPONENTS(0.,"
+            ],
+            "parent": "S203-P11",
+            "record_count": 148
+        },
+        "S203-N32": {
+            "diagnostic_key": "UnitScaleNotPositive",
+            "expected_stage": "D4",
+            "facts": {
+                "factor": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "0"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "LENGTH_MEASURE(25.4)",
+                "LENGTH_MEASURE(0.)"
+            ],
+            "parent": "S203-P11",
+            "record_count": 148
+        },
+        "S203-N33": {
+            "diagnostic_key": "UnitScaleNotPositive",
+            "expected_stage": "D4",
+            "facts": {
+                "factor": {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "-127"
+                }
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "LENGTH_MEASURE(25.4)",
+                "LENGTH_MEASURE(-25.4)"
+            ],
+            "parent": "S203-P11",
+            "record_count": 148
+        },
+        "S203-N34": {
+            "diagnostic_key": "CyclicUnitDefinition",
+            "expected_stage": "D4",
+            "facts": {
+                "mm_anchor_present": true,
+                "unit_cycle": [
+                    19,
+                    18,
+                    19
+                ]
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#18=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10)",
+                "#18=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#19)"
+            ],
+            "parent": "S203-P13",
+            "record_count": 149
+        },
+        "S203-N35": {
+            "diagnostic_key": "UnsupportedProductCategory",
+            "expected_stage": "D2",
+            "facts": {
+                "category": "'ply'"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "PRODUCT_RELATED_PRODUCT_CATEGORY('part'",
+                "PRODUCT_RELATED_PRODUCT_CATEGORY('ply'"
+            ],
+            "parent": "S203-P09",
+            "record_count": 52
+        },
+        "S203-N36": {
+            "diagnostic_key": "UnsupportedProductContextDiscipline",
+            "expected_stage": "D2",
+            "facts": {
+                "discipline": "'electrical'"
+            },
+            "kind": "Negative",
+            "mutation_tokens": [
+                "#3=PRODUCT_CONTEXT('',#1,'mechanical')",
+                "#3=PRODUCT_CONTEXT('',#1,'electrical')"
+            ],
+            "parent": "S203-P01",
+            "record_count": 51
+        },
+        "S203-P01": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "96"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "parent": null,
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 51,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P02": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    5,
+                    6
+                ],
+                [
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    4
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ],
+                [
+                    4,
+                    5,
+                    6,
+                    7
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "88"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "52"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 81,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ],
+                [
+                    "2",
+                    "2"
+                ],
+                [
+                    "2",
+                    "4"
+                ],
+                [
+                    "6",
+                    "4"
+                ],
+                [
+                    "6",
+                    "2"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ],
+                [
+                    "13/5",
+                    "4/5",
+                    "5"
+                ],
+                [
+                    "1",
+                    "2",
+                    "5"
+                ],
+                [
+                    "17/5",
+                    "26/5",
+                    "5"
+                ],
+                [
+                    "5",
+                    "4",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P03": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    5,
+                    6
+                ],
+                [
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    4
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ],
+                [
+                    4,
+                    5,
+                    6,
+                    7
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "88"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "52"
+                }
+            },
+            "parent": "S203-P02",
+            "plane_origin": [
+                "17/5",
+                "26/5",
+                "5"
+            ],
+            "record_count": 81,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ],
+                [
+                    "2",
+                    "2"
+                ],
+                [
+                    "2",
+                    "4"
+                ],
+                [
+                    "6",
+                    "4"
+                ],
+                [
+                    "6",
+                    "2"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ],
+                [
+                    "13/5",
+                    "4/5",
+                    "5"
+                ],
+                [
+                    "1",
+                    "2",
+                    "5"
+                ],
+                [
+                    "17/5",
+                    "26/5",
+                    "5"
+                ],
+                [
+                    "5",
+                    "4",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P04": {
+            "closed": true,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    5,
+                    6
+                ],
+                [
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    4
+                ],
+                [
+                    0,
+                    4
+                ],
+                [
+                    1,
+                    5
+                ],
+                [
+                    2,
+                    6
+                ],
+                [
+                    3,
+                    7
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    3,
+                    2,
+                    1
+                ],
+                [
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                [
+                    0,
+                    1,
+                    5,
+                    4
+                ],
+                [
+                    3,
+                    7,
+                    6,
+                    2
+                ],
+                [
+                    0,
+                    4,
+                    7,
+                    3
+                ],
+                [
+                    1,
+                    2,
+                    6,
+                    5
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "MANIFOLD_SOLID_BREP('',#22)",
+                "22": "CLOSED_SHELL('',(#507,#517,#527,#537,#547,#557))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2200"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "240"
+                },
+                "volume": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "6000"
+                }
+            },
+            "parent": null,
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 145,
+            "role": "MaterialSolid",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": null,
+            "world_points": [
+                [
+                    "2",
+                    "-3",
+                    "5"
+                ],
+                [
+                    "12",
+                    "-3",
+                    "5"
+                ],
+                [
+                    "12",
+                    "17",
+                    "5"
+                ],
+                [
+                    "2",
+                    "17",
+                    "5"
+                ],
+                [
+                    "2",
+                    "-3",
+                    "35"
+                ],
+                [
+                    "12",
+                    "-3",
+                    "35"
+                ],
+                [
+                    "12",
+                    "17",
+                    "35"
+                ],
+                [
+                    "2",
+                    "17",
+                    "35"
+                ]
+            ]
+        },
+        "S203-P05": {
+            "closed": true,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    5,
+                    6
+                ],
+                [
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    4
+                ],
+                [
+                    0,
+                    4
+                ],
+                [
+                    1,
+                    5
+                ],
+                [
+                    2,
+                    6
+                ],
+                [
+                    3,
+                    7
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    3,
+                    2,
+                    1
+                ],
+                [
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                [
+                    0,
+                    1,
+                    5,
+                    4
+                ],
+                [
+                    3,
+                    7,
+                    6,
+                    2
+                ],
+                [
+                    0,
+                    4,
+                    7,
+                    3
+                ],
+                [
+                    1,
+                    2,
+                    6,
+                    5
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "CLOSED_SHELL('',(#507,#517,#527,#537,#547,#557))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "2200"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "240"
+                }
+            },
+            "parent": "S203-P04",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 145,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": null,
+            "world_points": [
+                [
+                    "2",
+                    "-3",
+                    "5"
+                ],
+                [
+                    "12",
+                    "-3",
+                    "5"
+                ],
+                [
+                    "12",
+                    "17",
+                    "5"
+                ],
+                [
+                    "2",
+                    "17",
+                    "5"
+                ],
+                [
+                    "2",
+                    "-3",
+                    "35"
+                ],
+                [
+                    "12",
+                    "-3",
+                    "35"
+                ],
+                [
+                    "12",
+                    "17",
+                    "35"
+                ],
+                [
+                    "2",
+                    "17",
+                    "35"
+                ]
+            ]
+        },
+        "S203-P06": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "9600"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "400"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "30",
+                "-20",
+                "50"
+            ],
+            "record_count": 51,
+            "role": "SurfaceModel",
+            "scale": "10",
+            "source_length_scale_mm": "10",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "30",
+                    "-20",
+                    "50"
+                ],
+                [
+                    "102",
+                    "76",
+                    "50"
+                ],
+                [
+                    "38",
+                    "124",
+                    "50"
+                ],
+                [
+                    "-34",
+                    "28",
+                    "50"
+                ]
+            ]
+        },
+        "S203-P07": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "96"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 51,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "10",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P08": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#13,#14)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "13": "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001),#10,'distance_accuracy_A',$)",
+                "14": "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0002),#10,'distance_accuracy_B',$)",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "96"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 53,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P09": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "15": "PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#4))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "96"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 52,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P10": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "MECHANICAL_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE('A',$,#4,.NOT_KNOWN.)",
+                "6": "DESIGN_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "96"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 51,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P11": {
+            "closed": true,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    5,
+                    6
+                ],
+                [
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    4
+                ],
+                [
+                    0,
+                    4
+                ],
+                [
+                    1,
+                    5
+                ],
+                [
+                    2,
+                    6
+                ],
+                [
+                    3,
+                    7
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    3,
+                    2,
+                    1
+                ],
+                [
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                [
+                    0,
+                    1,
+                    5,
+                    4
+                ],
+                [
+                    3,
+                    7,
+                    6,
+                    2
+                ],
+                [
+                    0,
+                    4,
+                    7,
+                    3
+                ],
+                [
+                    1,
+                    2,
+                    6,
+                    5
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#19,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "17": "DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.)",
+                "18": "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10)",
+                "19": "(CONVERSION_BASED_UNIT('inch',#18) LENGTH_UNIT() NAMED_UNIT(#17))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "MANIFOLD_SOLID_BREP('',#22)",
+                "22": "CLOSED_SHELL('',(#507,#517,#527,#537,#547,#557))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "25",
+                    "kind": "rational",
+                    "num": "354838"
+                },
+                "perimeter": {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "3048"
+                },
+                "volume": {
+                    "den": "125",
+                    "kind": "rational",
+                    "num": "12290298"
+                }
+            },
+            "parent": "S203-P04",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 148,
+            "role": "MaterialSolid",
+            "scale": "127/5",
+            "source_length_scale_mm": "127/5",
+            "uv_points": null,
+            "world_points": [
+                [
+                    "0",
+                    "0",
+                    "0"
+                ],
+                [
+                    "127/5",
+                    "0",
+                    "0"
+                ],
+                [
+                    "127/5",
+                    "254/5",
+                    "0"
+                ],
+                [
+                    "0",
+                    "254/5",
+                    "0"
+                ],
+                [
+                    "0",
+                    "0",
+                    "381/5"
+                ],
+                [
+                    "127/5",
+                    "0",
+                    "381/5"
+                ],
+                [
+                    "127/5",
+                    "254/5",
+                    "381/5"
+                ],
+                [
+                    "0",
+                    "254/5",
+                    "381/5"
+                ]
+            ]
+        },
+        "S203-P12": {
+            "closed": false,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11,#16)) REPRESENTATION_CONTEXT('local','3D'))",
+                "16": "(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT())",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "SHELL_BASED_SURFACE_MODEL('',(#22))",
+                "22": "OPEN_SHELL('',(#302))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "96"
+                },
+                "perimeter": {
+                    "den": "1",
+                    "kind": "rational",
+                    "num": "40"
+                }
+            },
+            "parent": "S203-P01",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 52,
+            "role": "SurfaceModel",
+            "scale": "1",
+            "source_length_scale_mm": "1",
+            "uv_points": [
+                [
+                    "0",
+                    "0"
+                ],
+                [
+                    "12",
+                    "0"
+                ],
+                [
+                    "12",
+                    "8"
+                ],
+                [
+                    "0",
+                    "8"
+                ]
+            ],
+            "world_points": [
+                [
+                    "3",
+                    "-2",
+                    "5"
+                ],
+                [
+                    "51/5",
+                    "38/5",
+                    "5"
+                ],
+                [
+                    "19/5",
+                    "62/5",
+                    "5"
+                ],
+                [
+                    "-17/5",
+                    "14/5",
+                    "5"
+                ]
+            ]
+        },
+        "S203-P13": {
+            "closed": true,
+            "edge_ends": [
+                [
+                    0,
+                    1
+                ],
+                [
+                    1,
+                    2
+                ],
+                [
+                    2,
+                    3
+                ],
+                [
+                    3,
+                    0
+                ],
+                [
+                    4,
+                    5
+                ],
+                [
+                    5,
+                    6
+                ],
+                [
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    4
+                ],
+                [
+                    0,
+                    4
+                ],
+                [
+                    1,
+                    5
+                ],
+                [
+                    2,
+                    6
+                ],
+                [
+                    3,
+                    7
+                ]
+            ],
+            "faces": [
+                [
+                    0,
+                    3,
+                    2,
+                    1
+                ],
+                [
+                    4,
+                    5,
+                    6,
+                    7
+                ],
+                [
+                    0,
+                    1,
+                    5,
+                    4
+                ],
+                [
+                    3,
+                    7,
+                    6,
+                    2
+                ],
+                [
+                    0,
+                    4,
+                    7,
+                    3
+                ],
+                [
+                    1,
+                    2,
+                    6,
+                    5
+                ]
+            ],
+            "header_prefix": "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('AP203e2 planar profile design fixture'),'2;1');\nFILE_NAME('p0-analytic-design.step','2026-10-15T00:00:00',('P0'),('local'),'P0 design only','synthetic analytic oracle','');\nFILE_SCHEMA(('AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}'));\nENDSEC;\nDATA;\n",
+            "kind": "Positive",
+            "literal_records": {
+                "1": "APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies')",
+                "10": "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))",
+                "11": "(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))",
+                "12": "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#13)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#19,#11)) REPRESENTATION_CONTEXT('local','3D'))",
+                "13": "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001),#10,'distance_accuracy_A',$)",
+                "17": "DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.)",
+                "18": "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10)",
+                "19": "(CONVERSION_BASED_UNIT('inch',#18) LENGTH_UNIT() NAMED_UNIT(#17))",
+                "2": "APPLICATION_PROTOCOL_DEFINITION('international standard','ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011,#1)",
+                "20": "ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12)",
+                "21": "MANIFOLD_SOLID_BREP('',#22)",
+                "22": "CLOSED_SHELL('',(#507,#517,#527,#537,#547,#557))",
+                "3": "PRODUCT_CONTEXT('',#1,'mechanical')",
+                "4": "PRODUCT('P0-PART','P0 analytic fixture',$,(#3))",
+                "5": "PRODUCT_DEFINITION_FORMATION('A',$,#4)",
+                "6": "PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design')",
+                "7": "PRODUCT_DEFINITION('D1',$,#5,#6)",
+                "8": "PRODUCT_DEFINITION_SHAPE('',$,#7)",
+                "9": "SHAPE_DEFINITION_REPRESENTATION(#8,#20)"
+            },
+            "loops": [
+                [
+                    0,
+                    1,
+                    2,
+                    3
+                ]
+            ],
+            "measures": {
+                "area": {
+                    "den": "25",
+                    "kind": "rational",
+                    "num": "354838"
+                },
+                "perimeter": {
+                    "den": "5",
+                    "kind": "rational",
+                    "num": "3048"
+                },
+                "volume": {
+                    "den": "125",
+                    "kind": "rational",
+                    "num": "12290298"
+                }
+            },
+            "parent": "S203-P11",
+            "plane_origin": [
+                "3",
+                "-2",
+                "5"
+            ],
+            "record_count": 149,
+            "role": "MaterialSolid",
+            "scale": "127/5",
+            "source_length_scale_mm": "127/5",
+            "uv_points": null,
+            "world_points": [
+                [
+                    "0",
+                    "0",
+                    "0"
+                ],
+                [
+                    "127/5",
+                    "0",
+                    "0"
+                ],
+                [
+                    "127/5",
+                    "254/5",
+                    "0"
+                ],
+                [
+                    "0",
+                    "254/5",
+                    "0"
+                ],
+                [
+                    "0",
+                    "0",
+                    "381/5"
+                ],
+                [
+                    "127/5",
+                    "0",
+                    "381/5"
+                ],
+                [
+                    "127/5",
+                    "254/5",
+                    "381/5"
+                ],
+                [
+                    "0",
+                    "254/5",
+                    "381/5"
+                ]
+            ]
+        }
+    },
+    "format_version": "t01.v1",
+    "source": "independently transcribed design anchors; no CAD measurements"
+}

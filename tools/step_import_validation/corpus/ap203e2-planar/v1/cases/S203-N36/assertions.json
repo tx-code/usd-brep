@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N36",
+    "diagnostic_key": "UnsupportedProductContextDiscipline",
+    "expected_result": "Rejected",
+    "expected_stage": "D2",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        596,
+        634
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

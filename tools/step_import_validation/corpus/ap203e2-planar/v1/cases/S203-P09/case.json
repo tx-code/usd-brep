@@ -1,0 +1,42 @@
+{
+    "case_id": "S203-P09",
+    "format_version": "t01.v1",
+    "kind": "Positive",
+    "materials": {
+        "assertions": {
+            "byte_length": 311,
+            "path": "cases/S203-P09/assertions.json",
+            "role": "assertions",
+            "sha256": "534cb7921f43f51ced5429497958422900770e4cece252d7404b5df8157754c1"
+        },
+        "definition": {
+            "byte_length": 561,
+            "path": "cases/S203-P09/recipe.json",
+            "role": "definition",
+            "sha256": "b0e71bd101b7cdc543d2f6834aa664c277fadb8b9273b390d3f06c919bc6b3f5"
+        },
+        "input": {
+            "byte_length": 2561,
+            "path": "cases/S203-P09/input.step",
+            "role": "input",
+            "sha256": "aadaf4e9590a73924b48129117ee025870b370abf233e358c9578d37288a4784"
+        },
+        "inventory": {
+            "byte_length": 16984,
+            "path": "cases/S203-P09/inventory.json",
+            "role": "inventory",
+            "sha256": "0042559b555931570bfe17394034b357409a0528003b5cdb4c30c1235aaa5acf"
+        },
+        "truth": {
+            "byte_length": 9103,
+            "path": "cases/S203-P09/truth.json",
+            "role": "truth",
+            "sha256": "31afa0d17ade7b293f866b0e83e9b4013a5cf54969d717e71d417750f8026469"
+        }
+    },
+    "parent": "S203-P01",
+    "profile_id": "203e2-P0-Planar-0.1",
+    "quality_id": "Q-P0-mm-01",
+    "repair": "None",
+    "selected_definition_id": 7
+}

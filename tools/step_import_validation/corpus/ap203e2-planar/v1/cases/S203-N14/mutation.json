@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N14",
+    "diagnostic": "DerivedSlotMarkerRequired",
+    "edits": [
+        {
+            "end": 944,
+            "new_bytes_b64": "IzEwPShMRU5HVEhfVU5JVCgpIE5BTUVEX1VOSVQoJCk=",
+            "new_text": "#10=(LENGTH_UNIT() NAMED_UNIT($)",
+            "old_bytes_b64": "IzEwPShMRU5HVEhfVU5JVCgpIE5BTUVEX1VOSVQoKik=",
+            "old_text": "#10=(LENGTH_UNIT() NAMED_UNIT(*)",
+            "start": 912
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "7cd3daeb8736ba69385d4a48a60bef0b37c21671e3ebb25d93137dfdc574e232",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D1"
+}

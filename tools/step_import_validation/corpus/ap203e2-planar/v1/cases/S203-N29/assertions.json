@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N29",
+    "diagnostic_key": "SourceRuleViolation:consistent_uncertainty.WR1",
+    "expected_result": "Rejected",
+    "expected_stage": "D3",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        2677,
+        2698
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

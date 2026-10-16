@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N13",
+    "diagnostic": "SourceRuleViolation:AXIS2_PLACEMENT_3D.WR4",
+    "edits": [
+        {
+            "end": 1651,
+            "new_bytes_b64": "IzEzMj1ESVJFQ1RJT04oJycsKDAuLDAuLDEuKSk=",
+            "new_text": "#132=DIRECTION('',(0.,0.,1.))",
+            "old_bytes_b64": "IzEzMj1ESVJFQ1RJT04oJycsKDAuNiwwLjgsMC4pKQ==",
+            "old_text": "#132=DIRECTION('',(0.6,0.8,0.))",
+            "start": 1620
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "3acf8f73ac9dd71bb7a7c1408071a210346aa0f029d43d7b2e8a2a2ee56e3719",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D3"
+}

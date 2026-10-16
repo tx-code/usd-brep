@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N33",
+    "diagnostic": "UnitScaleNotPositive",
+    "edits": [
+        {
+            "end": 5732,
+            "new_bytes_b64": "TEVOR1RIX01FQVNVUkUoLTI1LjQp",
+            "new_text": "LENGTH_MEASURE(-25.4)",
+            "old_bytes_b64": "TEVOR1RIX01FQVNVUkUoMjUuNCk=",
+            "old_text": "LENGTH_MEASURE(25.4)",
+            "start": 5712
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "27cecfed7a03e12d570d42e3b7b7b3ba1bfec35c552c6c27dddf2e3ecada6b2a",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P11",
+    "parent_input_sha256": "176a62d5981367bc24d771b2d2232722a385ae548ee8bb7b9bef4efb63fc4284",
+    "stage": "D4"
+}

@@ -1,0 +1,86 @@
+{
+    "documents": [
+        {
+            "byte_length": 57101,
+            "path": "docs/step-import-repair-spec.md",
+            "role": "design",
+            "sha256": "9a6f364e38eeb43fee5bb7b05e151eb7102cc80f402ae24f508adc55a566d6fa"
+        },
+        {
+            "byte_length": 20182,
+            "path": "docs/step-import/ap203e2-planar-profile.md",
+            "role": "design",
+            "sha256": "dbb89ee5b92e85dec83caaea910581e1e76835c579a73f0945065d0865212f69"
+        },
+        {
+            "byte_length": 33374,
+            "path": "docs/step-import/ap203e2-planar-global-rules.md",
+            "role": "design",
+            "sha256": "251203372e1a6522fe8690dd0dccf37c70b0364505f20824c3f1b1e8c5b18921"
+        },
+        {
+            "byte_length": 44137,
+            "path": "docs/step-import/ap203e2-planar-context-closure.md",
+            "role": "design",
+            "sha256": "c0f5ad50ad7ef45272f10c613400fbd65d5b9abae38adc014fd40d29b263b87b"
+        },
+        {
+            "byte_length": 37958,
+            "path": "docs/step-import/ap203e2-planar-geometry-closure.md",
+            "role": "design",
+            "sha256": "42a6ecceca3d644c283ba76f09d64bcc12596e52c7f135c638814a5983460555"
+        },
+        {
+            "byte_length": 18114,
+            "path": "docs/step-import/ap203e2-sample-design.md",
+            "role": "design",
+            "sha256": "14526181880621be5853419545c2435b5dbfc163998da47df4350e78a271f557"
+        },
+        {
+            "byte_length": 20257,
+            "path": "docs/step-import/ap203e2-sample-plane.md",
+            "role": "design",
+            "sha256": "1b49600e1bd6d0f4f0a99ce6fad979aaccfa00ffe13acfd16ae346a5a09505a3"
+        },
+        {
+            "byte_length": 22890,
+            "path": "docs/step-import/ap203e2-sample-box.md",
+            "role": "design",
+            "sha256": "2c1fdb439ab9b3990e474018357dd65c8a0ca68931bff2676585abae6c915340"
+        },
+        {
+            "byte_length": 14248,
+            "path": "docs/step-import/ap203e2-sample-cases.md",
+            "role": "design",
+            "sha256": "5eb7a1c8b5192dfe8c85db97542b38cc6880f65b266fb4db5f436130d96e76a9"
+        },
+        {
+            "byte_length": 23709,
+            "path": "docs/step-import/p0-planar-cases.md",
+            "role": "design",
+            "sha256": "3fa7c852f804c8eac97801960903bdbf28333bda1646e7adf1607bdedc29161d"
+        }
+    ],
+    "format_version": "t01.v1",
+    "generator": {
+        "files": {
+            "__init__.py": "20c1a2a79d9cc117e1e975a27dd9d8bd8900281867ae74d8f4ecda783b40ae49",
+            "__main__.py": "deaa0b39fedd34ffca01a0fd6e5eacd30d4a90f91d4785fb795e49f62df5d0e2",
+            "common.py": "9dfa59c68f192ad0fad0c75514acdedfbb4155ecf081ce7b8b4ed73be85ecc13",
+            "controls.py": "a67f415d0aef30232af029c89141c8684262104f0cad1890269d80b3777aa0b2",
+            "corpus.py": "9adff09759280a3b7533afa2b3d708534ea30e77528d2e9a2ed2037aab63272e",
+            "evidence.py": "68e0a3850db210b93da07be0578e45369698a2b4daed34df67c82f7883e8a450",
+            "fixtures.py": "725b201940867ccc760dc454de98b3e78f5f3321d7e5319df3432db7cce3b90e",
+            "oracle.py": "e2c04c592c4404ffe26e2cd55a9864eb1253ed851a0ae16a402698cd9c627da7",
+            "records.py": "0d159c875411e6cd09119b6309d96a901da39faefecc6a7944839908c2381327",
+            "reference.py": "35093dc00b0150d82ae54e21cdac61367ba5b5990d4909005406e2271dfb056c"
+        },
+        "sha256": "b9823048879844ec657220ecbfbbaf3edf6d25b7cbcaf070c25bb810a0c6f152"
+    },
+    "n2635": {
+        "classification": "publisher implementation release; ISO byte identity unverified",
+        "sha256": "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088",
+        "uri": "https://www.mbx-if.org/home/wp-content/uploads/2024/07/part403ts_wg3n2635mim_lf.zip"
+    },
+    "reference_sha256": "c8455f8c3d36150b37bf611ac8dacfe84d6f18b1327a53bcf7b53c7c971b6d4a"
+}

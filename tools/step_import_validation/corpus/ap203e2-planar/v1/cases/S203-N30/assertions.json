@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N30",
+    "diagnostic_key": "SourceRuleViolation:UNCERTAINTY_MEASURE_WITH_UNIT.WR1",
+    "expected_result": "Rejected",
+    "expected_stage": "D3",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        2529,
+        2581
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

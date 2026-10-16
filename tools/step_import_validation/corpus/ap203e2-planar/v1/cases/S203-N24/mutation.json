@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N24",
+    "diagnostic": "SourceRuleViolation:EDGE_LOOP.WR1",
+    "edits": [
+        {
+            "end": 2316,
+            "new_bytes_b64": "IzIzMz1FREdFX0NVUlZFKCcnLCMxMTMsIzExMSw=",
+            "new_text": "#233=EDGE_CURVE('',#113,#111,",
+            "old_bytes_b64": "IzIzMz1FREdFX0NVUlZFKCcnLCMxMTMsIzExMCw=",
+            "old_text": "#233=EDGE_CURVE('',#113,#110,",
+            "start": 2287
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "00073c0e4ffb68c27a8226c744bb7b79a88258b1b67064bab816550f7b6bc02e",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D3"
+}

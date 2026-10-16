@@ -1,0 +1,16 @@
+{
+    "case_id": "S203-P06",
+    "edits": [
+        {
+            "end": 969,
+            "new_text": "SI_UNIT(.CENTI.,.METRE.)",
+            "old_text": "SI_UNIT(.MILLI.,.METRE.)",
+            "start": 945
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "53b0a8c4fa935f76ffed829edcb1be09d720cba3746e1af98d73f193d748800f",
+    "kind": "DerivedPositive",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+}

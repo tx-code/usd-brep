@@ -1,0 +1,14 @@
+{
+    "case_id": "S203-N25",
+    "diagnostic_key": "InnerBoundaryOrientationMismatch",
+    "expected_result": "Rejected",
+    "expected_stage": "D4",
+    "format_version": "t01.v1",
+    "model_present": false,
+    "mutation_source_span": [
+        3437,
+        3465
+    ],
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

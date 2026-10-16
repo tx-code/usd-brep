@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N34",
+    "diagnostic": "CyclicUnitDefinition",
+    "edits": [
+        {
+            "end": 5780,
+            "new_bytes_b64": "IzE4PUxFTkdUSF9NRUFTVVJFX1dJVEhfVU5JVChMRU5HVEhfTUVBU1VSRSgyNS40KSwjMTkp",
+            "new_text": "#18=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#19)",
+            "old_bytes_b64": "IzE4PUxFTkdUSF9NRUFTVVJFX1dJVEhfVU5JVChMRU5HVEhfTUVBU1VSRSgyNS40KSwjMTAp",
+            "old_text": "#18=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10)",
+            "start": 5726
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "b6705c469d1df0ce638b0c00f95b670c1fa4948e74883a790f6d489354917f66",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P13",
+    "parent_input_sha256": "74e089c5d64c3d273e11612e36276f1f5e811bb5ebf1282e8d5eb4ab826e8cb3",
+    "stage": "D4"
+}

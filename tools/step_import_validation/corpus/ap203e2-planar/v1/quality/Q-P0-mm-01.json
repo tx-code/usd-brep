@@ -1,0 +1,52 @@
+{
+    "aux_area_error_mm2": {
+        "den": "1000000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "aux_length_error_mm": {
+        "den": "10000000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "aux_volume_error_mm3": {
+        "den": "100000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "canonical_length": "mm",
+    "clean_growth_mm": {
+        "den": "1",
+        "kind": "rational",
+        "num": "0"
+    },
+    "consistency_error_mm": {
+        "den": "10000000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "definition_error_mm": {
+        "den": "100000000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "derived_uv_error_mm": {
+        "den": "10000000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "format_version": "t01.v1",
+    "id": "Q-P0-mm-01",
+    "initial_working_tolerance_mm": {
+        "den": "100000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "max_working_tolerance_mm": {
+        "den": "10000",
+        "kind": "rational",
+        "num": "1"
+    },
+    "production_default": false,
+    "repair": "None"
+}

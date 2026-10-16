@@ -1,0 +1,142 @@
+{
+    "case_id": "S203-P11",
+    "edits": [
+        {
+            "end": 1112,
+            "new_text": "GLOBAL_UNIT_ASSIGNED_CONTEXT((#19,#11))",
+            "old_text": "GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+            "start": 1073
+        },
+        {
+            "end": 1334,
+            "new_text": "#100=CARTESIAN_POINT('',(0.,0.,0.));",
+            "old_text": "#100=CARTESIAN_POINT('',(2.,-3.,5.));",
+            "start": 1297
+        },
+        {
+            "end": 1372,
+            "new_text": "#101=CARTESIAN_POINT('',(1.,0.,0.));",
+            "old_text": "#101=CARTESIAN_POINT('',(12.,-3.,5.));",
+            "start": 1334
+        },
+        {
+            "end": 1409,
+            "new_text": "#102=CARTESIAN_POINT('',(1.,2.,0.));",
+            "old_text": "#102=CARTESIAN_POINT('',(12.,17.,5.));",
+            "start": 1371
+        },
+        {
+            "end": 1445,
+            "new_text": "#103=CARTESIAN_POINT('',(0.,2.,0.));",
+            "old_text": "#103=CARTESIAN_POINT('',(2.,17.,5.));",
+            "start": 1408
+        },
+        {
+            "end": 1483,
+            "new_text": "#104=CARTESIAN_POINT('',(0.,0.,3.));",
+            "old_text": "#104=CARTESIAN_POINT('',(2.,-3.,35.));",
+            "start": 1445
+        },
+        {
+            "end": 1521,
+            "new_text": "#105=CARTESIAN_POINT('',(1.,0.,3.));",
+            "old_text": "#105=CARTESIAN_POINT('',(12.,-3.,35.));",
+            "start": 1482
+        },
+        {
+            "end": 1558,
+            "new_text": "#106=CARTESIAN_POINT('',(1.,2.,3.));",
+            "old_text": "#106=CARTESIAN_POINT('',(12.,17.,35.));",
+            "start": 1519
+        },
+        {
+            "end": 1594,
+            "new_text": "#107=CARTESIAN_POINT('',(0.,2.,3.));",
+            "old_text": "#107=CARTESIAN_POINT('',(2.,17.,35.));",
+            "start": 1556
+        },
+        {
+            "end": 1873,
+            "new_text": "#201=VECTOR('',#200,1.);",
+            "old_text": "#201=VECTOR('',#200,10.);",
+            "start": 1848
+        },
+        {
+            "end": 1994,
+            "new_text": "#211=VECTOR('',#210,2.);",
+            "old_text": "#211=VECTOR('',#210,20.);",
+            "start": 1969
+        },
+        {
+            "end": 2116,
+            "new_text": "#221=VECTOR('',#220,1.);",
+            "old_text": "#221=VECTOR('',#220,10.);",
+            "start": 2091
+        },
+        {
+            "end": 2238,
+            "new_text": "#231=VECTOR('',#230,2.);",
+            "old_text": "#231=VECTOR('',#230,20.);",
+            "start": 2213
+        },
+        {
+            "end": 2359,
+            "new_text": "#241=VECTOR('',#240,1.);",
+            "old_text": "#241=VECTOR('',#240,10.);",
+            "start": 2334
+        },
+        {
+            "end": 2480,
+            "new_text": "#251=VECTOR('',#250,2.);",
+            "old_text": "#251=VECTOR('',#250,20.);",
+            "start": 2455
+        },
+        {
+            "end": 2602,
+            "new_text": "#261=VECTOR('',#260,1.);",
+            "old_text": "#261=VECTOR('',#260,10.);",
+            "start": 2577
+        },
+        {
+            "end": 2724,
+            "new_text": "#271=VECTOR('',#270,2.);",
+            "old_text": "#271=VECTOR('',#270,20.);",
+            "start": 2699
+        },
+        {
+            "end": 2845,
+            "new_text": "#281=VECTOR('',#280,3.);",
+            "old_text": "#281=VECTOR('',#280,30.);",
+            "start": 2820
+        },
+        {
+            "end": 2966,
+            "new_text": "#291=VECTOR('',#290,3.);",
+            "old_text": "#291=VECTOR('',#290,30.);",
+            "start": 2941
+        },
+        {
+            "end": 3087,
+            "new_text": "#301=VECTOR('',#300,3.);",
+            "old_text": "#301=VECTOR('',#300,30.);",
+            "start": 3062
+        },
+        {
+            "end": 3208,
+            "new_text": "#311=VECTOR('',#310,3.);",
+            "old_text": "#311=VECTOR('',#310,30.);",
+            "start": 3183
+        },
+        {
+            "end": 5660,
+            "new_text": "#17=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n#18=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10);\n#19=(CONVERSION_BASED_UNIT('inch',#18) LENGTH_UNIT() NAMED_UNIT(#17));\nENDSEC;\nEND-ISO-10303-21;\n",
+            "old_text": "ENDSEC;\nEND-ISO-10303-21;\n",
+            "start": 5634
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "176a62d5981367bc24d771b2d2232722a385ae548ee8bb7b9bef4efb63fc4284",
+    "kind": "DerivedPositive",
+    "parent": "S203-P04",
+    "parent_input_sha256": "5a91e5faf826341114cf7b36b1c414284ae9ef94319ae69bded945d2d7f34dd2"
+}

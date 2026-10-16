@@ -1,0 +1,11 @@
+{
+    "case_id": "S203-P13",
+    "diagnostic_key": null,
+    "expected_result": "Accepted",
+    "expected_stage": null,
+    "format_version": "t01.v1",
+    "model_present": true,
+    "mutation_source_span": null,
+    "qualification": "future product execution, not material preparation",
+    "repair": "None"
+}

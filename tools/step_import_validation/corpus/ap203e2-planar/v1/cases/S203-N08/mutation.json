@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N08",
+    "diagnostic": "AggregateUniqueViolation",
+    "edits": [
+        {
+            "end": 2403,
+            "new_bytes_b64": "KCMyMDQsIzIwNCwjMjI0LCMyMzQp",
+            "new_text": "(#204,#204,#224,#234)",
+            "old_bytes_b64": "KCMyMDQsIzIxNCwjMjI0LCMyMzQp",
+            "old_text": "(#204,#214,#224,#234)",
+            "start": 2382
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "3cee55e1cbe8cb8fc45aa542da355a264d3a9567d2b4c410d507fac490f35b80",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D1"
+}

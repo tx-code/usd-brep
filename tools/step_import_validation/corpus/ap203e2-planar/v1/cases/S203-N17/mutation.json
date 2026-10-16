@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N17",
+    "diagnostic": "UnsupportedExplicitOuterBoundRequired",
+    "edits": [
+        {
+            "end": 2427,
+            "new_bytes_b64": "IzMwMT1GQUNFX0JPVU5E",
+            "new_text": "#301=FACE_BOUND",
+            "old_bytes_b64": "IzMwMT1GQUNFX09VVEVSX0JPVU5E",
+            "old_text": "#301=FACE_OUTER_BOUND",
+            "start": 2406
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "31d94b6e2cc917218f07f157955de546121c7fefa0148eff5f0356f384d7e2c2",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7",
+    "stage": "D2"
+}

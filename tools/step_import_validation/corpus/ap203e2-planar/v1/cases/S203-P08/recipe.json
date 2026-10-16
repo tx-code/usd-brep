@@ -1,0 +1,22 @@
+{
+    "case_id": "S203-P08",
+    "edits": [
+        {
+            "end": 1112,
+            "new_text": "#12=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#13,#14)) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+            "old_text": "#12=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+            "start": 1032
+        },
+        {
+            "end": 2555,
+            "new_text": "#13=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0001),#10,'distance_accuracy_A',$);\n#14=UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0002),#10,'distance_accuracy_B',$);\nENDSEC;\nEND-ISO-10303-21;\n",
+            "old_text": "ENDSEC;\nEND-ISO-10303-21;\n",
+            "start": 2529
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "6704a196f2cef085bbc5c271beeead35e7bda000714ee2d18e251e52206bab1d",
+    "kind": "DerivedPositive",
+    "parent": "S203-P01",
+    "parent_input_sha256": "70212006fa63451c2e0fac5846ca9aa7e82e3298bce2ddc6556d30362e51fdd7"
+}

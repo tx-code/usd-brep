@@ -1,0 +1,16 @@
+{
+    "canonical_units": {
+        "length": "mm",
+        "squared_length": "mm^2"
+    },
+    "case_id": "S203-N17",
+    "facts": {
+        "explicit_outer_bounds": 0
+    },
+    "kind": "NegativeFacts",
+    "whole_shape": {
+        "applicability": "NotEstablished",
+        "reason": "Only specified input facts are proved; no imported model exists.",
+        "value": null
+    }
+}

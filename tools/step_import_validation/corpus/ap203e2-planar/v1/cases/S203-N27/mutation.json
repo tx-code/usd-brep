@@ -1,0 +1,20 @@
+{
+    "case_id": "S203-N27",
+    "diagnostic": "FaceBoundaryOrShellOrientationMismatch",
+    "edits": [
+        {
+            "end": 4433,
+            "new_bytes_b64": "IzUwNz1BRFZBTkNFRF9GQUNFKCcnLCgjNTA2KSwjNTA0LC5GLik=",
+            "new_text": "#507=ADVANCED_FACE('',(#506),#504,.F.)",
+            "old_bytes_b64": "IzUwNz1BRFZBTkNFRF9GQUNFKCcnLCgjNTA2KSwjNTA0LC5ULik=",
+            "old_text": "#507=ADVANCED_FACE('',(#506),#504,.T.)",
+            "start": 4395
+        }
+    ],
+    "format_version": "t01.v1",
+    "input_sha256": "ecb5e8603c292d5c05ac1a648493f1336538c084adbc1469bd3d81dacd100ede",
+    "kind": "SingleMutationNegative",
+    "parent": "S203-P04",
+    "parent_input_sha256": "5a91e5faf826341114cf7b36b1c414284ae9ef94319ae69bded945d2d7f34dd2",
+    "stage": "D4"
+}
