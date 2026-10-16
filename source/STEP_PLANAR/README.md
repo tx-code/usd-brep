@@ -25,6 +25,12 @@ prove inverse WHERE counts, while context inverse cardinalities use actual role-
 predicates include their inherited predicates. This is a dedicated equivalent evaluation inside the closed profile,
 not a general EXPRESS interpreter.
 
+All 77 entity clauses and three named TYPE predicates have private named identities in one static registry.
+Registry storage order does not select evaluation or execution. The fixed entity execution list, per-value length
+predicate chains and final dimension predicate retain their distinct expansion, evidence insertion and work charges.
+C++20 compile-time checks reject duplicate identities/declarations, incomplete execution and invalid subject plans.
+Failure fields retain the existing diagnostic policy; identity integers are not serialized.
+
 The 47 global rules have internal named identities. A separate fixed identity list preserves execution and report
 order, independently of registry storage order. Each entry retains its source name, line, FOR populations and failure
 location. C++20 compile-time checks reject duplicate identities/names or incomplete execution coverage; evaluation

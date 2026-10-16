@@ -120,6 +120,62 @@ class PlanarTests(unittest.TestCase):
         names = [rule["name"] for rule in observed["rules"] if rule["kind"] == "GLOBAL"]
         self.assertEqual([rule["name"] for rule in reference()["rules"]], names)
 
+    def test_local_execution_order_and_metadata_match_independent_schema(self):
+        observed = self.checked(self.p01)
+        declarations = []
+        for owner, entity in reference()["entities"].items():
+            for kind in ("WHERE", "UNIQUE", "INVERSE"):
+                for clause in entity["sections"].get(kind, {}).get("clauses", []):
+                    declarations.append((owner, clause["line"], kind, clause["name"]))
+        self.assertEqual(77, len(declarations))
+        first = ("DIRECTION", "VECTOR", "AXIS2_PLACEMENT_3D", "LINE", "ORIENTED_EDGE", "PATH", "EDGE_LOOP")
+        ordered = [clause for owner in first for clause in sorted(declarations) if clause[0] == owner]
+        ordered += [clause for clause in sorted(declarations) if clause[0] not in first]
+        populations = observed["source_semantics"]["snapshot"]["type_populations"]
+        expected = [(kind, owner + "." + label, line, member)
+                    for owner, line, kind, label in ordered for member in populations[owner] or [None]]
+        local = [r for r in observed["rules"] if r["kind"] in {"WHERE", "UNIQUE", "INVERSE"}]
+        self.assertEqual(expected, [(r["kind"], r["name"], r["schema_line"], r["owner_id"]) for r in local])
+        self.assertLess(max(i for i, r in enumerate(observed["rules"]) if r["kind"] in {"WHERE", "UNIQUE", "INVERSE"}),
+                        next(i for i, r in enumerate(observed["rules"]) if r["kind"] == "TYPE_WHERE"))
+
+    def test_named_type_metadata_owners_and_per_value_order(self):
+        witness = reference()["types"]
+        lines = {}
+        for name in ("NON_NEGATIVE_LENGTH_MEASURE", "POSITIVE_LENGTH_MEASURE", "DIMENSION_COUNT"):
+            declaration = witness[name]
+            labels = [i for i, line in enumerate(declaration["text"].splitlines()) if re.match(r"\s*WR1\s*:", line)]
+            self.assertEqual(1, len(labels))
+            lines[name] = declaration["line"] + labels[0]
+        self.assertIn("= non_negative_length_measure;", witness["POSITIVE_LENGTH_MEASURE"]["text"])
+        data = self.record(self.input("S203-N29"), 14,
+                           "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(0.0002),#10,'distance_accuracy_B',$)")
+        for name, predicates in (
+            ("LENGTH_MEASURE", ()),
+            ("NON_NEGATIVE_LENGTH_MEASURE", ("NON_NEGATIVE_LENGTH_MEASURE",)),
+            ("POSITIVE_LENGTH_MEASURE", ("NON_NEGATIVE_LENGTH_MEASURE", "POSITIVE_LENGTH_MEASURE")),
+        ):
+            with self.subTest(type=name):
+                observed = self.checked(data.replace(b"LENGTH_MEASURE(", name.encode() + b"("))
+                expected = [(predicate + ".WR1", lines[predicate], owner)
+                            for owner in ("13", "14") for predicate in predicates]
+                expected.append(("DIMENSION_COUNT.WR1", lines["DIMENSION_COUNT"], "12"))
+                actual = [r for r in observed["rules"] if r["kind"] == "TYPE_WHERE"]
+                self.assertEqual(expected, [(r["name"], r["schema_line"], r["owner_id"]) for r in actual])
+                self.assertTrue(all(r["logical_value"] == "TRUE" for r in actual))
+                self.assertLess(max(i for i, r in enumerate(observed["rules"]) if r["kind"] == "TYPE_WHERE"),
+                                next(i for i, r in enumerate(observed["rules"]) if r["kind"] == "GLOBAL"))
+
+    def test_first_local_failure_and_field_survive_multiple_violations(self):
+        data = self.record(self.p01, 200, "DIRECTION('',(0.,0.,0.))")
+        data = self.record(data, 201, "VECTOR('',#200,-1.)")
+        observed = self.failed(data, "SourceRuleViolation:DIRECTION.WR1")
+        diagnostic = observed["diagnostics"][0]
+        self.assertEqual(("200", "direction_ratios", [2]),
+                         (diagnostic["record_id"], diagnostic["field"], diagnostic["parameter_path"]))
+        self.assertEqual("DIRECTION.WR1", observed["rules"][-1]["name"])
+        self.assertEqual("NotRun", observed["checks"]["global_rules_47"])
+
     def test_first_global_failure_and_field_survive_multiple_violations(self):
         original = b"'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies'"
         unsupported_claim = original[:-1] + b"_mim_lf'"

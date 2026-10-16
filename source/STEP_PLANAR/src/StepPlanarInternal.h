@@ -83,6 +83,7 @@ private:
     Vector Direction(std::size_t r) const;
     std::pair<std::size_t, std::size_t> Ends(std::size_t oe) const;
     bool LocalValue(const Clause& clause, std::size_t r, RuleEvidence& evidence);
+    bool TypeValue(LocalRuleId id, const Value& value) const;
     RuleEvidence GlobalValue(const Global& rule);
     void Edge(std::size_t r, Rational scale);
     std::pair<Vector, Vector> Axes(std::size_t placement, Vector& normal);
