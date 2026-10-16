@@ -106,7 +106,7 @@ public:
     ClosestPoint Closest(const Point& pointMm) const; // Whole boundary, never implicitly the first face.
     std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
-    std::optional<double> MaterialVolumeMm3() const; // Open surface: NotApplicable, never a fabricated zero.
+    std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
 
 private:
 
@@ -150,6 +150,15 @@ struct EdgeAdjacency
     std::vector<std::string> faceIds;
     std::size_t nativeUses = 0;
 };
+struct SourceShapeObservation
+{
+    std::string role, representationId, representationType, shapeId, shapeType, shellId, shellType;
+};
+struct NativeRoleObservation
+{
+    std::size_t regions = 0, shells = 0, materialRegions = 0, boundedVoidRegions = 0;
+    bool manifoldSolidPredicate = false; // Native topology predicate does not test IsVoid or grant material qualification.
+};
 struct Report
 {
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
@@ -161,6 +170,8 @@ struct Report
     std::vector<LoopMapping> loops;
     std::vector<FaceObservation> faces;
     std::vector<EdgeAdjacency> adjacency;
+    std::optional<SourceShapeObservation> sourceShape;
+    std::optional<NativeRoleObservation> nativeRole;
     std::optional<double> volumeBoundMm3, volumeJunctionBoundMm;
     std::optional<double> volumeGapFluxBoundMm3, volumeSkippedFluxBoundMm3;
     std::optional<std::size_t> solidRegions, voidCavities;

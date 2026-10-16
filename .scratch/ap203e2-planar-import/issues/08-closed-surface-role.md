@@ -4,11 +4,11 @@
 
 **Blocked by:** [07：从盒体STEP保留共享边和材料实体](07-shared-edge-solid-box.md)。
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-**Assignee:** None
+**Assignee:** codex
 
-**Execution:** on-hold。用户于2026-10-15明确要求暂不编码；本票仅已建档，获得后续明确开工指令前不得开始实现、生成样件或运行实施验收。
+**Execution:** in-progress。2026-10-16用户明确授权08同形闭合表面角色实现，与07材料盒体对照；09—12保持on-hold。
 
 **Context:** 遵守[票组约束与来源](../README.md)；用户已确认12票拆分及依赖关系。
 

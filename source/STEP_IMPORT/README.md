@@ -1,6 +1,6 @@
 # STEP_IMPORT（内部 C++20）
 
-05—07 的 STEP→SMLib 闭环：单零件、SI 毫米；开放 LINE/PLANE 平面及孔，或经过独立证明的材料矩形盒体，
+05—08 的 STEP→SMLib 闭环：单零件、SI 毫米；开放 LINE/PLANE 平面及孔，或经过独立证明的矩形盒体边界，
 基于 02—04 自研读取和源检查。没有 OCCT 读取依赖。
 
 `ImportFile` / `ImportBytes` 显式接收 `Options`。先保存不可变原始文档，完成类型、单位、规则与区域检查，
@@ -32,7 +32,7 @@ if (result.model) {
 保守上界不足以证明 Q 时返回 `Indeterminate`，不会把它称为已证明的源缺陷。
 
 模型没有编辑或 native 指针接口，面视图强引用模型，报告不保活 native BRep。
-`MaterialVolumeMm3()` 对开放面返回空值。面查询在同一模型内串行；尚未授予一般多线程内核资格。
+`MaterialVolumeMm3()` 对所有表面模型返回空值。面查询在同一模型内串行；尚未授予一般多线程内核资格。
 07 的材料盒体按八角、三组正交边、六个完整外向矩形面证明，支持有理刚体变换和参数/顺序变化，
 没有使用盒体 primitive 替代源几何。唯一源边只构建一次，其他面复用同一 native edge；
 每面的 mate pair 有各自的 SAME UV，逐项核验实际 radial 邻接和区域/壳的 owner。
@@ -40,6 +40,13 @@ if (result.model) {
 整体 `Info()` 的 normal/window 对多面形体为空，`Closest()` 查询整个边界。
 `ClassifyMaterial()` 对表面返回空值；材料实体返回内/外/面/边/顶点，
 native 工作容差给出的边界分类若不能满足查询误差则返回 Indeterminate。
+
+08 保留 MSSR→SBSM→CLOSED_SHELL 的 `ClosedSurfaceModel`，与07同边界材料盒体分开资格。
+闭合表面的内外空间区域均标记void；有界void是空间单元，不表示材料包围的空腔。
+原生 `IsManifoldSolid()` 只检查拓扑条件，在此可为真；它不能授予材料资格。
+`source_shape` 保存原表示/形状/壳身份与角色，`native_role` 保存实际区域/壳数量、材料/有界void数量及该原生谓词。
+表面面积、面积形心和边界查询由各面量测汇总；材料volume/census/积分证据均不适用，不能用0冒充成功。
+P04材料路径继续计算材料属性；P05全部材料分类返回空值/NotApplicable，即使边界封闭且具有几何内部。
 
 材料体积预算取完整样件 Q 的 1e-5 mm³；解析源盒体、实际目标边界的区间通量积分与 native mass properties
 分别对照。积分读取内核实际生成的有向有限边界副本，包围解析/NURBS 两种表示，
@@ -53,7 +60,7 @@ native 工作容差给出的边界分类若不能满足查询误差则返回 Ind
 `nativeCalls` 只计构造、UV 安装、validator、主要测量的调用检查点；系数/拓扑只读访问不逐项计费，
 它不是计时、总内存或硬取消限制。任意 OOM、崩溃恢复、worker、公开绑定均未在本票授予资格。
 
-同形闭合表面、转换单位及可选声明的目标资格分别留 08/09/10；
+转换单位及可选声明的目标资格分别留 09/10；
 一般多面体、开放共享片、截面/切割及一般修复没有因材料盒体通过而自动获得资格。
 原始来源仍保留；不支持时返回明确诊断，不静默少件。`Repair=None`。
 
@@ -84,3 +91,4 @@ Windows 资源检查包含成功、各调用预算边界、后验预算不足、
 [05 验收](../../docs/step-import/ticket05-acceptance.md)和
 [06 验收](../../docs/step-import/ticket06-acceptance.md)和
 [07 验收](../../docs/step-import/ticket07-acceptance.md)。
+08 的角色与原生表示约束见[实施合同](../../docs/step-import/ticket08-implementation.md)。

@@ -28,8 +28,10 @@ def vector(actual, expected, allowance, label):
 def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 12, 8)):
     q = quality_contract()
     material = truth.get("role") == "MaterialSolid"
+    closed = any(r.kind == "CLOSED_SHELL" for r in inventory(data))
+    role = "MaterialSolid" if material else "ClosedSurfaceModel" if closed else "OpenSurfaceModel"
     require(observed["status"] == "Accepted" and observed["model"] == {
-        "kind": "OwningReadOnlySnapshot", "role": "MaterialSolid" if material else "OpenSurfaceModel"},
+        "kind": "OwningReadOnlySnapshot", "role": role},
         "complete publication")
     require(observed["format_version"] == "step-native-import.v2" and
             observed["scope"] == "PlanarNativeImport", "qualified scope")
@@ -40,6 +42,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     require(observed["source"]["read"] == "Inspected" and observed["source"]["semantics"] == "Checked" and
             observed["source"]["planar"] == "Checked" and not observed["diagnostics"], "source qualification")
     require(observed["repair"] == "None", "repair contract")
+    source_role(observed, data, role)
     fields = {"definition_mm": "definition_error_mm", "consistency_mm": "consistency_error_mm",
               "derived_uv_mm": "derived_uv_error_mm", "initial_work_tolerance_mm": "initial_working_tolerance_mm",
               "maximum_work_tolerance_mm": "max_working_tolerance_mm", "tolerance_growth_mm": "clean_growth_mm",
@@ -56,8 +59,9 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     vector(n["centroid_mm"], list(map(decode, truth["centroid"])), tolerance, "centroid")
     for actual, expected in zip(n["bounds_mm"], truth["bounds"]):
         vector(actual, list(map(decode, expected)), tolerance, "bounds")
-    if material:
+    if closed:
         require(n["normal"] is None and n["window_mm"] is None, "no first-face shape-wide geometry")
+    if material:
         require(n["material_volume"]["applicability"] == "Applicable" and
                 abs(F(n["material_volume"]["value_mm3"]) - decode(truth["measures"]["volume"])) <=
                 decode(q["aux_volume_error_mm3"]), "independent material volume")
@@ -72,7 +76,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         for field in ("volume_gap_flux_bound_mm3", "volume_skipped_flux_bound_mm3"):
             require(observed[field] is not None and math.isfinite(observed[field]) and
                     0 <= F(observed[field]) <= decode(q["aux_volume_error_mm3"]), "actual native omissions bounded")
-    else:
+    elif not closed:
         vector(n["normal"], normal, tolerance, "selected face normal")
         require(n["material_volume"] == "NotApplicable", "open surface material-volume qualification")
         window = n["window_mm"]
@@ -80,7 +84,14 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         require(window[0] <= uv_bounds[0] and window[1] <= uv_bounds[1] and
                 window[2] >= uv_bounds[2] and window[3] >= uv_bounds[3], "complete trim domain")
         require(all(abs(a - b) <= 1e-9 for a, b in zip(window, uv_bounds)), "window protection, no arbitrary domain")
-    require(n["free_boundary_edges"] == (0 if material else n["edges"]),
+    if not material:
+        require(n["material_volume"] == "NotApplicable" and
+                observed["material_census"] == dict(solid_regions=None, void_cavities=None),
+                "surface material properties are not applicable")
+        require(all(observed[field] is None for field in ("volume_bound_mm3", "volume_junction_bound_mm",
+                    "volume_gap_flux_bound_mm3", "volume_skipped_flux_bound_mm3")) and
+                observed["volume_evidence_policy"] == "NotApplicable", "surface has no material volume certificate")
+    require(n["free_boundary_edges"] == (0 if closed else n["edges"]),
             "free boundary is separate from unique edge length")
     require(observed["normalization_policy"] == {
         "curve_parameter": "SourceIncreasingToNative01", "uv": "DerivedAfterTopologyOnSameOwner",
@@ -117,6 +128,24 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     face_observations(observed, data)
 
 
+def source_role(observed, data, expected):
+    rows = inventory(data)
+    representation, = [r for r in rows if r.kind in {
+        "ADVANCED_BREP_SHAPE_REPRESENTATION", "MANIFOLD_SURFACE_SHAPE_REPRESENTATION"}]
+    shape, = [r for r in rows if r.kind in {"MANIFOLD_SOLID_BREP", "SHELL_BASED_SURFACE_MODEL"}]
+    shell, = [r for r in rows if r.kind in {"OPEN_SHELL", "CLOSED_SHELL"}]
+    inferred = ("MaterialSolid" if shape.kind == "MANIFOLD_SOLID_BREP" else
+                "ClosedSurfaceModel" if shell.kind == "CLOSED_SHELL" else "OpenSurfaceModel")
+    require(expected == inferred and observed["source_shape"] == dict(role=expected,
+        representation_id=str(representation.entity_id), representation_type=representation.kind,
+        shape_id=str(shape.entity_id), shape_type=shape.kind, shell_id=str(shell.entity_id), shell_type=shell.kind),
+        "original source representation, shape and shell identities")
+    closed, material = expected != "OpenSurfaceModel", expected == "MaterialSolid"
+    require(observed["native_role"] == dict(regions=2 if closed else 1, shells=2 if closed else 1,
+        material_regions=1 if material else 0, bounded_void_regions=1 if closed and not material else 0,
+        manifold_solid_predicate=closed), "native topology predicate does not grant material role")
+
+
 def loop_provenance(observed, data):
     index = by_id(inventory(data))
     faces = [r for r in index.values() if r.kind == "ADVANCED_FACE"]
@@ -129,12 +158,12 @@ def loop_provenance(observed, data):
     adjacency = observed["edge_adjacency"]
     require(len(adjacency) == observed["native_measurements"]["edges"], "all native edge adjacency")
     require(len({e["source_edge"] for e in adjacency}) == len(adjacency), "distinct edge adjacency identities")
-    material = observed["model"]["role"] == "MaterialSolid"
+    closed = observed["model"]["role"] in {"MaterialSolid", "ClosedSurfaceModel"}
     for row in adjacency:
         bound_faces = {r["source_face"] for r in observed["loop_mappings"]
                        if any(u["source_edge"] == row["source_edge"] for u in r["uses"])}
         require(set(row["source_faces"]) == bound_faces <= source_faces and
-                len(row["source_faces"]) == len(bound_faces) == (2 if material else 1) and
+                len(row["source_faces"]) == len(bound_faces) == (2 if closed else 1) and
                 row["native_edgeuses"] == 2 * len(bound_faces),
                 "actual shared identity and logical/native multiplicity")
 
@@ -269,9 +298,9 @@ def face_observations(observed, data):
 
 def corpus_case(case, observed, exit_code, data):
     key = case["case_id"]
-    if key in {"S203-P01", "S203-P02", "S203-P03", "S203-P04"}:
+    if key in {"S203-P01", "S203-P02", "S203-P03", "S203-P04", "S203-P05"}:
         require(exit_code == 0, "qualified native success exit")
-        if key == "S203-P04":
+        if key in {"S203-P04", "S203-P05"}:
             accepted(observed, data, case["truth"])
             return
         window = case["truth"]["source_definition"]["source_uv_window"]

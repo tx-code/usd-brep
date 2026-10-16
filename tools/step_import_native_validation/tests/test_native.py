@@ -65,11 +65,30 @@ class NativeTests(unittest.TestCase):
                 actual, observed = self.invoke(data)
                 corpus_case(case, observed, actual.returncode, data)
                 counts[observed["status"]] += 1
-        self.assertEqual(Counter(Accepted=4, Rejected=25, Unsupported=14, Deferred=6), counts)
+        self.assertEqual(Counter(Accepted=5, Rejected=25, Unsupported=13, Deferred=6), counts)
 
     def box(self):
         return (CORPUS / "cases/S203-P04/input.step").read_bytes(), next(
             c["truth"] for c in self.cases if c["case_id"] == "S203-P04")
+
+    def test_closed_surface_matches_boundary_without_material_qualification(self):
+        data = (CORPUS / "cases/S203-P05/input.step").read_bytes()
+        actual, observed = self.invoke(data, "--query", 7, 7, 20)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        imported = observed["import"]
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P05")
+        accepted(imported, data, truth)
+        self.assertEqual(dict(role="ClosedSurfaceModel", representation_id="20",
+                              representation_type="MANIFOLD_SURFACE_SHAPE_REPRESENTATION", shape_id="21",
+                              shape_type="SHELL_BASED_SURFACE_MODEL", shell_id="22", shell_type="CLOSED_SHELL"),
+                         imported["source_shape"])
+        self.assertEqual(dict(regions=2, shells=2, material_regions=0, bounded_void_regions=1,
+                              manifold_solid_predicate=True), imported["native_role"])
+        self.assertEqual("NotApplicable", imported["native_measurements"]["material_volume"])
+        self.assertEqual("NotApplicable", observed["query"]["material_location"])
+        for field in ("volume_bound_mm3", "volume_junction_bound_mm", "volume_gap_flux_bound_mm3",
+                      "volume_skipped_flux_bound_mm3"):
+            self.assertIsNone(imported[field])
 
     def test_material_box_independent_queries_and_classifications(self):
         data, truth = self.box()
@@ -88,6 +107,94 @@ class NativeTests(unittest.TestCase):
             actual, observed = self.invoke(data, "--query", *map(float, map(decode, query["point_mm"])))
             self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
             self.assertEqual(query["material_location"], observed["query"]["material_location"])
+
+    def test_surface_and_material_share_independent_boundary_queries(self):
+        solid, solid_truth = self.box()
+        surface = (CORPUS / "cases/S203-P05/input.step").read_bytes()
+        surface_truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P05")
+        observations = []
+        for data, truth in ((solid, solid_truth), (surface, surface_truth)):
+            actual, observed = self.invoke(data)
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            accepted(observed, data, truth)
+            observations.append(observed)
+        a, b = observations
+        self.assertEqual(a["edge_mappings"], b["edge_mappings"])
+        self.assertEqual(a["edge_adjacency"], b["edge_adjacency"])
+        self.assertEqual(a["loop_mappings"], b["loop_mappings"])
+        self.assertEqual(a["face_mappings"], b["face_mappings"])
+        self.assertNotEqual(a["source"]["sha256"], b["source"]["sha256"])
+        for name in ("off_face", "corner"):
+            query = surface_truth["queries"][name]
+            actual, observed = self.invoke(surface, "--query", *map(float, map(decode, query["point_mm"])))
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            vector(observed["query"]["closest_point_mm"], list(map(decode, query["closest_point_mm"])),
+                   F(1, 10**7), "closed surface boundary closest")
+            d = F(observed["query"]["distance_mm"])
+            self.assertLessEqual(decode(query["distance_mm"]["lower"]) - F(1, 10**7), d)
+            self.assertLessEqual(d, decode(query["distance_mm"]["upper"]) + F(1, 10**7))
+            self.assertEqual("NotApplicable", observed["query"]["material_location"])
+        for query in surface_truth["queries"]["classifications"]:
+            actual, observed = self.invoke(surface, "--query", *map(float, map(decode, query["point_mm"])))
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            self.assertEqual("NotApplicable", observed["query"]["material_location"])
+
+    def test_closed_surface_preserves_role_through_geometry_and_id_changes(self):
+        original = (CORPUS / "cases/S203-P05/input.step").read_bytes()
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P05")
+        reverse = self.record(original, 22, "CLOSED_SHELL('',(#557,#547,#537,#527,#517,#507))")
+        lines = reverse.splitlines(keepends=True)
+        rows = [line for line in lines if line.startswith(b"#")]
+        for i, row in zip([i for i, line in enumerate(lines) if line.startswith(b"#")], reversed(rows)):
+            lines[i] = row
+        sparse = re.sub(rb"#([0-9]+)", lambda m: b"#" + str(int(m[1]) + 100000).encode(), original)
+        nondefault = self.record(original, 201, "VECTOR('',#200,5.)")
+        for data in (b"".join(lines), sparse, nondefault):
+            actual, observed = self.invoke(data)
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            accepted(observed, data, truth)
+        for tilt in (False, True):
+            data, transformed = self.transformed_box(tilt=tilt)
+            data = self.record(data, 20, "MANIFOLD_SURFACE_SHAPE_REPRESENTATION('body',(#21),#12)")
+            data = self.record(data, 21, "SHELL_BASED_SURFACE_MODEL('',(#22))")
+            expected = deepcopy(truth)
+            expected["centroid"], expected["bounds"] = transformed["centroid"], transformed["bounds"]
+            actual, observed = self.invoke(data)
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            accepted(observed, data, expected)
+
+    def test_surface_checker_rejects_materialization_and_lost_source_identity(self):
+        data = (CORPUS / "cases/S203-P05/input.step").read_bytes()
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P05")
+        actual, original = self.invoke(data)
+        self.assertEqual(0, actual.returncode)
+        for defect in ("model_role", "source_role", "representation", "shape", "shell", "material_region",
+                       "bounded_void", "zero_volume", "fake_census", "certificate", "policy"):
+            observed = deepcopy(original)
+            if defect == "model_role":
+                observed["model"]["role"] = "MaterialSolid"
+            if defect == "source_role":
+                observed["source_shape"]["role"] = "MaterialSolid"
+            if defect == "representation":
+                observed["source_shape"]["representation_type"] = "ADVANCED_BREP_SHAPE_REPRESENTATION"
+            if defect == "shape":
+                observed["source_shape"]["shape_type"] = "MANIFOLD_SOLID_BREP"
+            if defect == "shell":
+                observed["source_shape"]["shell_id"] = "21"
+            if defect == "material_region":
+                observed["native_role"]["material_regions"] = 1
+            if defect == "bounded_void":
+                observed["native_role"]["bounded_void_regions"] = 0
+            if defect == "zero_volume":
+                observed["native_measurements"]["material_volume"] = dict(applicability="Applicable", value_mm3=0)
+            if defect == "fake_census":
+                observed["material_census"] = dict(solid_regions=0, void_cavities=0)
+            if defect == "certificate":
+                observed["volume_bound_mm3"] = 0
+            if defect == "policy":
+                observed["volume_evidence_policy"] = "ActualOrientedFiniteSegmentsZGaugeGapAndTinyDuBounds"
+            with self.subTest(defect=defect), self.assertRaises(AssertionError):
+                accepted(observed, data, truth)
 
     def test_shared_box_survives_orders_sparse_ids_and_edge_senses(self):
         original, truth = self.box()
@@ -172,7 +279,7 @@ class NativeTests(unittest.TestCase):
                 self.assertGreater(observed["volume_gap_flux_bound_mm3"], 0)
                 self.assertGreater(observed["volume_skipped_flux_bound_mm3"], 0)
 
-    def test_box_scope_rejects_skew_and_closed_surface_promotion(self):
+    def test_box_scope_rejects_skew_without_materializing_surface(self):
         data, _ = self.transformed_box(shear=True)
         actual, observed = self.invoke(data)
         self.assertEqual(2, actual.returncode, actual.stderr or actual.stdout)
@@ -182,8 +289,8 @@ class NativeTests(unittest.TestCase):
         self.assertIsNone(observed["model"])
         self.assertIsNone(observed["native_measurements"])
         actual, observed = self.invoke((CORPUS / "cases/S203-P05/input.step").read_bytes())
-        self.assertEqual(2, actual.returncode)
-        self.assertIsNone(observed["model"])
+        self.assertEqual(0, actual.returncode)
+        self.assertEqual("ClosedSurfaceModel", observed["model"]["role"])
         self.assertEqual(dict(solid_regions=None, void_cavities=None), observed["material_census"])
 
     def test_box_checker_rejects_false_material_adjacency_volume_and_face_data(self):

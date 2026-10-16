@@ -53,10 +53,12 @@ BoxProof ProveBox(const Plan& plan)
     {
         if (!condition)
         {
-            throw Failure{ Status::Unsupported,
-                           "UnsupportedNativeMaterialBoxScope",
-                           "Material qualification requires eight exact corners, twelve orthogonal box edges and six complete outward rectangles",
-                           plan.record };
+            throw Failure{
+                Status::Unsupported,
+                plan.materialSolid ? "UnsupportedNativeMaterialBoxScope" : "UnsupportedNativeClosedSurfaceBoxScope",
+                "Closed boundary qualification requires eight exact corners, twelve orthogonal box edges and six complete outward rectangles",
+                plan.record
+            };
         }
     };
     need(plan.vertices.size() == 8 && plan.edges.size() == 12 && plan.faces.size() == 6);
@@ -205,11 +207,11 @@ Plan MakePlan(const step_planar::Outcome& checked)
                        {} };
     }
     const auto role = source.PartDefinition().shapeRole;
-    if (role != "MaterialSolid" && (role != "OpenSurfaceModel" || evidence.faces.size() != 1))
+    if (role != "MaterialSolid" && role != "ClosedSurfaceModel" && (role != "OpenSurfaceModel" || evidence.faces.size() != 1))
     {
         throw Failure{ Status::Unsupported,
                        "UnsupportedNativeShapeScope",
-                       "Native scope is one open planar face or a qualified material rectangular box",
+                       "Native scope is one open planar face or a qualified rectangular box boundary with its declared role",
                        {} };
     }
     if (source.UnitContext().lengthPower10Mm != std::optional<int>(0))
@@ -221,19 +223,32 @@ Plan MakePlan(const step_planar::Outcome& checked)
     }
     Plan plan{};
     plan.source = evidence.source;
+    plan.sourceShape.role = role;
     plan.materialSolid = role == "MaterialSolid";
+    plan.closedBoundary = role == "MaterialSolid" || role == "ClosedSurfaceModel";
     for (const auto& item : source.PartDefinition().roles)
     {
+        const auto& record = source.Source().Records().at(item.recordIndex);
+        const auto& type = record.components.at(0).name;
+        if (item.name == "representation")
+        {
+            plan.sourceShape.representationId = record.id;
+            plan.sourceShape.representationType = type;
+        }
         if (item.name == "shape")
         {
             plan.record = item.recordIndex;
+            plan.sourceShape.shapeId = record.id;
+            plan.sourceShape.shapeType = type;
         }
         if (item.name == "shell")
         {
             plan.shell = item.recordIndex;
+            plan.sourceShape.shellId = record.id;
+            plan.sourceShape.shellType = type;
         }
     }
-    if (!plan.materialSolid)
+    if (!plan.closedBoundary)
     {
         plan.record = evidence.faces.front().face;
     }
@@ -354,7 +369,7 @@ Plan MakePlan(const step_planar::Outcome& checked)
     {
         throw Failure{ Status::Unsupported, "UnmappedNativeRequiredEdge", "Required source edges cannot be omitted", plan.record };
     }
-    if (plan.materialSolid)
+    if (plan.closedBoundary)
     {
         plan.box = ProveBox(plan);
     }

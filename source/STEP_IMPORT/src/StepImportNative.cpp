@@ -51,6 +51,7 @@ struct ModelData
     std::vector<SmEdge*> edges;
     std::vector<SmLine*> curves;
     SmRegion* material = nullptr;
+    SmRegion* bounded = nullptr; // Enclosed spatial region; void for a closed surface, material only for a solid.
     SmShell* outside = nullptr;
     SmShell* inside = nullptr;
     double queryTolerance = 0;
@@ -240,6 +241,7 @@ public:
         }
         try
         {
+            m_report.sourceShape = m_plan.sourceShape;
             m_report.kernelPath = LoadedKernel();
             Step(m_plan.record);
             m_model->context = std::make_unique<SmContext>();
@@ -259,18 +261,23 @@ public:
                 Step(vertex.record);
                 Good(ctor.EndVertex());
             }
-            if (m_plan.materialSolid)
+            if (m_plan.closedBoundary)
             {
                 Step(m_plan.record);
-                m_model->material = ctor.StartRegion(TRUE, nullptr);
-                Need(m_model->material != nullptr, "NativeMaterialRegionAllocationFailed", m_plan.record);
-                m_model->material->SetIsVoid(FALSE);
+                m_model->bounded = ctor.StartRegion(m_plan.materialSolid ? TRUE : FALSE, nullptr);
+                Need(
+                    m_model->bounded != nullptr,
+                    m_plan.materialSolid ? "NativeMaterialRegionAllocationFailed" : "NativeBoundedRegionAllocationFailed",
+                    m_plan.record
+                );
+                m_model->bounded->SetIsVoid(m_plan.materialSolid ? FALSE : TRUE);
+                m_model->material = m_plan.materialSolid ? m_model->bounded : nullptr;
             }
             SmShell* outer = nullptr;
             SmShell* inner = nullptr;
             Step(m_plan.record);
             Good(ctor.StartShell(outer, inner));
-            Need(outer && bool(inner) == m_plan.materialSolid, "NativeShellRoleMismatch", m_plan.record);
+            Need(outer && bool(inner) == m_plan.closedBoundary, "NativeShellRoleMismatch", m_plan.record);
             m_model->outside = outer;
             m_model->inside = inner;
             m_model->edges.resize(m_plan.edges.size());
@@ -282,7 +289,7 @@ public:
             }
             Step(m_plan.record);
             Good(ctor.EndShell(FALSE));
-            if (m_plan.materialSolid)
+            if (m_plan.closedBoundary)
             {
                 Step(m_plan.record);
                 Good(ctor.EndRegion());
@@ -626,7 +633,7 @@ private:
         m_model->brep->GetEdges(edges);
         Need(
             faces.GetSize() == m_plan.faces.size() && edges.GetSize() == m_plan.edges.size() && vertices.GetSize() == m_plan.vertices.size() &&
-                (m_model->brep->IsManifoldSolid() == (m_plan.materialSolid ? TRUE : FALSE)),
+                (m_model->brep->IsManifoldSolid() == (m_plan.closedBoundary ? TRUE : FALSE)),
             "NativeShapeRoleOrIdentityMismatch",
             m_plan.record
         );
@@ -1077,34 +1084,76 @@ void Builder::VerifyAdjacency()
 {
     SmTArray<SmRegion*> regions;
     m_model->brep->GetRegions(regions);
-    Need(regions.GetSize() == (m_plan.materialSolid ? 2U : 1U), "NativeRegionMultiplicity", m_plan.record);
+    Need(regions.GetSize() == (m_plan.closedBoundary ? 2U : 1U), "NativeRegionMultiplicity", m_plan.record);
     std::set<SmRegion*> actualRegions;
     for (ULONG i = 0; i < regions.GetSize(); ++i)
     {
         actualRegions.insert(regions[i]);
     }
     std::set<SmRegion*> expectedRegions{ m_model->brep->GetInfiniteRegion() };
-    if (m_plan.materialSolid)
+    if (m_plan.closedBoundary)
     {
-        expectedRegions.insert(m_model->material);
+        expectedRegions.insert(m_model->bounded);
     }
     Need(actualRegions == expectedRegions, "NativeRegionIdentityMismatch", m_plan.record);
+    SmTArray<SmShell*> shells;
+    m_model->brep->GetShells(shells);
+    std::set<SmShell*> actualShells;
+    for (ULONG i = 0; i < shells.GetSize(); ++i)
+    {
+        actualShells.insert(shells[i]);
+    }
+    std::set<SmShell*> expectedShells{ m_model->outside };
+    if (m_plan.closedBoundary)
+    {
+        expectedShells.insert(m_model->inside);
+    }
+    Need(actualShells == expectedShells && shells.GetSize() == expectedShells.size(), "NativeShellIdentityMismatch", m_plan.record);
+    NativeRoleObservation role;
+    role.regions = regions.GetSize();
+    role.shells = shells.GetSize();
+    role.manifoldSolidPredicate = m_model->brep->IsManifoldSolid() != FALSE;
+    for (ULONG i = 0; i < regions.GetSize(); ++i)
+    {
+        if (!regions[i]->IsVoid())
+        {
+            ++role.materialRegions;
+        }
+        else if (regions[i] != m_model->brep->GetInfiniteRegion())
+        {
+            ++role.boundedVoidRegions;
+        }
+    }
+    Need(
+        role.materialRegions == (m_plan.materialSolid ? 1U : 0U) &&
+            role.boundedVoidRegions == (m_plan.closedBoundary && !m_plan.materialSolid ? 1U : 0U) && bool(m_model->material) == m_plan.materialSolid,
+        "NativeMaterialRoleMismatch",
+        m_plan.record
+    );
     Need(
         m_model->outside->GetRegion() == m_model->brep->GetInfiniteRegion() && m_model->brep->GetInfiniteRegion()->IsVoid() == TRUE,
         "NativeInfiniteRegionRole",
         m_plan.record
     );
-    if (m_plan.materialSolid)
+    if (m_plan.closedBoundary)
     {
         Need(
-            m_model->inside && m_model->inside->GetRegion() == m_model->material && m_model->material->IsVoid() == FALSE &&
-                m_model->inside->IsClosed() == TRUE && m_model->outside->IsClosed() == TRUE,
-            "NativeMaterialShellRole",
+            m_model->inside && m_model->inside->GetRegion() == m_model->bounded &&
+                m_model->bounded->IsVoid() == (m_plan.materialSolid ? FALSE : TRUE) && m_model->inside->IsClosed() == TRUE &&
+                m_model->outside->IsClosed() == TRUE,
+            m_plan.materialSolid ? "NativeMaterialShellRole" : "NativeBoundedShellRole",
             m_plan.record
         );
-        SmTArray<SmShell*> shells;
-        m_model->material->GetShells(shells);
-        Need(shells.GetSize() == 1 && shells[0] == m_model->inside, "NativeMaterialOuterShellIdentity", m_plan.record);
+        SmTArray<SmShell*> boundedShells;
+        m_model->bounded->GetShells(boundedShells);
+        Need(
+            boundedShells.GetSize() == 1 && boundedShells[0] == m_model->inside,
+            m_plan.materialSolid ? "NativeMaterialOuterShellIdentity" : "NativeBoundedOuterShellIdentity",
+            m_plan.record
+        );
+    }
+    if (m_plan.materialSolid)
+    {
         long solids = 0, voids = 0;
         Step(m_plan.record);
         Good(SmApiBrepMaterialCensus(m_model->brep.get(), solids, voids));
@@ -1120,7 +1169,7 @@ void Builder::VerifyAdjacency()
         const auto selected = m_plan.faces[f].faceSameSense ? same : opposite;
         Need(
             selected->GetShell() == m_model->outside &&
-                selected->GetMate()->GetShell() == (m_plan.materialSolid ? m_model->inside : m_model->outside),
+                selected->GetMate()->GetShell() == (m_plan.closedBoundary ? m_model->inside : m_model->outside),
             "NativeOutwardSideMismatch",
             m_plan.faces[f].face
         );
@@ -1141,7 +1190,7 @@ void Builder::VerifyAdjacency()
         SmTArray<SmEdgeuse*> uses;
         Good(m_model->edges[e]->GetEdgeuses(uses));
         Need(
-            expected.size() == (m_plan.materialSolid ? 2U : 1U) && uses.GetSize() == 2 * expected.size(),
+            expected.size() == (m_plan.closedBoundary ? 2U : 1U) && uses.GetSize() == 2 * expected.size(),
             "NativeAdjacencyMultiplicity",
             m_plan.edges[e].record
         );
@@ -1155,7 +1204,7 @@ void Builder::VerifyAdjacency()
                 "NativeRadialOrMateMismatch",
                 m_plan.edges[e].record
             );
-            if (m_plan.materialSolid)
+            if (m_plan.closedBoundary)
             {
                 Need(
                     use->GetRadial()->GetLoopuse()->GetFaceuse()->GetFace() != use->GetLoopuse()->GetFaceuse()->GetFace(),
@@ -1168,6 +1217,7 @@ void Builder::VerifyAdjacency()
         row.nativeUses = uses.GetSize();
         m_report.adjacency.push_back(std::move(row));
     }
+    m_report.nativeRole = role;
 }
 void Builder::Measure()
 {
@@ -1176,7 +1226,7 @@ void Builder::Measure()
         MeasureFace(m_plan.faces[i], m_model->faces[i]);
     }
     Statistics info;
-    if (!m_plan.materialSolid)
+    if (!m_plan.closedBoundary)
     {
         info = m_model->faces[0].info;
     }
@@ -1185,53 +1235,78 @@ void Builder::Measure()
         info.faces = m_model->faces.size();
         info.edges = m_model->edges.size();
         info.vertices = m_model->vertices.size();
-        info.shapeRole = "MaterialSolid";
-        SmPoint3d centroid;
-        SmVector3d moments, products;
-        double volume = 0, mass = 0;
-        Step(m_plan.record);
-        Good(SmApiBrepComputeMassProperties(
-            m_model->brep.get(),
-            1e-4,
-            1.0,
-            Native(Value(m_plan.box->center)),
-            info.areaMm2,
-            volume,
-            mass,
-            centroid,
-            moments,
-            products
-        ));
-        info.materialVolumeMm3 = volume;
-        info.centroidMm = PointOf(centroid);
-        const auto directVolumeError = Exact(volume) - Enclose(m_plan.box->volume);
-        double volumeBound = std::max(std::abs(directVolumeError.low), std::abs(directVolumeError.high));
-        const auto integral = BoundaryVolume();
-        if (!(integral.low > 0))
+        if (m_plan.materialSolid)
         {
-            throw Failure{ Status::Indeterminate,
-                           "NativeVolumeSignUnestablished",
-                           "Actual finite boundary flux is not proved positive",
-                           m_plan.record };
+            SmPoint3d centroid;
+            SmVector3d moments, products;
+            double volume = 0, mass = 0;
+            Step(m_plan.record);
+            Good(SmApiBrepComputeMassProperties(
+                m_model->brep.get(),
+                1e-4,
+                1.0,
+                Native(Value(m_plan.box->center)),
+                info.areaMm2,
+                volume,
+                mass,
+                centroid,
+                moments,
+                products
+            ));
+            info.materialVolumeMm3 = volume;
+            info.centroidMm = PointOf(centroid);
+            const auto directVolumeError = Exact(volume) - Enclose(m_plan.box->volume);
+            double volumeBound = std::max(std::abs(directVolumeError.low), std::abs(directVolumeError.high));
+            const auto integral = BoundaryVolume();
+            if (!(integral.low > 0))
+            {
+                throw Failure{ Status::Indeterminate,
+                               "NativeVolumeSignUnestablished",
+                               "Actual finite boundary flux is not proved positive",
+                               m_plan.record };
+            }
+            for (const auto error : { integral - Enclose(m_plan.box->volume), Exact(volume) - integral })
+            {
+                volumeBound = std::max({ volumeBound, std::abs(error.low), std::abs(error.high) });
+            }
+            m_report.volumeBoundMm3 = volumeBound;
+            Certify(volumeBound, m_options.quality.volumeMm3, "NativeBoundaryVolumeBudget", m_plan.record);
+            Certify(
+                std::max(std::abs((Exact(volume) - Enclose(m_plan.box->volume)).low), std::abs((Exact(volume) - Enclose(m_plan.box->volume)).high)),
+                m_options.quality.volumeMm3,
+                "NativeVolumeQueryMismatch",
+                m_plan.record
+            );
+            Certify(
+                NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
+                m_options.quality.queryMm,
+                "NativeMassCentroidMismatch",
+                m_plan.record
+            );
         }
-        for (const auto error : { integral - Enclose(m_plan.box->volume), Exact(volume) - integral })
+        else
         {
-            volumeBound = std::max({ volumeBound, std::abs(error.low), std::abs(error.high) });
+            // Surface properties come from actual face areas, never from material mass/volume APIs.
+            for (const auto& face : m_model->faces)
+            {
+                info.areaMm2 += face.info.areaMm2;
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    info.centroidMm[axis] += face.info.areaMm2 * face.info.centroidMm[axis];
+                }
+            }
+            Need(std::isfinite(info.areaMm2) && info.areaMm2 > 0, "NativeClosedSurfaceAreaInvalid", m_plan.record);
+            for (auto& value : info.centroidMm)
+            {
+                value /= info.areaMm2;
+            }
+            Certify(
+                NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
+                m_options.quality.queryMm,
+                "NativeClosedSurfaceCentroidMismatch",
+                m_plan.record
+            );
         }
-        m_report.volumeBoundMm3 = volumeBound;
-        Certify(volumeBound, m_options.quality.volumeMm3, "NativeBoundaryVolumeBudget", m_plan.record);
-        Certify(
-            std::max(std::abs((Exact(volume) - Enclose(m_plan.box->volume)).low), std::abs((Exact(volume) - Enclose(m_plan.box->volume)).high)),
-            m_options.quality.volumeMm3,
-            "NativeVolumeQueryMismatch",
-            m_plan.record
-        );
-        Certify(
-            NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
-            m_options.quality.queryMm,
-            "NativeMassCentroidMismatch",
-            m_plan.record
-        );
         SmPoint3d minimum, maximum;
         Step(m_plan.record);
         Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, minimum, maximum));
@@ -1239,13 +1314,13 @@ void Builder::Measure()
         Certify(
             NormUpper(Subtract(Exact(info.boundsMm[0]), Enclose(m_plan.box->minimum))),
             m_options.quality.queryMm,
-            "NativeSolidBoundsMismatch",
+            m_plan.materialSolid ? "NativeSolidBoundsMismatch" : "NativeClosedSurfaceBoundsMismatch",
             m_plan.record
         );
         Certify(
             NormUpper(Subtract(Exact(info.boundsMm[1]), Enclose(m_plan.box->maximum))),
             m_options.quality.queryMm,
-            "NativeSolidBoundsMismatch",
+            m_plan.materialSolid ? "NativeSolidBoundsMismatch" : "NativeClosedSurfaceBoundsMismatch",
             m_plan.record
         );
         auto expectedArea = Exact(0), expectedLength = Exact(0);
@@ -1254,7 +1329,12 @@ void Builder::Measure()
             expectedArea = expectedArea + SqrtNonnegative(Enclose(face.sourceAreaSquared));
         }
         auto areaError = Exact(info.areaMm2) - expectedArea;
-        Certify(std::max(std::abs(areaError.low), std::abs(areaError.high)), m_options.quality.areaMm2, "NativeSolidAreaMismatch", m_plan.record);
+        Certify(
+            std::max(std::abs(areaError.low), std::abs(areaError.high)),
+            m_options.quality.areaMm2,
+            m_plan.materialSolid ? "NativeSolidAreaMismatch" : "NativeClosedSurfaceAreaMismatch",
+            m_plan.record
+        );
         for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
         {
             double length = 0;
@@ -1267,11 +1347,11 @@ void Builder::Measure()
         Certify(
             std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
             m_options.quality.queryMm,
-            "NativeSolidEdgeLengthMismatch",
+            m_plan.materialSolid ? "NativeSolidEdgeLengthMismatch" : "NativeClosedSurfaceEdgeLengthMismatch",
             m_plan.record
         );
     }
-    info.shapeRole = m_plan.materialSolid ? "MaterialSolid" : "OpenSurfaceModel";
+    info.shapeRole = m_plan.source->PartDefinition().shapeRole;
     info.freeBoundaryEdges = 0;
     for (const auto edge : m_model->edges)
     {
@@ -1280,7 +1360,7 @@ void Builder::Measure()
             ++info.freeBoundaryEdges;
         }
     }
-    Need(info.freeBoundaryEdges == (m_plan.materialSolid ? 0U : m_plan.edges.size()), "NativeFreeBoundaryMismatch", m_plan.record);
+    Need(info.freeBoundaryEdges == (m_plan.closedBoundary ? 0U : m_plan.edges.size()), "NativeFreeBoundaryMismatch", m_plan.record);
     m_model->info = info;
     m_report.native = info;
 }

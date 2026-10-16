@@ -170,6 +170,56 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add(",\"planar\":");
             w.String(report.planarStatus);
             w.Add("}");
+            w.Add(",\"source_shape\":");
+            if (report.sourceShape)
+            {
+                const auto& shape = *report.sourceShape;
+                w.Add("{");
+                const std::pair<const char*, const std::string*> fields[] = { { "role", &shape.role },
+                                                                              { "representation_id", &shape.representationId },
+                                                                              { "representation_type", &shape.representationType },
+                                                                              { "shape_id", &shape.shapeId },
+                                                                              { "shape_type", &shape.shapeType },
+                                                                              { "shell_id", &shape.shellId },
+                                                                              { "shell_type", &shape.shellType } };
+                bool comma = false;
+                for (const auto& [name, value] : fields)
+                {
+                    if (comma)
+                    {
+                        w.Add(",");
+                    }
+                    comma = true;
+                    w.String(name);
+                    w.Add(":");
+                    w.String(*value);
+                }
+                w.Add("}");
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add(",\"native_role\":");
+            if (report.nativeRole)
+            {
+                const auto& role = *report.nativeRole;
+                w.Add("{\"regions\":");
+                w.Number(role.regions);
+                w.Add(",\"shells\":");
+                w.Number(role.shells);
+                w.Add(",\"material_regions\":");
+                w.Number(role.materialRegions);
+                w.Add(",\"bounded_void_regions\":");
+                w.Number(role.boundedVoidRegions);
+                w.Add(",\"manifold_solid_predicate\":");
+                w.Bool(role.manifoldSolidPredicate);
+                w.Add("}");
+            }
+            else
+            {
+                w.Add("null");
+            }
             w.Add(
                 ",\"normalization_policy\":{\"curve_parameter\":\"SourceIncreasingToNative01\","
                 "\"loop_order\":\"OuterFirstIdentityPreserving\","
@@ -296,7 +346,12 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             Optional(w, report.volumeGapFluxBoundMm3);
             w.Add(",\"volume_skipped_flux_bound_mm3\":");
             Optional(w, report.volumeSkippedFluxBoundMm3);
-            w.Add(",\"volume_evidence_policy\":\"ActualOrientedFiniteSegmentsZGaugeGapAndTinyDuBounds\"");
+            w.Add(",\"volume_evidence_policy\":");
+            w.String(
+                report.volumeBoundMm3                                             ? "ActualOrientedFiniteSegmentsZGaugeGapAndTinyDuBounds" :
+                report.sourceShape && report.sourceShape->role != "MaterialSolid" ? "NotApplicable" :
+                                                                                    "NotRun"
+            );
             w.Add(",\"definition_bound_mm\":");
             Optional(w, report.definitionBoundMm);
             w.Add(",\"consistency_bound_mm\":");
