@@ -24,3 +24,5 @@ python -m unittest tools.step_import_native_validation.tests.test_native -v
 
 所有权和普通失败清理由 `source/STEP_IMPORT/tests` 在同进程接口验证；
 CLI 子进程退出本身不能证明 native 对象释放。构建、日志及资源测量保留本机；本目录不建立发布包。
+原生 Debug 资源观察器只在匹配共享 CRT、非 TBB SDK 下统计 CRT 用户分配；Release 保留进程堆判据。
+总堆/CRT/PrivateUsage 原始观测及 64 模型正控均保留，覆盖边界和无模型误报诊断见 08 验收记录。

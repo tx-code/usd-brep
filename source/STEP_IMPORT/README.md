@@ -83,6 +83,9 @@ CLI 返回 0 Accepted、1 Rejected、2 Unsupported/参数错误、3 ResourceLimi
 JSON 输出为 binary stdout，字节预算不受 Windows 换行转换影响。
 测试直接沿内部公开接口和真实 CLI；没有另建测试包发布机制。
 Windows 资源检查包含成功、各调用预算边界、后验预算不足、报告超限及保留模型的阳性对照。
+当前匹配的共享调试 CRT、非 TBB SDK 下，Debug 以 CRT 用户分配判断残留，Release 以进程堆判断；
+两者都保留总堆/PrivateUsage 观察及 64 模型正控。原全进程判据的无模型误报与修正依据见 08 验收，
+该分配域的覆盖不能推广到其他 SDK 分配器。
 
 本机已验证的 C++20 适配器配套原生内核仍为 C++17；不代表全仓升级或一般 ABI/跨平台资格。
 `SmIterationValue::operator==` 仅补 `const` 以使头文件能在 C++20 equality rewriting 下编译，
@@ -91,4 +94,4 @@ Windows 资源检查包含成功、各调用预算边界、后验预算不足、
 [05 验收](../../docs/step-import/ticket05-acceptance.md)和
 [06 验收](../../docs/step-import/ticket06-acceptance.md)和
 [07 验收](../../docs/step-import/ticket07-acceptance.md)。
-08 的角色与原生表示约束见[实施合同](../../docs/step-import/ticket08-implementation.md)。
+08 的角色与原生表示约束见[实施合同](../../docs/step-import/ticket08-implementation.md)与[验收记录](../../docs/step-import/ticket08-acceptance.md)。
