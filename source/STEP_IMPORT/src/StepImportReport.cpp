@@ -195,6 +195,8 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             }
             w.Add(",\"definition_bound_mm\":");
             Optional(w, report.definitionBoundMm);
+            w.Add(",\"consistency_bound_mm\":");
+            Optional(w, report.consistencyBoundMm);
             w.Add(",\"uv_bound_mm\":");
             Optional(w, report.uvBoundMm);
             w.Add(",\"validations\":{\"pointer_reports\":");

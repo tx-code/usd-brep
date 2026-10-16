@@ -9,7 +9,7 @@ python -m unittest tools.step_import_native_validation.tests.test_native -v
 ```
 
 覆盖 49 个原始样件、16 组合法方向组合、非默认参数、非有理归一化、乱序/稀疏 ID、
-最近点独立真值、调用/报告 N 与 N−1 和八种错误观测反控。
+最近点独立真值、调用/报告 N 与 N−1、最终 native 一致性边界和九种错误观测反控。
 49 项当前为 1 Accepted、25 源 Rejected、17 Unsupported、6 Deferred；
 17 Unsupported 包含 7 项既有源范围阻断及 10 项尚未授予目标资格的正例。
 没有将 49 项“合同符合”解释成 49 个模型导入成功。

@@ -40,6 +40,10 @@ int main(int argc, char** argv)
         Require(!result.model->MaterialVolumeMm3(), "An open surface has no material volume qualification");
         Require(result.report.pointerReports == 0 && result.report.deepReports == 0, "Both native validators actually executed");
         Require(result.report.definitionBoundMm && *result.report.definitionBoundMm <= 1e-8, "Native defining geometry certificate");
+        Require(
+            result.report.consistencyBoundMm && *result.report.consistencyBoundMm <= 1e-7,
+            "Actual native vertex/edge/plane consistency certificate"
+        );
         Require(result.report.uvBoundMm && *result.report.uvBoundMm <= 1e-7, "Whole-interval derived UV certificate");
         Require(result.report.tolerances.size() == 50, "Five stages observe Brep, face, four vertices and four edges");
         Require(result.report.edges.size() == 4, "Source curve parameter mappings retained");

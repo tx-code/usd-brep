@@ -150,9 +150,34 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(b"", result.stdout)
         self.assertIsNone(failed)
 
+    def test_final_native_consistency_is_not_inferred_from_source_or_working_tolerance(self):
+        # The new VP uses a separate CP; all defining LINEs keep their original CPs.
+        # Distance to the first LINE is exactly 4/5 of the X displacement.
+        for x, expected, code in [("3.00000005", "Accepted", 0), ("3.000000125", "Indeterminate", 8)]:
+            with self.subTest(vertex_x=x):
+                source_residual = (F(x) - 3) * F(4, 5)
+                self.assertLessEqual(source_residual, F(1, 10**7))
+                data = self.record(self.p01, 110, "VERTEX_POINT('',#140)")
+                data = data.replace(b"ENDSEC;\nEND-ISO", f"#140=CARTESIAN_POINT('',({x},-2.,5.));\n"
+                                    "ENDSEC;\nEND-ISO".encode())
+                actual, observed = self.invoke(data)
+                self.assertEqual(code, actual.returncode, actual.stderr or actual.stdout)
+                self.assertEqual(expected, observed["status"])
+                self.assertEqual("Checked", observed["source"]["planar"])
+                self.assertEqual("None", observed["repair"])
+                self.assertEqual({"pointer_reports": 0, "level2_reports": 0}, observed["validations"])
+                if code:
+                    self.assertIsNone(observed["model"])
+                    self.assertTrue(observed["candidate_discarded"])
+                    self.assertEqual("NativeConsistencyErrorBudget", observed["diagnostics"][0]["key"])
+                    self.assertGreater(F(observed["consistency_bound_mm"]), F(1, 10**7))
+                else:
+                    self.assertIsNotNone(observed["model"])
+                    self.assertLessEqual(F(observed["consistency_bound_mm"]), F(1, 10**7))
+
     def test_oracle_rejects_false_geometry_and_qualification(self):
         original = self.good(self.p01)
-        for name in ("area", "domain", "normal", "uv", "tolerance", "validator", "model", "source"):
+        for name in ("area", "domain", "normal", "uv", "consistency", "tolerance", "validator", "model", "source"):
             with self.subTest(tamper=name):
                 observed = deepcopy(original)
                 if name == "area":
@@ -163,6 +188,8 @@ class NativeTests(unittest.TestCase):
                     observed["native_measurements"]["normal"][2] = -1
                 if name == "uv":
                     observed["uv_bound_mm"] = None
+                if name == "consistency":
+                    observed["consistency_bound_mm"] = 2e-7
                 if name == "tolerance":
                     observed["tolerances"][12]["value_mm"] *= 2
                 if name == "validator":

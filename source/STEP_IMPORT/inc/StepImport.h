@@ -118,7 +118,7 @@ struct Report
     std::vector<ToleranceObservation> tolerances;
     std::vector<EdgeMapping> edges;
     std::optional<Statistics> native;
-    std::optional<double> definitionBoundMm, uvBoundMm;
+    std::optional<double> definitionBoundMm, consistencyBoundMm, uvBoundMm;
     std::optional<std::size_t> pointerReports, deepReports;
     std::string kernelPath;
     std::size_t nativeCalls = 0;

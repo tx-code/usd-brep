@@ -66,7 +66,9 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         "window_protection": "OutwardIntervalPlus64EpsilonTimes1PlusMaxAbsPerAxis",
         "definition_fitting": False}, "normalization provenance")
     require(observed["validations"] == {"pointer_reports": 0, "level2_reports": 0}, "actual validators")
-    for field, error in [("definition_bound_mm", "definition_error_mm"), ("uv_bound_mm", "derived_uv_error_mm")]:
+    for field, error in [("definition_bound_mm", "definition_error_mm"),
+                         ("consistency_bound_mm", "consistency_error_mm"),
+                         ("uv_bound_mm", "derived_uv_error_mm")]:
         require(isinstance(observed[field], (int, float)) and math.isfinite(observed[field]) and
                 0 <= F(observed[field]) <= decode(q[error]), "whole-domain " + field)
     rows = observed["tolerances"]
@@ -76,7 +78,8 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         keys = [(x["kind"], x["source_id"]) for x in rows if x["stage"] == stage]
         require(Counter(x[0] for x in keys) == Counter(Brep=1, Face=1, Vertex=4, Edge=4) and
                 len(set(keys)) == 10, "tolerance object coverage")
-    require(all(x["value_mm"] == float(decode(q["initial_working_tolerance_mm"])) for x in rows), "clean tolerance growth")
+    require(all(x["value_mm"] == float(decode(q["initial_working_tolerance_mm"])) for x in rows),
+            "clean tolerance growth")
     require(len(observed["edge_mappings"]) == 4 and len({x["source_edge"] for x in observed["edge_mappings"]}) == 4,
             "source edge identity")
     for edge in observed["edge_mappings"]:
