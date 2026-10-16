@@ -75,27 +75,127 @@ public:
     }
     void Run()
     {
-        m_phase = &m_outcome.binding;
-        Binding();
-        *m_phase = "Passed";
-        m_phase = &m_outcome.types;
-        Mapping();
-        Fields();
-        *m_phase = "Passed";
-        m_phase = &m_outcome.part;
-        Product();
-        Closure();
-        *m_phase = "Passed";
-        m_phase = &m_outcome.siUnits;
-        UnitContext();
-        *m_phase = m_data->units.lengthPower10Mm ? "Passed" : "Deferred";
+        RunPhase(
+            Phase::Binding,
+            [&]
+            {
+                Binding();
+            }
+        );
+        RunPhase(
+            Phase::Types,
+            [&]
+            {
+                Mapping();
+                Fields();
+            }
+        );
+        RunPhase(
+            Phase::Part,
+            [&]
+            {
+                Product();
+                Closure();
+            }
+        );
+        RunPhase(
+            Phase::Units,
+            [&]
+            {
+                UnitContext();
+            }
+        );
+        if (!m_data->units.lengthPower10Mm)
+        {
+            State(Phase::Units) = Progress::Deferred;
+        }
+    }
+    void PublishProgress()
+    {
+        m_outcome.binding = ProgressName(State(Phase::Binding));
+        m_outcome.types = ProgressName(State(Phase::Types));
+        m_outcome.part = ProgressName(State(Phase::Part));
+        m_outcome.siUnits = ProgressName(State(Phase::Units));
     }
 
 private:
 
+    enum class Phase
+    {
+        Binding,
+        Types,
+        Part,
+        Units
+    };
+    enum class Progress
+    {
+        NotRun,
+        Running,
+        Passed,
+        Rejected,
+        Unsupported,
+        ResourceLimit,
+        Deferred
+    };
     std::shared_ptr<SemanticData> m_data;
     Outcome& m_outcome;
-    std::string* m_phase = nullptr;
+    std::optional<Phase> m_phase;
+    std::array<Progress, 4> m_progress{};
+
+    Progress& State(Phase phase)
+    {
+        return m_progress.at(static_cast<std::size_t>(phase));
+    }
+    void RunPhase(Phase phase, auto&& operation)
+    {
+        if (m_phase || State(phase) != Progress::NotRun)
+        {
+            throw std::logic_error("Semantic phase cannot be entered twice or recursively");
+        }
+        m_phase = phase;
+        State(phase) = Progress::Running;
+        operation();
+        State(phase) = Progress::Passed;
+        m_phase.reset();
+    }
+    static Progress FailureProgress(Status status)
+    {
+        switch (status)
+        {
+            case Status::Rejected:
+                return Progress::Rejected;
+            case Status::Unsupported:
+                return Progress::Unsupported;
+            case Status::ResourceLimit:
+                return Progress::ResourceLimit;
+            case Status::Checked:
+            case Status::Deferred:
+            case Status::SourceFailure:
+                break;
+        }
+        throw std::logic_error("Invalid semantic phase failure status");
+    }
+    static const char* ProgressName(Progress progress)
+    {
+        switch (progress)
+        {
+            case Progress::NotRun:
+                return "NotRun";
+            case Progress::Running:
+                return "Running";
+            case Progress::Passed:
+                return "Passed";
+            case Progress::Rejected:
+                return "Rejected";
+            case Progress::Unsupported:
+                return "Unsupported";
+            case Progress::ResourceLimit:
+                return "ResourceLimit";
+            case Progress::Deferred:
+                return "Deferred";
+        }
+        throw std::logic_error("Unknown semantic phase progress");
+    }
     std::vector<std::vector<std::size_t>> m_outgoing;
     std::size_t m_context = 0;
     std::size_t m_representation = 0;
@@ -116,7 +216,7 @@ private:
     {
         if (m_phase)
         {
-            *m_phase = StatusName(status);
+            State(*m_phase) = FailureProgress(status);
         }
         Diagnostic diagnostic;
         diagnostic.classification = status == Status::Unsupported   ? "ProfileUnsupported" :
@@ -1396,9 +1496,10 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits)
     }
     auto data = std::make_shared<SemanticData>();
     data->source = source.source;
+    Checker checker(data, result);
     try
     {
-        Checker(data, result).Run();
+        checker.Run();
         result.status = data->units.lengthPower10Mm ? Status::Checked : Status::Deferred;
         result.snapshot = std::make_shared<const Snapshot>(std::move(data));
     }
@@ -1407,6 +1508,7 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits)
         result.status = failure.status;
         result.diagnostics.push_back(failure.diagnostic);
     }
+    checker.PublishProgress();
     return result;
 }
 const char* StatusName(Status status)

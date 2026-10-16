@@ -10,6 +10,10 @@ descriptor references against the registered declarations during initialization.
 source diagnostics, budgets and product/unit interpretation; field queries use the same derived-slot descriptions.
 This does not extend the admitted profile; existing indexed Snapshot queries retain their contracts.
 
+The checker tracks binding, types/fields, part/closure and units with private typed progress in that order.
+The existing Outcome strings are written when Check returns; failure preserves completed phases and leaves later
+phases NotRun. Conversion-based units still yield Deferred only after the preceding semantic checks complete.
+
 `Snapshot::Field(record, name)` and `Field(record, declaringType, name)` read shared bindings created during the existing
 field-validation visits. The returned FieldView owns the immutable snapshot; Value/Declaration references borrow that
 lifetime. Location returns independent source facts with owning strings/path. Qualified lookup uses the original

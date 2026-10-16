@@ -84,6 +84,7 @@ int main(int argc, char** argv)
 
         auto result = Inspect(p01);
         Require(result.status == Status::Checked, "P01 source rules and region");
+        Require(result.localRules == "Passed" && result.globalRules == "Passed" && result.geometry == "Passed", "Successful planar phases");
         auto evidence = result.evidence;
         result = {};
         Require(
@@ -136,6 +137,28 @@ int main(int argc, char** argv)
         Require(Inspect(p01, Quality::PlanarFixture(), { work - 1 }).status == Status::ResourceLimit, "N-1 work limit must block");
         ++groups;
 
+        const auto localFailure = Inspect(Read(corpus / "S203-N11/input.step"));
+        const auto globalFailure = Inspect(Read(corpus / "S203-N29/input.step"));
+        const auto geometryFailure = Inspect(Read(corpus / "S203-N20/input.step"));
+        const auto admissionFailure = Inspect(p01, Quality::PlanarFixture(), { 0 });
+        Require(
+            localFailure.localRules == "Failed" && localFailure.globalRules == "NotRun" && localFailure.geometry == "NotRun",
+            "Local failure gate"
+        );
+        Require(
+            globalFailure.localRules == "Passed" && globalFailure.globalRules == "Failed" && globalFailure.geometry == "NotRun",
+            "Global failure gate"
+        );
+        Require(
+            geometryFailure.localRules == "Passed" && geometryFailure.globalRules == "Passed" && geometryFailure.geometry == "Failed",
+            "Geometry failure gate"
+        );
+        Require(
+            admissionFailure.localRules == "NotRun" && admissionFailure.globalRules == "NotRun" && admissionFailure.geometry == "NotRun",
+            "Admission stop precedes planar phases"
+        );
+        ++groups;
+
         bool invalid = false;
         try
         {
@@ -169,6 +192,11 @@ int main(int argc, char** argv)
             result.status == Status::Indeterminate && Rule(result, "AXIS2_PLACEMENT_3D.WR4").value == Logical::True,
             "Source optional WR4 true but derived axes indeterminate"
         );
+        Require(
+            result.localRules == "Passed" && result.globalRules == "Passed" && result.geometry == "Indeterminate" &&
+                result.diagnostics[0].source.stage == "D4",
+            "Derived geometry phase remains unestablished"
+        );
         ++groups;
 
         auto huge = Replace(p01, "#200=DIRECTION('',(0.6,0.8,0.));", "#200=DIRECTION('',(1.E200,0.8,0.));");
@@ -176,6 +204,11 @@ int main(int argc, char** argv)
         Require(
             result.status == Status::Indeterminate && !result.diagnostics[0].source.recordId.empty(),
             "Numeric capacity failure needs source provenance"
+        );
+        Require(
+            result.localRules == "Indeterminate" && result.globalRules == "NotRun" && result.geometry == "NotRun" &&
+                result.diagnostics[0].source.stage == "D3",
+            "Local numeric phase remains unestablished"
         );
         ++groups;
 

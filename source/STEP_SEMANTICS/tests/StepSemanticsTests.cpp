@@ -43,6 +43,10 @@ int main(int argc, char** argv)
         auto raw = step_source::InspectBytes(Read(corpus / "S203-P01/input.step"), step_source::Limits::PlanarFixtures());
         auto result = Check(raw, Limits{});
         Require(result.status == Status::Checked && result.snapshot, "P01 semantic checks");
+        Require(
+            result.binding == "Passed" && result.types == "Passed" && result.part == "Passed" && result.siUnits == "Passed",
+            "Successful semantic phases must all complete"
+        );
         auto snapshot = result.snapshot;
         Require(snapshot->Source().Records().size() == 51, "whole source retained");
         const auto view = snapshot->Attribute(Index(*snapshot, "203"), 0, 1);
@@ -221,6 +225,10 @@ int main(int argc, char** argv)
             deferred.status == Status::Deferred && deferred.snapshot && !deferred.snapshot->UnitContext().lengthPower10Mm,
             "conversion factor was guessed in ticket 03"
         );
+        Require(
+            deferred.binding == "Passed" && deferred.types == "Passed" && deferred.part == "Passed" && deferred.siUnits == "Deferred",
+            "Only the unit phase is deferred after complete semantic prerequisites"
+        );
         ++groups;
 
         const auto siDimensions = snapshot->Attribute(Index(*snapshot, "10"), 1, 0);
@@ -257,6 +265,10 @@ int main(int argc, char** argv)
         const auto limited = Check(p01, Limits{ 0 });
         Require(limited.status == Status::ResourceLimit && !limited.snapshot, "partial semantic graph escaped budget failure");
         Require(limited.diagnostics[0].source.key == "DependencyVisitLimit", "wrong budget responsibility");
+        Require(
+            limited.binding == "Passed" && limited.types == "ResourceLimit" && limited.part == "NotRun" && limited.siUnits == "NotRun",
+            "Resource stop preserves completed binding and blocks later semantic phases"
+        );
         ++groups;
 
         const auto missing = step_source::InspectBytes(Read(corpus / "S203-N03/input.step"), step_source::Limits::PlanarFixtures());
@@ -265,6 +277,22 @@ int main(int argc, char** argv)
             rejected.status == Status::SourceFailure && !rejected.snapshot && rejected.diagnostics[0].source.key == "UnresolvedRequiredReference",
             "raw source failure was turned into typed success"
         );
+        Require(
+            rejected.binding == "NotRun" && rejected.types == "NotRun" && rejected.part == "NotRun" && rejected.siUnits == "NotRun",
+            "Upstream source failure must not enter semantic phases"
+        );
+        ++groups;
+
+        const auto phaseCheck = [&](const char* name)
+        {
+            return Check(step_source::InspectBytes(Read(corpus / name / "input.step"), step_source::Limits::PlanarFixtures()), Limits{});
+        };
+        const auto bindingFailure = phaseCheck("S203-N01");
+        const auto typeFailure = phaseCheck("S203-N04");
+        const auto partFailure = phaseCheck("S203-N16");
+        Require(bindingFailure.binding == "Unsupported" && bindingFailure.types == "NotRun", "Binding failure gate");
+        Require(typeFailure.binding == "Passed" && typeFailure.types == "Rejected" && typeFailure.part == "NotRun", "Field failure gate");
+        Require(partFailure.types == "Passed" && partFailure.part == "Unsupported" && partFailure.siUnits == "NotRun", "Part failure gate");
         ++groups;
 
         auto report = Check(p01, Limits{});

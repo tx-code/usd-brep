@@ -14,6 +14,10 @@ Field reads, resolved references and field diagnostic locations come from the se
 The validator does not rebuild field-name or entity-ID tables. Its established per-record admission charge remains,
 so moving binding work into the existing semantic validation visits does not silently relax planar work limits.
 
+Private typed progress runs local rules, global rules and geometry in that order. Outcome strings remain presentation
+fields written when Check returns. An admission-budget stop leaves all three phases NotRun; an entered phase that
+cannot complete preserves its failure classification and blocks the remaining phases, retaining partial evidence.
+
 The compiled N2635 clause metadata covers the 72 registered entity declarations and their 77 WHERE/UNIQUE/INVERSE
 clauses, including guard populations with no instances. Active clauses are evaluated per instance; ancestor populations
 include actual subtypes. Singleton product guards prove the two UNIQUE clauses. Explicit metadata-assignment exclusions

@@ -4,6 +4,8 @@
 #include "StepPlanar.h"
 #include "StepRuleCatalog.h"
 
+#include <array>
+#include <optional>
 #include <stdexcept>
 
 namespace step_planar
@@ -25,17 +27,39 @@ class Validator
 public:
 
     Validator(Outcome& outcome, const step_semantics::Snapshot& source);
-    void Local();
-    void GlobalRules();
-    void Geometry();
+    void Run();
+    void PublishProgress(Status status);
     step_semantics::Diagnostic NumericDiagnostic(const char* key) const;
 
 private:
 
+    enum class Phase
+    {
+        Local,
+        Global,
+        Geometry
+    };
+    enum class Progress
+    {
+        NotRun,
+        Running,
+        Passed,
+        Failed,
+        Indeterminate,
+        ResourceLimit
+    };
     Outcome& out;
     const step_semantics::Snapshot& sem;
     const step_source::SourceSnapshot& src;
     std::size_t current = 0;
+    std::optional<Phase> phase;
+    std::array<Progress, 3> progress{};
+    Progress& State(Phase selected);
+    void RunPhase(Phase selected, void (Validator::*operation)());
+    static const char* ProgressName(Progress value);
+    void Local();
+    void GlobalRules();
+    void Geometry();
     const step_source::Record& Record(std::size_t r) const;
     const Value& Field(std::size_t r, const std::string& name) const;
     std::size_t Target(const Value& value) const;

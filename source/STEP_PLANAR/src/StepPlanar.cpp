@@ -52,6 +52,67 @@ Validator::Validator(Outcome& outcome, const step_semantics::Snapshot& source) :
         Tick(r);
     }
 }
+Validator::Progress& Validator::State(Phase selected)
+{
+    return progress.at(static_cast<std::size_t>(selected));
+}
+void Validator::RunPhase(Phase selected, void (Validator::*operation)())
+{
+    if (phase || State(selected) != Progress::NotRun)
+    {
+        throw std::logic_error("Planar phase cannot be entered twice or recursively");
+    }
+    phase = selected;
+    State(selected) = Progress::Running;
+    (this->*operation)();
+    State(selected) = Progress::Passed;
+    phase.reset();
+}
+void Validator::Run()
+{
+    RunPhase(Phase::Local, &Validator::Local);
+    RunPhase(Phase::Global, &Validator::GlobalRules);
+    RunPhase(Phase::Geometry, &Validator::Geometry);
+}
+const char* Validator::ProgressName(Progress value)
+{
+    switch (value)
+    {
+        case Progress::NotRun:
+            return "NotRun";
+        case Progress::Running:
+            return "Running";
+        case Progress::Passed:
+            return "Passed";
+        case Progress::Failed:
+            return "Failed";
+        case Progress::Indeterminate:
+            return "Indeterminate";
+        case Progress::ResourceLimit:
+            return "ResourceLimit";
+    }
+    throw std::logic_error("Unknown planar phase progress");
+}
+void Validator::PublishProgress(Status status)
+{
+    const auto failure = status == Status::Indeterminate ? Progress::Indeterminate :
+                         status == Status::ResourceLimit ? Progress::ResourceLimit :
+                                                           Progress::Failed;
+    for (auto& state : progress)
+    {
+        if (state == Progress::Running)
+        {
+            state = failure;
+        }
+    }
+    out.localRules = ProgressName(State(Phase::Local));
+    out.globalRules = ProgressName(State(Phase::Global));
+    out.geometry = ProgressName(State(Phase::Geometry));
+    if (status == Status::Indeterminate && !out.evidence.rules.empty() && !out.evidence.rules.back().value)
+    {
+        out.evidence.rules.back().evaluation = "Indeterminate";
+    }
+}
 const step_source::Record& Validator::Record(std::size_t r) const
 {
     return src.Records().at(r);
@@ -158,7 +219,8 @@ step_semantics::Diagnostic Validator::NumericDiagnostic(const char* key) const
 {
     step_semantics::Diagnostic diagnostic;
     diagnostic.source.key = key;
-    diagnostic.source.stage = out.localRules == "Running" ? "D3" : "D4";
+    // Keep the existing wire convention: only local numeric evidence is labelled D3.
+    diagnostic.source.stage = phase == Phase::Local ? "D3" : "D4";
     diagnostic.source.recordId = Record(current).id;
     diagnostic.source.primary = Record(current).span;
     diagnostic.source.message = "Required exact evidence is unestablished; no rounded or invented fallback";
@@ -210,15 +272,7 @@ Outcome Check(const step_semantics::Outcome& semantics, Quality quality, Limits 
     try
     {
         validator = std::make_unique<Validator>(result, *semantics.snapshot);
-        result.localRules = "Running";
-        validator->Local();
-        result.localRules = "Passed";
-        result.globalRules = "Running";
-        validator->GlobalRules();
-        result.globalRules = "Passed";
-        result.geometry = "Running";
-        validator->Geometry();
-        result.geometry = "Passed";
+        validator->Run();
         result.status = Status::Checked;
     }
     catch (const Stop& stop)
@@ -243,19 +297,9 @@ Outcome Check(const step_semantics::Outcome& semantics, Quality quality, Limits 
         }
         result.diagnostics.push_back(validator->NumericDiagnostic(error.what()));
     }
-    const std::string failure = result.status == Status::Indeterminate ? "Indeterminate" :
-                                result.status == Status::ResourceLimit ? "ResourceLimit" :
-                                                                         "Failed";
-    for (auto* phase : { &result.localRules, &result.globalRules, &result.geometry })
+    if (validator)
     {
-        if (*phase == "Running")
-        {
-            *phase = failure;
-        }
-    }
-    if (result.status == Status::Indeterminate && !result.evidence.rules.empty() && !result.evidence.rules.back().value)
-    {
-        result.evidence.rules.back().evaluation = "Indeterminate";
+        validator->PublishProgress(result.status);
     }
     return result;
 }
