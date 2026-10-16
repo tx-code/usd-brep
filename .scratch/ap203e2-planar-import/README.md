@@ -1,6 +1,6 @@
 # AP203e2首个profile：本地实施票
 
-2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05已实现并验收，06—12仍未领取/on-hold。
+2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05已实现并验收；当前06已获准实施，07—12仍未领取/on-hold。
 
 ## 状态与执行限制
 
@@ -9,7 +9,7 @@
 01—04原19条验收及进入05前的核心准备已经完成，详见
 [05之前准备完成记录](../../docs/step-import/pre05-readiness.md)。三个STEP目标及其CLI/原生测试
 当前以C++20为基线；本页下方C++17与各阶段“后续未开始”描述保留初次验收的历史时点。
-随后用户要求按后续计划继续，05已实现并验收关闭，见[05验收](../../docs/step-import/ticket05-acceptance.md)；06—12仍为on-hold。
+随后用户要求按后续计划继续，05已实现并验收关闭；现已授权06开工，见[05验收](../../docs/step-import/ticket05-acceptance.md)；07—12仍为on-hold。
 前置准备的验收不代替05实际native构建与后验检查。
 
 后续核心收尾包括[全局身份](../../docs/step-import/global-rule-identity.md)、
@@ -19,9 +19,9 @@
 
 ### 票据状态
 
-- **Status：01—05为closed，其余ready-for-agent**。ready-for-agent不表示已开工。
-- **Execution：01—05为completed，06—12为on-hold**。
-- **Assignee：01—05为codex，其余None**。06/07/10/11的05技术前置已满足，未自动开工。
+- **Status：01—05为closed，06为in-progress，其余ready-for-agent**。ready-for-agent不表示已开工。
+- **Execution：01—05为completed，06为in-progress，07—12为on-hold**。
+- **Assignee：01—06为codex，其余None**。06已按新指令开工；07/10/11的05技术前置已满足，仍保持on-hold。
 - Blocked by只列直接技术前置。前置票实际完成验收并关闭后才解除相应阻塞；未执行的验收框保持未勾选。
 - 后续明确开工后，先按授权范围更新Execution与负责人再执行；没有新指令时不自动领取frontier。
 

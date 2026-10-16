@@ -45,16 +45,22 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_link_libraries(step_import_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_contracts COMMAND step_import_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
+    add_executable(step_import_hole_tests tests/StepImportHoleTests.cpp)
+    target_link_libraries(step_import_hole_tests PRIVATE STEP_IMPORT)
+    add_test(NAME step_import_hole_contracts COMMAND step_import_hole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
     if(WIN32)
         add_executable(step_import_resources tests/StepImportResources.cpp)
         target_compile_definitions(step_import_resources PRIVATE NOMINMAX)
         target_link_libraries(step_import_resources PRIVATE STEP_IMPORT Psapi)
         add_test(NAME step_import_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P01/input.step")
+        add_test(NAME step_import_hole_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P03/input.step")
     endif()
 endif()
 
-foreach(target step_native_import step_import_tests step_import_resources)
+foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

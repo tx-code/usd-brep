@@ -75,10 +75,20 @@ Plan MakePlan(const step_planar::Outcome& checked)
                        "Optional solid-angle declarations require ticket 10 qualification",
                        {} };
     }
-    if (source.PartDefinition().shapeRole != "OpenSurfaceModel" || evidence.faces.size() != 1 || evidence.faces[0].loops.size() != 1 ||
-        !evidence.faces[0].loops[0].outer)
+    if (source.PartDefinition().shapeRole != "OpenSurfaceModel" || evidence.faces.size() != 1 ||
+        std::count_if(
+            evidence.faces[0].loops.begin(),
+            evidence.faces[0].loops.end(),
+            [](const auto& loop)
+            {
+                return loop.outer;
+            }
+        ) != 1)
     {
-        throw Failure{ Status::Unsupported, "UnsupportedNativeShapeScope", "Ticket 05 requires one open face with one outer LINE/PLANE loop", {} };
+        throw Failure{ Status::Unsupported,
+                       "UnsupportedNativeShapeScope",
+                       "Native scope requires one open LINE/PLANE face with one outer loop and optional holes",
+                       {} };
     }
     if (source.UnitContext().lengthPower10Mm != std::optional<int>(0))
     {
@@ -88,12 +98,10 @@ Plan MakePlan(const step_planar::Outcome& checked)
                        {} };
     }
     const auto& face = evidence.faces.front();
-    const auto& loop = face.loops.front();
     Plan plan{};
     plan.source = evidence.source;
     plan.face = face.face;
     plan.plane = face.plane;
-    plan.bound = loop.bound;
     plan.faceSameSense = face.sameSense;
     plan.originMm = face.originMm;
     plan.x = face.x;
@@ -109,78 +117,97 @@ Plan MakePlan(const step_planar::Outcome& checked)
     {
         return source.Source().Records().at(record).id;
     };
-    for (const auto vertex : loop.vertices)
+    for (const auto& loop : face.loops)
     {
-        if (vertexIndices.emplace(vertex, plan.vertices.size()).second)
+        for (const auto vertex : loop.vertices)
         {
-            plan.vertices.push_back({ vertex, PointAt(source, source.Field(vertex, "vertex_geometry").ReferenceTarget()) });
+            if (vertexIndices.emplace(vertex, plan.vertices.size()).second)
+            {
+                plan.vertices.push_back({ vertex, PointAt(source, source.Field(vertex, "vertex_geometry").ReferenceTarget()) });
+            }
         }
     }
-    for (const auto record : loop.edges)
+    for (const auto& loop : face.loops)
     {
-        if (edgeIndices.contains(record))
+        for (const auto record : loop.edges)
         {
-            throw Failure{ Status::Unsupported,
-                           "UnsupportedRepeatedNativeEdgeUse",
-                           "Repeated same-face edge uses need a separate seam contract",
-                           record };
-        }
-        const auto found = std::find_if(
-            evidence.edges.begin(),
-            evidence.edges.end(),
-            [&](const auto& edge)
+            if (edgeIndices.contains(record))
             {
-                return edge.edge == record;
+                throw Failure{ Status::Unsupported,
+                               "UnsupportedRepeatedNativeEdgeUse",
+                               "Repeated same-face edge uses need a separate seam contract",
+                               record };
             }
-        );
-        if (found == evidence.edges.end())
-        {
-            throw std::logic_error("Qualified edge evidence missing");
+            const auto found = std::find_if(
+                evidence.edges.begin(),
+                evidence.edges.end(),
+                [&](const auto& edge)
+                {
+                    return edge.edge == record;
+                }
+            );
+            if (found == evidence.edges.end())
+            {
+                throw std::logic_error("Qualified edge evidence missing");
+            }
+            const auto& edge = *found;
+            const auto line = source.Field(record, "edge_geometry").ReferenceTarget();
+            const auto vector = source.Field(line, "dir").ReferenceTarget();
+            const auto direction = source.Field(vector, "orientation").ReferenceTarget();
+            const auto a = PointAt(source, source.Field(line, "pnt").ReferenceTarget());
+            const auto& ratios = source.Field(direction, "direction_ratios").Value().children;
+            const ExactPoint d{ Fraction::Decimal(ratios.at(0).text), Fraction::Decimal(ratios.at(1).text), Fraction::Decimal(ratios.at(2).text) };
+            const auto norm = Dot(d, d);
+            const auto project = [&](std::size_t vertex)
+            {
+                const auto point = plan.vertices.at(vertexIndices.at(vertex)).pointMm;
+                return Add(a, Times(d, Dot(Subtract(point, a), d) / norm));
+            };
+            const auto minimum = edge.sameSense ? edge.start : edge.end;
+            const auto maximum = edge.sameSense ? edge.end : edge.start;
+            EdgeMapping mapping{ id(record),  id(line),       id(edge.start),         id(edge.end),         id(minimum),
+                                 id(maximum), edge.sameSense, edge.tStartCoefficient, edge.tEndCoefficient, edge.directionNormSquared };
+            edgeIndices.emplace(record, plan.edges.size());
+            plan.edges.push_back(
+                { record,
+                  vertexIndices.at(minimum),
+                  vertexIndices.at(maximum),
+                  project(minimum),
+                  project(maximum),
+                  edge.lengthSquaredMm,
+                  std::move(mapping) }
+            );
         }
-        const auto& edge = *found;
-        const auto line = source.Field(record, "edge_geometry").ReferenceTarget();
-        const auto vector = source.Field(line, "dir").ReferenceTarget();
-        const auto direction = source.Field(vector, "orientation").ReferenceTarget();
-        const auto a = PointAt(source, source.Field(line, "pnt").ReferenceTarget());
-        const auto& ratios = source.Field(direction, "direction_ratios").Value().children;
-        const ExactPoint d{ Fraction::Decimal(ratios.at(0).text), Fraction::Decimal(ratios.at(1).text), Fraction::Decimal(ratios.at(2).text) };
-        const auto norm = Dot(d, d);
-        const auto project = [&](std::size_t vertex)
-        {
-            const auto point = plan.vertices.at(vertexIndices.at(vertex)).pointMm;
-            return Add(a, Times(d, Dot(Subtract(point, a), d) / norm));
-        };
-        const auto minimum = edge.sameSense ? edge.start : edge.end;
-        const auto maximum = edge.sameSense ? edge.end : edge.start;
-        EdgeMapping mapping{ id(record),  id(line),       id(edge.start),         id(edge.end),         id(minimum),
-                             id(maximum), edge.sameSense, edge.tStartCoefficient, edge.tEndCoefficient, edge.directionNormSquared };
-        edgeIndices.emplace(record, plan.edges.size());
-        plan.edges.push_back(
-            { record,
-              vertexIndices.at(minimum),
-              vertexIndices.at(maximum),
-              project(minimum),
-              project(maximum),
-              edge.lengthSquaredMm,
-              std::move(mapping) }
-        );
     }
     if (plan.edges.size() != evidence.edges.size())
     {
         throw Failure{ Status::Unsupported, "UnmappedNativeRequiredEdge", "A required source edge cannot be silently omitted", face.face };
     }
-    const auto append = [&](std::vector<UsePlan>& uses, bool forward)
+    for (const auto& loop : face.loops)
     {
-        for (std::size_t offset = 0; offset < loop.edges.size(); ++offset)
+        LoopPlan target{ loop.bound, loop.loop, loop.outer, loop.orientation, {}, {} };
+        const auto append = [&](std::vector<UsePlan>& uses, bool forward)
         {
-            const auto i = forward ? offset : loop.edges.size() - 1 - offset;
-            const auto index = edgeIndices.at(loop.edges[i]);
-            const bool alongMinimum = loop.edgeOrientations.at(i) == plan.edges.at(index).mapping.sourceSameSense;
-            uses.push_back({ index, loop.orientedEdges.at(i), forward ? alongMinimum : !alongMinimum });
+            for (std::size_t offset = 0; offset < loop.edges.size(); ++offset)
+            {
+                const auto i = forward ? offset : loop.edges.size() - 1 - offset;
+                const auto index = edgeIndices.at(loop.edges[i]);
+                const bool alongMinimum = loop.edgeOrientations.at(i) == plan.edges.at(index).mapping.sourceSameSense;
+                uses.push_back({ index, loop.orientedEdges.at(i), forward ? alongMinimum : !alongMinimum });
+            }
+        };
+        append(target.primaryUses, loop.orientation == face.sameSense);
+        append(target.selectedUses, loop.orientation);
+        plan.loops.push_back(std::move(target));
+    }
+    std::stable_sort(
+        plan.loops.begin(),
+        plan.loops.end(),
+        [](const auto& a, const auto& b)
+        {
+            return a.outer && !b.outer;
         }
-    };
-    append(plan.primaryUses, loop.orientation == face.sameSense);
-    append(plan.selectedUses, loop.orientation);
+    );
     return plan;
 }
 } // namespace step_import::detail

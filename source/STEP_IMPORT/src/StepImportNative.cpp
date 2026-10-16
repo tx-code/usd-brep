@@ -12,6 +12,7 @@
 #include <SmFace.h>
 #include <SmFaceuse.h>
 #include <SmLine.h>
+#include <SmLoop.h>
 #include <SmLoopuse.h>
 #include <SmPlane.h>
 #include <SmPointClass.h>
@@ -41,6 +42,7 @@ struct ModelData
     std::vector<SmVertex*> vertices;
     std::vector<SmEdge*> edges;
     std::vector<SmLine*> curves;
+    std::vector<SmLoop*> loops;
     std::string faceId;
     Statistics info;
     mutable std::mutex mutex;
@@ -298,45 +300,50 @@ public:
             }
             Good(surfaceStatus);
             Need(m_model->plane != nullptr, "NativeSurfaceOwnershipMismatch", m_plan.face);
-            Step(m_plan.bound);
-            Need(ctor.StartLoop(SM_OT_SAME) != nullptr, "NativeLoopConstructionFailed", m_plan.bound);
             m_model->edges.resize(m_plan.edges.size());
             m_model->curves.resize(m_plan.edges.size());
-            for (const auto& use : m_plan.primaryUses)
+            for (const auto& loop : m_plan.loops)
             {
-                const auto& edge = m_plan.edges.at(use.edge);
-                Step(edge.record);
-                auto native = ctor.StartEdge(
-                    use.forward ? SM_OT_SAME : SM_OT_OPPOSITE,
-                    nullptr,
-                    m_model->vertices.at(edge.minimumVertex),
-                    m_model->vertices.at(edge.maximumVertex)
-                );
-                Need(native != nullptr, "NativeEdgeConstructionFailed", edge.record);
-                native->SetTolerance(tolerance, FALSE);
-                m_model->edges[use.edge] = native;
-                Step(edge.record);
-                SmLine* raw = nullptr;
-                const auto
-                    created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
-                std::unique_ptr<SmLine> curve(raw);
-                Good(created);
-                Need(bool(curve), "NativeCurveAllocationFailed", edge.record);
-                Step(edge.record);
-                const auto adopted = ctor.SetEdgeCurve(curve.get(), FALSE);
-                if (curve->GetOwner() == native)
+                Step(loop.bound);
+                auto targetLoop = ctor.StartLoop(SM_OT_SAME);
+                Need(targetLoop != nullptr, "NativeLoopConstructionFailed", loop.bound);
+                m_model->loops.push_back(targetLoop);
+                for (const auto& use : loop.primaryUses)
                 {
-                    m_model->curves[use.edge] = curve.release();
+                    const auto& edge = m_plan.edges.at(use.edge);
+                    Step(edge.record);
+                    auto native = ctor.StartEdge(
+                        use.forward ? SM_OT_SAME : SM_OT_OPPOSITE,
+                        nullptr,
+                        m_model->vertices.at(edge.minimumVertex),
+                        m_model->vertices.at(edge.maximumVertex)
+                    );
+                    Need(native != nullptr, "NativeEdgeConstructionFailed", edge.record);
+                    native->SetTolerance(tolerance, FALSE);
+                    m_model->edges[use.edge] = native;
+                    Step(edge.record);
+                    SmLine* raw = nullptr;
+                    const auto
+                        created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
+                    std::unique_ptr<SmLine> curve(raw);
+                    Good(created);
+                    Need(bool(curve), "NativeCurveAllocationFailed", edge.record);
+                    Step(edge.record);
+                    const auto adopted = ctor.SetEdgeCurve(curve.get(), FALSE);
+                    if (curve->GetOwner() == native)
+                    {
+                        m_model->curves[use.edge] = curve.release();
+                    }
+                    Good(adopted);
+                    Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record);
+                    Step(edge.record);
+                    Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0)));
+                    Step(edge.record);
+                    Good(ctor.EndEdge());
                 }
-                Good(adopted);
-                Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record);
-                Step(edge.record);
-                Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0)));
-                Step(edge.record);
-                Good(ctor.EndEdge());
+                Step(loop.bound);
+                Good(ctor.EndLoop());
             }
-            Step(m_plan.bound);
-            Good(ctor.EndLoop());
             Step(m_plan.face);
             Good(ctor.EndFace());
             Step(m_plan.face);
@@ -473,15 +480,13 @@ private:
             );
         }
     }
-    void VerifyTraversal(SmFaceuse* faceuse, const std::vector<UsePlan>& expected)
+    std::size_t VerifyTraversal(SmLoopuse* loopuse, const std::vector<UsePlan>& expected, const LoopPlan& loop)
     {
-        SmTArray<SmLoopuse*> loops;
-        faceuse->GetLoopuses(loops);
-        Need(loops.GetSize() == 1, "NativeLoopMultiplicity", m_plan.face);
+        Need(loopuse->GetOrientation() == (loop.outer ? SM_OT_SAME : SM_OT_OPPOSITE), "NativeLoopRoleMismatch", loop.bound);
         SmTArray<SmEdgeuse*> uses;
-        loops[0]->GetEdgeuses(uses);
+        loopuse->GetEdgeuses(uses);
         Need(uses.GetSize() == expected.size(), "NativeLoopUseCount", m_plan.face);
-        bool equal = false;
+        std::optional<std::size_t> matchedOffset;
         for (std::size_t offset = 0; offset < expected.size(); ++offset)
         {
             bool matches = true;
@@ -494,9 +499,51 @@ private:
                           use->GetVertexuse()->GetVertex() == m_model->vertices[wanted.forward ? edge.minimumVertex : edge.maximumVertex] &&
                           use->GetMate()->GetVertexuse()->GetVertex() == m_model->vertices[wanted.forward ? edge.maximumVertex : edge.minimumVertex];
             }
-            equal = equal || matches;
+            if (matches)
+            {
+                matchedOffset = offset;
+                break;
+            }
         }
-        Need(equal, "NativeDirectedSourcePathMismatch", m_plan.face);
+        Need(matchedOffset.has_value(), "NativeDirectedSourcePathMismatch", m_plan.face);
+        return *matchedOffset;
+    }
+    LoopMapping CaptureLoop(const LoopPlan& plan, SmLoopuse* selected, std::size_t offset)
+    {
+        LoopMapping result{ Id(m_plan.face), Id(plan.bound), Id(plan.loop), plan.outer, plan.sourceOrientation, {} };
+        SmTArray<SmEdgeuse*> uses;
+        selected->GetEdgeuses(uses);
+        for (ULONG i = 0; i < uses.GetSize(); ++i)
+        {
+            const auto use = uses[i];
+            const auto& wanted = plan.selectedUses[(offset + i) % plan.selectedUses.size()];
+            const auto& edge = m_plan.edges[wanted.edge];
+            SmEdgeuse* owner = nullptr;
+            const auto uv = use->GetUVTrimCurve(&owner);
+            Need(
+                uv && owner && owner->GetOrientation() == SM_OT_SAME && owner->GetEdge() == use->GetEdge() && uv->GetOwner() == owner &&
+                    uv->GetContext() == m_model->context.get(),
+                "NativeUseUvOwnerMismatch",
+                wanted.orientedEdge
+            );
+            SmTArray<SmPoint3d> points;
+            SmTArray<double> weights;
+            Good(uv->GetControlPolygon(points, weights));
+            Need(points.GetSize() == 2, "NativeUseUvControlShape", wanted.orientedEdge);
+            const bool forward = use->GetOrientation() == SM_OT_SAME;
+            const auto start = points[forward ? 0 : 1], end = points[forward ? 1 : 0];
+            result.uses.push_back(
+                { Id(wanted.orientedEdge),
+                  Id(edge.record),
+                  Id(m_plan.vertices[wanted.forward ? edge.minimumVertex : edge.maximumVertex].record),
+                  Id(m_plan.vertices[wanted.forward ? edge.maximumVertex : edge.minimumVertex].record),
+                  forward,
+                  owner->GetLoopuse()->GetFaceuse() == selected->GetFaceuse(),
+                  { start.x, start.y },
+                  { end.x, end.y } }
+            );
+        }
+        return result;
     }
     void Verify()
     {
@@ -553,8 +600,36 @@ private:
             "NativeFaceSideMismatch",
             m_plan.face
         );
-        VerifyTraversal(same, m_plan.primaryUses);
-        VerifyTraversal(m_plan.faceSameSense ? same : opposite, m_plan.selectedUses);
+        for (auto side : { same, opposite })
+        {
+            SmTArray<SmLoopuse*> loops;
+            side->GetLoopuses(loops);
+            Need(
+                loops.GetSize() == m_plan.loops.size() && loops[0]->GetLoop() == m_model->loops[0],
+                "NativeLoopMultiplicityOrOuterIdentity",
+                m_plan.face
+            );
+            std::set<SmLoop*> actual;
+            for (ULONG i = 0; i < loops.GetSize(); ++i)
+            {
+                actual.insert(loops[i]->GetLoop());
+            }
+            Need(actual == std::set<SmLoop*>(m_model->loops.begin(), m_model->loops.end()), "NativeLoopIdentityMismatch", m_plan.face);
+        }
+        for (std::size_t i = 0; i < m_plan.loops.size(); ++i)
+        {
+            const auto primary = m_model->loops[i]->GetLoopuse();
+            const auto mate = primary->GetOtherLoopuse();
+            Need(
+                primary->GetFaceuse() == same && mate->GetFaceuse() == opposite && mate->GetOtherLoopuse() == primary,
+                "NativeLoopSideMismatch",
+                m_plan.loops[i].bound
+            );
+            VerifyTraversal(primary, m_plan.loops[i].primaryUses, m_plan.loops[i]);
+            const auto selected = m_plan.faceSameSense ? primary : mate;
+            const auto offset = VerifyTraversal(selected, m_plan.loops[i].selectedUses, m_plan.loops[i]);
+            m_report.loops.push_back(CaptureLoop(m_plan.loops[i], selected, offset));
+        }
         double definition = 0, consistency = 0, uvError = 0;
         const auto domain = m_model->plane->GetNaturalUVDomain();
         const auto faceDomain = m_model->face->GetUVDomain();

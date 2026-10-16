@@ -109,6 +109,18 @@ struct EdgeMapping
     Fraction sourceStartCoefficient, sourceEndCoefficient, sourceDirectionNormSquared;
     // Source parameter = coefficient / sqrt(norm squared); target curve parameter is [0,1].
 };
+struct UseMapping
+{
+    std::string orientedEdgeId, edgeId, startVertexId, endVertexId;
+    bool forwardInNativeCurve = true, uvOwnerOnSelectedSide = false;
+    std::array<double, 2> uvStartMm{}, uvEndMm{};
+};
+struct LoopMapping
+{
+    std::string faceId, boundId, loopId;
+    bool outer = false, sourceOrientation = true;
+    std::vector<UseMapping> uses; // Actual selected-side cyclic traversal; UV is stored on each edge's SAME member.
+};
 struct Report
 {
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
@@ -117,6 +129,7 @@ struct Report
     std::vector<step_semantics::Diagnostic> diagnostics;
     std::vector<ToleranceObservation> tolerances;
     std::vector<EdgeMapping> edges;
+    std::vector<LoopMapping> loops;
     std::optional<Statistics> native;
     std::optional<double> definitionBoundMm, consistencyBoundMm, uvBoundMm;
     std::optional<std::size_t> pointerReports, deepReports;

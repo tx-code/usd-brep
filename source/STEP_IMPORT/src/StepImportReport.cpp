@@ -111,6 +111,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add("}");
             w.Add(
                 ",\"normalization_policy\":{\"curve_parameter\":\"SourceIncreasingToNative01\","
+                "\"loop_order\":\"OuterFirstIdentityPreserving\","
                 "\"uv\":\"DerivedAfterTopologyOnSameOwner\",\"finite_window\":\"SourceTrimEnvelope\","
                 "\"window_protection\":\"OutwardIntervalPlus64EpsilonTimes1PlusMaxAbsPerAxis\","
                 "\"definition_fitting\":false}"
@@ -265,6 +266,56 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 w.Add(",\"source_direction_norm_squared\":");
                 FractionJson(w, e.sourceDirectionNormSquared);
                 w.Add(",\"native_interval\":[0,1],\"source_parameter\":\"coefficient/sqrt(direction_norm_squared)\"}");
+            }
+            w.Add("],\"loop_mappings\":[");
+            for (std::size_t i = 0; i < report.loops.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& loop = report.loops[i];
+                w.Add("{\"source_face\":");
+                w.String(loop.faceId);
+                w.Add(",\"source_bound\":");
+                w.String(loop.boundId);
+                w.Add(",\"source_loop\":");
+                w.String(loop.loopId);
+                w.Add(",\"outer\":");
+                w.Bool(loop.outer);
+                w.Add(",\"source_orientation\":");
+                w.Bool(loop.sourceOrientation);
+                w.Add(",\"uses\":[");
+                for (std::size_t j = 0; j < loop.uses.size(); ++j)
+                {
+                    if (j)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& use = loop.uses[j];
+                    w.Add("{\"source_oriented_edge\":");
+                    w.String(use.orientedEdgeId);
+                    w.Add(",\"source_edge\":");
+                    w.String(use.edgeId);
+                    w.Add(",\"start_vertex\":");
+                    w.String(use.startVertexId);
+                    w.Add(",\"end_vertex\":");
+                    w.String(use.endVertexId);
+                    w.Add(",\"forward_in_native_curve\":");
+                    w.Bool(use.forwardInNativeCurve);
+                    w.Add(",\"uv_owner_edgeuse\":\"SAME\",\"uv_owner_on_selected_side\":");
+                    w.Bool(use.uvOwnerOnSelectedSide);
+                    w.Add(",\"uv_start_mm\":[");
+                    Number(w, use.uvStartMm[0]);
+                    w.Add(",");
+                    Number(w, use.uvStartMm[1]);
+                    w.Add("],\"uv_end_mm\":[");
+                    Number(w, use.uvEndMm[0]);
+                    w.Add(",");
+                    Number(w, use.uvEndMm[1]);
+                    w.Add("]}");
+                }
+                w.Add("]}");
             }
             w.Add("],\"diagnostics\":[");
             for (std::size_t i = 0; i < report.diagnostics.size(); ++i)

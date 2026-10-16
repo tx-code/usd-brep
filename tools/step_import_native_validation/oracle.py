@@ -8,6 +8,7 @@ import math
 
 from tools.step_import_validation.corpus import quality_contract
 from tools.step_import_validation.oracle import decode
+from tools.step_import_validation.records import inventory, by_id, ref, aggregate, vector as source_vector
 from tools.step_inspect_validation.oracle import position
 from tools.step_semantic_validation.oracle import DEFERRED, UNSUPPORTED
 
@@ -62,6 +63,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     require(all(abs(a - b) <= 1e-9 for a, b in zip(window, uv_bounds)), "window protection, no arbitrary domain")
     require(observed["normalization_policy"] == {
         "curve_parameter": "SourceIncreasingToNative01", "uv": "DerivedAfterTopologyOnSameOwner",
+        "loop_order": "OuterFirstIdentityPreserving",
         "finite_window": "SourceTrimEnvelope",
         "window_protection": "OutwardIntervalPlus64EpsilonTimes1PlusMaxAbsPerAxis",
         "definition_fitting": False}, "normalization provenance")
@@ -72,27 +74,90 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         require(isinstance(observed[field], (int, float)) and math.isfinite(observed[field]) and
                 0 <= F(observed[field]) <= decode(q[error]), "whole-domain " + field)
     rows = observed["tolerances"]
-    require(Counter(x["stage"] for x in rows) == Counter({k: 10 for k in (
+    object_count = 2 + n["vertices"] + n["edges"]
+    require(Counter(x["stage"] for x in rows) == Counter({k: object_count for k in (
         "Constructed", "UvInstalled", "PointersChecked", "DeepChecked", "Postchecked")}), "tolerance stage coverage")
     for stage in {x["stage"] for x in rows}:
         keys = [(x["kind"], x["source_id"]) for x in rows if x["stage"] == stage]
-        require(Counter(x[0] for x in keys) == Counter(Brep=1, Face=1, Vertex=4, Edge=4) and
-                len(set(keys)) == 10, "tolerance object coverage")
+        require(Counter(x[0] for x in keys) == Counter(Brep=1, Face=1, Vertex=n["vertices"], Edge=n["edges"]) and
+                len(set(keys)) == object_count, "tolerance object coverage")
     require(all(x["value_mm"] == float(decode(q["initial_working_tolerance_mm"])) for x in rows),
             "clean tolerance growth")
-    require(len(observed["edge_mappings"]) == 4 and len({x["source_edge"] for x in observed["edge_mappings"]}) == 4,
+    require(len(observed["edge_mappings"]) == n["edges"] and
+            len({x["source_edge"] for x in observed["edge_mappings"]}) == n["edges"],
             "source edge identity")
     for edge in observed["edge_mappings"]:
         require(edge["native_interval"] == [0, 1] and edge["source_parameter"] ==
                 "coefficient/sqrt(direction_norm_squared)", "explicit parameter mapping")
     require(observed["kernel_path"] and observed["kernel_path"] != "Unmeasured", "loaded kernel observation")
+    loop_provenance(observed, data)
+
+
+def loop_provenance(observed, data):
+    """STEP's explicit OE/bound semantics and a separately computed source-frame projection."""
+    index = by_id(inventory(data))
+    face = next(r for r in index.values() if r.kind == "ADVANCED_FACE")
+    bounds = [ref(x) for x in aggregate(face.args[1])]
+    placement = index[ref(index[ref(face.args[2])].args[1])]
+    origin = source_vector(index[ref(placement.args[1])].args[1])
+
+    def unit(values):
+        length = math.sqrt(sum(v * v for v in values))
+        return tuple(float(v) / length for v in values)
+
+    z = unit(source_vector(index[ref(placement.args[2])].args[1]) if placement.args[2] != "$" else (0, 0, 1))
+    direction = source_vector(index[ref(placement.args[3])].args[1]) if placement.args[3] != "$" else (1, 0, 0)
+    along_z = sum(a * b for a, b in zip(direction, z))
+    x = unit(tuple(a - along_z * b for a, b in zip(direction, z)))
+    y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
+
+    def uv(vertex):
+        point = source_vector(index[ref(index[vertex].args[1])].args[1])
+        delta = [float(a - b) for a, b in zip(point, origin)]
+        return tuple(F(sum(a * b for a, b in zip(delta, axis))) for axis in (x, y))
+
+    rows = observed["loop_mappings"]
+    require(len(rows) == len(bounds) and rows[0]["outer"] and sum(r["outer"] for r in rows) == 1,
+            "native outer-first loop coverage")
+    require({r["source_bound"] for r in rows} == {str(b) for b in bounds}, "bound identity coverage")
+    edge_maps = {e["source_edge"]: e for e in observed["edge_mappings"]}
+    all_uses = []
+    for row in rows:
+        bound = index[int(row["source_bound"])]
+        loop = index[ref(bound.args[1])]
+        require(row["source_face"] == str(face.entity_id) and row["source_loop"] == str(loop.entity_id) and
+                row["outer"] == (bound.kind == "FACE_OUTER_BOUND") and
+                row["source_orientation"] == (bound.args[2] == ".T."), "source loop binding")
+        wanted = []
+        for token in aggregate(loop.args[1]):
+            oe = index[ref(token)]
+            edge = index[ref(oe.args[3])]
+            start, end = ref(edge.args[1]), ref(edge.args[2])
+            if oe.args[4] == ".F.":
+                start, end = end, start
+            wanted.append((str(oe.entity_id), str(edge.entity_id), str(start), str(end)))
+        if bound.args[2] == ".F.":
+            wanted = [(oe, edge, end, start) for oe, edge, start, end in reversed(wanted)]
+        actual = [(u["source_oriented_edge"], u["source_edge"], u["start_vertex"], u["end_vertex"])
+                  for u in row["uses"]]
+        require(len(actual) == len(wanted) and any(actual == wanted[k:] + wanted[:k] for k in range(len(wanted))),
+                "directed occurrence identity and cyclic order")
+        for use in row["uses"]:
+            forward = use["start_vertex"] == edge_maps[use["source_edge"]]["native_min_vertex"]
+            require(use["uv_owner_edgeuse"] == "SAME" and use["forward_in_native_curve"] == forward and
+                    use["uv_owner_on_selected_side"] == forward, "actual occurrence UV owner and direction")
+            vector(use["uv_start_mm"], uv(int(use["start_vertex"])), F(1, 10**7), "source UV start")
+            vector(use["uv_end_mm"], uv(int(use["end_vertex"])), F(1, 10**7), "source UV end")
+            all_uses.append(use["source_oriented_edge"])
+    require(len(all_uses) == len(set(all_uses)) == observed["native_measurements"]["edges"], "all source occurrences")
 
 
 def corpus_case(case, observed, exit_code, data):
     key = case["case_id"]
-    if key == "S203-P01":
-        require(exit_code == 0, "F1 native success exit")
-        accepted(observed, data, case["truth"])
+    if key in {"S203-P01", "S203-P02", "S203-P03"}:
+        require(exit_code == 0, "qualified native success exit")
+        window = case["truth"]["source_definition"]["source_uv_window"]
+        accepted(observed, data, case["truth"], uv_bounds=tuple(decode(v) for corner in window for v in corner))
         return
     status = ("Deferred" if key in DEFERRED else "Unsupported" if key in UNSUPPORTED or "-P" in key
               else "Rejected")
@@ -101,7 +166,8 @@ def corpus_case(case, observed, exit_code, data):
     require(observed["model"] is None and observed["native_measurements"] is None and
             observed["native_calls"] == 0 and not observed["candidate_discarded"], "blocked before native construction")
     require(observed["validations"] == {"pointer_reports": None, "level2_reports": None} and
-            not observed["tolerances"] and not observed["edge_mappings"], "unexecuted native checks")
+            not observed["tolerances"] and not observed["edge_mappings"] and not observed["loop_mappings"],
+            "unexecuted native checks")
     require(observed["source"]["sha256"] == hashlib.sha256(data).hexdigest(), "rejected input identity")
     if "-N" in key and key not in DEFERRED:
         diagnostic = observed["diagnostics"][0]

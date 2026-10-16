@@ -14,7 +14,7 @@ import unittest
 
 from tools.step_import_validation.common import load_json
 from tools.step_import_validation.corpus import verify
-from tools.step_import_validation.oracle import decode
+from tools.step_import_validation.oracle import decode, exact
 from tools.step_import_native_validation.oracle import accepted, corpus_case, vector
 
 CORPUS = Path(__file__).resolve().parents[2] / "step_import_validation/corpus/ap203e2-planar/v1"
@@ -64,7 +64,7 @@ class NativeTests(unittest.TestCase):
                 actual, observed = self.invoke(data)
                 corpus_case(case, observed, actual.returncode, data)
                 counts[observed["status"]] += 1
-        self.assertEqual(Counter(Accepted=1, Rejected=25, Unsupported=17, Deferred=6), counts)
+        self.assertEqual(Counter(Accepted=3, Rejected=25, Unsupported=15, Deferred=6), counts)
 
     def test_frozen_independent_closest_point(self):
         truth = self.truth["queries"]["off_face"]
@@ -75,6 +75,117 @@ class NativeTests(unittest.TestCase):
         vector(observed["query"]["closest_point_mm"], list(map(decode, truth["closest_point_mm"])),
                F(1, 10**7), "independent closest point")
         self.assertLessEqual(abs(F(observed["query"]["distance_mm"]) - 3), F(1, 10**7))
+
+    def test_hole_loop_and_use_uv_provenance_is_retained(self):
+        data = (CORPUS / "cases/S203-P02/input.step").read_bytes()
+        result, observed = self.invoke(data)
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+        loops = observed["loop_mappings"]
+        self.assertEqual([("301", "300", True), ("311", "310", False)],
+                         [(r["source_bound"], r["source_loop"], r["outer"]) for r in loops])
+        self.assertEqual(8, sum(len(row["uses"]) for row in loops))
+
+    def test_perforated_plane_queries_and_negative_uv_world_invariance(self):
+        observations = []
+        for case_id in ("S203-P02", "S203-P03"):
+            with self.subTest(case=case_id):
+                truth = next(c["truth"] for c in self.cases if c["case_id"] == case_id)
+                data = (CORPUS / f"cases/{case_id}/input.step").read_bytes()
+                query = truth["queries"]["hole"]
+                actual, observed = self.invoke(data, "--query", *map(float, map(decode, query["point_mm"])))
+                self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+                window = (-6, -4, 6, 4) if case_id == "S203-P03" else (0, 0, 12, 8)
+                accepted(observed["import"], data, truth, uv_bounds=window)
+                vector(observed["query"]["closest_point_mm"], list(map(decode, query["closest_point_mm"])),
+                       F(1, 10**7), "closest point above hole")
+                distance = F(observed["query"]["distance_mm"])
+                self.assertLessEqual(decode(query["distance_mm"]["lower"]) - F(1, 10**7), distance)
+                self.assertLessEqual(distance, decode(query["distance_mm"]["upper"]) + F(1, 10**7))
+                observations.append(observed)
+        first, second = [o["import"]["native_measurements"] for o in observations]
+        for field, budget in (("area_mm2", F(1, 10**6)), ("boundary_mm", F(1, 10**7))):
+            self.assertLessEqual(abs(F(first[field]) - F(second[field])), budget)
+        for field in ("centroid_mm", "normal"):
+            vector(first[field], list(map(F, second[field])), F(1, 10**7), "same world " + field)
+        for a, b in zip(first["bounds_mm"], second["bounds_mm"]):
+            vector(a, list(map(F, b)), F(1, 10**7), "same world bounds")
+        vector(observations[0]["query"]["closest_point_mm"],
+               list(map(F, observations[1]["query"]["closest_point_mm"])), F(1, 10**7), "same world closest point")
+
+    def test_hole_directions_and_bound_set_order_preserve_source_identity(self):
+        for shifted in (False, True):
+            case_id = "S203-P03" if shifted else "S203-P02"
+            original = (CORPUS / f"cases/{case_id}/input.step").read_bytes()
+            truth = next(c["truth"] for c in self.cases if c["case_id"] == case_id)
+            for reverse_curve, swap_edge, reverse_bound, reverse_face in itertools.product([False, True], repeat=4):
+                with self.subTest(shifted=shifted, flags=(reverse_curve, swap_edge, reverse_bound, reverse_face)):
+                    # Inner bound deliberately precedes outer in the source SET.
+                    data = self.record(original, 302, "ADVANCED_FACE('',(#311,#301),#134,.T.)")
+                    if reverse_curve:
+                        data = self.record(data, 240, "DIRECTION('',(0.8,-0.6,0.))")
+                    sense = ".F." if reverse_curve ^ swap_edge else ".T."
+                    data = self.record(data, 243, f"EDGE_CURVE('',#{115 if swap_edge else 114},"
+                                                 f"#{114 if swap_edge else 115},#242,{sense})")
+                    if reverse_bound:
+                        data = self.record(data, 310, "EDGE_LOOP('',(#274,#264,#254,#244))")
+                        data = self.record(data, 311, "FACE_BOUND('',#310,.F.)")
+                    for oe, ec in [(244, 243), (254, 253), (264, 263), (274, 273)]:
+                        backward = reverse_bound ^ (swap_edge and oe == 244)
+                        data = self.record(data, oe, f"ORIENTED_EDGE('',*,*,#{ec},{'.F.' if backward else '.T.'})")
+                    if reverse_face:
+                        data = self.record(data, 131, "DIRECTION('',(0.,0.,-1.))")
+                        data = self.record(data, 302, "ADVANCED_FACE('',(#311,#301),#134,.F.)")
+                    actual, observed = self.invoke(data)
+                    self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+                    window = (-6, -4, 6, 4) if shifted else (0, -8, 12, 0) if reverse_face else (0, 0, 12, 8)
+                    accepted(observed, data, truth, uv_bounds=window)
+
+    def test_multiple_holes_do_not_depend_on_inner_loop_list_order(self):
+        data = (CORPUS / "cases/S203-P02/input.step").read_bytes()
+        truth = deepcopy(next(c["truth"] for c in self.cases if c["case_id"] == "S203-P02"))
+        # Additional clockwise rectangle: source UV [8,1]..[10,2], area 2, perimeter 6.
+        rows = ["#140=CARTESIAN_POINT('',(7.,5.,5.));", "#141=CARTESIAN_POINT('',(6.2,5.6,5.));",
+                "#142=CARTESIAN_POINT('',(7.4,7.2,5.));", "#143=CARTESIAN_POINT('',(8.2,6.6,5.));"]
+        directions = ["(-0.8,0.6,0.)", "(0.6,0.8,0.)", "(0.8,-0.6,0.)", "(-0.6,-0.8,0.)"]
+        for i, direction in enumerate(directions):
+            base = 400 + 10 * i
+            rows += [f"#{120+i}=VERTEX_POINT('',#{140+i});", f"#{base}=DIRECTION('',{direction});",
+                     f"#{base+1}=VECTOR('',#{base},{1 if i % 2 == 0 else 2}.);",
+                     f"#{base+2}=LINE('',#{140+i},#{base+1});",
+                     f"#{base+3}=EDGE_CURVE('',#{120+i},#{120+(i+1)%4},#{base+2},.T.);",
+                     f"#{base+4}=ORIENTED_EDGE('',*,*,#{base+3},.T.);"]
+        rows += ["#320=EDGE_LOOP('',(#404,#414,#424,#434));", "#321=FACE_BOUND('',#320,.T.);"]
+        data = data.replace(b"ENDSEC;\nEND-ISO", ("\n".join(rows) + "\nENDSEC;\nEND-ISO").encode())
+        data = self.record(data, 302, "ADVANCED_FACE('',(#321,#301,#311),#134,.T.)")
+        truth["source_topology"] = dict(faces=1, edges=12, vertices=12)
+        truth["measures"] = dict(area=exact(86), perimeter=exact(58))
+        removed_centroid = [F(36, 5), F(61, 10), F(5)]
+        truth["centroid"] = [exact((88 * decode(v) - 2 * r) / 86)
+                             for v, r in zip(truth["centroid"], removed_centroid)]
+        actual, observed = self.invoke(data)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, data, truth)
+        self.assertEqual(3, len(observed["loop_mappings"]))
+
+    def test_hole_checker_rejects_lost_or_wrong_occurrence_uv(self):
+        data = (CORPUS / "cases/S203-P03/input.step").read_bytes()
+        truth = next(c["truth"] for c in self.cases if c["case_id"] == "S203-P03")
+        actual, original = self.invoke(data)
+        self.assertEqual(0, actual.returncode)
+        for defect in ("missing_hole", "wrong_loop", "wrong_use", "wrong_owner", "shifted_uv"):
+            observed = deepcopy(original)
+            if defect == "missing_hole":
+                observed["loop_mappings"].pop()
+            if defect == "wrong_loop":
+                observed["loop_mappings"][1]["source_loop"] = "300"
+            if defect == "wrong_use":
+                observed["loop_mappings"][1]["uses"][0]["source_oriented_edge"] = "204"
+            if defect == "wrong_owner":
+                observed["loop_mappings"][1]["uses"][0]["uv_owner_edgeuse"] = "OPPOSITE"
+            if defect == "shifted_uv":
+                observed["loop_mappings"][1]["uses"][0]["uv_start_mm"][0] += 6
+            with self.subTest(defect=defect), self.assertRaises(AssertionError):
+                accepted(observed, data, truth, uv_bounds=(-6, -4, 6, 4))
 
     def test_all_16_legal_direction_chains(self):
         for reverse_curve, swap_edge, reverse_bound, reverse_face in itertools.product([False, True], repeat=4):

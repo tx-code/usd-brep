@@ -29,17 +29,23 @@ struct UsePlan
     std::size_t edge, orientedEdge;
     bool forward;
 };
+struct LoopPlan
+{
+    std::size_t bound, loop;
+    bool outer, sourceOrientation;
+    std::vector<UsePlan> primaryUses, selectedUses;
+};
 struct Plan
 {
     std::shared_ptr<const step_semantics::Snapshot> source;
-    std::size_t face, plane, bound;
+    std::size_t face, plane;
     bool faceSameSense;
     ExactPoint originMm, x, y;
     Fraction xNormSquared, yNormSquared, sourceAreaSquared;
     ExactPoint sourceCentroid, sourceMinimum, sourceMaximum;
     std::vector<VertexPlan> vertices;
     std::vector<EdgePlan> edges;
-    std::vector<UsePlan> primaryUses, selectedUses;
+    std::vector<LoopPlan> loops; // Native convention: outer first; source identities remain separate from list order.
 };
 Plan MakePlan(const step_planar::Outcome& checked);
 std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report);
