@@ -120,7 +120,7 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
         accepted(observed, sparse, truth)
 
-    def transformed_box(self, shear=False):
+    def transformed_box(self, shear=False, tilt=False):
         data, truth = self.box()
         rows = inventory(data)
         axes = {ref(row.args[2]) for row in rows if row.kind == "AXIS2_PLACEMENT_3D" and row.args[2] != "$"}
@@ -129,6 +129,11 @@ class NativeTests(unittest.TestCase):
             x, y, z = point
             if shear:
                 return (x, y - x / 5, z) if normal else (x + y / 5, y, z)
+            if tilt:
+                # Exact proper rotation Rx*Rz*Ry; all three axes leave the coordinate planes.
+                return (F(9, 25)*x - F(4, 5)*y + F(12, 25)*z,
+                        F(116, 125)*x + F(9, 25)*y - F(12, 125)*z,
+                        -F(12, 125)*x + F(12, 25)*y + F(109, 125)*z)
             return (F(3, 5)*x - F(4, 5)*y, F(4, 5)*x + F(3, 5)*y, z)
         def text(value):
             scale = 0
@@ -158,10 +163,14 @@ class NativeTests(unittest.TestCase):
         return data, truth
 
     def test_rigidly_transformed_material_box_keeps_geometry_and_role(self):
-        data, truth = self.transformed_box()
-        actual, observed = self.invoke(data)
-        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
-        accepted(observed, data, truth)
+        for tilt in (False, True):
+            with self.subTest(tilt=tilt):
+                data, truth = self.transformed_box(tilt=tilt)
+                actual, observed = self.invoke(data)
+                self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+                accepted(observed, data, truth)
+                self.assertGreater(observed["volume_gap_flux_bound_mm3"], 0)
+                self.assertGreater(observed["volume_skipped_flux_bound_mm3"], 0)
 
     def test_box_scope_rejects_skew_and_closed_surface_promotion(self):
         data, _ = self.transformed_box(shear=True)
@@ -181,8 +190,8 @@ class NativeTests(unittest.TestCase):
         data, truth = self.box()
         actual, original = self.invoke(data)
         self.assertEqual(0, actual.returncode)
-        for defect in ("volume", "flux", "junction", "role", "region", "adjacency", "uv_owner",
-                       "plane", "use", "normal", "parameter"):
+        for defect in ("volume", "flux", "junction", "gap_flux", "skipped_flux", "role", "region", "adjacency",
+                       "uv_owner", "plane", "use", "normal", "parameter"):
             observed = deepcopy(original)
             if defect == "volume":
                 observed["native_measurements"]["material_volume"]["value_mm3"] += 1
@@ -190,6 +199,10 @@ class NativeTests(unittest.TestCase):
                 observed["volume_bound_mm3"] = None
             if defect == "junction":
                 observed["volume_junction_bound_mm"] = 2e-7
+            if defect == "gap_flux":
+                observed["volume_gap_flux_bound_mm3"] = None
+            if defect == "skipped_flux":
+                observed["volume_skipped_flux_bound_mm3"] = 2e-5
             if defect == "role":
                 observed["model"]["role"] = "OpenSurfaceModel"
             if defect == "region":

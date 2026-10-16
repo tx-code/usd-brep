@@ -292,7 +292,11 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             Optional(w, report.volumeBoundMm3);
             w.Add(",\"volume_junction_bound_mm\":");
             Optional(w, report.volumeJunctionBoundMm);
-            w.Add(",\"volume_evidence_policy\":\"AffineCarrierEndpointIntervalsNoGeometryChange\"");
+            w.Add(",\"volume_gap_flux_bound_mm3\":");
+            Optional(w, report.volumeGapFluxBoundMm3);
+            w.Add(",\"volume_skipped_flux_bound_mm3\":");
+            Optional(w, report.volumeSkippedFluxBoundMm3);
+            w.Add(",\"volume_evidence_policy\":\"ActualOrientedFiniteSegmentsZGaugeGapAndTinyDuBounds\"");
             w.Add(",\"definition_bound_mm\":");
             Optional(w, report.definitionBoundMm);
             w.Add(",\"consistency_bound_mm\":");

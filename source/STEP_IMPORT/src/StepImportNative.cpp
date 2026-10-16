@@ -748,7 +748,7 @@ private:
                         Add(nativePlane.u, Times(nativePlane.uv, Exact(v))),
                         Add(nativePlane.v, Times(nativePlane.uv, Exact(u)))
                     );
-                    if (!(Dot(jacobian, Cross(sourceX, sourceY)).low > 0))
+                    if (!(Dot(jacobian, Cross(sourceX, sourceY)).low > SM_EFF_ZERO * NormUpper(Cross(sourceX, sourceY))))
                     {
                         throw Failure{ Status::Indeterminate,
                                        "NativeSurfaceJacobianUnestablished",
@@ -894,135 +894,184 @@ private:
     }
     void VerifyAdjacency();
     void Measure();
-    Interval BoundaryVolume(bool polygon);
+    Interval BoundaryVolume();
 };
-Interval Builder::BoundaryVolume(bool polygon)
+namespace
 {
-    Interval volume = Exact(0);
-    for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+Interval Hull(Interval a, Interval b)
+{
+    return { std::min(a.low, b.low), std::max(a.high, b.high) };
+}
+IntervalPoint Hull(IntervalPoint a, IntervalPoint b)
+{
+    for (std::size_t i = 0; i < 3; ++i)
     {
-        const auto surface = PlaneCoefficients(*m_model->faces[f].plane, polygon);
-        const auto origin = Subtract(surface.origin, Enclose(m_plan.box->center));
-        const auto normal = Cross(surface.u, surface.v);
-        const auto a = Dot(origin, normal);
-        const auto b = Dot(origin, Cross(surface.u, surface.uv));
-        const auto c = Dot(origin, Cross(surface.uv, surface.v));
-        const auto d = Exact(0) - Dot(surface.uv, normal);
-        for (const auto& loop : m_report.loops)
+        a[i] = Hull(a[i], b[i]);
+    }
+    return a;
+}
+double AbsoluteBound(Interval value)
+{
+    return std::max(std::abs(value.low), std::abs(value.high));
+}
+struct OwnedBoundary
+{
+    SmTArray<SmBSplineCurve*> curves;
+    ~OwnedBoundary()
+    {
+        for (ULONG i = 0; i < curves.GetSize(); ++i)
         {
-            if (loop.faceId != Id(m_plan.faces[f].face))
-            {
-                continue;
-            }
-            std::vector<std::array<Interval, 2>> junctions;
-            const auto cross2 = [](const auto& a, const auto& b)
-            {
-                return a[0] * b[1] - a[1] * b[0];
-            };
-            const auto difference = [](const auto& a, const auto& b)
-            {
-                return std::array<Interval, 2>{ a[0] - b[0], a[1] - b[1] };
-            };
-            const auto exact2 = [](const auto& point)
-            {
-                return std::array<Interval, 2>{ Exact(point[0]), Exact(point[1]) };
-            };
-            for (std::size_t i = 0; i < loop.uses.size(); ++i)
-            {
-                const auto& use = loop.uses[i];
-                const auto& previous = loop.uses[(i + loop.uses.size() - 1) % loop.uses.size()];
-                const auto p = exact2(previous.uvStartMm), q = exact2(use.uvStartMm);
-                const auto d0 = difference(exact2(previous.uvEndMm), p), d1 = difference(exact2(use.uvEndMm), q);
-                const auto t = cross2(difference(q, p), d1) / cross2(d0, d1);
-                std::array<Interval, 2> junction;
-                for (std::size_t axis = 0; axis < 2; ++axis)
-                {
-                    const auto intersection = p[axis] + t * d0[axis];
-                    junction[axis] = { std::min({ intersection.low, use.uvStartMm[axis], previous.uvEndMm[axis] }),
-                                       std::max({ intersection.high, use.uvStartMm[axis], previous.uvEndMm[axis] }) };
-                }
-                const auto analyticEndpoints = [&](const UseMapping& item)
-                {
-                    const auto foundEdge = std::find_if(
-                        m_plan.edges.begin(),
-                        m_plan.edges.end(),
-                        [&](const auto& edge)
-                        {
-                            return Id(edge.record) == item.edgeId;
-                        }
-                    );
-                    Need(foundEdge != m_plan.edges.end(), "NativeVolumeEdgeIdentityMissing", m_plan.faces[f].face);
-                    const auto e = static_cast<std::size_t>(foundEdge - m_plan.edges.begin());
-                    const auto uv = dynamic_cast<const SmLine*>(SameUse(e, m_model->faces[f])->GetUVTrimCurvePointer());
-                    Need(uv != nullptr, "NativeVolumeUvNotAffine", m_plan.faces[f].face);
-                    const auto coefficients = LineCoefficients(*uv, false);
-                    const auto start = item.forwardInNativeCurve ? coefficients.origin : Add(coefficients.origin, coefficients.delta);
-                    const auto end = item.forwardInNativeCurve ? Add(coefficients.origin, coefficients.delta) : coefficients.origin;
-                    return std::array<std::array<Interval, 2>, 2>{ std::array<Interval, 2>{ start[0], start[1] },
-                                                                   std::array<Interval, 2>{ end[0], end[1] } };
-                };
-                const auto before = analyticEndpoints(previous), after = analyticEndpoints(use);
-                const auto incoming = difference(before[1], before[0]), outgoing = difference(after[1], after[0]);
-                const auto parameter = cross2(difference(after[0], before[0]), outgoing) / cross2(incoming, outgoing);
-                for (std::size_t axis = 0; axis < 2; ++axis)
-                {
-                    const auto intersection = before[0][axis] + parameter * incoming[axis];
-                    junction[axis].low = std::min({ junction[axis].low, before[1][axis].low, after[0][axis].low, intersection.low });
-                    junction[axis].high = std::max({ junction[axis].high, before[1][axis].high, after[0][axis].high, intersection.high });
-                }
-                const auto found = std::find_if(
-                    m_plan.vertices.begin(),
-                    m_plan.vertices.end(),
-                    [&](const auto& vertex)
-                    {
-                        return Id(vertex.record) == use.startVertexId;
-                    }
-                );
-                Need(found != m_plan.vertices.end(), "NativeVolumeVertexIdentityMissing", m_plan.faces[f].face);
-                const auto index = static_cast<std::size_t>(found - m_plan.vertices.begin());
-                const auto physical = Evaluate(surface, junction[0], junction[1]);
-                const auto gap = NormUpper(Subtract(physical, Exact(PointOf(m_model->vertices[index]->GetPoint()))));
-                m_report.volumeJunctionBoundMm = std::max(m_report.volumeJunctionBoundMm.value_or(0), gap);
-                Certify(gap, m_options.quality.consistencyMm, "NativeVolumeJunctionBudget", m_plan.faces[f].face);
-                const auto domain = m_model->faces[f].plane->GetNaturalUVDomain();
-                if (junction[0].low < domain.GetMin().x || junction[0].high > domain.GetMax().x || junction[1].low < domain.GetMin().y ||
-                    junction[1].high > domain.GetMax().y)
-                {
-                    throw Failure{ Status::Indeterminate,
-                                   "NativeVolumeJunctionOutsideWindow",
-                                   "Junction evidence exceeds the verified surface window",
-                                   m_plan.faces[f].face };
-                }
-                junctions.push_back(junction);
-            }
-            Interval area = Exact(0), firstU = Exact(0), firstV = Exact(0), mixed = Exact(0);
-            for (std::size_t i = 0; i < junctions.size(); ++i)
-            {
-                const auto& start = junctions[i];
-                const auto& end = junctions[(i + 1) % junctions.size()];
-                const auto turn = cross2(difference(end, start), difference(junctions[(i + 2) % junctions.size()], end));
-                if (!(m_plan.faces[f].faceSameSense ? turn.low > 0 : turn.high < 0))
-                {
-                    throw Failure{ Status::Indeterminate,
-                                   "NativeVolumeRegionOrientationUnestablished",
-                                   "Closed interval polygon is not proved strictly convex and source-oriented",
-                                   m_plan.faces[f].face };
-                }
-                const auto u0 = start[0], v0 = start[1], u1 = end[0], v1 = end[1];
-                const auto cross = u0 * v1 - u1 * v0;
-                area = area + cross / Exact(2);
-                firstU = firstU + (u0 + u1) * cross / Exact(6);
-                firstV = firstV + (v0 + v1) * cross / Exact(6);
-                mixed = mixed + (Exact(2) * u0 * v0 + u0 * v1 + u1 * v0 + Exact(2) * u1 * v1) * cross / Exact(24);
-            }
-            // For bilinear S=O+Xu+Yv+Tuv, S.(Su x Sv)=a+bu+cv+duv.
-            // Interval junctions enclose stored endpoints and adjacent affine-carrier intersections.
-            // Evidence only: no UV or defining geometry is changed. Polygon moments propagate
-            // junction uncertainty over the whole closed region, independently of native quadrature.
-            volume = volume + (a * area + b * firstU + c * firstV + d * mixed) / Exact(3);
+            delete curves[i];
         }
     }
-    return volume;
+};
+Affine CurveEnvelope(const SmLine& line)
+{
+    const auto analytic = LineCoefficients(line, false), polygon = LineCoefficients(line, true);
+    return { Hull(analytic.origin, polygon.origin), Hull(analytic.delta, polygon.delta) };
+}
+SurfaceCoefficients SurfaceEnvelope(const SmPlane& plane)
+{
+    const auto a = PlaneCoefficients(plane, false), b = PlaneCoefficients(plane, true);
+    return { Hull(a.origin, b.origin), Hull(a.u, b.u), Hull(a.v, b.v), Hull(a.uv, b.uv) };
+}
+using FluxCoefficients = std::array<std::array<Interval, 3>, 3>;
+FluxCoefficients ZFlux(const SurfaceCoefficients& surface, const IntervalPoint& reference)
+{
+    const auto o = Subtract(surface.origin, reference);
+    const auto n = Cross(surface.u, surface.v), nu = Cross(surface.u, surface.uv), nv = Cross(surface.uv, surface.v);
+    FluxCoefficients c{};
+    c[0][0] = o[2] * n[2];
+    c[1][0] = surface.u[2] * n[2] + o[2] * nu[2];
+    c[0][1] = surface.v[2] * n[2] + o[2] * nv[2];
+    c[1][1] = surface.uv[2] * n[2] + surface.u[2] * nv[2] + surface.v[2] * nu[2];
+    c[2][0] = surface.u[2] * nu[2];
+    c[0][2] = surface.v[2] * nv[2];
+    c[2][1] = surface.uv[2] * nu[2];
+    c[1][2] = surface.uv[2] * nv[2];
+    return c;
+}
+Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minimumV)
+{
+    // Native gauge: P(u,v)=-integral(vmin..v) (S_z-c_z)*(Su x Sv)_z dw, integrated as P du.
+    // Affine UV and bilinear surface imply degree <=4 in t. Three-point Gauss-Legendre is exact
+    // through degree 5; interval algebraic nodes/weights enclose its roundoff. This is exact
+    // polynomial integration, not a sampling-based error estimate.
+    const auto root = SqrtNonnegative(Exact(3) / Exact(5));
+    const std::array<Interval, 3> nodes = { (Exact(1) - root) / Exact(2), Exact(.5), (Exact(1) + root) / Exact(2) };
+    const std::array<Interval, 3> weights = { Exact(5) / Exact(18), Exact(4) / Exact(9), Exact(5) / Exact(18) };
+    std::array<Interval, 4> base{ Exact(1), Exact(minimumV), Exact(0), Exact(0) };
+    base[2] = base[1] * base[1];
+    base[3] = base[2] * base[1];
+    Interval result = Exact(0);
+    for (std::size_t k = 0; k < 3; ++k)
+    {
+        const auto u = line.origin[0] + nodes[k] * line.delta[0], v = line.origin[1] + nodes[k] * line.delta[1];
+        const std::array<Interval, 3> up{ Exact(1), u, u * u };
+        const std::array<Interval, 4> vp{ Exact(1), v, v * v, v * v * v };
+        Interval primitive = Exact(0);
+        for (std::size_t i = 0; i < 3; ++i)
+        {
+            for (std::size_t j = 0; j < 3; ++j)
+            {
+                if (i + j <= 3)
+                {
+                    primitive = primitive - c[i][j] * up[i] * (vp[j + 1] - base[j + 1]) / Exact(static_cast<double>(j + 1));
+                }
+            }
+        }
+        result = result + weights[k] * primitive * line.delta[0];
+    }
+    return result;
+}
+} // namespace
+Interval Builder::BoundaryVolume()
+{
+    Interval closedVolume = Exact(0);
+    double gapFlux = 0, skippedFlux = 0;
+    for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+    {
+        const auto& native = m_model->faces[f];
+        const auto& plan = m_plan.faces[f];
+        std::vector<std::pair<SmLine*, Affine>> originals;
+        for (const auto e : plan.edges)
+        {
+            const auto line = dynamic_cast<SmLine*>(SameUse(e, native)->GetUVTrimCurvePointer());
+            Need(line != nullptr, "NativeMassBoundaryUvMissing", plan.face);
+            originals.push_back({ line, CurveEnvelope(*line) });
+        }
+        OwnedBoundary boundary;
+        SmTArray<ULONG> counts;
+        Step(plan.face);
+        Good(native.face->CreateOrientedTrimBoundary(*m_model->context, TRUE, TRUE, counts, boundary.curves));
+        Need(counts.GetSize() == plan.loops.size(), "NativeMassBoundaryLoopMismatch", plan.face);
+        for (std::size_t e = 0; e < plan.edges.size(); ++e)
+        {
+            const auto line = dynamic_cast<SmLine*>(SameUse(plan.edges[e], native)->GetUVTrimCurvePointer());
+            Need(line == originals[e].first, "NativeMassBoundaryMutatedUvOwner", plan.face);
+            const auto now = CurveEnvelope(*line);
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                Need(
+                    now.origin[axis].low == originals[e].second.origin[axis].low && now.origin[axis].high == originals[e].second.origin[axis].high &&
+                        now.delta[axis].low == originals[e].second.delta[axis].low && now.delta[axis].high == originals[e].second.delta[axis].high,
+                    "NativeMassBoundaryMutatedUvGeometry",
+                    plan.face
+                );
+            }
+        }
+        const auto surface = SurfaceEnvelope(*native.plane);
+        const auto flux = ZFlux(surface, Exact(Value(m_plan.box->center)));
+        const auto domain = native.plane->GetNaturalUVDomain();
+        const auto sign = Exact(plan.faceSameSense ? 1.0 : -1.0);
+        std::size_t offset = 0;
+        for (ULONG loop = 0; loop < counts.GetSize(); ++loop)
+        {
+            std::vector<Affine> segments;
+            Need(counts[loop] > 0 && counts[loop] <= boundary.curves.GetSize() - offset, "NativeMassBoundaryCurveCount", plan.face);
+            for (ULONG i = 0; i < counts[loop]; ++i)
+            {
+                const auto line = dynamic_cast<const SmLine*>(boundary.curves[static_cast<ULONG>(offset + i)]);
+                Need(line != nullptr, "NativeMassBoundaryNotAffine", plan.face);
+                segments.push_back(CurveEnvelope(*line));
+            }
+            for (std::size_t i = 0; i < segments.size(); ++i)
+            {
+                const auto& segment = segments[i];
+                const auto value = SegmentFlux(flux, segment, domain.GetMin().y);
+                closedVolume = closedVolume + sign * value;
+                if (segment.delta[0].low <= SM_EFF_ZERO && segment.delta[0].high >= -SM_EFF_ZERO)
+                {
+                    skippedFlux = Up(skippedFlux + AbsoluteBound(value));
+                }
+                const auto end = Add(segment.origin, segment.delta), next = segments[(i + 1) % segments.size()].origin;
+                const Affine gap{ end, Subtract(next, end) };
+                const auto correction = SegmentFlux(flux, gap, domain.GetMin().y);
+                closedVolume = closedVolume + sign * correction;
+                gapFlux = Up(gapFlux + AbsoluteBound(correction));
+                const auto physical = NormUpper(Subtract(Evaluate(surface, end[0], end[1]), Evaluate(surface, next[0], next[1])));
+                m_report.volumeJunctionBoundMm = std::max(m_report.volumeJunctionBoundMm.value_or(0), physical);
+                Certify(physical, m_options.quality.consistencyMm, "NativeVolumeGapBudget", plan.face);
+                for (const auto& endpoint : { segment.origin, end })
+                {
+                    if (endpoint[0].low < domain.GetMin().x || endpoint[0].high > domain.GetMax().x || endpoint[1].low < domain.GetMin().y ||
+                        endpoint[1].high > domain.GetMax().y)
+                    {
+                        throw Failure{ Status::Indeterminate,
+                                       "NativeMassBoundaryOutsideWindow",
+                                       "Actual oriented finite trim exceeds verified window",
+                                       plan.face };
+                    }
+                }
+            }
+            offset += counts[loop];
+        }
+        Need(offset == boundary.curves.GetSize(), "NativeMassBoundaryExtraCurves", plan.face);
+    }
+    m_report.volumeGapFluxBoundMm3 = gapFlux;
+    m_report.volumeSkippedFluxBoundMm3 = skippedFlux;
+    const auto omissions = Up(gapFlux + skippedFlux);
+    return closedVolume + Interval{ -omissions, omissions };
 }
 void Builder::VerifyAdjacency()
 {
@@ -1157,20 +1206,17 @@ void Builder::Measure()
         info.centroidMm = PointOf(centroid);
         const auto directVolumeError = Exact(volume) - Enclose(m_plan.box->volume);
         double volumeBound = std::max(std::abs(directVolumeError.low), std::abs(directVolumeError.high));
-        for (bool polygon : { false, true })
+        const auto integral = BoundaryVolume();
+        if (!(integral.low > 0))
         {
-            const auto integral = BoundaryVolume(polygon);
-            if (!(integral.low > 0))
-            {
-                throw Failure{ Status::Indeterminate,
-                               "NativeVolumeSignUnestablished",
-                               "Oriented target boundary integral is not proved positive",
-                               m_plan.record };
-            }
-            for (const auto error : { integral - Enclose(m_plan.box->volume), Exact(volume) - integral })
-            {
-                volumeBound = std::max({ volumeBound, std::abs(error.low), std::abs(error.high) });
-            }
+            throw Failure{ Status::Indeterminate,
+                           "NativeVolumeSignUnestablished",
+                           "Actual finite boundary flux is not proved positive",
+                           m_plan.record };
+        }
+        for (const auto error : { integral - Enclose(m_plan.box->volume), Exact(volume) - integral })
+        {
+            volumeBound = std::max({ volumeBound, std::abs(error.low), std::abs(error.high) });
         }
         m_report.volumeBoundMm3 = volumeBound;
         Certify(volumeBound, m_options.quality.volumeMm3, "NativeBoundaryVolumeBudget", m_plan.record);

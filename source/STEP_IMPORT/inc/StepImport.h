@@ -162,6 +162,7 @@ struct Report
     std::vector<FaceObservation> faces;
     std::vector<EdgeAdjacency> adjacency;
     std::optional<double> volumeBoundMm3, volumeJunctionBoundMm;
+    std::optional<double> volumeGapFluxBoundMm3, volumeSkippedFluxBoundMm3;
     std::optional<std::size_t> solidRegions, voidCavities;
     std::optional<Statistics> native;
     std::optional<double> definitionBoundMm, consistencyBoundMm, uvBoundMm;

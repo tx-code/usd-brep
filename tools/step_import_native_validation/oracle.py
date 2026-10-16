@@ -65,10 +65,13 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
                 0 <= F(observed["volume_bound_mm3"]) <= decode(q["aux_volume_error_mm3"]),
                 "actual boundary volume proof")
         require(observed["material_census"] == dict(solid_regions=1, void_cavities=0), "actual material census")
-        require(observed["volume_evidence_policy"] == "AffineCarrierEndpointIntervalsNoGeometryChange" and
+        require(observed["volume_evidence_policy"] == "ActualOrientedFiniteSegmentsZGaugeGapAndTinyDuBounds" and
                 observed["volume_junction_bound_mm"] is not None and
                 0 <= F(observed["volume_junction_bound_mm"]) <= decode(q["consistency_error_mm"]),
                 "whole-boundary junction uncertainty is independently budgeted")
+        for field in ("volume_gap_flux_bound_mm3", "volume_skipped_flux_bound_mm3"):
+            require(observed[field] is not None and math.isfinite(observed[field]) and
+                    0 <= F(observed[field]) <= decode(q["aux_volume_error_mm3"]), "actual native omissions bounded")
     else:
         vector(n["normal"], normal, tolerance, "selected face normal")
         require(n["material_volume"] == "NotApplicable", "open surface material-volume qualification")
