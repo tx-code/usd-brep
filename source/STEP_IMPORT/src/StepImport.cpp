@@ -11,7 +11,7 @@ namespace step_import
 Quality Quality::PlanarFixture()
 {
     return { "Q-P0-mm-01", Fraction(1, 100000000), Fraction(1, 10000000), Fraction(1, 10000000), Fraction(1, 100000), Fraction(1, 10000),
-             Fraction(),   Fraction(1, 10000000),  Fraction(1, 1000000) };
+             Fraction(),   Fraction(1, 10000000),  Fraction(1, 1000000),  Fraction(1, 100000) };
 }
 Options Options::PlanarFixture()
 {
@@ -23,7 +23,7 @@ void Validate(const Options& options)
 {
     const auto& q = options.quality;
     const std::array positive = { q.definitionMm,           q.consistencyMm, q.derivedUvMm, q.initialWorkToleranceMm,
-                                  q.maximumWorkToleranceMm, q.queryMm,       q.areaMm2 };
+                                  q.maximumWorkToleranceMm, q.queryMm,       q.areaMm2,     q.volumeMm3 };
     if (q.id.empty() ||
         !std::all_of(
             positive.begin(),
@@ -48,7 +48,8 @@ void Validate(const Options& options)
             quality.maximumWorkToleranceMm,
             quality.toleranceGrowthMm,
             quality.queryMm,
-            quality.areaMm2
+            quality.areaMm2,
+            quality.volumeMm3
         );
     };
     if (q.id == "Q-P0-mm-01" && fields(q) != fields(Quality::PlanarFixture()))
@@ -206,5 +207,24 @@ const char* StatusName(Status status)
             return "SourceFailure";
     }
     throw std::logic_error("Unknown import status");
+}
+const char* MaterialPointClassName(MaterialPointClass classification)
+{
+    switch (classification)
+    {
+        case MaterialPointClass::Outside:
+            return "Outside";
+        case MaterialPointClass::Inside:
+            return "Inside";
+        case MaterialPointClass::Face:
+            return "OnFace";
+        case MaterialPointClass::Edge:
+            return "OnEdge";
+        case MaterialPointClass::Vertex:
+            return "OnVertex";
+        case MaterialPointClass::Indeterminate:
+            return "Indeterminate";
+    }
+    throw std::logic_error("Unknown material point classification");
 }
 } // namespace step_import

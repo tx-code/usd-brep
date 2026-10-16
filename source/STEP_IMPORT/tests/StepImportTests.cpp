@@ -38,6 +38,7 @@ int main(int argc, char** argv)
         Require(info.faces == 1 && info.edges == 4 && info.vertices == 4, "F1 topology");
         Require(std::abs(info.areaMm2 - 96) <= 1e-6 && std::abs(info.boundaryMm - 40) <= 1e-7, "Independent F1 measures");
         Require(!result.model->MaterialVolumeMm3(), "An open surface has no material volume qualification");
+        Require(!result.model->ClassifyMaterial({ 4.2, 9.6, 5 }), "An open surface has no InsideSolid qualification");
         Require(result.report.pointerReports == 0 && result.report.deepReports == 0, "Both native validators actually executed");
         Require(result.report.definitionBoundMm && *result.report.definitionBoundMm <= 1e-8, "Native defining geometry certificate");
         Require(

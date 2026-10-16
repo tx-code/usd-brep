@@ -16,6 +16,8 @@
 #include <SmLoopuse.h>
 #include <SmPlane.h>
 #include <SmPointClass.h>
+#include <SmRegion.h>
+#include <SmShell.h>
 #include <SmTol.h>
 #include <SmVertex.h>
 #include <SmVertexuse.h>
@@ -31,19 +33,28 @@
 
 namespace step_import::detail
 {
-struct ModelData
+struct NativeFaceData
 {
-    // Destruction is reverse declaration order: owned BRep before its context.
-    std::unique_ptr<SmContext> context;
-    std::unique_ptr<SmBrep> brep;
-    std::shared_ptr<const step_semantics::Snapshot> source;
     SmFace* face = nullptr;
     SmPlane* plane = nullptr;
+    std::vector<SmLoop*> loops;
+    std::string faceId;
+    Statistics info;
+};
+struct ModelData
+{
+    std::unique_ptr<SmContext> context; // Reverse destruction order: BRep before context.
+    std::unique_ptr<SmBrep> brep;
+    std::shared_ptr<const step_semantics::Snapshot> source;
+    std::vector<NativeFaceData> faces;
     std::vector<SmVertex*> vertices;
     std::vector<SmEdge*> edges;
     std::vector<SmLine*> curves;
-    std::vector<SmLoop*> loops;
-    std::string faceId;
+    SmRegion* material = nullptr;
+    SmShell* outside = nullptr;
+    SmShell* inside = nullptr;
+    double queryTolerance = 0;
+    Fraction queryBudget;
     Statistics info;
     mutable std::mutex mutex;
 };
@@ -215,7 +226,8 @@ public:
         : m_plan(plan), m_options(options), m_report(report), m_model(std::make_shared<ModelData>())
     {
         m_model->source = m_plan.source;
-        m_model->faceId = Id(m_plan.face);
+        m_model->queryTolerance = Value(m_options.quality.queryMm);
+        m_model->queryBudget = m_options.quality.queryMm;
     }
     std::shared_ptr<ModelData> Run()
     {
@@ -224,17 +236,17 @@ public:
             throw Failure{ Status::Indeterminate,
                            "UnsupportedNativeNumericEnvironment",
                            "Outward binary64 evidence requires nearest rounding",
-                           m_plan.face };
+                           m_plan.record };
         }
         try
         {
             m_report.kernelPath = LoadedKernel();
-            Step(m_plan.face);
+            Step(m_plan.record);
             m_model->context = std::make_unique<SmContext>();
             SmBrepConstructor ctor;
-            Step(m_plan.face);
+            Step(m_plan.record);
             m_model->brep.reset(ctor.StartBrep(*m_model->context));
-            Need(bool(m_model->brep), "NativeBrepAllocationFailed", m_plan.face);
+            Need(bool(m_model->brep), "NativeBrepAllocationFailed", m_plan.record);
             const auto tolerance = Value(m_options.quality.initialWorkToleranceMm);
             m_model->brep->SetTolerance(tolerance, FALSE);
             for (const auto& vertex : m_plan.vertices)
@@ -247,123 +259,53 @@ public:
                 Step(vertex.record);
                 Good(ctor.EndVertex());
             }
+            if (m_plan.materialSolid)
+            {
+                Step(m_plan.record);
+                m_model->material = ctor.StartRegion(TRUE, nullptr);
+                Need(m_model->material != nullptr, "NativeMaterialRegionAllocationFailed", m_plan.record);
+                m_model->material->SetIsVoid(FALSE);
+            }
             SmShell* outer = nullptr;
             SmShell* inner = nullptr;
-            Step(m_plan.face);
+            Step(m_plan.record);
             Good(ctor.StartShell(outer, inner));
-            Need(outer && !inner, "NativeOpenShellRoleMismatch", m_plan.face);
-            Step(m_plan.face);
-            m_model->face = ctor.StartFace(m_plan.faceSameSense ? SM_OT_SAME : SM_OT_OPPOSITE);
-            Need(m_model->face != nullptr, "NativeFaceConstructionFailed", m_plan.face);
-            m_model->face->SetTolerance(tolerance, FALSE);
-            const auto x = Unit(m_plan.x, m_plan.xNormSquared), y = Unit(m_plan.y, m_plan.yNormSquared), origin = Enclose(m_plan.originMm);
-            std::array<double, 4> window{ std::numeric_limits<double>::infinity(),
-                                          std::numeric_limits<double>::infinity(),
-                                          -std::numeric_limits<double>::infinity(),
-                                          -std::numeric_limits<double>::infinity() };
-            for (const auto& edge : m_plan.edges)
-            {
-                for (const auto& point : { edge.minimumMm, edge.maximumMm })
-                {
-                    const auto delta = Subtract(Enclose(point), origin);
-                    const Interval uv[2] = { detail::Dot(delta, x), detail::Dot(delta, y) };
-                    for (std::size_t i = 0; i < 2; ++i)
-                    {
-                        window[i] = std::min(window[i], uv[i].low);
-                        window[i + 2] = std::max(window[i + 2], uv[i].high);
-                    }
-                }
-            }
-            for (std::size_t i = 0; i < 2; ++i)
-            {
-                const double padding = 64 * std::numeric_limits<double>::epsilon() * (1 + std::max(std::abs(window[i]), std::abs(window[i + 2])));
-                window[i] = Down(window[i] - padding);
-                window[i + 2] = Up(window[i + 2] + padding);
-            }
-            const auto xValue = Value(m_plan.x), yValue = Value(m_plan.y);
-            const double nx = std::sqrt(Value(m_plan.xNormSquared)), ny = std::sqrt(Value(m_plan.yNormSquared));
-            const SmExtent2d domain(window[0], window[1], window[2], window[3]);
-            Step(m_plan.plane);
-            std::unique_ptr<SmPlane> plane(new (*m_model->context) SmPlane(
-                Native(Value(m_plan.originMm)),
-                SmVector3d(xValue[0] / nx, xValue[1] / nx, xValue[2] / nx),
-                SmVector3d(yValue[0] / ny, yValue[1] / ny, yValue[2] / ny),
-                SmVector2d(1, 1),
-                domain,
-                m_model->context.get()
-            ));
-            Step(m_plan.face);
-            const auto surfaceStatus = ctor.SetFaceSurface(plane.get(), domain);
-            if (plane->GetOwner() == m_model->face)
-            {
-                m_model->plane = plane.release();
-            }
-            Good(surfaceStatus);
-            Need(m_model->plane != nullptr, "NativeSurfaceOwnershipMismatch", m_plan.face);
+            Need(outer && bool(inner) == m_plan.materialSolid, "NativeShellRoleMismatch", m_plan.record);
+            m_model->outside = outer;
+            m_model->inside = inner;
             m_model->edges.resize(m_plan.edges.size());
             m_model->curves.resize(m_plan.edges.size());
-            for (const auto& loop : m_plan.loops)
+            m_model->faces.resize(m_plan.faces.size());
+            for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
             {
-                Step(loop.bound);
-                auto targetLoop = ctor.StartLoop(SM_OT_SAME);
-                Need(targetLoop != nullptr, "NativeLoopConstructionFailed", loop.bound);
-                m_model->loops.push_back(targetLoop);
-                for (const auto& use : loop.primaryUses)
-                {
-                    const auto& edge = m_plan.edges.at(use.edge);
-                    Step(edge.record);
-                    auto native = ctor.StartEdge(
-                        use.forward ? SM_OT_SAME : SM_OT_OPPOSITE,
-                        nullptr,
-                        m_model->vertices.at(edge.minimumVertex),
-                        m_model->vertices.at(edge.maximumVertex)
-                    );
-                    Need(native != nullptr, "NativeEdgeConstructionFailed", edge.record);
-                    native->SetTolerance(tolerance, FALSE);
-                    m_model->edges[use.edge] = native;
-                    Step(edge.record);
-                    SmLine* raw = nullptr;
-                    const auto
-                        created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
-                    std::unique_ptr<SmLine> curve(raw);
-                    Good(created);
-                    Need(bool(curve), "NativeCurveAllocationFailed", edge.record);
-                    Step(edge.record);
-                    const auto adopted = ctor.SetEdgeCurve(curve.get(), FALSE);
-                    if (curve->GetOwner() == native)
-                    {
-                        m_model->curves[use.edge] = curve.release();
-                    }
-                    Good(adopted);
-                    Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record);
-                    Step(edge.record);
-                    Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0)));
-                    Step(edge.record);
-                    Good(ctor.EndEdge());
-                }
-                Step(loop.bound);
-                Good(ctor.EndLoop());
+                BuildFace(ctor, m_plan.faces[i], m_model->faces[i]);
             }
-            Step(m_plan.face);
-            Good(ctor.EndFace());
-            Step(m_plan.face);
+            Step(m_plan.record);
             Good(ctor.EndShell(FALSE));
-            Step(m_plan.face);
+            if (m_plan.materialSolid)
+            {
+                Step(m_plan.record);
+                Good(ctor.EndRegion());
+            }
+            Step(m_plan.record);
             Good(ctor.EndBrep());
             Observe("Constructed");
-            InstallUv();
+            for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
+            {
+                InstallUv(m_plan.faces[i], m_model->faces[i]);
+            }
             Observe("UvInstalled");
             SmAssertArray pointers;
-            Step(m_plan.face);
+            Step(m_plan.record);
             const auto pointerStatus = m_model->brep->ValidatePointers(&pointers);
             m_report.pointerReports = pointers.GetSize();
-            Need(pointerStatus == SM_SUCCESS && pointers.GetSize() == 0, "NativePointerValidationFailed", m_plan.face);
+            Need(pointerStatus == SM_SUCCESS && pointers.GetSize() == 0, "NativePointerValidationFailed", m_plan.record);
             Observe("PointersChecked");
             SmAssertArray deep;
-            Step(m_plan.face);
+            Step(m_plan.record);
             const bool valid = m_model->brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) != FALSE;
             m_report.deepReports = deep.GetSize();
-            Need(valid && deep.GetSize() == 0, "NativeDeepValidationFailed", m_plan.face);
+            Need(valid && deep.GetSize() == 0, "NativeDeepValidationFailed", m_plan.record);
             Observe("DeepChecked");
             Verify();
             Measure();
@@ -394,6 +336,112 @@ private:
     {
         return m_plan.source->Source().Records().at(record).id;
     }
+    void BuildFace(SmBrepConstructor& ctor, const FacePlan& facePlan, NativeFaceData& native)
+    {
+        const auto tolerance = Value(m_options.quality.initialWorkToleranceMm);
+        native.faceId = Id(facePlan.face);
+        Step(facePlan.face);
+        native.face = ctor.StartFace(facePlan.faceSameSense ? SM_OT_SAME : SM_OT_OPPOSITE);
+        Need(native.face != nullptr, "NativeFaceConstructionFailed", facePlan.face);
+        native.face->SetTolerance(tolerance, FALSE);
+        const auto x = Unit(facePlan.x, facePlan.xNormSquared), y = Unit(facePlan.y, facePlan.yNormSquared), origin = Enclose(facePlan.originMm);
+        std::array<double, 4> window{ std::numeric_limits<double>::infinity(),
+                                      std::numeric_limits<double>::infinity(),
+                                      -std::numeric_limits<double>::infinity(),
+                                      -std::numeric_limits<double>::infinity() };
+        for (const auto index : facePlan.edges)
+        {
+            const auto& edge = m_plan.edges[index];
+            for (const auto& point : { edge.minimumMm, edge.maximumMm })
+            {
+                const auto delta = Subtract(Enclose(point), origin);
+                const Interval uv[2] = { detail::Dot(delta, x), detail::Dot(delta, y) };
+                for (std::size_t i = 0; i < 2; ++i)
+                {
+                    window[i] = std::min(window[i], uv[i].low);
+                    window[i + 2] = std::max(window[i + 2], uv[i].high);
+                }
+            }
+        }
+        for (std::size_t i = 0; i < 2; ++i)
+        {
+            const double padding = 64 * std::numeric_limits<double>::epsilon() * (1 + std::max(std::abs(window[i]), std::abs(window[i + 2])));
+            window[i] = Down(window[i] - padding);
+            window[i + 2] = Up(window[i + 2] + padding);
+        }
+        const auto xValue = Value(facePlan.x), yValue = Value(facePlan.y);
+        const double nx = std::sqrt(Value(facePlan.xNormSquared)), ny = std::sqrt(Value(facePlan.yNormSquared));
+        const SmExtent2d domain(window[0], window[1], window[2], window[3]);
+        Step(facePlan.plane);
+        std::unique_ptr<SmPlane> plane(new (*m_model->context) SmPlane(
+            Native(Value(facePlan.originMm)),
+            SmVector3d(xValue[0] / nx, xValue[1] / nx, xValue[2] / nx),
+            SmVector3d(yValue[0] / ny, yValue[1] / ny, yValue[2] / ny),
+            SmVector2d(1, 1),
+            domain,
+            m_model->context.get()
+        ));
+        Step(facePlan.face);
+        const auto surfaceStatus = ctor.SetFaceSurface(plane.get(), domain);
+        if (plane->GetOwner() == native.face)
+        {
+            native.plane = plane.release();
+        }
+        Good(surfaceStatus);
+        Need(native.plane != nullptr, "NativeSurfaceOwnershipMismatch", facePlan.face);
+        for (const auto& loop : facePlan.loops)
+        {
+            Step(loop.bound);
+            auto targetLoop = ctor.StartLoop(SM_OT_SAME);
+            Need(targetLoop != nullptr, "NativeLoopConstructionFailed", loop.bound);
+            native.loops.push_back(targetLoop);
+            for (const auto& use : loop.primaryUses)
+            {
+                const auto& edge = m_plan.edges.at(use.edge);
+                Step(edge.record);
+                const auto existing = m_model->edges[use.edge];
+                auto targetEdge = ctor.StartEdge(
+                    use.forward ? SM_OT_SAME : SM_OT_OPPOSITE,
+                    existing,
+                    m_model->vertices.at(edge.minimumVertex),
+                    m_model->vertices.at(edge.maximumVertex)
+                );
+                Need(targetEdge != nullptr, "NativeEdgeConstructionFailed", edge.record);
+                if (!existing)
+                {
+                    targetEdge->SetTolerance(tolerance, FALSE);
+                    m_model->edges[use.edge] = targetEdge;
+                    Step(edge.record);
+                    SmLine* raw = nullptr;
+                    const auto
+                        created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
+                    std::unique_ptr<SmLine> curve(raw);
+                    Good(created);
+                    Need(bool(curve), "NativeCurveAllocationFailed", edge.record);
+                    Step(edge.record);
+                    const auto adopted = ctor.SetEdgeCurve(curve.get(), FALSE);
+                    if (curve->GetOwner() == targetEdge)
+                    {
+                        m_model->curves[use.edge] = curve.release();
+                    }
+                    Good(adopted);
+                    Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record);
+                    Step(edge.record);
+                    Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0)));
+                }
+                else
+                {
+                    Need(targetEdge == existing, "NativeSharedEdgeNotReused", edge.record);
+                }
+                Step(edge.record);
+                Good(ctor.EndEdge());
+            }
+            Step(loop.bound);
+            Good(ctor.EndLoop());
+        }
+        Step(facePlan.face);
+        Good(ctor.EndFace());
+    }
     void Step(std::size_t record)
     {
         if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
@@ -411,16 +459,19 @@ private:
             Need(
                 std::isfinite(value) && value > 0 && value <= Enclose(m_options.quality.maximumWorkToleranceMm).low,
                 "NativeWorkingToleranceMismatch",
-                m_plan.face
+                m_plan.record
             );
             const auto key = std::string(kind) + ":" + id;
             const auto [found, added] = initialTolerances.emplace(key, value);
-            Need(!added || value == Value(m_options.quality.initialWorkToleranceMm), "NativeInitialToleranceMismatch", m_plan.face);
+            Need(!added || value == Value(m_options.quality.initialWorkToleranceMm), "NativeInitialToleranceMismatch", m_plan.record);
             const auto growth = value == found->second ? 0.0 : (Exact(value) - Exact(found->second)).high;
-            Need(growth <= Enclose(m_options.quality.toleranceGrowthMm).low, "NativeToleranceGrowth", m_plan.face);
+            Need(growth <= Enclose(m_options.quality.toleranceGrowthMm).low, "NativeToleranceGrowth", m_plan.record);
         };
-        observe("Brep", Id(m_plan.face), m_model->brep.get());
-        observe("Face", Id(m_plan.face), m_model->face);
+        observe("Brep", Id(m_plan.record), m_model->brep.get());
+        for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
+        {
+            observe("Face", Id(m_plan.faces[i].face), m_model->faces[i].face);
+        }
         for (std::size_t i = 0; i < m_model->vertices.size(); ++i)
         {
             observe("Vertex", Id(m_plan.vertices[i].record), m_model->vertices[i]);
@@ -430,9 +481,9 @@ private:
             observe("Edge", Id(m_plan.edges[i].record), m_model->edges[i]);
         }
     }
-    Point Uv(const Point& point) const
+    Point Uv(const NativeFaceData& native, const Point& point) const
     {
-        const auto& position = m_model->plane->GetPosition();
+        const auto& position = native.plane->GetPosition();
         const auto x = PointOf(position.GetXAxisRef()), y = PointOf(position.GetYAxisRef());
         const auto delta = Delta(point, PointOf(position.GetOriginRef()));
         const double xx = DotPoint(x, x), yy = DotPoint(y, y), xy = DotPoint(x, y), a = DotPoint(delta, x), b = DotPoint(delta, y),
@@ -443,25 +494,45 @@ private:
         }
         return { (a * yy - b * xy) / det, (b * xx - a * xy) / det, 0 };
     }
-    void InstallUv()
+    SmEdgeuse* SameUse(std::size_t edge, const NativeFaceData& native) const
     {
-        for (std::size_t i = 0; i < m_model->edges.size(); ++i)
+        SmTArray<SmEdgeuse*> uses;
+        Good(m_model->edges[edge]->GetEdgeuses(uses));
+        SmEdgeuse* result = nullptr;
+        for (ULONG i = 0; i < uses.GetSize(); ++i)
         {
-            SmTArray<SmEdgeuse*> uses;
-            Good(m_model->edges[i]->GetEdgeuses(uses));
-            Need(uses.GetSize() == 2, "NativeOccurrenceMultiplicity", m_plan.edges[i].record);
-            auto same = uses[0]->GetOrientation() == SM_OT_SAME ? uses[0] : uses[1];
+            const auto use = uses[i];
+            if (use->GetLoopuse()->GetFaceuse()->GetFace() == native.face && use->GetOrientation() == SM_OT_SAME)
+            {
+                Need(result == nullptr, "NativeRepeatedSameFaceOccurrence", m_plan.edges[edge].record);
+                result = use;
+            }
+        }
+        Need(result != nullptr, "NativeFaceOccurrenceMissing", m_plan.edges[edge].record);
+        return result;
+    }
+    void InstallUv(const FacePlan& facePlan, NativeFaceData& native)
+    {
+        for (const auto i : facePlan.edges)
+        {
+            const auto same = SameUse(i, native);
             SmTArray<SmPoint3d> points;
             SmTArray<double> weights;
             Good(m_model->curves[i]->GetControlPolygon(points, weights));
             Need(points.GetSize() == 2, "NativeCurveControlShape", m_plan.edges[i].record);
             Step(m_plan.edges[i].record);
             SmLine* raw = nullptr;
-            const auto status = SmLine::CreateLineSegment(*m_model->context, 2, Native(Uv(PointOf(points[0]))), Native(Uv(PointOf(points[1]))), raw);
+            const auto status = SmLine::CreateLineSegment(
+                *m_model->context,
+                2,
+                Native(Uv(native, PointOf(points[0]))),
+                Native(Uv(native, PointOf(points[1]))),
+                raw
+            );
             std::unique_ptr<SmLine> uv(raw);
             Good(status);
             Need(bool(uv), "NativeUvAllocationFailed", m_plan.edges[i].record);
-            const auto plane = PlaneCoefficients(*m_model->plane, false);
+            const auto plane = PlaneCoefficients(*native.plane, false);
             const double bound = std::max(
                 LiftBound(plane, LineCoefficients(*uv, false), LineCoefficients(*m_model->curves[i], false)),
                 LiftBound(plane, LineCoefficients(*uv, true), LineCoefficients(*m_model->curves[i], true))
@@ -485,7 +556,7 @@ private:
         Need(loopuse->GetOrientation() == (loop.outer ? SM_OT_SAME : SM_OT_OPPOSITE), "NativeLoopRoleMismatch", loop.bound);
         SmTArray<SmEdgeuse*> uses;
         loopuse->GetEdgeuses(uses);
-        Need(uses.GetSize() == expected.size(), "NativeLoopUseCount", m_plan.face);
+        Need(uses.GetSize() == expected.size(), "NativeLoopUseCount", m_plan.record);
         std::optional<std::size_t> matchedOffset;
         for (std::size_t offset = 0; offset < expected.size(); ++offset)
         {
@@ -505,12 +576,12 @@ private:
                 break;
             }
         }
-        Need(matchedOffset.has_value(), "NativeDirectedSourcePathMismatch", m_plan.face);
+        Need(matchedOffset.has_value(), "NativeDirectedSourcePathMismatch", m_plan.record);
         return *matchedOffset;
     }
-    LoopMapping CaptureLoop(const LoopPlan& plan, SmLoopuse* selected, std::size_t offset)
+    LoopMapping CaptureLoop(const FacePlan& facePlan, const LoopPlan& plan, SmLoopuse* selected, std::size_t offset)
     {
-        LoopMapping result{ Id(m_plan.face), Id(plan.bound), Id(plan.loop), plan.outer, plan.sourceOrientation, {} };
+        LoopMapping result{ Id(facePlan.face), Id(plan.bound), Id(plan.loop), plan.outer, plan.sourceOrientation, {} };
         SmTArray<SmEdgeuse*> uses;
         selected->GetEdgeuses(uses);
         for (ULONG i = 0; i < uses.GetSize(); ++i)
@@ -554,17 +625,21 @@ private:
         m_model->brep->GetVertices(vertices);
         m_model->brep->GetEdges(edges);
         Need(
-            faces.GetSize() == 1 && edges.GetSize() == m_plan.edges.size() && vertices.GetSize() == m_plan.vertices.size() &&
-                !m_model->brep->IsManifoldSolid(),
+            faces.GetSize() == m_plan.faces.size() && edges.GetSize() == m_plan.edges.size() && vertices.GetSize() == m_plan.vertices.size() &&
+                (m_model->brep->IsManifoldSolid() == (m_plan.materialSolid ? TRUE : FALSE)),
             "NativeShapeRoleOrIdentityMismatch",
-            m_plan.face
+            m_plan.record
         );
-        Need(
-            faces[0] == m_model->face && m_model->face->GetSurface() == m_model->plane && m_model->plane->GetOwner() == m_model->face &&
-                m_model->face->GetContext() == m_model->context.get(),
-            "NativeFaceIdentityMismatch",
-            m_plan.face
-        );
+        std::set<SmFace*> actualFaces, expectedFaces;
+        for (ULONG i = 0; i < faces.GetSize(); ++i)
+        {
+            actualFaces.insert(faces[i]);
+        }
+        for (const auto& face : m_model->faces)
+        {
+            expectedFaces.insert(face.face);
+        }
+        Need(actualFaces == expectedFaces, "NativeFaceIdentityMismatch", m_plan.record);
         std::set<SmVertex*> actualVertices;
         std::set<SmEdge*> actualEdges;
         for (ULONG i = 0; i < vertices.GetSize(); ++i)
@@ -579,7 +654,7 @@ private:
             actualVertices == std::set<SmVertex*>(m_model->vertices.begin(), m_model->vertices.end()) &&
                 actualEdges == std::set<SmEdge*>(m_model->edges.begin(), m_model->edges.end()),
             "NativeTopologyIdentityMismatch",
-            m_plan.face
+            m_plan.record
         );
         for (std::size_t i = 0; i < m_model->edges.size(); ++i)
         {
@@ -592,78 +667,101 @@ private:
                 m_plan.edges[i].record
             );
         }
+        VerifyAdjacency();
+        for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
+        {
+            VerifyFace(m_plan.faces[i], m_model->faces[i]);
+        }
+    }
+    void VerifyFace(const FacePlan& facePlan, const NativeFaceData& native)
+    {
+        Need(
+            native.face->GetSurface() == native.plane && native.plane->GetOwner() == native.face &&
+                native.face->GetContext() == m_model->context.get(),
+            "NativeSurfaceOwnershipMismatch",
+            facePlan.face
+        );
         SmFaceuse* same = nullptr;
         SmFaceuse* opposite = nullptr;
-        m_model->face->GetFaceuses(same, opposite);
+        native.face->GetFaceuses(same, opposite);
         Need(
             same && opposite && same->GetOrientation() == SM_OT_SAME && opposite->GetOrientation() == SM_OT_OPPOSITE,
             "NativeFaceSideMismatch",
-            m_plan.face
+            facePlan.face
         );
         for (auto side : { same, opposite })
         {
             SmTArray<SmLoopuse*> loops;
             side->GetLoopuses(loops);
             Need(
-                loops.GetSize() == m_plan.loops.size() && loops[0]->GetLoop() == m_model->loops[0],
+                loops.GetSize() == facePlan.loops.size() && loops[0]->GetLoop() == native.loops[0],
                 "NativeLoopMultiplicityOrOuterIdentity",
-                m_plan.face
+                m_plan.record
             );
             std::set<SmLoop*> actual;
             for (ULONG i = 0; i < loops.GetSize(); ++i)
             {
                 actual.insert(loops[i]->GetLoop());
             }
-            Need(actual == std::set<SmLoop*>(m_model->loops.begin(), m_model->loops.end()), "NativeLoopIdentityMismatch", m_plan.face);
+            Need(actual == std::set<SmLoop*>(native.loops.begin(), native.loops.end()), "NativeLoopIdentityMismatch", facePlan.face);
         }
-        for (std::size_t i = 0; i < m_plan.loops.size(); ++i)
+        for (std::size_t i = 0; i < facePlan.loops.size(); ++i)
         {
-            const auto primary = m_model->loops[i]->GetLoopuse();
+            const auto primary = native.loops[i]->GetLoopuse();
             const auto mate = primary->GetOtherLoopuse();
             Need(
                 primary->GetFaceuse() == same && mate->GetFaceuse() == opposite && mate->GetOtherLoopuse() == primary,
                 "NativeLoopSideMismatch",
-                m_plan.loops[i].bound
+                facePlan.loops[i].bound
             );
-            VerifyTraversal(primary, m_plan.loops[i].primaryUses, m_plan.loops[i]);
-            const auto selected = m_plan.faceSameSense ? primary : mate;
-            const auto offset = VerifyTraversal(selected, m_plan.loops[i].selectedUses, m_plan.loops[i]);
-            m_report.loops.push_back(CaptureLoop(m_plan.loops[i], selected, offset));
+            VerifyTraversal(primary, facePlan.loops[i].primaryUses, facePlan.loops[i]);
+            const auto selected = facePlan.faceSameSense ? primary : mate;
+            const auto offset = VerifyTraversal(selected, facePlan.loops[i].selectedUses, facePlan.loops[i]);
+            m_report.loops.push_back(CaptureLoop(facePlan, facePlan.loops[i], selected, offset));
         }
         double definition = 0, consistency = 0, uvError = 0;
-        const auto domain = m_model->plane->GetNaturalUVDomain();
-        const auto faceDomain = m_model->face->GetUVDomain();
+        const auto domain = native.plane->GetNaturalUVDomain();
+        const auto faceDomain = native.face->GetUVDomain();
         Need(
             domain.GetMin().x == faceDomain.GetMin().x && domain.GetMin().y == faceDomain.GetMin().y && domain.GetMax().x == faceDomain.GetMax().x &&
                 domain.GetMax().y == faceDomain.GetMax().y,
             "NativeFaceDomainMismatch",
-            m_plan.face
+            facePlan.face
         );
         for (bool polygon : { false, true })
         {
-            const auto nativePlane = PlaneCoefficients(*m_model->plane, polygon);
-            for (const auto vertex : m_model->vertices)
+            const auto nativePlane = PlaneCoefficients(*native.plane, polygon);
+            for (const auto vertexIndex : facePlan.vertices)
             {
-                const auto point = PointOf(vertex->GetPoint());
-                const Affine constantUv{ Exact(Uv(point)), Exact(Point{}) };
+                const auto point = PointOf(m_model->vertices[vertexIndex]->GetPoint());
+                const Affine constantUv{ Exact(Uv(native, point)), Exact(Point{}) };
                 const Affine constantPoint{ Exact(point), Exact(Point{}) };
                 consistency = std::max(consistency, LiftBound(nativePlane, constantUv, constantPoint));
             }
-            const auto sourceOrigin = Enclose(m_plan.originMm), sourceX = Unit(m_plan.x, m_plan.xNormSquared),
-                       sourceY = Unit(m_plan.y, m_plan.yNormSquared);
+            const auto sourceOrigin = Enclose(facePlan.originMm), sourceX = Unit(facePlan.x, facePlan.xNormSquared),
+                       sourceY = Unit(facePlan.y, facePlan.yNormSquared);
             for (double u : { domain.GetMin().x, domain.GetMax().x })
             {
                 for (double v : { domain.GetMin().y, domain.GetMax().y })
                 {
+                    const auto jacobian = Cross(
+                        Add(nativePlane.u, Times(nativePlane.uv, Exact(v))),
+                        Add(nativePlane.v, Times(nativePlane.uv, Exact(u)))
+                    );
+                    if (!(Dot(jacobian, Cross(sourceX, sourceY)).low > 0))
+                    {
+                        throw Failure{ Status::Indeterminate,
+                                       "NativeSurfaceJacobianUnestablished",
+                                       "Actual analytic/NURBS surface orientation is not proved positive over the finite window",
+                                       facePlan.face };
+                    }
                     const auto exact = Add(Add(sourceOrigin, Times(sourceX, Exact(u))), Times(sourceY, Exact(v)));
                     definition = std::max(definition, NormUpper(Subtract(Evaluate(nativePlane, Exact(u), Exact(v)), exact)));
                 }
             }
-            for (std::size_t i = 0; i < m_model->edges.size(); ++i)
+            for (const auto i : facePlan.edges)
             {
-                SmTArray<SmEdgeuse*> uses;
-                Good(m_model->edges[i]->GetEdgeuses(uses));
-                auto sameUse = uses[0]->GetOrientation() == SM_OT_SAME ? uses[0] : uses[1];
+                const auto sameUse = SameUse(i, native);
                 SmEdgeuse* owner = nullptr;
                 auto uv = sameUse->GetUVTrimCurve(&owner);
                 Need(
@@ -700,39 +798,41 @@ private:
                                 endpoint[0].low >= domain.GetMin().x && endpoint[0].high <= domain.GetMax().x &&
                                     endpoint[1].low >= domain.GetMin().y && endpoint[1].high <= domain.GetMax().y,
                                 "NativeTrimOutsideWindow",
-                                m_plan.face
+                                facePlan.face
                             );
                         }
                     }
                 }
             }
         }
-        for (std::size_t i = 0; i < m_model->vertices.size(); ++i)
+        for (const auto i : facePlan.vertices)
         {
             definition = std::max(
                 definition,
                 NormUpper(Subtract(Exact(PointOf(m_model->vertices[i]->GetPoint())), Enclose(m_plan.vertices[i].pointMm)))
             );
         }
-        m_report.definitionBoundMm = definition;
-        m_report.consistencyBoundMm = std::max(consistency, uvError); // Whole-edge lift also bounds edge/plane consistency.
-        m_report.uvBoundMm = uvError;
-        Certify(definition, m_options.quality.definitionMm, "NativeDefinitionErrorBudget", m_plan.face);
-        Certify(*m_report.consistencyBoundMm, m_options.quality.consistencyMm, "NativeConsistencyErrorBudget", m_plan.face);
-        Certify(uvError, m_options.quality.derivedUvMm, "NativeUvErrorBudget", m_plan.face);
+        m_report.definitionBoundMm = std::max(m_report.definitionBoundMm.value_or(0), definition);
+        m_report.consistencyBoundMm = std::max(m_report.consistencyBoundMm.value_or(0), std::max(consistency, uvError)); // Whole-edge lift also
+                                                                                                                         // bounds edge/plane
+                                                                                                                         // consistency.
+        m_report.uvBoundMm = std::max(m_report.uvBoundMm.value_or(0), uvError);
+        Certify(definition, m_options.quality.definitionMm, "NativeDefinitionErrorBudget", facePlan.face);
+        Certify(*m_report.consistencyBoundMm, m_options.quality.consistencyMm, "NativeConsistencyErrorBudget", facePlan.face);
+        Certify(uvError, m_options.quality.derivedUvMm, "NativeUvErrorBudget", facePlan.face);
     }
-    void Measure()
+    void MeasureFace(const FacePlan& facePlan, NativeFaceData& native)
     {
         Statistics info;
         info.faces = 1;
-        info.edges = m_model->edges.size();
-        info.vertices = m_model->vertices.size();
-        info.shapeRole = "OpenSurfaceModel";
-        Step(m_plan.face);
+        info.edges = facePlan.edges.size();
+        info.vertices = facePlan.vertices.size();
+        info.shapeRole = "FaceSurface";
+        Step(facePlan.face);
         SmPoint3d centroid;
-        Good(SmApiFaceComputeCentroid(m_model->face, 1e-4, info.areaMm2, centroid));
+        Good(SmApiFaceComputeCentroid(native.face, 1e-4, info.areaMm2, centroid));
         info.centroidMm = PointOf(centroid);
-        for (std::size_t i = 0; i < m_model->edges.size(); ++i)
+        for (const auto i : facePlan.edges)
         {
             double length = 0;
             Step(m_plan.edges[i].record);
@@ -740,46 +840,404 @@ private:
             info.boundaryMm += length;
         }
         SmPoint3d minimum, maximum;
-        Step(m_plan.face);
-        Good(SmApiFaceBoundingBox(m_model->face, TRUE, minimum, maximum));
+        Step(facePlan.face);
+        Good(SmApiFaceBoundingBox(native.face, TRUE, minimum, maximum));
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
-        info.normal = PointOf(m_model->plane->GetPosition().GetZAxis());
-        if (!m_plan.faceSameSense)
+        info.normal = PointOf(native.plane->GetPosition().GetZAxis());
+        if (!facePlan.faceSameSense)
         {
-            for (auto& value : info.normal)
+            for (auto& value : *info.normal)
             {
                 value = -value;
             }
         }
-        const auto domain = m_model->plane->GetNaturalUVDomain();
-        info.windowMm = { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y };
-        const auto expectedArea = SqrtNonnegative(Enclose(m_plan.sourceAreaSquared));
+        const auto domain = native.plane->GetNaturalUVDomain();
+        info.windowMm = std::array<double, 4>{ domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y };
+        const auto expectedArea = SqrtNonnegative(Enclose(facePlan.sourceAreaSquared));
         const auto error = Exact(info.areaMm2) - expectedArea;
-        Certify(std::max(std::abs(error.low), std::abs(error.high)), m_options.quality.areaMm2, "NativeAreaQueryMismatch", m_plan.face);
+        Certify(std::max(std::abs(error.low), std::abs(error.high)), m_options.quality.areaMm2, "NativeAreaQueryMismatch", facePlan.face);
         const auto checkVector = [&](const Point& actual, const IntervalPoint& expected, const char* key)
         {
-            Certify(NormUpper(detail::Subtract(Exact(actual), expected)), m_options.quality.queryMm, key, m_plan.face);
+            Certify(NormUpper(detail::Subtract(Exact(actual), expected)), m_options.quality.queryMm, key, facePlan.face);
         };
-        checkVector(info.centroidMm, Enclose(m_plan.sourceCentroid), "NativeCentroidQueryMismatch");
-        checkVector(info.boundsMm[0], Enclose(m_plan.sourceMinimum), "NativeBoundsQueryMismatch");
-        checkVector(info.boundsMm[1], Enclose(m_plan.sourceMaximum), "NativeBoundsQueryMismatch");
-        auto expectedNormal = Cross(Unit(m_plan.x, m_plan.xNormSquared), Unit(m_plan.y, m_plan.yNormSquared));
-        if (!m_plan.faceSameSense)
+        checkVector(info.centroidMm, Enclose(facePlan.sourceCentroid), "NativeCentroidQueryMismatch");
+        checkVector(info.boundsMm[0], Enclose(facePlan.sourceMinimum), "NativeBoundsQueryMismatch");
+        checkVector(info.boundsMm[1], Enclose(facePlan.sourceMaximum), "NativeBoundsQueryMismatch");
+        auto expectedNormal = Cross(Unit(facePlan.x, facePlan.xNormSquared), Unit(facePlan.y, facePlan.yNormSquared));
+        if (!facePlan.faceSameSense)
         {
             expectedNormal = Times(expectedNormal, Exact(-1));
         }
-        checkVector(info.normal, expectedNormal, "NativeNormalMismatch");
+        checkVector(*info.normal, expectedNormal, "NativeNormalMismatch");
         auto expectedLength = Exact(0);
-        for (const auto& edge : m_plan.edges)
+        for (const auto index : facePlan.edges)
         {
+            const auto& edge = m_plan.edges[index];
             expectedLength = expectedLength + SqrtNonnegative(Enclose(edge.sourceLengthSquared));
         }
         const auto lengthError = Exact(info.boundaryMm) - expectedLength;
-        Certify(std::max(std::abs(lengthError.low), std::abs(lengthError.high)), m_options.quality.queryMm, "NativeLengthQueryMismatch", m_plan.face);
-        m_model->info = info;
-        m_report.native = info;
+        Certify(
+            std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
+            m_options.quality.queryMm,
+            "NativeLengthQueryMismatch",
+            facePlan.face
+        );
+        native.info = info;
+        for (const auto index : facePlan.edges)
+        {
+            if (m_model->edges[index]->IsLamina())
+            {
+                ++native.info.freeBoundaryEdges;
+            }
+        }
+        m_report.faces.push_back({ Id(facePlan.face), Id(facePlan.plane), facePlan.faceSameSense, native.info });
     }
+    void VerifyAdjacency();
+    void Measure();
+    Interval BoundaryVolume(bool polygon);
 };
+Interval Builder::BoundaryVolume(bool polygon)
+{
+    Interval volume = Exact(0);
+    for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+    {
+        const auto surface = PlaneCoefficients(*m_model->faces[f].plane, polygon);
+        const auto origin = Subtract(surface.origin, Enclose(m_plan.box->center));
+        const auto normal = Cross(surface.u, surface.v);
+        const auto a = Dot(origin, normal);
+        const auto b = Dot(origin, Cross(surface.u, surface.uv));
+        const auto c = Dot(origin, Cross(surface.uv, surface.v));
+        const auto d = Exact(0) - Dot(surface.uv, normal);
+        for (const auto& loop : m_report.loops)
+        {
+            if (loop.faceId != Id(m_plan.faces[f].face))
+            {
+                continue;
+            }
+            std::vector<std::array<Interval, 2>> junctions;
+            const auto cross2 = [](const auto& a, const auto& b)
+            {
+                return a[0] * b[1] - a[1] * b[0];
+            };
+            const auto difference = [](const auto& a, const auto& b)
+            {
+                return std::array<Interval, 2>{ a[0] - b[0], a[1] - b[1] };
+            };
+            const auto exact2 = [](const auto& point)
+            {
+                return std::array<Interval, 2>{ Exact(point[0]), Exact(point[1]) };
+            };
+            for (std::size_t i = 0; i < loop.uses.size(); ++i)
+            {
+                const auto& use = loop.uses[i];
+                const auto& previous = loop.uses[(i + loop.uses.size() - 1) % loop.uses.size()];
+                const auto p = exact2(previous.uvStartMm), q = exact2(use.uvStartMm);
+                const auto d0 = difference(exact2(previous.uvEndMm), p), d1 = difference(exact2(use.uvEndMm), q);
+                const auto t = cross2(difference(q, p), d1) / cross2(d0, d1);
+                std::array<Interval, 2> junction;
+                for (std::size_t axis = 0; axis < 2; ++axis)
+                {
+                    const auto intersection = p[axis] + t * d0[axis];
+                    junction[axis] = { std::min({ intersection.low, use.uvStartMm[axis], previous.uvEndMm[axis] }),
+                                       std::max({ intersection.high, use.uvStartMm[axis], previous.uvEndMm[axis] }) };
+                }
+                const auto analyticEndpoints = [&](const UseMapping& item)
+                {
+                    const auto foundEdge = std::find_if(
+                        m_plan.edges.begin(),
+                        m_plan.edges.end(),
+                        [&](const auto& edge)
+                        {
+                            return Id(edge.record) == item.edgeId;
+                        }
+                    );
+                    Need(foundEdge != m_plan.edges.end(), "NativeVolumeEdgeIdentityMissing", m_plan.faces[f].face);
+                    const auto e = static_cast<std::size_t>(foundEdge - m_plan.edges.begin());
+                    const auto uv = dynamic_cast<const SmLine*>(SameUse(e, m_model->faces[f])->GetUVTrimCurvePointer());
+                    Need(uv != nullptr, "NativeVolumeUvNotAffine", m_plan.faces[f].face);
+                    const auto coefficients = LineCoefficients(*uv, false);
+                    const auto start = item.forwardInNativeCurve ? coefficients.origin : Add(coefficients.origin, coefficients.delta);
+                    const auto end = item.forwardInNativeCurve ? Add(coefficients.origin, coefficients.delta) : coefficients.origin;
+                    return std::array<std::array<Interval, 2>, 2>{ std::array<Interval, 2>{ start[0], start[1] },
+                                                                   std::array<Interval, 2>{ end[0], end[1] } };
+                };
+                const auto before = analyticEndpoints(previous), after = analyticEndpoints(use);
+                const auto incoming = difference(before[1], before[0]), outgoing = difference(after[1], after[0]);
+                const auto parameter = cross2(difference(after[0], before[0]), outgoing) / cross2(incoming, outgoing);
+                for (std::size_t axis = 0; axis < 2; ++axis)
+                {
+                    const auto intersection = before[0][axis] + parameter * incoming[axis];
+                    junction[axis].low = std::min({ junction[axis].low, before[1][axis].low, after[0][axis].low, intersection.low });
+                    junction[axis].high = std::max({ junction[axis].high, before[1][axis].high, after[0][axis].high, intersection.high });
+                }
+                const auto found = std::find_if(
+                    m_plan.vertices.begin(),
+                    m_plan.vertices.end(),
+                    [&](const auto& vertex)
+                    {
+                        return Id(vertex.record) == use.startVertexId;
+                    }
+                );
+                Need(found != m_plan.vertices.end(), "NativeVolumeVertexIdentityMissing", m_plan.faces[f].face);
+                const auto index = static_cast<std::size_t>(found - m_plan.vertices.begin());
+                const auto physical = Evaluate(surface, junction[0], junction[1]);
+                const auto gap = NormUpper(Subtract(physical, Exact(PointOf(m_model->vertices[index]->GetPoint()))));
+                m_report.volumeJunctionBoundMm = std::max(m_report.volumeJunctionBoundMm.value_or(0), gap);
+                Certify(gap, m_options.quality.consistencyMm, "NativeVolumeJunctionBudget", m_plan.faces[f].face);
+                const auto domain = m_model->faces[f].plane->GetNaturalUVDomain();
+                if (junction[0].low < domain.GetMin().x || junction[0].high > domain.GetMax().x || junction[1].low < domain.GetMin().y ||
+                    junction[1].high > domain.GetMax().y)
+                {
+                    throw Failure{ Status::Indeterminate,
+                                   "NativeVolumeJunctionOutsideWindow",
+                                   "Junction evidence exceeds the verified surface window",
+                                   m_plan.faces[f].face };
+                }
+                junctions.push_back(junction);
+            }
+            Interval area = Exact(0), firstU = Exact(0), firstV = Exact(0), mixed = Exact(0);
+            for (std::size_t i = 0; i < junctions.size(); ++i)
+            {
+                const auto& start = junctions[i];
+                const auto& end = junctions[(i + 1) % junctions.size()];
+                const auto turn = cross2(difference(end, start), difference(junctions[(i + 2) % junctions.size()], end));
+                if (!(m_plan.faces[f].faceSameSense ? turn.low > 0 : turn.high < 0))
+                {
+                    throw Failure{ Status::Indeterminate,
+                                   "NativeVolumeRegionOrientationUnestablished",
+                                   "Closed interval polygon is not proved strictly convex and source-oriented",
+                                   m_plan.faces[f].face };
+                }
+                const auto u0 = start[0], v0 = start[1], u1 = end[0], v1 = end[1];
+                const auto cross = u0 * v1 - u1 * v0;
+                area = area + cross / Exact(2);
+                firstU = firstU + (u0 + u1) * cross / Exact(6);
+                firstV = firstV + (v0 + v1) * cross / Exact(6);
+                mixed = mixed + (Exact(2) * u0 * v0 + u0 * v1 + u1 * v0 + Exact(2) * u1 * v1) * cross / Exact(24);
+            }
+            // For bilinear S=O+Xu+Yv+Tuv, S.(Su x Sv)=a+bu+cv+duv.
+            // Interval junctions enclose stored endpoints and adjacent affine-carrier intersections.
+            // Evidence only: no UV or defining geometry is changed. Polygon moments propagate
+            // junction uncertainty over the whole closed region, independently of native quadrature.
+            volume = volume + (a * area + b * firstU + c * firstV + d * mixed) / Exact(3);
+        }
+    }
+    return volume;
+}
+void Builder::VerifyAdjacency()
+{
+    SmTArray<SmRegion*> regions;
+    m_model->brep->GetRegions(regions);
+    Need(regions.GetSize() == (m_plan.materialSolid ? 2U : 1U), "NativeRegionMultiplicity", m_plan.record);
+    std::set<SmRegion*> actualRegions;
+    for (ULONG i = 0; i < regions.GetSize(); ++i)
+    {
+        actualRegions.insert(regions[i]);
+    }
+    std::set<SmRegion*> expectedRegions{ m_model->brep->GetInfiniteRegion() };
+    if (m_plan.materialSolid)
+    {
+        expectedRegions.insert(m_model->material);
+    }
+    Need(actualRegions == expectedRegions, "NativeRegionIdentityMismatch", m_plan.record);
+    Need(
+        m_model->outside->GetRegion() == m_model->brep->GetInfiniteRegion() && m_model->brep->GetInfiniteRegion()->IsVoid() == TRUE,
+        "NativeInfiniteRegionRole",
+        m_plan.record
+    );
+    if (m_plan.materialSolid)
+    {
+        Need(
+            m_model->inside && m_model->inside->GetRegion() == m_model->material && m_model->material->IsVoid() == FALSE &&
+                m_model->inside->IsClosed() == TRUE && m_model->outside->IsClosed() == TRUE,
+            "NativeMaterialShellRole",
+            m_plan.record
+        );
+        SmTArray<SmShell*> shells;
+        m_model->material->GetShells(shells);
+        Need(shells.GetSize() == 1 && shells[0] == m_model->inside, "NativeMaterialOuterShellIdentity", m_plan.record);
+        long solids = 0, voids = 0;
+        Step(m_plan.record);
+        Good(SmApiBrepMaterialCensus(m_model->brep.get(), solids, voids));
+        Need(solids == 1 && voids == 0, "NativeMaterialCensusMismatch", m_plan.record);
+        m_report.solidRegions = static_cast<std::size_t>(solids);
+        m_report.voidCavities = static_cast<std::size_t>(voids);
+    }
+    for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+    {
+        SmFaceuse* same = nullptr;
+        SmFaceuse* opposite = nullptr;
+        m_model->faces[f].face->GetFaceuses(same, opposite);
+        const auto selected = m_plan.faces[f].faceSameSense ? same : opposite;
+        Need(
+            selected->GetShell() == m_model->outside &&
+                selected->GetMate()->GetShell() == (m_plan.materialSolid ? m_model->inside : m_model->outside),
+            "NativeOutwardSideMismatch",
+            m_plan.faces[f].face
+        );
+    }
+    for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
+    {
+        std::set<SmFace*> expected, actual;
+        EdgeAdjacency row;
+        row.edgeId = Id(m_plan.edges[e].record);
+        for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+        {
+            if (std::find(m_plan.faces[f].edges.begin(), m_plan.faces[f].edges.end(), e) != m_plan.faces[f].edges.end())
+            {
+                expected.insert(m_model->faces[f].face);
+                row.faceIds.push_back(Id(m_plan.faces[f].face));
+            }
+        }
+        SmTArray<SmEdgeuse*> uses;
+        Good(m_model->edges[e]->GetEdgeuses(uses));
+        Need(
+            expected.size() == (m_plan.materialSolid ? 2U : 1U) && uses.GetSize() == 2 * expected.size(),
+            "NativeAdjacencyMultiplicity",
+            m_plan.edges[e].record
+        );
+        for (ULONG i = 0; i < uses.GetSize(); ++i)
+        {
+            const auto use = uses[i];
+            actual.insert(use->GetLoopuse()->GetFaceuse()->GetFace());
+            Need(
+                use->GetEdge() == m_model->edges[e] && use->GetMate()->GetMate() == use && use->GetRadial()->GetRadial() == use &&
+                    use->GetRadial()->GetLoopuse()->GetFaceuse()->GetShell() == use->GetLoopuse()->GetFaceuse()->GetShell(),
+                "NativeRadialOrMateMismatch",
+                m_plan.edges[e].record
+            );
+            if (m_plan.materialSolid)
+            {
+                Need(
+                    use->GetRadial()->GetLoopuse()->GetFaceuse()->GetFace() != use->GetLoopuse()->GetFaceuse()->GetFace(),
+                    "NativeSharedFaceIdentityMismatch",
+                    m_plan.edges[e].record
+                );
+            }
+        }
+        Need(actual == expected, "NativeSourceAdjacencyMismatch", m_plan.edges[e].record);
+        row.nativeUses = uses.GetSize();
+        m_report.adjacency.push_back(std::move(row));
+    }
+}
+void Builder::Measure()
+{
+    for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
+    {
+        MeasureFace(m_plan.faces[i], m_model->faces[i]);
+    }
+    Statistics info;
+    if (!m_plan.materialSolid)
+    {
+        info = m_model->faces[0].info;
+    }
+    else
+    {
+        info.faces = m_model->faces.size();
+        info.edges = m_model->edges.size();
+        info.vertices = m_model->vertices.size();
+        info.shapeRole = "MaterialSolid";
+        SmPoint3d centroid;
+        SmVector3d moments, products;
+        double volume = 0, mass = 0;
+        Step(m_plan.record);
+        Good(SmApiBrepComputeMassProperties(
+            m_model->brep.get(),
+            1e-4,
+            1.0,
+            Native(Value(m_plan.box->center)),
+            info.areaMm2,
+            volume,
+            mass,
+            centroid,
+            moments,
+            products
+        ));
+        info.materialVolumeMm3 = volume;
+        info.centroidMm = PointOf(centroid);
+        const auto directVolumeError = Exact(volume) - Enclose(m_plan.box->volume);
+        double volumeBound = std::max(std::abs(directVolumeError.low), std::abs(directVolumeError.high));
+        for (bool polygon : { false, true })
+        {
+            const auto integral = BoundaryVolume(polygon);
+            if (!(integral.low > 0))
+            {
+                throw Failure{ Status::Indeterminate,
+                               "NativeVolumeSignUnestablished",
+                               "Oriented target boundary integral is not proved positive",
+                               m_plan.record };
+            }
+            for (const auto error : { integral - Enclose(m_plan.box->volume), Exact(volume) - integral })
+            {
+                volumeBound = std::max({ volumeBound, std::abs(error.low), std::abs(error.high) });
+            }
+        }
+        m_report.volumeBoundMm3 = volumeBound;
+        Certify(volumeBound, m_options.quality.volumeMm3, "NativeBoundaryVolumeBudget", m_plan.record);
+        Certify(
+            std::max(std::abs((Exact(volume) - Enclose(m_plan.box->volume)).low), std::abs((Exact(volume) - Enclose(m_plan.box->volume)).high)),
+            m_options.quality.volumeMm3,
+            "NativeVolumeQueryMismatch",
+            m_plan.record
+        );
+        Certify(
+            NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
+            m_options.quality.queryMm,
+            "NativeMassCentroidMismatch",
+            m_plan.record
+        );
+        SmPoint3d minimum, maximum;
+        Step(m_plan.record);
+        Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, minimum, maximum));
+        info.boundsMm = { PointOf(minimum), PointOf(maximum) };
+        Certify(
+            NormUpper(Subtract(Exact(info.boundsMm[0]), Enclose(m_plan.box->minimum))),
+            m_options.quality.queryMm,
+            "NativeSolidBoundsMismatch",
+            m_plan.record
+        );
+        Certify(
+            NormUpper(Subtract(Exact(info.boundsMm[1]), Enclose(m_plan.box->maximum))),
+            m_options.quality.queryMm,
+            "NativeSolidBoundsMismatch",
+            m_plan.record
+        );
+        auto expectedArea = Exact(0), expectedLength = Exact(0);
+        for (const auto& face : m_plan.faces)
+        {
+            expectedArea = expectedArea + SqrtNonnegative(Enclose(face.sourceAreaSquared));
+        }
+        auto areaError = Exact(info.areaMm2) - expectedArea;
+        Certify(std::max(std::abs(areaError.low), std::abs(areaError.high)), m_options.quality.areaMm2, "NativeSolidAreaMismatch", m_plan.record);
+        for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
+        {
+            double length = 0;
+            Step(m_plan.edges[e].record);
+            Good(SmApiEdgeComputeLength(m_model->edges[e], Value(m_options.quality.queryMm), length));
+            info.boundaryMm += length;
+            expectedLength = expectedLength + SqrtNonnegative(Enclose(m_plan.edges[e].sourceLengthSquared));
+        }
+        auto lengthError = Exact(info.boundaryMm) - expectedLength;
+        Certify(
+            std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
+            m_options.quality.queryMm,
+            "NativeSolidEdgeLengthMismatch",
+            m_plan.record
+        );
+    }
+    info.shapeRole = m_plan.materialSolid ? "MaterialSolid" : "OpenSurfaceModel";
+    info.freeBoundaryEdges = 0;
+    for (const auto edge : m_model->edges)
+    {
+        if (edge->IsLamina())
+        {
+            ++info.freeBoundaryEdges;
+        }
+    }
+    Need(info.freeBoundaryEdges == (m_plan.materialSolid ? 0U : m_plan.edges.size()), "NativeFreeBoundaryMismatch", m_plan.record);
+    m_model->info = info;
+    m_report.native = info;
+}
 } // namespace
 std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report)
 {
@@ -800,9 +1258,22 @@ Statistics ModelSnapshot::Info() const
 {
     return m_data->info;
 }
-FaceView ModelSnapshot::Face() const
+FaceView ModelSnapshot::Face(std::size_t index) const
 {
-    return FaceView(m_data);
+    if (index >= m_data->faces.size())
+    {
+        throw std::out_of_range("Source face index");
+    }
+    return FaceView(m_data, index);
+}
+std::vector<FaceView> ModelSnapshot::Faces() const
+{
+    std::vector<FaceView> result;
+    for (std::size_t i = 0; i < m_data->faces.size(); ++i)
+    {
+        result.push_back(Face(i));
+    }
+    return result;
 }
 std::shared_ptr<const step_semantics::Snapshot> ModelSnapshot::Source() const
 {
@@ -810,25 +1281,30 @@ std::shared_ptr<const step_semantics::Snapshot> ModelSnapshot::Source() const
 }
 std::optional<double> ModelSnapshot::MaterialVolumeMm3() const
 {
-    return {};
+    return m_data->info.materialVolumeMm3;
 }
-FaceView::FaceView(std::shared_ptr<detail::ModelData> data) : m_data(std::move(data))
+FaceView::FaceView(std::shared_ptr<detail::ModelData> data, std::size_t face) : m_data(std::move(data)), m_face(face)
 {
 }
 std::string FaceView::SourceId() const
 {
-    return m_data->faceId;
+    return m_data->faces[m_face].faceId;
+}
+Statistics FaceView::Info() const
+{
+    return m_data->faces[m_face].info;
 }
 Point FaceView::EvaluateSurface(double u, double v) const
 {
     std::lock_guard lock(m_data->mutex);
-    const auto domain = m_data->plane->GetNaturalUVDomain();
+    const auto plane = m_data->faces[m_face].plane;
+    const auto domain = plane->GetNaturalUVDomain();
     if (!std::isfinite(u) || !std::isfinite(v) || u < domain.GetMin().x || u > domain.GetMax().x || v < domain.GetMin().y || v > domain.GetMax().y)
     {
         throw std::out_of_range("Surface query lies outside the verified window");
     }
     SmPoint3d point;
-    detail::Good(m_data->plane->EvaluatePoint(SmPoint2d(u, v), point));
+    detail::Good(plane->EvaluatePoint(SmPoint2d(u, v), point));
     return detail::PointOf(point);
 }
 ClosestPoint FaceView::Closest(const Point& point) const
@@ -836,9 +1312,9 @@ ClosestPoint FaceView::Closest(const Point& point) const
     if (!std::all_of(
             point.begin(),
             point.end(),
-            [](double value)
+            [](double v)
             {
-                return std::isfinite(value);
+                return std::isfinite(v);
             }
         ))
     {
@@ -847,7 +1323,30 @@ ClosestPoint FaceView::Closest(const Point& point) const
     std::lock_guard lock(m_data->mutex);
     SmPoint3d closest;
     double distance = 0;
-    detail::Good(SmApiFaceClosestPoint(m_data->face, detail::Native(point), closest, distance));
+    detail::Good(SmApiFaceClosestPoint(m_data->faces[m_face].face, detail::Native(point), closest, distance));
+    return { detail::PointOf(closest), distance };
+}
+ClosestPoint ModelSnapshot::Closest(const Point& point) const
+{
+    if (m_data->faces.size() == 1)
+    {
+        return Face().Closest(point);
+    }
+    if (!std::all_of(
+            point.begin(),
+            point.end(),
+            [](double v)
+            {
+                return std::isfinite(v);
+            }
+        ))
+    {
+        throw std::invalid_argument("Finite query required");
+    }
+    std::lock_guard lock(m_data->mutex);
+    SmPoint3d closest;
+    double distance = 0;
+    detail::Good(SmApiBrepClosestPoint(m_data->brep.get(), detail::Native(point), closest, distance));
     return { detail::PointOf(closest), distance };
 }
 PointClass FaceView::ClassifyUV(double u, double v) const
@@ -858,7 +1357,7 @@ PointClass FaceView::ClassifyUV(double u, double v) const
     }
     std::lock_guard lock(m_data->mutex);
     int classification = 0;
-    detail::Good(SmApiFaceClassifyUV(m_data->face, SmPoint2d(u, v), classification));
+    detail::Good(SmApiFaceClassifyUV(m_data->faces[m_face].face, SmPoint2d(u, v), classification));
     switch (classification)
     {
         case SM_PC_FACE:
@@ -870,5 +1369,66 @@ PointClass FaceView::ClassifyUV(double u, double v) const
         default:
             return PointClass::Outside;
     }
+}
+std::optional<MaterialPointClass> ModelSnapshot::ClassifyMaterial(const Point& point) const
+{
+    if (!m_data->material)
+    {
+        return {};
+    }
+    if (!std::all_of(
+            point.begin(),
+            point.end(),
+            [](double v)
+            {
+                return std::isfinite(v);
+            }
+        ))
+    {
+        throw std::invalid_argument("Finite query required");
+    }
+    std::lock_guard lock(m_data->mutex);
+    SmPointClassification classification(m_data->queryTolerance, m_data->context.get());
+    detail::Good(m_data->brep->Point3DClassify(detail::Native(point), m_data->queryTolerance, TRUE, classification));
+    const auto kind = classification.GetPointClass();
+    if (kind == SM_PC_REGION)
+    {
+        if (classification.GetObject() == m_data->material)
+        {
+            return MaterialPointClass::Inside;
+        }
+        if (classification.GetObject() == m_data->brep->GetInfiniteRegion())
+        {
+            return MaterialPointClass::Outside;
+        }
+        return MaterialPointClass::Indeterminate;
+    }
+    SmPoint3d closest;
+    double distance = 0;
+    if (kind == SM_PC_FACE)
+    {
+        detail::Good(SmApiFaceClosestPoint(classification.GetFaceObject(), detail::Native(point), closest, distance));
+    }
+    else if (kind == SM_PC_EDGE)
+    {
+        double parameter = 0;
+        detail::Good(SmApiEdgeClosestPoint(classification.GetEdgeObject(), detail::Native(point), closest, parameter, distance));
+    }
+    else if (kind == SM_PC_VERTEX)
+    {
+        closest = classification.GetVertexObject()->GetPoint();
+        const auto delta = detail::Delta(point, detail::PointOf(classification.GetVertexObject()->GetPoint()));
+        distance = std::sqrt(detail::DotPoint(delta, delta));
+    }
+    else
+    {
+        return MaterialPointClass::Indeterminate;
+    }
+    const auto bound = detail::NormUpper(detail::Subtract(detail::Exact(point), detail::Exact(detail::PointOf(closest))));
+    if (!std::isfinite(distance) || bound > detail::Enclose(m_data->queryBudget).low)
+    {
+        return MaterialPointClass::Indeterminate;
+    }
+    return kind == SM_PC_FACE ? MaterialPointClass::Face : kind == SM_PC_EDGE ? MaterialPointClass::Edge : MaterialPointClass::Vertex;
 }
 } // namespace step_import

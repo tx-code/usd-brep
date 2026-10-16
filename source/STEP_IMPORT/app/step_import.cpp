@@ -152,7 +152,8 @@ int main(int argc, char** argv)
         std::string output = result.report.json;
         if (query && result.model)
         {
-            const auto closest = result.model->Face().Closest(*query);
+            const auto closest = result.model->Closest(*query);
+            const auto material = result.model->ClassifyMaterial(*query);
             const bool complete = step_source::report::Writer::Publish(
                 options.nativeLimits.reportBytes,
                 output,
@@ -166,6 +167,15 @@ int main(int argc, char** argv)
                     Point(writer, closest.pointMm);
                     writer.Add(",\"distance_mm\":");
                     Number(writer, closest.distanceMm);
+                    writer.Add(",\"material_location\":");
+                    if (material)
+                    {
+                        writer.String(step_import::MaterialPointClassName(*material));
+                    }
+                    else
+                    {
+                        writer.String("NotApplicable");
+                    }
                     writer.Add("}}\n");
                 }
             );

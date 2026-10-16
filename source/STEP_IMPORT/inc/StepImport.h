@@ -27,7 +27,7 @@ struct Quality
     std::string id;
     Fraction definitionMm, consistencyMm, derivedUvMm;
     Fraction initialWorkToleranceMm, maximumWorkToleranceMm, toleranceGrowthMm;
-    Fraction queryMm, areaMm2;
+    Fraction queryMm, areaMm2, volumeMm3;
     static Quality PlanarFixture(); // Explicit synthetic-test candidate, never a production default.
 };
 struct Limits
@@ -51,8 +51,11 @@ struct Statistics
     std::size_t faces = 0, edges = 0, vertices = 0;
     double areaMm2 = 0, boundaryMm = 0;
     Bounds boundsMm{};
-    Point centroidMm{}, normal{};
-    std::array<double, 4> windowMm{}; // umin, vmin, umax, vmax; computational window, not a new trim.
+    Point centroidMm{};
+    std::optional<Point> normal; // Shape-wide normal/window apply only to a single face. Per-face values are always present.
+    std::optional<std::array<double, 4>> windowMm; // umin, vmin, umax, vmax; computational window, not a new trim.
+    std::optional<double> materialVolumeMm3;
+    std::size_t freeBoundaryEdges = 0;
     std::string shapeRole;
 };
 struct ClosestPoint
@@ -67,11 +70,21 @@ enum class PointClass
     Edge,
     Vertex
 };
+enum class MaterialPointClass
+{
+    Outside,
+    Inside,
+    Face,
+    Edge,
+    Vertex,
+    Indeterminate
+};
 class FaceView
 {
 public:
 
     std::string SourceId() const;
+    Statistics Info() const;
     Point EvaluateSurface(double u, double v) const; // Rejects domain violations before native evaluation.
     ClosestPoint Closest(const Point& pointMm) const;
     PointClass ClassifyUV(double u, double v) const;
@@ -79,15 +92,19 @@ public:
 private:
 
     friend class ModelSnapshot;
-    explicit FaceView(std::shared_ptr<detail::ModelData> data);
+    explicit FaceView(std::shared_ptr<detail::ModelData> data, std::size_t face);
     std::shared_ptr<detail::ModelData> m_data;
+    std::size_t m_face = 0;
 };
 class ModelSnapshot
 {
 public:
 
     Statistics Info() const;
-    FaceView Face() const; // Owning view: retains the native model and its context after root release.
+    FaceView Face(std::size_t index = 0) const; // Source face order; owning view retains the model and context.
+    std::vector<FaceView> Faces() const;
+    ClosestPoint Closest(const Point& pointMm) const; // Whole boundary, never implicitly the first face.
+    std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Open surface: NotApplicable, never a fabricated zero.
 
@@ -121,6 +138,18 @@ struct LoopMapping
     bool outer = false, sourceOrientation = true;
     std::vector<UseMapping> uses; // Actual selected-side cyclic traversal; UV is stored on each edge's SAME member.
 };
+struct FaceObservation
+{
+    std::string faceId, planeId;
+    bool sourceSameSense = true;
+    Statistics native;
+};
+struct EdgeAdjacency
+{
+    std::string edgeId;
+    std::vector<std::string> faceIds;
+    std::size_t nativeUses = 0;
+};
 struct Report
 {
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
@@ -130,6 +159,10 @@ struct Report
     std::vector<ToleranceObservation> tolerances;
     std::vector<EdgeMapping> edges;
     std::vector<LoopMapping> loops;
+    std::vector<FaceObservation> faces;
+    std::vector<EdgeAdjacency> adjacency;
+    std::optional<double> volumeBoundMm3, volumeJunctionBoundMm;
+    std::optional<std::size_t> solidRegions, voidCavities;
     std::optional<Statistics> native;
     std::optional<double> definitionBoundMm, consistencyBoundMm, uvBoundMm;
     std::optional<std::size_t> pointerReports, deepReports;
@@ -160,4 +193,5 @@ Outcome ImportBytes(std::string bytes, const Options& options);
 Outcome ImportFile(const std::filesystem::path& path, const Options& options);
 // Invalid options throw std::invalid_argument; allocation failure is not a qualified recoverable outcome.
 const char* StatusName(Status status);
+const char* MaterialPointClassName(MaterialPointClass classification);
 } // namespace step_import

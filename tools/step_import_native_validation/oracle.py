@@ -27,10 +27,12 @@ def vector(actual, expected, allowance, label):
 
 def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 12, 8)):
     q = quality_contract()
+    material = truth.get("role") == "MaterialSolid"
     require(observed["status"] == "Accepted" and observed["model"] == {
-        "kind": "OwningReadOnlySnapshot", "role": "OpenSurfaceModel"}, "complete publication")
-    require(observed["format_version"] == "step-native-import.v1" and
-            observed["scope"] == "SingleOpenPlanarFace", "qualified scope")
+        "kind": "OwningReadOnlySnapshot", "role": "MaterialSolid" if material else "OpenSurfaceModel"},
+        "complete publication")
+    require(observed["format_version"] == "step-native-import.v2" and
+            observed["scope"] == "PlanarNativeImport", "qualified scope")
     require(observed["profile"] == "203e2-P0-Planar-0.1" and observed["schema_sha256"] ==
             "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088", "schema identity")
     require(observed["source"]["sha256"] == hashlib.sha256(data).hexdigest(), "captured input identity")
@@ -41,7 +43,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     fields = {"definition_mm": "definition_error_mm", "consistency_mm": "consistency_error_mm",
               "derived_uv_mm": "derived_uv_error_mm", "initial_work_tolerance_mm": "initial_working_tolerance_mm",
               "maximum_work_tolerance_mm": "max_working_tolerance_mm", "tolerance_growth_mm": "clean_growth_mm",
-              "query_mm": "aux_length_error_mm", "area_mm2": "aux_area_error_mm2"}
+              "query_mm": "aux_length_error_mm", "area_mm2": "aux_area_error_mm2", "volume_mm3": "aux_volume_error_mm3"}
     require(observed["quality"]["id"] == q["id"] and all(
         observed["quality"][a] == q[b] for a, b in fields.items()), "full explicit Q")
     n = observed["native_measurements"]
@@ -54,13 +56,29 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     vector(n["centroid_mm"], list(map(decode, truth["centroid"])), tolerance, "centroid")
     for actual, expected in zip(n["bounds_mm"], truth["bounds"]):
         vector(actual, list(map(decode, expected)), tolerance, "bounds")
-    vector(n["normal"], normal, tolerance, "selected face normal")
-    require(n["material_volume"] == "NotApplicable", "open surface material-volume qualification")
-    window = n["window_mm"]
-    require(len(window) == 4 and all(math.isfinite(x) for x in window), "finite window")
-    require(window[0] <= uv_bounds[0] and window[1] <= uv_bounds[1] and
-            window[2] >= uv_bounds[2] and window[3] >= uv_bounds[3], "complete trim domain")
-    require(all(abs(a - b) <= 1e-9 for a, b in zip(window, uv_bounds)), "window protection, no arbitrary domain")
+    if material:
+        require(n["normal"] is None and n["window_mm"] is None, "no first-face shape-wide geometry")
+        require(n["material_volume"]["applicability"] == "Applicable" and
+                abs(F(n["material_volume"]["value_mm3"]) - decode(truth["measures"]["volume"])) <=
+                decode(q["aux_volume_error_mm3"]), "independent material volume")
+        require(observed["volume_bound_mm3"] is not None and math.isfinite(observed["volume_bound_mm3"]) and
+                0 <= F(observed["volume_bound_mm3"]) <= decode(q["aux_volume_error_mm3"]),
+                "actual boundary volume proof")
+        require(observed["material_census"] == dict(solid_regions=1, void_cavities=0), "actual material census")
+        require(observed["volume_evidence_policy"] == "AffineCarrierEndpointIntervalsNoGeometryChange" and
+                observed["volume_junction_bound_mm"] is not None and
+                0 <= F(observed["volume_junction_bound_mm"]) <= decode(q["consistency_error_mm"]),
+                "whole-boundary junction uncertainty is independently budgeted")
+    else:
+        vector(n["normal"], normal, tolerance, "selected face normal")
+        require(n["material_volume"] == "NotApplicable", "open surface material-volume qualification")
+        window = n["window_mm"]
+        require(len(window) == 4 and all(math.isfinite(x) for x in window), "finite window")
+        require(window[0] <= uv_bounds[0] and window[1] <= uv_bounds[1] and
+                window[2] >= uv_bounds[2] and window[3] >= uv_bounds[3], "complete trim domain")
+        require(all(abs(a - b) <= 1e-9 for a, b in zip(window, uv_bounds)), "window protection, no arbitrary domain")
+    require(n["free_boundary_edges"] == (0 if material else n["edges"]),
+            "free boundary is separate from unique edge length")
     require(observed["normalization_policy"] == {
         "curve_parameter": "SourceIncreasingToNative01", "uv": "DerivedAfterTopologyOnSameOwner",
         "loop_order": "OuterFirstIdentityPreserving",
@@ -74,12 +92,13 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         require(isinstance(observed[field], (int, float)) and math.isfinite(observed[field]) and
                 0 <= F(observed[field]) <= decode(q[error]), "whole-domain " + field)
     rows = observed["tolerances"]
-    object_count = 2 + n["vertices"] + n["edges"]
+    object_count = 1 + n["faces"] + n["vertices"] + n["edges"]
     require(Counter(x["stage"] for x in rows) == Counter({k: object_count for k in (
         "Constructed", "UvInstalled", "PointersChecked", "DeepChecked", "Postchecked")}), "tolerance stage coverage")
     for stage in {x["stage"] for x in rows}:
         keys = [(x["kind"], x["source_id"]) for x in rows if x["stage"] == stage]
-        require(Counter(x[0] for x in keys) == Counter(Brep=1, Face=1, Vertex=n["vertices"], Edge=n["edges"]) and
+        require(Counter(x[0] for x in keys) == Counter(
+                    Brep=1, Face=n["faces"], Vertex=n["vertices"], Edge=n["edges"]) and
                 len(set(keys)) == object_count, "tolerance object coverage")
     require(all(x["value_mm"] == float(decode(q["initial_working_tolerance_mm"])) for x in rows),
             "clean tolerance growth")
@@ -91,32 +110,56 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
                 "coefficient/sqrt(direction_norm_squared)", "explicit parameter mapping")
     require(observed["kernel_path"] and observed["kernel_path"] != "Unmeasured", "loaded kernel observation")
     loop_provenance(observed, data)
+    edge_parameters(observed, data)
+    face_observations(observed, data)
 
 
 def loop_provenance(observed, data):
-    """STEP's explicit OE/bound semantics and a separately computed source-frame projection."""
     index = by_id(inventory(data))
-    face = next(r for r in index.values() if r.kind == "ADVANCED_FACE")
-    bounds = [ref(x) for x in aggregate(face.args[1])]
+    faces = [r for r in index.values() if r.kind == "ADVANCED_FACE"]
+    require({r["source_face"] for r in observed["loop_mappings"]} == {str(f.entity_id) for f in faces},
+            "complete source face loop coverage")
+    uses = [use for face in faces for use in face_loop_provenance(observed, index, face)]
+    required_oes = {str(r.entity_id) for r in index.values() if r.kind == "ORIENTED_EDGE"}
+    require(len(uses) == len(set(uses)) and {u[2] for u in uses} == required_oes, "complete source occurrences")
+    source_faces = {str(f.entity_id) for f in faces}
+    adjacency = observed["edge_adjacency"]
+    require(len(adjacency) == observed["native_measurements"]["edges"], "all native edge adjacency")
+    require(len({e["source_edge"] for e in adjacency}) == len(adjacency), "distinct edge adjacency identities")
+    material = observed["model"]["role"] == "MaterialSolid"
+    for row in adjacency:
+        bound_faces = {r["source_face"] for r in observed["loop_mappings"]
+                       if any(u["source_edge"] == row["source_edge"] for u in r["uses"])}
+        require(set(row["source_faces"]) == bound_faces <= source_faces and
+                len(row["source_faces"]) == len(bound_faces) == (2 if material else 1) and
+                row["native_edgeuses"] == 2 * len(bound_faces),
+                "actual shared identity and logical/native multiplicity")
+
+
+def source_frame(index, face):
     placement = index[ref(index[ref(face.args[2])].args[1])]
     origin = source_vector(index[ref(placement.args[1])].args[1])
-
     def unit(values):
         length = math.sqrt(sum(v * v for v in values))
         return tuple(float(v) / length for v in values)
-
     z = unit(source_vector(index[ref(placement.args[2])].args[1]) if placement.args[2] != "$" else (0, 0, 1))
     direction = source_vector(index[ref(placement.args[3])].args[1]) if placement.args[3] != "$" else (1, 0, 0)
     along_z = sum(a * b for a, b in zip(direction, z))
     x = unit(tuple(a - along_z * b for a, b in zip(direction, z)))
     y = (z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0])
+    return origin, x, y, z
+
+
+def face_loop_provenance(observed, index, face):
+    bounds = [ref(x) for x in aggregate(face.args[1])]
+    origin, x, y, z = source_frame(index, face)
 
     def uv(vertex):
         point = source_vector(index[ref(index[vertex].args[1])].args[1])
         delta = [float(a - b) for a, b in zip(point, origin)]
         return tuple(F(sum(a * b for a, b in zip(delta, axis))) for axis in (x, y))
 
-    rows = observed["loop_mappings"]
+    rows = [r for r in observed["loop_mappings"] if r["source_face"] == str(face.entity_id)]
     require(len(rows) == len(bounds) and rows[0]["outer"] and sum(r["outer"] for r in rows) == 1,
             "native outer-first loop coverage")
     require({r["source_bound"] for r in rows} == {str(b) for b in bounds}, "bound identity coverage")
@@ -148,14 +191,86 @@ def loop_provenance(observed, data):
                     use["uv_owner_on_selected_side"] == forward, "actual occurrence UV owner and direction")
             vector(use["uv_start_mm"], uv(int(use["start_vertex"])), F(1, 10**7), "source UV start")
             vector(use["uv_end_mm"], uv(int(use["end_vertex"])), F(1, 10**7), "source UV end")
-            all_uses.append(use["source_oriented_edge"])
-    require(len(all_uses) == len(set(all_uses)) == observed["native_measurements"]["edges"], "all source occurrences")
+            all_uses.append((row["source_face"], row["source_loop"], use["source_oriented_edge"]))
+    return all_uses
+
+
+def edge_parameters(observed, data):
+    index = by_id(inventory(data))
+    for row in observed["edge_mappings"]:
+        edge = index[int(row["source_edge"])]
+        line = index[ref(edge.args[3])]
+        source_start, source_end = ref(edge.args[1]), ref(edge.args[2])
+        sense = edge.args[4] == ".T."
+        require((row["source_curve"], row["source_start"], row["source_end"], row["source_same_sense"]) ==
+                (str(line.entity_id), str(source_start), str(source_end), sense), "source defining edge binding")
+        require((row["native_min_vertex"], row["native_max_vertex"]) ==
+                ((str(source_start), str(source_end)) if sense else (str(source_end), str(source_start))),
+                "native parameter direction")
+        vector_record = index[ref(line.args[2])]
+        direction = source_vector(index[ref(vector_record.args[1])].args[1])
+        origin = source_vector(index[ref(line.args[1])].args[1])
+        magnitude = F(vector_record.args[2])
+        for name, vertex in [("source_start_coefficient", source_start), ("source_end_coefficient", source_end)]:
+            point = source_vector(index[ref(index[vertex].args[1])].args[1])
+            coefficient = sum((a - b) * d for a, b, d in zip(point, origin, direction)) / magnitude
+            require(decode(row[name]) == coefficient, "exact source LINE parameter")
+        require(decode(row["source_direction_norm_squared"]) == sum(d * d for d in direction),
+                "source parameter radical")
+
+
+def face_observations(observed, data):
+    from tools.step_import_validation.oracle import sub, cross, dot
+    index = by_id(inventory(data))
+    faces = {str(r.entity_id): r for r in index.values() if r.kind == "ADVANCED_FACE"}
+    rows = observed["face_mappings"]
+    require(len(rows) == len(faces) and {r["source_face"] for r in rows} == set(faces), "all face observations")
+    for row in rows:
+        face = faces[row["source_face"]]
+        origin, x, y, z = source_frame(index, face)
+        normal = tuple(F(v if face.args[3] == ".T." else -v) for v in z)
+        require(row["source_plane"] == str(ref(face.args[2])) and row["source_same_sense"] == (face.args[3] == ".T."),
+                "face definition and outside-side binding")
+        area = F(0)
+        moment = [F(0), F(0), F(0)]
+        all_points = []
+        perimeter = 0.0
+        ids = set()
+        for loop in [r for r in observed["loop_mappings"] if r["source_face"] == row["source_face"]]:
+            vertices = [int(u["start_vertex"]) for u in loop["uses"]]
+            points = [source_vector(index[ref(index[v].args[1])].args[1]) for v in vertices]
+            all_points += points
+            ids.update(vertices)
+            for a, b in zip(points, points[1:] + points[:1]):
+                perimeter += math.sqrt(dot(sub(b, a), sub(b, a)))
+            for i in range(1, len(points) - 1):
+                triangle_area = dot(cross(sub(points[i], points[0]), sub(points[i+1], points[0])), normal) / 2
+                area += triangle_area
+                for axis in range(3):
+                    moment[axis] += triangle_area * (points[0][axis] + points[i][axis] + points[i+1][axis]) / 3
+        n = row["measurements"]
+        require(n["faces"] == 1 and n["vertices"] == len(ids) and
+                n["edges"] == sum(len(r["uses"]) for r in observed["loop_mappings"]
+                                  if r["source_face"] == row["source_face"]),
+                "per-face topology")
+        require(area > 0 and abs(F(n["area_mm2"]) - area) <= F(1, 10**6), "independent oriented vector area")
+        require(abs(n["boundary_mm"] - perimeter) <= 1e-7, "independent face boundary")
+        vector(n["centroid_mm"], [m / area for m in moment], F(1, 10**7), "independent area centroid")
+        vector(n["normal"], normal, F(1, 10**7), "source outward normal")
+        for axis in range(3):
+            require(abs(F(n["bounds_mm"][0][axis]) - min(p[axis] for p in all_points)) <= F(1, 10**7) and
+                    abs(F(n["bounds_mm"][1][axis]) - max(p[axis] for p in all_points)) <= F(1, 10**7),
+                    "per-face bounds")
+        require(n["material_volume"] == "NotApplicable", "a face is not its solid")
 
 
 def corpus_case(case, observed, exit_code, data):
     key = case["case_id"]
-    if key in {"S203-P01", "S203-P02", "S203-P03"}:
+    if key in {"S203-P01", "S203-P02", "S203-P03", "S203-P04"}:
         require(exit_code == 0, "qualified native success exit")
+        if key == "S203-P04":
+            accepted(observed, data, case["truth"])
+            return
         window = case["truth"]["source_definition"]["source_uv_window"]
         accepted(observed, data, case["truth"], uv_bounds=tuple(decode(v) for corner in window for v in corner))
         return

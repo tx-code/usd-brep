@@ -15,6 +15,7 @@ import unittest
 from tools.step_import_validation.common import load_json
 from tools.step_import_validation.corpus import verify
 from tools.step_import_validation.oracle import decode, exact
+from tools.step_import_validation.records import inventory, by_id, ref, vector as source_vector
 from tools.step_import_native_validation.oracle import accepted, corpus_case, vector
 
 CORPUS = Path(__file__).resolve().parents[2] / "step_import_validation/corpus/ap203e2-planar/v1"
@@ -64,7 +65,150 @@ class NativeTests(unittest.TestCase):
                 actual, observed = self.invoke(data)
                 corpus_case(case, observed, actual.returncode, data)
                 counts[observed["status"]] += 1
-        self.assertEqual(Counter(Accepted=3, Rejected=25, Unsupported=15, Deferred=6), counts)
+        self.assertEqual(Counter(Accepted=4, Rejected=25, Unsupported=14, Deferred=6), counts)
+
+    def box(self):
+        return (CORPUS / "cases/S203-P04/input.step").read_bytes(), next(
+            c["truth"] for c in self.cases if c["case_id"] == "S203-P04")
+
+    def test_material_box_independent_queries_and_classifications(self):
+        data, truth = self.box()
+        for name in ("off_face", "corner"):
+            query = truth["queries"][name]
+            actual, observed = self.invoke(data, "--query", *map(float, map(decode, query["point_mm"])))
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            accepted(observed["import"], data, truth)
+            vector(observed["query"]["closest_point_mm"], list(map(decode, query["closest_point_mm"])),
+                   F(1, 10**7), "whole-box independent closest")
+            distance = F(observed["query"]["distance_mm"])
+            self.assertLessEqual(decode(query["distance_mm"]["lower"]) - F(1, 10**7), distance)
+            self.assertLessEqual(distance, decode(query["distance_mm"]["upper"]) + F(1, 10**7))
+            self.assertEqual("Outside", observed["query"]["material_location"])
+        for query in truth["queries"]["classifications"]:
+            actual, observed = self.invoke(data, "--query", *map(float, map(decode, query["point_mm"])))
+            self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+            self.assertEqual(query["material_location"], observed["query"]["material_location"])
+
+    def test_shared_box_survives_orders_sparse_ids_and_edge_senses(self):
+        original, truth = self.box()
+        for reverse_curve, swap_edge, reverse_faces in itertools.product([False, True], repeat=3):
+            with self.subTest(flags=(reverse_curve, swap_edge, reverse_faces)):
+                data = original
+                if reverse_curve:
+                    data = self.record(data, 200, "DIRECTION('',(-1.,0.,0.))")
+                sense = ".F." if reverse_curve ^ swap_edge else ".T."
+                data = self.record(data, 203, f"EDGE_CURVE('',#{111 if swap_edge else 110},"
+                                             f"#{110 if swap_edge else 111},#202,{sense})")
+                index = by_id(inventory(data))
+                for row in index.values():
+                    if row.kind == "ORIENTED_EDGE" and ref(row.args[3]) == 203 and swap_edge:
+                        backward = row.args[4] == ".T."
+                        data = self.record(data, row.entity_id,
+                                           f"ORIENTED_EDGE('',*,*,#203,{'.F.' if backward else '.T.'})")
+                if reverse_faces:
+                    data = self.record(data, 22, "CLOSED_SHELL('',(#557,#547,#537,#527,#517,#507))")
+                    lines = data.splitlines(keepends=True)
+                    rows = [line for line in lines if line.startswith(b"#")]
+                    for i, row in zip([i for i, line in enumerate(lines) if line.startswith(b"#")], reversed(rows)):
+                        lines[i] = row
+                    data = b"".join(lines)
+                actual, observed = self.invoke(data)
+                self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+                accepted(observed, data, truth)
+        sparse = re.sub(rb"#([0-9]+)", lambda m: b"#" + str(int(m[1]) + 100000).encode(), original)
+        actual, observed = self.invoke(sparse)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, sparse, truth)
+
+    def transformed_box(self, shear=False):
+        data, truth = self.box()
+        rows = inventory(data)
+        axes = {ref(row.args[2]) for row in rows if row.kind == "AXIS2_PLACEMENT_3D" and row.args[2] != "$"}
+        translation = (F(0), F(0), F(0)) if shear else (F(-17, 5), F(8, 5), F(-9))
+        def transform(point, normal=False):
+            x, y, z = point
+            if shear:
+                return (x, y - x / 5, z) if normal else (x + y / 5, y, z)
+            return (F(3, 5)*x - F(4, 5)*y, F(4, 5)*x + F(3, 5)*y, z)
+        def text(value):
+            scale = 0
+            while 10**scale % value.denominator:
+                scale += 1
+                self.assertLess(scale, 15)
+            if not scale:
+                return str(value.numerator) + "."
+            integer = value.numerator * 10**scale // value.denominator
+            digits = str(abs(integer)).rjust(scale + 1, "0")
+            return ("-" if integer < 0 else "") + digits[:-scale] + "." + digits[-scale:]
+        for row in rows:
+            if row.kind not in {"CARTESIAN_POINT", "DIRECTION"}:
+                continue
+            values = transform(source_vector(row.args[1]), row.kind == "DIRECTION" and row.entity_id in axes)
+            if row.kind == "CARTESIAN_POINT":
+                values = tuple(a + b for a, b in zip(values, translation))
+            data = self.record(data, row.entity_id, row.kind + "('',(" + ",".join(map(text, values)) + "))")
+        if not shear:
+            truth = deepcopy(truth)
+            truth["centroid"] = [exact(a + b) for a, b in zip(
+                transform(tuple(map(decode, truth["centroid"]))), translation)]
+            points = [tuple(a + b for a, b in zip(transform(tuple(map(decode, p))), translation))
+                      for p in truth["source_definition"]["world_points_mm"]]
+            truth["bounds"] = [[exact(min(p[i] for p in points)) for i in range(3)],
+                               [exact(max(p[i] for p in points)) for i in range(3)]]
+        return data, truth
+
+    def test_rigidly_transformed_material_box_keeps_geometry_and_role(self):
+        data, truth = self.transformed_box()
+        actual, observed = self.invoke(data)
+        self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+        accepted(observed, data, truth)
+
+    def test_box_scope_rejects_skew_and_closed_surface_promotion(self):
+        data, _ = self.transformed_box(shear=True)
+        actual, observed = self.invoke(data)
+        self.assertEqual(2, actual.returncode, actual.stderr or actual.stdout)
+        self.assertEqual("Checked", observed["source"]["planar"])
+        self.assertEqual("UnsupportedNativeMaterialBoxScope", observed["diagnostics"][0]["key"])
+        self.assertEqual(0, observed["native_calls"])
+        self.assertIsNone(observed["model"])
+        self.assertIsNone(observed["native_measurements"])
+        actual, observed = self.invoke((CORPUS / "cases/S203-P05/input.step").read_bytes())
+        self.assertEqual(2, actual.returncode)
+        self.assertIsNone(observed["model"])
+        self.assertEqual(dict(solid_regions=None, void_cavities=None), observed["material_census"])
+
+    def test_box_checker_rejects_false_material_adjacency_volume_and_face_data(self):
+        data, truth = self.box()
+        actual, original = self.invoke(data)
+        self.assertEqual(0, actual.returncode)
+        for defect in ("volume", "flux", "junction", "role", "region", "adjacency", "uv_owner",
+                       "plane", "use", "normal", "parameter"):
+            observed = deepcopy(original)
+            if defect == "volume":
+                observed["native_measurements"]["material_volume"]["value_mm3"] += 1
+            if defect == "flux":
+                observed["volume_bound_mm3"] = None
+            if defect == "junction":
+                observed["volume_junction_bound_mm"] = 2e-7
+            if defect == "role":
+                observed["model"]["role"] = "OpenSurfaceModel"
+            if defect == "region":
+                observed["material_census"]["solid_regions"] = 0
+            if defect == "adjacency":
+                row = observed["edge_adjacency"][0]
+                row["source_faces"][1] = row["source_faces"][0]
+            if defect == "uv_owner":
+                observed["loop_mappings"][1]["uses"][0]["uv_owner_edgeuse"] = "OPPOSITE"
+            if defect == "plane":
+                observed["face_mappings"][1]["source_plane"] = observed["face_mappings"][0]["source_plane"]
+            if defect == "use":
+                observed["loop_mappings"][1]["uses"].pop()
+            if defect == "normal":
+                observed["native_measurements"]["normal"] = [0, 0, -1]
+            if defect == "parameter":
+                observed["edge_mappings"][0]["source_start_coefficient"] = exact(7)
+            with self.subTest(defect=defect), self.assertRaises(AssertionError):
+                accepted(observed, data, truth)
 
     def test_frozen_independent_closest_point(self):
         truth = self.truth["queries"]["off_face"]

@@ -1,6 +1,6 @@
 # STEP_IMPORT（内部 C++20）
 
-05/06 的 STEP→SMLib 闭环：单零件、单个开放平面、一个 LINE 外环及可选孔、SI 毫米，
+05—07 的 STEP→SMLib 闭环：单零件、SI 毫米；开放 LINE/PLANE 平面及孔，或经过独立证明的材料矩形盒体，
 基于 02—04 自研读取和源检查。没有 OCCT 读取依赖。
 
 `ImportFile` / `ImportBytes` 显式接收 `Options`。先保存不可变原始文档，完成类型、单位、规则与区域检查，
@@ -33,11 +33,25 @@ if (result.model) {
 
 模型没有编辑或 native 指针接口，面视图强引用模型，报告不保活 native BRep。
 `MaterialVolumeMm3()` 对开放面返回空值。面查询在同一模型内串行；尚未授予一般多线程内核资格。
+07 的材料盒体按八角、三组正交边、六个完整外向矩形面证明，支持有理刚体变换和参数/顺序变化，
+没有使用盒体 primitive 替代源几何。唯一源边只构建一次，其他面复用同一 native edge；
+每面的 mate pair 有各自的 SAME UV，逐项核验实际 radial 邻接和区域/壳的 owner。
+`Faces()` / `Face(index)` 返回带源身份的 owning 面视图，`FaceView::Info()` 为每面属性。
+整体 `Info()` 的 normal/window 对多面形体为空，`Closest()` 查询整个边界。
+`ClassifyMaterial()` 对表面返回空值；材料实体返回内/外/面/边/顶点，
+native 工作容差给出的边界分类若不能满足查询误差则返回 Indeterminate。
+
+材料体积预算取完整样件 Q 的 1e-5 mm³；解析源盒体、实际目标边界的区间通量积分与 native mass properties
+分别对照。体积接点证据包围实际解析/NURBS UV 端点与相邻直线载体交点，
+验证其物理误差、域、凸性/方向后传播到积分区间，不改写 UV、源边界或工作容差。
+产品 JSON 为 `step-native-import.v2` / `PlanarNativeImport`，增加逐面、共享邻接和材料证据；
+旧 v1 验收保留原资格，不引入测试包迁移。实际 source/semantic/planar 报告协议保持。
 普通失败与调用/报告限额不会交付部分模型，结果中的诊断区分源拒绝、目标不支持、数值证据不足和 native 失败。
 `nativeCalls` 只计构造、UV 安装、validator、主要测量的调用检查点；系数/拓扑只读访问不逐项计费，
 它不是计时、总内存或硬取消限制。任意 OOM、崩溃恢复、worker、公开绑定均未在本票授予资格。
 
-多面/闭合实体、转换单位及可选声明的目标资格分别留 07/09/10。
+同形闭合表面、转换单位及可选声明的目标资格分别留 08/09/10；
+一般多面体、开放共享片、截面/切割及一般修复没有因材料盒体通过而自动获得资格。
 原始来源仍保留；不支持时返回明确诊断，不静默少件。`Repair=None`。
 
 ## 构建与验证

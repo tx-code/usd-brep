@@ -4,11 +4,11 @@
 
 **Blocked by:** [05：从STEP交付owning只读开放平面](05-owning-planar-import.md)。
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-**Assignee:** None
+**Assignee:** codex
 
-**Execution:** on-hold。用户于2026-10-15明确要求暂不编码；本票仅已建档，获得后续明确开工指令前不得开始实现、生成样件或运行实施验收。
+**Execution:** in-progress。2026-10-16用户在06完成后要求继续，按07共享边材料盒体实施；08—12继续on-hold。
 
 **Context:** 遵守[票组约束与来源](../README.md)；用户已确认12票拆分及依赖关系。
 

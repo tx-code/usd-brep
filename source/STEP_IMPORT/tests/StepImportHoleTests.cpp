@@ -56,7 +56,10 @@ int main(int argc, char** argv)
                 std::abs(corner[0] - 3) <= 1e-7 && std::abs(corner[1] + 2) <= 1e-7 && std::abs(corner[2] - 5) <= 1e-7,
                 "Negative UV preserves source parameter origin without clamping"
             );
-            Require(std::abs(info.windowMm[0] - du) <= 1e-9 && std::abs(info.windowMm[1] - dv) <= 1e-9, "Finite window follows source UV");
+            Require(
+                info.windowMm && std::abs((*info.windowMm)[0] - du) <= 1e-9 && std::abs((*info.windowMm)[1] - dv) <= 1e-9,
+                "Finite window follows source UV"
+            );
             bool rejected = false;
             try
             {

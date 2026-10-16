@@ -35,17 +35,32 @@ struct LoopPlan
     bool outer, sourceOrientation;
     std::vector<UsePlan> primaryUses, selectedUses;
 };
-struct Plan
+struct FacePlan
 {
-    std::shared_ptr<const step_semantics::Snapshot> source;
     std::size_t face, plane;
     bool faceSameSense;
     ExactPoint originMm, x, y;
     Fraction xNormSquared, yNormSquared, sourceAreaSquared;
     ExactPoint sourceCentroid, sourceMinimum, sourceMaximum;
+    std::vector<std::size_t> vertices, edges;
+    std::vector<LoopPlan> loops; // Native convention: outer first; source identities remain separate from list order.
+};
+struct BoxProof
+{
+    ExactPoint origin, center, minimum, maximum;
+    std::array<ExactPoint, 3> axes;
+    std::array<std::size_t, 8> corners;
+    Fraction volume;
+};
+struct Plan
+{
+    std::shared_ptr<const step_semantics::Snapshot> source;
+    std::size_t record, shell;
+    bool materialSolid = false;
     std::vector<VertexPlan> vertices;
     std::vector<EdgePlan> edges;
-    std::vector<LoopPlan> loops; // Native convention: outer first; source identities remain separate from list order.
+    std::vector<FacePlan> faces;
+    std::optional<BoxProof> box;
 };
 Plan MakePlan(const step_planar::Outcome& checked);
 std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report);

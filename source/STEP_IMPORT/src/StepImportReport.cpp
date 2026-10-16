@@ -67,6 +67,67 @@ void Optional(Writer& writer, const std::optional<double>& value)
         writer.Add("null");
     }
 }
+void StatisticsJson(Writer& w, const Statistics& n)
+{
+    w.Add("{\"faces\":");
+    w.Number(n.faces);
+    w.Add(",\"edges\":");
+    w.Number(n.edges);
+    w.Add(",\"vertices\":");
+    w.Number(n.vertices);
+    w.Add(",\"area_mm2\":");
+    Number(w, n.areaMm2);
+    w.Add(",\"boundary_mm\":");
+    Number(w, n.boundaryMm);
+    w.Add(",\"bounds_mm\":[");
+    PointJson(w, n.boundsMm[0]);
+    w.Add(",");
+    PointJson(w, n.boundsMm[1]);
+    w.Add("]");
+    w.Add(",\"centroid_mm\":");
+    PointJson(w, n.centroidMm);
+    w.Add(",\"normal\":");
+    if (n.normal)
+    {
+        PointJson(w, *n.normal);
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add(",\"window_mm\":");
+    if (n.windowMm)
+    {
+        w.Add("[");
+        for (std::size_t i = 0; i < 4; ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            Number(w, (*n.windowMm)[i]);
+        }
+        w.Add("]");
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add(",\"material_volume\":");
+    if (n.materialVolumeMm3)
+    {
+        w.Add("{\"applicability\":\"Applicable\",\"value_mm3\":");
+        Number(w, *n.materialVolumeMm3);
+        w.Add("}");
+    }
+    else
+    {
+        w.String("NotApplicable");
+    }
+    w.Add(",\"free_boundary_edges\":");
+    w.Number(n.freeBoundaryEdges);
+    w.Add("}");
+}
 } // namespace
 void Serialize(const Outcome& outcome, const Quality& quality, const step_source::InspectOutcome& source, std::size_t limit, std::string& output)
 {
@@ -76,7 +137,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
         output,
         [&](Writer& w)
         {
-            w.Add("{\"format_version\":\"step-native-import.v1\",\"scope\":\"SingleOpenPlanarFace\",\"status\":");
+            w.Add("{\"format_version\":\"step-native-import.v2\",\"scope\":\"PlanarNativeImport\",\"status\":");
             w.String(StatusName(outcome.status));
             w.Add(",\"repair\":\"None\",\"profile\":");
             w.String(step_semantics::Profile);
@@ -125,7 +186,8 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                                                                 { "maximum_work_tolerance_mm", quality.maximumWorkToleranceMm },
                                                                 { "tolerance_growth_mm", quality.toleranceGrowthMm },
                                                                 { "query_mm", quality.queryMm },
-                                                                { "area_mm2", quality.areaMm2 } };
+                                                                { "area_mm2", quality.areaMm2 },
+                                                                { "volume_mm3", quality.volumeMm3 } };
             for (const auto& [name, value] : fields)
             {
                 w.Add(",");
@@ -150,7 +212,9 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add(",\"model\":");
             if (outcome.status == Status::Accepted)
             {
-                w.Add("{\"kind\":\"OwningReadOnlySnapshot\",\"role\":\"OpenSurfaceModel\"}");
+                w.Add("{\"kind\":\"OwningReadOnlySnapshot\",\"role\":");
+                w.String(report.native->shapeRole);
+                w.Add("}");
             }
             else
             {
@@ -159,41 +223,76 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add(",\"native_measurements\":");
             if (report.native)
             {
-                const auto& n = *report.native;
-                w.Add("{\"faces\":");
-                w.Number(n.faces);
-                w.Add(",\"edges\":");
-                w.Number(n.edges);
-                w.Add(",\"vertices\":");
-                w.Number(n.vertices);
-                w.Add(",\"area_mm2\":");
-                Number(w, n.areaMm2);
-                w.Add(",\"boundary_mm\":");
-                Number(w, n.boundaryMm);
-                w.Add(",\"bounds_mm\":[");
-                PointJson(w, n.boundsMm[0]);
-                w.Add(",");
-                PointJson(w, n.boundsMm[1]);
-                w.Add("]");
-                w.Add(",\"centroid_mm\":");
-                PointJson(w, n.centroidMm);
-                w.Add(",\"normal\":");
-                PointJson(w, n.normal);
-                w.Add(",\"window_mm\":[");
-                for (std::size_t i = 0; i < 4; ++i)
-                {
-                    if (i)
-                    {
-                        w.Add(",");
-                    }
-                    Number(w, n.windowMm[i]);
-                }
-                w.Add("],\"material_volume\":\"NotApplicable\"}");
+                StatisticsJson(w, *report.native);
             }
             else
             {
                 w.Add("null");
             }
+            w.Add(",\"face_mappings\":[");
+            for (std::size_t i = 0; i < report.faces.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& face = report.faces[i];
+                w.Add("{\"source_face\":");
+                w.String(face.faceId);
+                w.Add(",\"source_plane\":");
+                w.String(face.planeId);
+                w.Add(",\"source_same_sense\":");
+                w.Bool(face.sourceSameSense);
+                w.Add(",\"measurements\":");
+                StatisticsJson(w, face.native);
+                w.Add("}");
+            }
+            w.Add("],\"edge_adjacency\":[");
+            for (std::size_t i = 0; i < report.adjacency.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& edge = report.adjacency[i];
+                w.Add("{\"source_edge\":");
+                w.String(edge.edgeId);
+                w.Add(",\"native_edgeuses\":");
+                w.Number(edge.nativeUses);
+                w.Add(",\"source_faces\":[");
+                for (std::size_t j = 0; j < edge.faceIds.size(); ++j)
+                {
+                    if (j)
+                    {
+                        w.Add(",");
+                    }
+                    w.String(edge.faceIds[j]);
+                }
+                w.Add("]}");
+            }
+            w.Add("],\"material_census\":{\"solid_regions\":");
+            if (report.solidRegions)
+            {
+                w.Number(*report.solidRegions);
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add(",\"void_cavities\":");
+            if (report.voidCavities)
+            {
+                w.Number(*report.voidCavities);
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add("},\"volume_bound_mm3\":");
+            Optional(w, report.volumeBoundMm3);
+            w.Add(",\"volume_junction_bound_mm\":");
+            Optional(w, report.volumeJunctionBoundMm);
+            w.Add(",\"volume_evidence_policy\":\"AffineCarrierEndpointIntervalsNoGeometryChange\"");
             w.Add(",\"definition_bound_mm\":");
             Optional(w, report.definitionBoundMm);
             w.Add(",\"consistency_bound_mm\":");
