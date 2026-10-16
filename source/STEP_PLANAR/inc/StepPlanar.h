@@ -21,13 +21,26 @@ bool QuerySelects(Logical value);
 const char* LogicalName(Logical value);
 
 // Bounded, reduced exact rational. Capacity exhaustion never rounds or grants a pass.
-struct Rational
+class Rational
 {
-    std::int64_t numerator = 0;
-    std::int64_t denominator = 1;
+public:
+
     Rational() = default;
     Rational(std::int64_t n, std::int64_t d = 1);
     static Rational Decimal(std::string_view value);
+    constexpr std::int64_t Numerator() const noexcept
+    {
+        return m_numerator;
+    }
+    constexpr std::int64_t Denominator() const noexcept
+    {
+        return m_denominator;
+    }
+
+private:
+
+    std::int64_t m_numerator = 0;
+    std::int64_t m_denominator = 1;
 };
 Rational operator+(Rational a, Rational b);
 Rational operator-(Rational a, Rational b);

@@ -12,9 +12,9 @@ using step_source::report::Writer;
 void Fraction(Writer& json, Rational value)
 {
     json.Add("{\"kind\":\"rational\",\"num\":");
-    json.String(std::to_string(value.numerator));
+    json.String(std::to_string(value.Numerator()));
     json.Add(",\"den\":");
-    json.String(std::to_string(value.denominator));
+    json.String(std::to_string(value.Denominator()));
     json.Add("}");
 }
 void Vec(Writer& json, Vector values)

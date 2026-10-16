@@ -54,6 +54,10 @@ Thus irrational normalisation need not round the defining geometry. Numerals or 
 bounded representation return `Indeterminate`, with source provenance and no numeric fallback. This is a current
 capability limit, not a source-invalid diagnosis; it does not limit the source parser's exact numeric text retention.
 
+Rational values maintain a reduced numerator and positive denominator through construction and arithmetic.
+`Numerator()` and `Denominator()` return read-only facts; callers replace the whole value through validated construction
+rather than writing fraction members. The bounded range, exact decisions and serialized fraction format are unchanged.
+
 LINE parameters are dimensionless; PLANE u/v have source length units. Evidence gives the exact algebraic mapping back
 to source UV. `projected_region_*` values describe the independently checked projection of the source vertex boundary
 onto the source plane. Residuals remain visible, even when nonzero within Q. This projection is diagnostic evidence;

@@ -241,11 +241,11 @@ std::pair<std::size_t, std::size_t> Validator::Ends(std::size_t oe) const
 
 Outcome Check(const step_semantics::Outcome& semantics, Quality quality, Limits limits)
 {
-    if (quality.id.empty() || quality.consistencyMm.denominator <= 0 || quality.consistencyMm.numerator <= 0 || limits.work > 10000000)
+    if (quality.id.empty() || quality.consistencyMm.Denominator() <= 0 || quality.consistencyMm.Numerator() <= 0 || limits.work > 10000000)
     {
         throw std::invalid_argument("Explicit positive quality and bounded work configuration required");
     }
-    quality.consistencyMm = Rational(quality.consistencyMm.numerator, quality.consistencyMm.denominator);
+    quality.consistencyMm = Rational(quality.consistencyMm.Numerator(), quality.consistencyMm.Denominator());
     if (quality.id == "Q-P0-mm-01" && quality.consistencyMm != Rational(1, 10000000))
     {
         throw std::invalid_argument("Frozen quality identity cannot be reused for different parameters");

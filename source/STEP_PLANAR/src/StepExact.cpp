@@ -63,8 +63,8 @@ Rational::Rational(std::int64_t n, std::int64_t d)
         throw std::overflow_error("ExactArithmeticCapacityExceeded");
     }
     const auto divisor = std::gcd(Abs(n), d);
-    numerator = n / divisor;
-    denominator = d / divisor;
+    m_numerator = n / divisor;
+    m_denominator = d / divisor;
 }
 Rational Rational::Decimal(std::string_view text)
 {
@@ -170,13 +170,13 @@ Rational Rational::Decimal(std::string_view text)
 }
 Rational operator+(Rational a, Rational b)
 {
-    const auto gcd = std::gcd(a.denominator, b.denominator);
-    return { Add(Multiply(a.numerator, b.denominator / gcd), Multiply(b.numerator, a.denominator / gcd)),
-             Multiply(a.denominator, b.denominator / gcd) };
+    const auto gcd = std::gcd(a.Denominator(), b.Denominator());
+    return { Add(Multiply(a.Numerator(), b.Denominator() / gcd), Multiply(b.Numerator(), a.Denominator() / gcd)),
+             Multiply(a.Denominator(), b.Denominator() / gcd) };
 }
 Rational operator-(Rational a)
 {
-    return { -a.numerator, a.denominator };
+    return { -a.Numerator(), a.Denominator() };
 }
 Rational operator-(Rational a, Rational b)
 {
@@ -184,20 +184,20 @@ Rational operator-(Rational a, Rational b)
 }
 Rational operator*(Rational a, Rational b)
 {
-    const auto x = std::gcd(Abs(a.numerator), b.denominator), y = std::gcd(Abs(b.numerator), a.denominator);
-    return { Multiply(a.numerator / x, b.numerator / y), Multiply(a.denominator / y, b.denominator / x) };
+    const auto x = std::gcd(Abs(a.Numerator()), b.Denominator()), y = std::gcd(Abs(b.Numerator()), a.Denominator());
+    return { Multiply(a.Numerator() / x, b.Numerator() / y), Multiply(a.Denominator() / y, b.Denominator() / x) };
 }
 Rational operator/(Rational a, Rational b)
 {
-    if (!b.numerator)
+    if (!b.Numerator())
     {
         throw std::domain_error("UndefinedExactDivision");
     }
-    return a * Rational(b.numerator < 0 ? -b.denominator : b.denominator, Abs(b.numerator));
+    return a * Rational(b.Numerator() < 0 ? -b.Denominator() : b.Denominator(), Abs(b.Numerator()));
 }
 bool operator==(Rational a, Rational b)
 {
-    return a.numerator == b.numerator && a.denominator == b.denominator;
+    return a.Numerator() == b.Numerator() && a.Denominator() == b.Denominator();
 }
 bool operator!=(Rational a, Rational b)
 {
@@ -205,12 +205,12 @@ bool operator!=(Rational a, Rational b)
 }
 bool operator<(Rational a, Rational b)
 {
-    if ((a.numerator < 0) != (b.numerator < 0))
+    if ((a.Numerator() < 0) != (b.Numerator() < 0))
     {
-        return a.numerator < 0;
+        return a.Numerator() < 0;
     }
-    const int comparison = ComparePositive(Abs(a.numerator), a.denominator, Abs(b.numerator), b.denominator);
-    return a.numerator < 0 ? comparison > 0 : comparison < 0;
+    const int comparison = ComparePositive(Abs(a.Numerator()), a.Denominator(), Abs(b.Numerator()), b.Denominator());
+    return a.Numerator() < 0 ? comparison > 0 : comparison < 0;
 }
 bool operator>(Rational a, Rational b)
 {

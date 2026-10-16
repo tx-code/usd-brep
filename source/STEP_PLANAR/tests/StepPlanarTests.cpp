@@ -12,6 +12,12 @@
 namespace
 {
 using namespace step_planar;
+template <class T>
+concept WritableFractionMembers = requires(T& value) {
+    value.numerator = std::int64_t{};
+    value.denominator = std::int64_t{};
+};
+static_assert(!WritableFractionMembers<Rational>, "A caller cannot bypass the rational constructor invariants");
 void Require(bool value, const char* message)
 {
     if (!value)
@@ -61,6 +67,25 @@ int main(int argc, char** argv)
         const auto p01 = Read(corpus / "S203-P01/input.step");
         Require(Rational::Decimal("-12.50E-1") == Rational(-5, 4), "Exact decimal reduction");
         Require(Rational(1, 3) + Rational(1, 6) == Rational(1, 2) && Rational(2, 3) / Rational(-4, 5) == Rational(-5, 6), "Rational operations");
+        const auto reduced = Rational(2, 4);
+        Require(reduced.Numerator() == 1 && reduced.Denominator() == 2 && reduced == Rational(1, 2), "Canonical read-only fraction");
+        Require(Rational(0, 12).Numerator() == 0 && Rational(0, 12).Denominator() == 1, "Canonical zero");
+        const std::array<std::pair<std::int64_t, std::int64_t>, 3> invalidFractions = {
+            { { 1, 0 }, { 1, -1 }, { std::numeric_limits<std::int64_t>::min(), 1 } }
+        };
+        for (const auto& [numerator, denominator] : invalidFractions)
+        {
+            bool rejected = false;
+            try
+            {
+                (void)Rational(numerator, denominator);
+            }
+            catch (const std::overflow_error&)
+            {
+                rejected = true;
+            }
+            Require(rejected, "Invalid denominator or out-of-range numerator must not create a rational");
+        }
         const auto max = std::numeric_limits<std::int64_t>::max();
         Require(Rational(max - 1, max) < Rational(max, max - 1) && Rational(-max, max - 1) < Rational(-max + 1, max), "Overflow-free comparison");
         bool overflow = false;
