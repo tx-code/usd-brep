@@ -13,7 +13,8 @@ python -m unittest tools.step_import_native_validation.tests.test_native -v
 06 增加 P02/P03 孔与负 UV、32 组孔方向/源 bound SET 重排控制、解析双孔控制，
 逐 loop/use 身份与实际 UV 对照，以及五种遗漏/错绑/错误 owner/平移 UV 的观测反控。
 07 增加材料盒体的共享边/24次有向使用/逐面几何与UV/材料 census/独立体积区间，
-源顺序/稀疏ID/边方向、刚体变换、斜盒与闭合表面不推广、内外与最近点以及11种错误材料观测反控。
+源顺序/稀疏ID/边方向、平面内及三维倾斜刚体变换、斜盒与闭合表面不推广、内外与最近点，
+以及13种错误材料观测反控（包含有限边界补缝与微小 du 省略的通量证据）。
 当前每配置19组，产品报告为v2；原始三层源报告及测试包机制不改。
 49 项当前为 4 Accepted、25 源 Rejected、14 Unsupported、6 Deferred；
 14 Unsupported 包含 7 项既有源范围阻断及 7 项尚未授予目标资格的正例。

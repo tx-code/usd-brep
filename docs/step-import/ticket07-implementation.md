@@ -41,7 +41,7 @@ SAME 侧有限边界副本，包含 OPPOSITE 使用反向时的舍入和内核�
 最终区间同时对照精确源盒体体积和 native API 量测值；证据不足返回 Indeterminate，模型为空。
 这些操作不编辑原 UV 或几何、不缝合、不增 tol。
 
-上述数值消费路径已按本地 `SmFace.cpp` 的 `SmVolumeAreaIFEO`、`SmODEAreaIFEO` 和
+上述数值消费路径已按本地 `SmFace.cpp` 的 `SmODEIsoCurveLengthIFEO`、`SmODEAreaIFEO` 和
 `CreateOrientedTrimBoundary`，以及 `SmLine::ReverseParameterization` 逐项核查。
 初版仅包围端点和无限直线载体交点，未证明覆盖实际有限边界，已由本算法替代，不计为最终资格。
 产品报告因多面和材料属性更新为 v2；原 v1 历史资格和 01—04 报告不改，不建立测试包迁移。
