@@ -225,6 +225,37 @@ class SemanticTests(unittest.TestCase):
                     "UnsupportedCoordinateDimension", 2)
         self.checked(self.changed(b"CONTEXT(3) GLOBAL_UNIT", b"CONTEXT(+003) GLOBAL_UNIT"))
 
+    def test_bound_field_failures_keep_inherited_and_complex_locations(self):
+        cases = (
+            (b"'mechanical'", b"'electrical'", "UnsupportedProductContextDiscipline", 2,
+             "3", "PRODUCT_CONTEXT", "discipline_type", "PRODUCT_CONTEXT", [3], b"'electrical'"),
+            (b"'part definition'", b"'assembly'", "UnsupportedDefinitionContextRole", 2,
+             "6", "PRODUCT_DEFINITION_CONTEXT", "name", "APPLICATION_CONTEXT_ELEMENT", [1], b"'assembly'"),
+            (b"GEOMETRIC_REPRESENTATION_CONTEXT(3)", b"GEOMETRIC_REPRESENTATION_CONTEXT(2)",
+             "UnsupportedCoordinateDimension", 2, "12", "GEOMETRIC_REPRESENTATION_CONTEXT",
+             "coordinate_space_dimension", "GEOMETRIC_REPRESENTATION_CONTEXT", [1], b"2"),
+            (b"SI_UNIT($,.RADIAN.)", b"SI_UNIT($,.STERADIAN.)", "UnsupportedSiUnitKind", 2,
+             "11", "SI_UNIT", "name", "SI_UNIT", [2], b".STERADIAN."),
+        )
+        for old, new, key, code, owner, component, field, declared, path, primary in cases:
+            with self.subTest(key=key):
+                data = self.changed(old, new)
+                diagnostic = self.failed(data, key, code)["diagnostics"][0]
+                self.assertEqual((owner, component, field, declared, path),
+                                 (diagnostic["record_id"], diagnostic["component"], diagnostic["field"],
+                                  diagnostic["declared_in"], diagnostic["parameter_path"]))
+                span = diagnostic["span"]
+                self.assertEqual(primary, data[span[0]:span[1]])
+
+    def test_bound_aggregate_member_keeps_member_span_and_attribute_path(self):
+        data = self.changed(b"('body',(#21),#12)", b"('body',(#100),#12)")
+        diagnostic = self.failed(data, "UnsupportedRepresentationItem", 2)["diagnostics"][0]
+        self.assertEqual(("20", "items", "REPRESENTATION", [2]),
+                         (diagnostic["record_id"], diagnostic["field"],
+                          diagnostic["declared_in"], diagnostic["parameter_path"]))
+        span = diagnostic["span"]
+        self.assertEqual(b"#100", data[span[0]:span[1]])
+
     def test_single_part_identity_does_not_merge_product_label(self):
         data = self.changed(b"ENDSEC;\nEND-ISO-10303-21;",
                             b"#999=PRODUCT('P0-PART','duplicate label',$,(#3));\nENDSEC;\nEND-ISO-10303-21;")

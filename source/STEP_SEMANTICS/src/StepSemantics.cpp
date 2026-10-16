@@ -48,6 +48,40 @@ std::size_t ResolveReference(const SemanticData& data, const Value& value)
     }
     return found->second;
 }
+std::size_t FindFieldBinding(const SemanticData& data, std::size_t record, std::string_view name, std::optional<std::string_view> declaredIn = {})
+{
+    if (!data.bindingsComplete)
+    {
+        throw std::logic_error("Semantic field bindings are not complete");
+    }
+    const auto& bound = data.fields.at(record);
+    const auto matches = bound.named.equal_range(name);
+    if (!declaredIn)
+    {
+        if (matches.first == matches.second || std::next(matches.first) != matches.second)
+        {
+            throw std::invalid_argument("Missing or ambiguous source field");
+        }
+        return matches.first->second;
+    }
+    std::optional<std::size_t> found;
+    for (auto at = matches.first; at != matches.second; ++at)
+    {
+        if (bound.attributes[at->second].declaration.declaredIn == *declaredIn)
+        {
+            if (found)
+            {
+                throw std::invalid_argument("Ambiguous declared source field");
+            }
+            found = at->second;
+        }
+    }
+    if (!found)
+    {
+        throw std::invalid_argument("Missing declared source field");
+    }
+    return *found;
+}
 bool PositiveInteger(std::string_view text)
 {
     if (!text.empty() && text.front() == '-')
@@ -256,34 +290,55 @@ private:
     {
         return m_data->source->Records().at(index);
     }
-    const Value& ValueAt(std::size_t r, std::size_t slot) const
+    const BoundAttribute& Binding(std::size_t record, std::string_view name) const
     {
-        return Record(r).components[0].parameters.at(slot);
+        return m_data->fields.at(record).attributes.at(FindFieldBinding(*m_data, record, name));
+    }
+    const Value& FieldValue(std::size_t record, std::string_view name) const
+    {
+        return *Binding(record, name).declaration.value;
     }
     std::size_t Target(const Value& value) const
     {
+        return ResolveReference(*m_data, value);
+    }
+    std::size_t UnboundTarget(const Value& value) const
+    {
         return IndexOf(*m_data, value.text);
     }
-    const step_source::Component& Component(std::size_t r, std::string_view name) const
+    enum class FieldDetail
     {
-        const auto& parts = Record(r).components;
-        const auto found = std::find_if(
-            parts.begin(),
-            parts.end(),
-            [&](const auto& part)
-            {
-                return part.name == name;
-            }
+        SpanOnly, // Preserve record/component but omit parameter and declaration details.
+        AttributePath
+    };
+    [[noreturn]] void FieldFailure(
+        std::string key,
+        std::string stage,
+        std::string message,
+        Span span,
+        Status status,
+        std::size_t owner,
+        std::string_view name,
+        FieldDetail detail,
+        std::string expected = {},
+        std::string actual = {},
+        std::string responsibility = {}
+    )
+    {
+        const auto& bound = Binding(owner, name);
+        Fail(
+            std::move(key),
+            std::move(stage),
+            std::move(message),
+            span,
+            status,
+            owner,
+            bound.component,
+            detail == FieldDetail::AttributePath ? std::vector<std::size_t>{ bound.parameter + 1 } : std::vector<std::size_t>{},
+            std::move(expected),
+            std::move(actual),
+            std::move(responsibility)
         );
-        if (found == parts.end())
-        {
-            throw std::logic_error("Validated facet is missing");
-        }
-        return *found;
-    }
-    std::size_t ComponentIndex(std::size_t r, std::string_view name) const
-    {
-        return static_cast<std::size_t>(&Component(r, name) - Record(r).components.data());
     }
 
     void Binding()
@@ -578,7 +633,7 @@ private:
                 {
                     mismatch();
                 }
-                if (!Schema().MatchesReference(m_data->types.at(Target(value)), field.type))
+                if (!Schema().MatchesReference(m_data->types.at(UnboundTarget(value)), field.type))
                 {
                     try
                     {
@@ -592,18 +647,18 @@ private:
                             c,
                             path,
                             field.type,
-                            Record(Target(value)).components[0].name,
+                            Record(UnboundTarget(value)).components[0].name,
                             "N2635 explicit reference type"
                         );
                     }
                     catch (Failure& failure)
                     {
                         failure.diagnostic.source.targetId = value.text;
-                        failure.diagnostic.source.related.push_back(Record(Target(value)).idSpan);
+                        failure.diagnostic.source.related.push_back(Record(UnboundTarget(value)).idSpan);
                         throw;
                     }
                 }
-                m_data->referenceTargets.emplace(&value, Target(value));
+                m_data->referenceTargets.emplace(&value, UnboundTarget(value));
                 break;
             case FieldKind::Measure:
                 if (value.kind != ValueKind::Typed || value.children.size() != 1)
@@ -834,19 +889,21 @@ private:
         }
         return members[0];
     }
-    void Link(std::size_t owner, const Value& field, std::size_t target)
+    void Link(std::size_t owner, std::string_view name, std::size_t target, std::optional<std::size_t> member = {})
     {
+        const auto& value = FieldValue(owner, name);
+        const auto& field = member ? value.children.at(*member) : value;
         if (Target(field) != target)
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedSinglePartGraph",
                 "D2",
                 "Product chain roles do not refer to the same source definition",
                 field.span,
                 Status::Unsupported,
                 owner,
-                0,
-                {},
+                name,
+                FieldDetail::SpanOnly,
                 Record(target).id,
                 field.text,
                 "single-part identity guard"
@@ -871,130 +928,139 @@ private:
                                { "shape_definition_representation", sdr },
                                { "representation", m_representation },
                                { "unit_context", m_context } };
-        Link(apd, ValueAt(apd, 3), ac);
-        Link(pc, ValueAt(pc, 1), ac);
-        Link(pdc, ValueAt(pdc, 1), ac);
-        if (ValueAt(product, 3).children.size() != 1)
+        Link(apd, "application", ac);
+        Link(pc, "frame_of_reference", ac);
+        Link(pdc, "frame_of_reference", ac);
+        if (FieldValue(product, "frame_of_reference").children.size() != 1)
         {
-            Fail("UnsupportedSinglePartGraph", "D2", "Only one product context is supported", ValueAt(product, 3).span, Status::Unsupported, product);
+            FieldFailure(
+                "UnsupportedSinglePartGraph",
+                "D2",
+                "Only one product context is supported",
+                FieldValue(product, "frame_of_reference").span,
+                Status::Unsupported,
+                product,
+                "frame_of_reference",
+                FieldDetail::SpanOnly
+            );
         }
-        Link(product, ValueAt(product, 3).children[0], pc);
-        Link(formation, ValueAt(formation, 2), product);
-        Link(pd, ValueAt(pd, 2), formation);
-        Link(pd, ValueAt(pd, 3), pdc);
-        Link(pds, ValueAt(pds, 2), pd);
-        Link(sdr, ValueAt(sdr, 0), pds);
-        Link(sdr, ValueAt(sdr, 1), m_representation);
-        Link(m_representation, ValueAt(m_representation, 2), m_context);
-        m_data->part.apdStatus = ValueAt(apd, 0).text;
-        m_data->part.apdSchemaClaim = ValueAt(apd, 1).text;
-        m_data->part.apdYear = ValueAt(apd, 2).text; // APD global RULE is ticket 04; never substitute HEADER text here.
-        if (IsA(*m_data, pc, "MECHANICAL_CONTEXT") && ValueAt(pc, 2).text != "mechanical")
+        Link(product, "frame_of_reference", pc, 0);
+        Link(formation, "of_product", product);
+        Link(pd, "formation", formation);
+        Link(pd, "frame_of_reference", pdc);
+        Link(pds, "definition", pd);
+        Link(sdr, "definition", pds);
+        Link(sdr, "used_representation", m_representation);
+        Link(m_representation, "context_of_items", m_context);
+        m_data->part.apdStatus = FieldValue(apd, "status").text;
+        m_data->part.apdSchemaClaim = FieldValue(apd, "application_interpreted_model_schema_name").text;
+        m_data->part.apdYear = FieldValue(apd, "application_protocol_year").text; // APD global RULE is ticket 04; never substitute HEADER text here.
+        if (IsA(*m_data, pc, "MECHANICAL_CONTEXT") && FieldValue(pc, "discipline_type").text != "mechanical")
         {
-            Fail(
+            FieldFailure(
                 "SourceRuleViolation:MECHANICAL_CONTEXT.WR1",
                 "D3",
                 "Legacy mechanical context discipline is invalid",
-                ValueAt(pc, 2).span,
+                FieldValue(pc, "discipline_type").span,
                 Status::Rejected,
                 pc,
-                0,
-                { 3 },
+                "discipline_type",
+                FieldDetail::AttributePath,
                 "mechanical",
-                ValueAt(pc, 2).text,
+                FieldValue(pc, "discipline_type").text,
                 "MECHANICAL_CONTEXT.WR1"
             );
         }
-        if (IsA(*m_data, pdc, "DESIGN_CONTEXT") && ValueAt(pdc, 2).text != "design")
+        if (IsA(*m_data, pdc, "DESIGN_CONTEXT") && FieldValue(pdc, "life_cycle_stage").text != "design")
         {
-            Fail(
+            FieldFailure(
                 "SourceRuleViolation:DESIGN_CONTEXT.WR1",
                 "D3",
                 "Legacy design context lifecycle is invalid",
-                ValueAt(pdc, 2).span,
+                FieldValue(pdc, "life_cycle_stage").span,
                 Status::Rejected,
                 pdc,
-                0,
-                { 3 },
+                "life_cycle_stage",
+                FieldDetail::AttributePath,
                 "design",
-                ValueAt(pdc, 2).text,
+                FieldValue(pdc, "life_cycle_stage").text,
                 "DESIGN_CONTEXT.WR1"
             );
         }
-        if (ValueAt(pc, 2).text != "mechanical")
+        if (FieldValue(pc, "discipline_type").text != "mechanical")
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedProductContextDiscipline",
                 "D2",
                 "Product discipline is outside this profile",
-                ValueAt(pc, 2).span,
+                FieldValue(pc, "discipline_type").span,
                 Status::Unsupported,
                 pc,
-                0,
-                { 3 },
+                "discipline_type",
+                FieldDetail::AttributePath,
                 "mechanical",
-                ValueAt(pc, 2).text,
+                FieldValue(pc, "discipline_type").text,
                 "profile role guard"
             );
         }
-        if (ValueAt(pdc, 0).text != "part definition")
+        if (FieldValue(pdc, "name").text != "part definition")
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedDefinitionContextRole",
                 "D2",
                 "Definition context is outside the single-part profile",
-                ValueAt(pdc, 0).span,
+                FieldValue(pdc, "name").span,
                 Status::Unsupported,
                 pdc,
-                0,
-                { 1 },
+                "name",
+                FieldDetail::AttributePath,
                 "part definition",
-                ValueAt(pdc, 0).text,
+                FieldValue(pdc, "name").text,
                 "profile role guard"
             );
         }
-        if (ValueAt(pdc, 2).text != "design")
+        if (FieldValue(pdc, "life_cycle_stage").text != "design")
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedDefinitionLifecycleStage",
                 "D2",
                 "Definition lifecycle is outside this profile",
-                ValueAt(pdc, 2).span,
+                FieldValue(pdc, "life_cycle_stage").span,
                 Status::Unsupported,
                 pdc,
-                0,
-                { 3 },
+                "life_cycle_stage",
+                FieldDetail::AttributePath,
                 "design",
-                ValueAt(pdc, 2).text,
+                FieldValue(pdc, "life_cycle_stage").text,
                 "profile role guard"
             );
         }
         const std::unordered_set<std::string> specialNames{ "visual appearance", "tactile appearance", "contact ratio",
                                                             "hardness",          "treatment result",   "surface texture" };
-        if (specialNames.count(ValueAt(pds, 0).text))
+        if (specialNames.count(FieldValue(pds, "name").text))
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedShapePurpose",
                 "D2",
                 "Special surface-condition purpose is not supported",
-                ValueAt(pds, 0).span,
+                FieldValue(pds, "name").span,
                 Status::Unsupported,
                 pds,
-                0,
-                { 1 }
+                "name",
+                FieldDetail::AttributePath
             );
         }
-        if (ValueAt(m_representation, 0).text == "centre of mass" || ValueAt(m_representation, 0).text == "treatment result")
+        if (FieldValue(m_representation, "name").text == "centre of mass" || FieldValue(m_representation, "name").text == "treatment result")
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedRepresentationPurpose",
                 "D2",
                 "Special representation purpose is not supported",
-                ValueAt(m_representation, 0).span,
+                FieldValue(m_representation, "name").span,
                 Status::Unsupported,
                 m_representation,
-                0,
-                { 1 }
+                "name",
+                FieldDetail::AttributePath
             );
         }
         const auto& categories = Population("PRODUCT_RELATED_PRODUCT_CATEGORY");
@@ -1012,27 +1078,27 @@ private:
         if (!categories.empty())
         {
             const auto category = categories[0];
-            const auto& products = ValueAt(category, 2);
-            if (ValueAt(category, 0).text != "part" || products.children.size() != 1 || Target(products.children[0]) != product)
+            const auto& products = FieldValue(category, "products");
+            if (FieldValue(category, "name").text != "part" || products.children.size() != 1 || Target(products.children[0]) != product)
             {
-                Fail(
+                FieldFailure(
                     "UnsupportedProductCategory",
                     "D2",
                     "Category name/products are outside the single-part guard",
-                    ValueAt(category, 0).span,
+                    FieldValue(category, "name").span,
                     Status::Unsupported,
                     category,
-                    0,
-                    { 1 },
+                    "name",
+                    FieldDetail::AttributePath,
                     "part for this product",
-                    ValueAt(category, 0).text,
+                    FieldValue(category, "name").text,
                     "profile category guard"
                 );
             }
             m_data->part.roles.push_back({ "category", category });
         }
         std::vector<std::size_t> shapes;
-        for (const auto& item : ValueAt(m_representation, 1).children)
+        for (const auto& item : FieldValue(m_representation, "items").children)
         {
             const auto target = Target(item);
             if (IsA(*m_data, target, "AXIS2_PLACEMENT_3D"))
@@ -1042,15 +1108,15 @@ private:
             const bool solid = IsA(*m_data, m_representation, "ADVANCED_BREP_SHAPE_REPRESENTATION");
             if (!IsA(*m_data, target, solid ? "MANIFOLD_SOLID_BREP" : "SHELL_BASED_SURFACE_MODEL"))
             {
-                Fail(
+                FieldFailure(
                     "UnsupportedRepresentationItem",
                     "D2",
                     "Only the declared shape and auxiliary placements are supported",
                     item.span,
                     Status::Unsupported,
                     m_representation,
-                    0,
-                    { 2 },
+                    "items",
+                    FieldDetail::AttributePath,
                     "one MSB/SBSM",
                     Record(target).components[0].name,
                     "profile shape guard"
@@ -1060,13 +1126,15 @@ private:
         }
         if (shapes.size() != 1)
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedShapeMultiplicity",
                 "D2",
                 "Exactly one shape item is required",
-                ValueAt(m_representation, 1).span,
+                FieldValue(m_representation, "items").span,
                 Status::Unsupported,
-                m_representation
+                m_representation,
+                "items",
+                FieldDetail::SpanOnly
             );
         }
         const auto shape = shapes[0];
@@ -1074,37 +1142,46 @@ private:
         std::size_t shell = 0;
         if (IsA(*m_data, shape, "MANIFOLD_SOLID_BREP"))
         {
-            shell = Target(ValueAt(shape, 1));
+            shell = Target(FieldValue(shape, "outer"));
             m_data->part.shapeRole = "MaterialSolid";
         }
         else
         {
-            if (ValueAt(shape, 1).children.size() != 1)
+            if (FieldValue(shape, "sbsm_boundary").children.size() != 1)
             {
-                Fail("UnsupportedShapeMultiplicity", "D2", "One source shell is required", ValueAt(shape, 1).span, Status::Unsupported, shape);
+                FieldFailure(
+                    "UnsupportedShapeMultiplicity",
+                    "D2",
+                    "One source shell is required",
+                    FieldValue(shape, "sbsm_boundary").span,
+                    Status::Unsupported,
+                    shape,
+                    "sbsm_boundary",
+                    FieldDetail::SpanOnly
+                );
             }
-            shell = Target(ValueAt(shape, 1).children[0]);
+            shell = Target(FieldValue(shape, "sbsm_boundary").children[0]);
             m_data->part.shapeRole = IsA(*m_data, shell, "CLOSED_SHELL") ? "ClosedSurfaceModel" : "OpenSurfaceModel";
         }
         m_data->part.roles.push_back({ "shell", shell });
         for (const auto face : Population("FACE"))
         {
             std::size_t outer = 0;
-            for (const auto& bound : ValueAt(face, 1).children)
+            for (const auto& bound : FieldValue(face, "bounds").children)
             {
                 outer += IsA(*m_data, Target(bound), "FACE_OUTER_BOUND") ? 1 : 0;
             }
             if (outer != 1)
             {
-                Fail(
+                FieldFailure(
                     "UnsupportedExplicitOuterBoundRequired",
                     "D2",
                     "This profile requires one explicit FACE_OUTER_BOUND",
-                    ValueAt(face, 1).span,
+                    FieldValue(face, "bounds").span,
                     Status::Unsupported,
                     face,
-                    0,
-                    { 2 },
+                    "bounds",
+                    FieldDetail::AttributePath,
                     "one explicit outer bound",
                     std::to_string(outer),
                     "profile face-region guard"
@@ -1190,7 +1267,7 @@ private:
             }
         }
         std::vector<std::size_t> items;
-        for (const auto& value : ValueAt(m_representation, 1).children)
+        for (const auto& value : FieldValue(m_representation, "items").children)
         {
             items.push_back(Target(value));
         }
@@ -1199,18 +1276,18 @@ private:
 
     void UnitContext()
     {
-        const auto& dimension = Component(m_context, "GEOMETRIC_REPRESENTATION_CONTEXT").parameters[0];
+        const auto& dimension = FieldValue(m_context, "coordinate_space_dimension");
         if (!PositiveInteger(dimension.text))
         {
-            Fail(
+            FieldFailure(
                 "SourceRuleViolation:DIMENSION_COUNT.WR1",
                 "D3",
                 "dimension_count must be positive",
                 dimension.span,
                 Status::Rejected,
                 m_context,
-                ComponentIndex(m_context, "GEOMETRIC_REPRESENTATION_CONTEXT"),
-                { 1 },
+                "coordinate_space_dimension",
+                FieldDetail::AttributePath,
                 ">0",
                 dimension.text,
                 "DIMENSION_COUNT.WR1"
@@ -1218,22 +1295,22 @@ private:
         }
         if (!Three(dimension.text))
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedCoordinateDimension",
                 "D2",
                 "This profile requires a 3D representation context",
                 dimension.span,
                 Status::Unsupported,
                 m_context,
-                ComponentIndex(m_context, "GEOMETRIC_REPRESENTATION_CONTEXT"),
-                { 1 },
+                "coordinate_space_dimension",
+                FieldDetail::AttributePath,
                 "3",
                 dimension.text,
                 "profile dimension guard"
             );
         }
         std::vector<std::size_t> lengths, angles, solids;
-        const auto& assignments = Component(m_context, "GLOBAL_UNIT_ASSIGNED_CONTEXT").parameters[0];
+        const auto& assignments = FieldValue(m_context, "units");
         for (const auto& unit : assignments.children)
         {
             const auto target = Target(unit);
@@ -1252,15 +1329,15 @@ private:
         }
         if (lengths.size() != 1 || angles.size() != 1 || solids.size() > 1)
         {
-            Fail(
+            FieldFailure(
                 "UnsupportedUnitAssignment",
                 "D2",
                 "Exactly one length and plane angle, at most one solid angle are required",
                 assignments.span,
                 Status::Unsupported,
                 m_context,
-                ComponentIndex(m_context, "GLOBAL_UNIT_ASSIGNED_CONTEXT"),
-                { 1 },
+                "units",
+                FieldDetail::AttributePath,
                 "length=1 angle=1 solid-angle<=1",
                 "different nominal quantities/counts",
                 "profile unit guard; no defaults"
@@ -1275,26 +1352,25 @@ private:
         for (auto r : Population("SI_UNIT"))
         {
             Visit(Record(r).span);
-            const auto& parameters = Component(r, "SI_UNIT").parameters;
             SiUnit definition;
             definition.recordIndex = r;
-            definition.siName = parameters[1].text;
-            definition.prefix = parameters[0].kind == ValueKind::Unset ? "" : parameters[0].text;
+            definition.siName = FieldValue(r, "name").text;
+            definition.prefix = FieldValue(r, "prefix").kind == ValueKind::Unset ? "" : FieldValue(r, "prefix").text;
             const bool length = IsA(*m_data, r, "LENGTH_UNIT");
             const bool angle = IsA(*m_data, r, "PLANE_ANGLE_UNIT");
             definition.quantity = length ? "Length" : angle ? "PlaneAngle" : "SolidAngle";
             const std::string expected = length ? "METRE" : angle ? "RADIAN" : "STERADIAN";
             if (definition.siName != expected)
             {
-                Fail(
+                FieldFailure(
                     "UnsupportedSiUnitKind",
                     "D2",
                     "SI name/nominal quantity pairing is outside this profile",
-                    parameters[1].span,
+                    FieldValue(r, "name").span,
                     Status::Unsupported,
                     r,
-                    ComponentIndex(r, "SI_UNIT"),
-                    { 2 },
+                    "name",
+                    FieldDetail::AttributePath,
                     expected,
                     definition.siName,
                     "profile nominal SI-unit guard"
@@ -1371,35 +1447,11 @@ AttributeView Snapshot::Attribute(std::size_t r, std::size_t c, std::size_t p) c
 }
 FieldView Snapshot::Field(std::size_t record, std::string_view name) const
 {
-    const auto& bound = m_data->fields.at(record);
-    const auto matches = bound.named.equal_range(name);
-    if (matches.first == matches.second || std::next(matches.first) != matches.second)
-    {
-        throw std::invalid_argument("Missing or ambiguous source field");
-    }
-    return FieldView(m_data, record, matches.first->second);
+    return FieldView(m_data, record, FindFieldBinding(*m_data, record, name));
 }
 FieldView Snapshot::Field(std::size_t record, std::string_view declaredIn, std::string_view name) const
 {
-    const auto& bound = m_data->fields.at(record);
-    const auto matches = bound.named.equal_range(name);
-    std::optional<std::size_t> found;
-    for (auto at = matches.first; at != matches.second; ++at)
-    {
-        if (bound.attributes[at->second].declaration.declaredIn == declaredIn)
-        {
-            if (found)
-            {
-                throw std::invalid_argument("Ambiguous declared source field");
-            }
-            found = at->second;
-        }
-    }
-    if (!found)
-    {
-        throw std::invalid_argument("Missing declared source field");
-    }
-    return FieldView(m_data, record, *found);
+    return FieldView(m_data, record, FindFieldBinding(*m_data, record, name, declaredIn));
 }
 std::size_t Snapshot::ReferenceTarget(const step_source::Value& value) const
 {

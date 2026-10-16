@@ -22,6 +22,11 @@ Missing/ambiguous fields and reference-query misuse are caller errors. FieldView
 and aggregate order. Snapshot::ReferenceTarget accepts only the actual reference Value from its owning source graph,
 rejecting copied values and values from a distinct source snapshot. Existing indexed Attribute queries are unchanged.
 
+After field validation completes, product, closure and unit interpretation consume those same bindings and resolved
+references. Their diagnostics derive component/parameter locations from bindings while retaining the existing choice
+to include or omit attribute detail. Raw field/type validation still reads serialized slots before bindings are complete;
+the checker does not construct an early Snapshot to use its queries. Public field views share the same lookup.
+
 ```powershell
 cmake -S source/STEP_SEMANTICS -B C:/temp/step-semantic-build
 cmake --build C:/temp/step-semantic-build --config Debug
