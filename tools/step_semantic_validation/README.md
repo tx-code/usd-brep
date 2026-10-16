@@ -69,3 +69,10 @@ types, all fixed SI prefixes, missing/conflicting units, rad/sr nominal separati
 legacy source identity, conversion deferral, reordered/sparse IDs, traversal/report
 limits and six checker-corruption controls. General allocation fault cleanup,
 worker cancellation, native modeling and full schema conformance are not qualified.
+
+
+The execution/publication/recheck implementation is now shared by
+[`step_evidence`](../step_evidence/README.md). The existing stage `run`/`check` and CLI interfaces remain;
+its comparison logic stays independent. New packages explicitly declare `step-evidence.v2` while retaining this
+stage's existing envelope. Historical packages retain their recorded scope and can be rechecked offline.
+Current refactor acceptance is recorded separately from the original ticket acceptance.

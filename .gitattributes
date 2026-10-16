@@ -8,6 +8,7 @@
 /docs/step-import-repair-*.md text eol=lf
 /source/STEP_*/** text eol=lf
 /tools/step_*_validation/** text eol=lf
+/tools/step_evidence/** text eol=lf
 # Frozen evidence and schema witnesses are content-addressed byte artifacts.
 /tools/step_import_validation/corpus/** -text
 /tools/step_semantic_validation/contracts/** -text

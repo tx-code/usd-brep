@@ -11,7 +11,7 @@ import re
 
 from tools.step_import_validation.common import InvalidEvidence, digest, load_json
 from tools.step_import_validation.oracle import exact
-from tools.step_inspect_validation.runner import compare as compare_raw, position
+from tools.step_inspect_validation.oracle import compare as compare_raw, position
 
 REFERENCE = Path(__file__).parent / "contracts/n2635-reference-v2.json"
 REFERENCE_SHA = "95eaed220c9e638f8f94c6e9429c2b562668ad643070efa77f26b8b305b29a58"

@@ -49,3 +49,5 @@ _Avoid_: Repair (when no inconsistent defining geometry is being changed).
 **Source snapshot**: An immutable record of the input used for import and its available source semantics. It is distinct from a target model or import candidate.
 
 **Import report**: The findings and evidence for an import request, covering diagnostics, representation changes, and repair attempts. Its conclusions apply to the identified input, quality requirements, and accepted model snapshot when present.
+
+**Import evidence package**: A retained record of an import validation run, binding its selected inputs, observations and independent comparisons to its declared validation scope. A complete record does not by itself establish model acceptance.

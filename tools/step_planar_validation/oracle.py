@@ -16,7 +16,7 @@ from pathlib import Path
 from tools.step_import_validation.common import InvalidEvidence, digest, load_json
 from tools.step_import_validation.oracle import add, sub, dot, cross, exact, decode, input_facts
 from tools.step_import_validation.records import inventory, by_id, ref, vector, aggregate
-from tools.step_inspect_validation.runner import position
+from tools.step_inspect_validation.oracle import position
 from tools.step_semantic_validation.oracle import compare as compare_semantic, REJECTIONS, DEFERRED
 
 REFERENCE = Path(__file__).parent / "contracts/n2635-rules-v1.json"

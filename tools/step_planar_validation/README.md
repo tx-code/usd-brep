@@ -32,3 +32,10 @@ All 49 current-stage contracts must match: 11 `Checked`, 15 newly `Rejected`, 17
 The 17 preceding failures contain 10 source failures and 7 unsupported cases. The 32 total blockers are not all source
 invalidity. A single mutation may have further consequences after its first blocker; reporting those is not required.
 For every case, full import/native build remains `NotRun` and import-success count remains null.
+
+
+The execution/publication/recheck implementation is now shared by
+[`step_evidence`](../step_evidence/README.md). The existing stage `run`/`check` and CLI interfaces remain;
+its comparison logic stays independent. New packages explicitly declare `step-evidence.v2` while retaining this
+stage's existing envelope. Historical packages retain their recorded scope and can be rechecked offline.
+Current refactor acceptance is recorded separately from the original ticket acceptance.

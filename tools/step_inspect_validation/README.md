@@ -57,3 +57,10 @@ const views, ID lookup/reverse references, raw graph cycles, exact limits and ha
 vectors. CLI tests cover all 49 cases, multiline/comments/reordering, sparse IDs,
 lexical errors, rejected carriers/encoding, each basic limit at N/N−1, bounded
 report publication, and checker corruption controls. No CAD reader is used as oracle.
+
+
+The execution/publication/recheck implementation is now shared by
+[`step_evidence`](../step_evidence/README.md). The existing stage `run`/`check` and CLI interfaces remain;
+its comparison logic stays independent. New packages explicitly declare `step-evidence.v2` while retaining this
+stage's existing envelope. Historical packages retain their recorded scope and can be rechecked offline.
+Current refactor acceptance is recorded separately from the original ticket acceptance.
