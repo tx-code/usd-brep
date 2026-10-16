@@ -116,6 +116,10 @@ validate.py/validation.json记录C++20两配置、138项、196次样件和169次
 旧可写接口的编译合同失败与新接口通过均有日志。3个Release CLI的运行依赖已另行检查，
 没有OCCT/SMLib/USD/STEPcode。所有源码变化均经过Standards与Spec两项审查，当前无未解决发现。
 
+最终逐项审计已核验受测源码哈希、138个实际测试名与四模块计数、19条原条件未被改写、
+15条直接依赖及05—12的on-hold状态、冻结锚点和当前P01的model=null/native NotRun。
+本地`pre05-final-audit.py`及`pre05-final-audit.json`保存对应检查与结果；这些是本机核验记录，不是新打包协议。
+
 | 冻结对象 | SHA256 |
 |---|---|
 | 规格0.1 | 9a6f364e38eeb43fee5bb7b05e151eb7102cc80f402ae24f508adc55a566d6fa |
