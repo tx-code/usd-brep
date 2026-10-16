@@ -60,4 +60,5 @@ Windows 资源检查包含成功、各调用预算边界、后验预算不足、
 本机已验证的 C++20 适配器配套原生内核仍为 C++17；不代表全仓升级或一般 ABI/跨平台资格。
 `SmIterationValue::operator==` 仅补 `const` 以使头文件能在 C++20 equality rewriting 下编译，
 函数原有恒 FALSE 主体与求解算法不变。详细实现和验收见
-[实施合同](../../docs/step-import/ticket05-implementation.md)。
+[实施合同](../../docs/step-import/ticket05-implementation.md)与
+[05 验收](../../docs/step-import/ticket05-acceptance.md)。

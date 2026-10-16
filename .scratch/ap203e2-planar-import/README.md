@@ -1,6 +1,6 @@
 # AP203e2首个profile：本地实施票
 
-2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；05—12仍未领取/on-hold，05的04技术前置已满足但未自动开工。
+2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05已实现并验收，06—12仍未领取/on-hold。
 
 ## 状态与执行限制
 
@@ -9,7 +9,7 @@
 01—04原19条验收及进入05前的核心准备已经完成，详见
 [05之前准备完成记录](../../docs/step-import/pre05-readiness.md)。三个STEP目标及其CLI/原生测试
 当前以C++20为基线；本页下方C++17与各阶段“后续未开始”描述保留初次验收的历史时点。
-随后用户要求按后续计划继续，05已领取并进入实施；06—12仍为on-hold。
+随后用户要求按后续计划继续，05已实现并验收关闭，见[05验收](../../docs/step-import/ticket05-acceptance.md)；06—12仍为on-hold。
 前置准备的验收不代替05实际native构建与后验检查。
 
 后续核心收尾包括[全局身份](../../docs/step-import/global-rule-identity.md)、
@@ -19,13 +19,13 @@
 
 ### 票据状态
 
-- **Status：01—04为closed，05为in-progress，其余ready-for-agent**。ready-for-agent不表示已开工。
-- **Execution：01—04为completed，05为in-progress，06—12为on-hold**。
-- **Assignee：01—05为codex，其余None**。05的04技术前置已验收满足。
+- **Status：01—05为closed，其余ready-for-agent**。ready-for-agent不表示已开工。
+- **Execution：01—05为completed，06—12为on-hold**。
+- **Assignee：01—05为codex，其余None**。06/07/10/11的05技术前置已满足，未自动开工。
 - Blocked by只列直接技术前置。前置票实际完成验收并关闭后才解除相应阻塞；未执行的验收框保持未勾选。
 - 后续明确开工后，先按授权范围更新Execution与负责人再执行；没有新指令时不自动领取frontier。
 
-本地建票使用[to-tickets技能](C:/Users/tangx/.codex/skills/to-tickets/SKILL.md)约定的一票一文件格式。既有Wayfinder设计票、父地图及已确认规格保持原状态；本次没有远端issue、PR或代码提交。
+本地建票使用[to-tickets技能](C:/Users/tangx/.codex/skills/to-tickets/SKILL.md)约定的一票一文件格式。既有Wayfinder设计票、父地图及已确认规格保持原状态；本次没有远端issue或PR；后续实现仅本地提交，未推送。
 
 2026-10-16先新增[01票实施方案与验收步骤](plans/01-fixture-evidence-plan.md)：定义材料/证据、A—H顺序及V01—V12。其“未执行”措辞保留当时设计快照；当前实际状态见下方验收记录。
 
@@ -58,7 +58,9 @@
 
 **04实际验收：** [04验收记录](../../docs/step-import/ticket04-acceptance.md)。独立STEP_PLANAR，无OCCT/SMLib读取或构建依赖。49当前合同匹配（11源证据Checked、32准确阻断、6 conversion Deferred）；规则5/1/41、方向/区域及误差独立对账。C++17 Debug/Release与STEP闭包C++20检查通过，两版Python各35测试；全49的17/20输出相同。05未开始，完整导入仍NotRun。
 
-共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，共19条；其余34条未执行。
+**05实际验收：** [05验收记录](../../docs/step-import/ticket05-acceptance.md)。C++20内部owning开放平面，F1面积96/边界40/1F4E4V/参数与查询通过；独立native一致性、后装UV、五阶段tol、普通失败及视图/报告生命期均验收。两配置各9组CLI通过，49合同为1Accepted/25Rejected/17Unsupported/6Deferred；01—04及冻结材料不改。
+
+共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，加05的5条，共24条；其余29条未执行。
 
 ```mermaid
 flowchart TD
