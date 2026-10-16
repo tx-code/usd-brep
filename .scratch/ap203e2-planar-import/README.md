@@ -1,15 +1,15 @@
 # AP203e2首个profile：本地实施票
 
-2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05已实现并验收；当前06—08也已实现并验收，09—12仍未领取/on-hold。
+2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05—08已实现并验收。2026-10-17的09单位重述与conversion也已完成，10—12仍未领取/on-hold。
 
 ## 状态与执行限制
 
-### 当前实现基线（2026-10-16）
+### 当前实现基线（2026-10-17）
 
 01—04原19条验收及进入05前的核心准备已经完成，详见
 [05之前准备完成记录](../../docs/step-import/pre05-readiness.md)。三个STEP目标及其CLI/原生测试
 当前以C++20为基线；本页下方C++17与各阶段“后续未开始”描述保留初次验收的历史时点。
-随后用户要求按后续计划继续，05已实现并验收关闭；06和07也已完成，见[05验收](../../docs/step-import/ticket05-acceptance.md)、[07验收](../../docs/step-import/ticket07-acceptance.md)；08也已完成，见[08验收](../../docs/step-import/ticket08-acceptance.md)；09—12仍为on-hold。
+随后用户要求按后续计划继续，05已实现并验收关闭；06和07也已完成，见[05验收](../../docs/step-import/ticket05-acceptance.md)、[07验收](../../docs/step-import/ticket07-acceptance.md)；08见[08验收](../../docs/step-import/ticket08-acceptance.md)，09见[09验收](../../docs/step-import/ticket09-acceptance.md)；10—12仍为on-hold。
 前置准备的验收不代替05实际native构建与后验检查。
 
 后续核心收尾包括[全局身份](../../docs/step-import/global-rule-identity.md)、
@@ -19,9 +19,9 @@
 
 ### 票据状态
 
-- **Status：01—08为closed，09为in-progress，其余ready-for-agent**。ready-for-agent不表示已开工。
-- **Execution：01—08为completed，09为in-progress，10—12为on-hold**。
-- **Assignee：01—09为codex，其余None**。09已按后续指令开始单位重述与conversion实现；10—12仍保持on-hold。
+- **Status：01—09为closed，其余ready-for-agent**。ready-for-agent不表示已开工。
+- **Execution：01—09为completed，10—12为on-hold**。
+- **Assignee：01—09为codex，其余None**。09单位重述与conversion已实现并验收；10—12仍保持on-hold。
 - Blocked by只列直接技术前置。前置票实际完成验收并关闭后才解除相应阻塞；未执行的验收框保持未勾选。
 - 后续明确开工后，先按授权范围更新Execution与负责人再执行；没有新指令时不自动领取frontier。
 
@@ -66,7 +66,9 @@
 
 **08实际验收：** [08验收记录](../../docs/step-import/ticket08-acceptance.md)。P05同形闭合表面保留源角色/表示链与共享边界，实际native材料区域为0，材料体积/内外分类不适用，不依拓扑谓词升级实体；双配置各11个CTest目标、23组CLI及普通失败清理通过。09—12未开工。
 
-共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，加05的5条、06的4条、07的4条、08的3条，共35条；其余18条未执行。
+**09实际验收：** [09验收记录](../../docs/step-import/ticket09-acceptance.md)。P06/P07厘米重述、P11精确127/5转换与canonical几何贯通，源LINE t不缩放、PLANE UV专属映射；量纲源反证和零负/环项目诊断分开。双配置各13个CTest目标、142项核心Python和28组CLI通过，316个旧预算边界不变；49项为8 Accepted/29 Rejected/12 Unsupported，10—12未开工。
+
+共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，加05的5条、06的4条、07的4条、08的3条、09的4条，共39条；其余14条未执行。
 
 ```mermaid
 flowchart TD

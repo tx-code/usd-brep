@@ -92,3 +92,4 @@ Exit codes: 0 checked source evidence; 1 source rejection; 2 upstream profile/tr
 evidence; 64 invalid configuration. `UpstreamFailure` retains the preceding layer's precise diagnostic and exit code.
 
 Formal results and limitations: [ticket 04 acceptance](../../docs/step-import/ticket04-acceptance.md).
+Conversion dimensions, scale interpretation and unchanged SI regressions: [ticket 09 acceptance](../../docs/step-import/ticket09-acceptance.md).

@@ -16,7 +16,7 @@
 不把Rational反向放入03而制造层依赖，也不改写03的历史资格。
 
 CONVERSION_BASED_UNIT的显式dimensions按七个精确指数比较；源WHERE不递归factor链。
-单位尺度另行按typed measure和unit_component有界递归到SI根，共享子链记忆化，明确识别环。
+单位尺度另行按typed measure和unit_component有界迭代展开到SI根，共享子链记忆化，明确识别环。
 数值容量不足返回Indeterminate，量纲源反证归D3，零负尺度及环归项目D4；
 不按inch名字猜127/5，不取绝对值、补单位、静默修复或扩大预算。
 
@@ -26,3 +26,5 @@ CONVERSION_BASED_UNIT的显式dimensions按七个精确指数比较；源WHERE�
 
 完成SI/转换与共享链、错误标注名字、量纲/零负/环/预算反控后，执行双配置相关回归与两轴审查，
 仅本地提交。10可选来源声明、11进一步取消/生命周期和12汇总不自动开始。
+
+本票现已完成，实际执行、独立比较、审查和资格边界见[09验收记录](ticket09-acceptance.md)。
