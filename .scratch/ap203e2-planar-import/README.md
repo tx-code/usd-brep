@@ -4,6 +4,20 @@
 
 ## 状态与执行限制
 
+### 当前实现基线（2026-10-16）
+
+01—04原19条验收及进入05前的核心准备已经完成，详见
+[05之前准备完成记录](../../docs/step-import/pre05-readiness.md)。三个STEP目标及其CLI/原生测试
+当前以C++20为基线；本页下方C++17与各阶段“后续未开始”描述保留初次验收的历史时点。
+05—12仍为on-hold，不能把前置就绪视为已执行native构建。
+
+后续核心收尾包括[全局身份](../../docs/step-import/global-rule-identity.md)、
+[类型目录](../../docs/step-import/type-profile-catalog.md)、[共享查询](../../docs/step-import/shared-source-queries.md)、
+[阶段状态](../../docs/step-import/typed-check-progress.md)、[80项局部身份](../../docs/step-import/local-rule-identity.md)、
+[03字段消费](../../docs/step-import/semantic-field-consumers.md)和[有理数不变量](../../docs/step-import/exact-value-invariants.md)。
+
+### 票据状态
+
 - **Status：01/02/03/04为closed，其余ready-for-agent**。ready-for-agent不表示依赖已完成或已开工。
 - **Execution：01/02/03/04为completed，其余on-hold**。不提前执行05及后续native票。
 - **Assignee：01/02/03/04为codex，其余None**。04的03技术前置已验收满足。

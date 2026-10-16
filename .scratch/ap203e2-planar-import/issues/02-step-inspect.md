@@ -8,7 +8,7 @@
 
 **Assignee:** codex
 
-**Execution:** completed。2026-10-16按用户授权实现并验收02票：自研STEP解析与inspect，不依赖OCCT读取。03及后续源语义/native票未开始。
+**Execution:** completed。2026-10-16首次实现并验收02票：自研STEP解析与inspect，不依赖OCCT读取；当时03及后续未开始。后续01—04均完成，当前状态见票组索引及准备记录。
 
 **Context:** 遵守[票组约束与来源](../README.md)；用户已确认12票拆分及依赖关系。
 
