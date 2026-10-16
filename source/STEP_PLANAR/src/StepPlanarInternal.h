@@ -5,17 +5,10 @@
 #include "StepRuleCatalog.h"
 
 #include <stdexcept>
-#include <unordered_map>
 
 namespace step_planar
 {
 using Value = step_source::Value;
-struct BoundField
-{
-    const Value* value;
-    std::size_t component, parameter;
-    step_semantics::AttributeView declaration;
-};
 struct Stop
 {
     Status status;
@@ -42,8 +35,6 @@ private:
     Outcome& out;
     const step_semantics::Snapshot& sem;
     const step_source::SourceSnapshot& src;
-    std::vector<std::map<std::string, BoundField>> fields;
-    std::unordered_map<std::string, std::size_t> ids;
     std::size_t current = 0;
     const step_source::Record& Record(std::size_t r) const;
     const Value& Field(std::size_t r, const std::string& name) const;

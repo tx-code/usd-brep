@@ -8,7 +8,15 @@ The internal type catalog owns the fixed complex signatures, exclusive subtype g
 enumeration and measure choices, SI-prefix powers, and declaration-qualified derived-slot descriptions. It checks
 descriptor references against the registered declarations during initialization. The checker retains traversal order,
 source diagnostics, budgets and product/unit interpretation; field queries use the same derived-slot descriptions.
-This does not extend the admitted profile or change the Snapshot interface.
+This does not extend the admitted profile; existing indexed Snapshot queries retain their contracts.
+
+`Snapshot::Field(record, name)` and `Field(record, declaringType, name)` read shared bindings created during the existing
+field-validation visits. The returned FieldView owns the immutable snapshot; Value/Declaration references borrow that
+lifetime. Location returns independent source facts with owning strings/path. Qualified lookup uses the original
+declaring type, preserving inherited and derived slots; `$` and `*` remain source values and are not evaluated.
+Missing/ambiguous fields and reference-query misuse are caller errors. FieldView reference queries preserve identity
+and aggregate order. Snapshot::ReferenceTarget accepts only the actual reference Value from its owning source graph,
+rejecting copied values and values from a distinct source snapshot. Existing indexed Attribute queries are unchanged.
 
 ```powershell
 cmake -S source/STEP_SEMANTICS -B C:/temp/step-semantic-build

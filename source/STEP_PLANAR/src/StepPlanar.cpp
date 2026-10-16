@@ -46,19 +46,10 @@ Rational Squared(Vector a)
 
 Validator::Validator(Outcome& outcome, const step_semantics::Snapshot& source) : out(outcome), sem(source), src(source.Source())
 {
-    fields.resize(src.Records().size());
+    // Preserve the established per-record admission charge; bindings now belong to the semantic snapshot.
     for (std::size_t r = 0; r < src.Records().size(); ++r)
     {
         Tick(r);
-        ids.emplace(Record(r).id, r);
-        for (std::size_t c = 0; c < Record(r).components.size(); ++c)
-        {
-            for (std::size_t p = 0; p < Record(r).components[c].parameters.size(); ++p)
-            {
-                const auto declaration = sem.Attribute(r, c, p);
-                fields[r].emplace(std::string(declaration.name), BoundField{ declaration.value, c, p, declaration });
-            }
-        }
     }
 }
 const step_source::Record& Validator::Record(std::size_t r) const
@@ -67,24 +58,19 @@ const step_source::Record& Validator::Record(std::size_t r) const
 }
 const Value& Validator::Field(std::size_t r, const std::string& name) const
 {
-    return *fields.at(r).at(name).value;
+    return sem.Field(r, name).Value();
 }
 std::size_t Validator::Target(const Value& v) const
 {
-    return ids.at(v.text);
+    return sem.ReferenceTarget(v);
 }
 std::size_t Validator::Ref(std::size_t r, const std::string& name) const
 {
-    return Target(Field(r, name));
+    return sem.Field(r, name).ReferenceTarget();
 }
 std::vector<std::size_t> Validator::Refs(std::size_t r, const std::string& name) const
 {
-    std::vector<std::size_t> result;
-    for (const auto& v : Field(r, name).children)
-    {
-        result.push_back(Target(v));
-    }
-    return result;
+    return sem.Field(r, name).ReferenceTargets();
 }
 std::vector<std::size_t> Validator::Population(std::string_view type) const
 {
@@ -134,12 +120,14 @@ void Validator::Fail(std::string key, std::string stage, std::size_t owner, std:
     diagnostic.field = field;
     if (!field.empty())
     {
-        const auto& binding = fields.at(owner).at(field);
-        diagnostic.source.primary = binding.value->span;
-        diagnostic.source.component = Record(owner).components[binding.component].name;
-        diagnostic.source.parameterPath = { binding.parameter + 1 };
-        diagnostic.declaredIn = binding.declaration.declaredIn;
-        diagnostic.declaredType = binding.declaration.declaredType;
+        const auto binding = sem.Field(owner, field);
+        auto location = binding.Location();
+        diagnostic.source.recordId = std::move(location.recordId);
+        diagnostic.source.primary = location.span;
+        diagnostic.source.component = std::move(location.component);
+        diagnostic.source.parameterPath = std::move(location.parameterPath);
+        diagnostic.declaredIn = binding.Declaration().declaredIn;
+        diagnostic.declaredType = binding.Declaration().declaredType;
     }
     diagnostic.classification = status == Status::Rejected      ? "SourceInvalid" :
                                 status == Status::Unsupported   ? "ProfileUnsupported" :

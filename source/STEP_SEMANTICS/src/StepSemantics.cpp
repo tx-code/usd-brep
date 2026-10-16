@@ -3,6 +3,7 @@
 #include "StepCatalog.h"
 
 #include <algorithm>
+#include <iterator>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -33,6 +34,19 @@ std::size_t IndexOf(const SemanticData& data, std::string_view id)
         throw std::invalid_argument("Unknown source instance ID");
     }
     return static_cast<std::size_t>(record - data.source->Records().data());
+}
+std::size_t ResolveReference(const SemanticData& data, const Value& value)
+{
+    if (value.kind != ValueKind::Reference)
+    {
+        throw std::invalid_argument("Source slot is not an explicit reference");
+    }
+    const auto found = data.referenceTargets.find(&value);
+    if (found == data.referenceTargets.end())
+    {
+        throw std::invalid_argument("Reference value is not owned by this source snapshot");
+    }
+    return found->second;
 }
 bool PositiveInteger(std::string_view text)
 {
@@ -489,6 +503,7 @@ private:
                         throw;
                     }
                 }
+                m_data->referenceTargets.emplace(&value, Target(value));
                 break;
             case FieldKind::Measure:
                 if (value.kind != ValueKind::Typed || value.children.size() != 1)
@@ -524,6 +539,7 @@ private:
     void Fields()
     {
         const auto& catalog = Schema();
+        m_data->fields.resize(m_data->source->Records().size());
         for (std::size_t r = 0; r < m_data->source->Records().size(); ++r)
         {
             const auto& record = Record(r);
@@ -555,6 +571,10 @@ private:
                     const auto& field = record.complex ? catalog.declarations[type].fields[p] : *catalog.flattened[type][p].field;
                     const std::vector<std::size_t> path{ p + 1 };
                     Visit(value.span);
+                    auto& bound = m_data->fields[r];
+                    const auto index = bound.attributes.size();
+                    bound.attributes.push_back({ view, c, p, field.kind == FieldKind::Aggregate && field.elementKind == FieldKind::Reference });
+                    bound.named.emplace(view.name, index);
                     if (view.derivedSlot)
                     {
                         if (value.kind != ValueKind::Derived)
@@ -668,6 +688,7 @@ private:
                 }
             }
         }
+        m_data->bindingsComplete = true;
     }
 
     const std::vector<std::size_t>& Population(std::string_view name) const
@@ -1197,7 +1218,7 @@ private:
 
 Snapshot::Snapshot(std::shared_ptr<const SemanticData> data) : m_data(std::move(data))
 {
-    if (!m_data)
+    if (!m_data || !m_data->source || !m_data->bindingsComplete || m_data->fields.size() != m_data->source->Records().size())
     {
         throw std::invalid_argument("Semantic snapshot requires complete type/part data");
     }
@@ -1247,6 +1268,80 @@ std::vector<std::string> Snapshot::TypesOf(std::size_t record) const
 AttributeView Snapshot::Attribute(std::size_t r, std::size_t c, std::size_t p) const
 {
     return AttributeAt(*m_data, r, c, p);
+}
+FieldView Snapshot::Field(std::size_t record, std::string_view name) const
+{
+    const auto& bound = m_data->fields.at(record);
+    const auto matches = bound.named.equal_range(name);
+    if (matches.first == matches.second || std::next(matches.first) != matches.second)
+    {
+        throw std::invalid_argument("Missing or ambiguous source field");
+    }
+    return FieldView(m_data, record, matches.first->second);
+}
+FieldView Snapshot::Field(std::size_t record, std::string_view declaredIn, std::string_view name) const
+{
+    const auto& bound = m_data->fields.at(record);
+    const auto matches = bound.named.equal_range(name);
+    std::optional<std::size_t> found;
+    for (auto at = matches.first; at != matches.second; ++at)
+    {
+        if (bound.attributes[at->second].declaration.declaredIn == declaredIn)
+        {
+            if (found)
+            {
+                throw std::invalid_argument("Ambiguous declared source field");
+            }
+            found = at->second;
+        }
+    }
+    if (!found)
+    {
+        throw std::invalid_argument("Missing declared source field");
+    }
+    return FieldView(m_data, record, *found);
+}
+std::size_t Snapshot::ReferenceTarget(const step_source::Value& value) const
+{
+    return ResolveReference(*m_data, value);
+}
+
+FieldView::FieldView(std::shared_ptr<const SemanticData> data, std::size_t record, std::size_t binding)
+    : m_data(std::move(data)), m_record(record), m_binding(binding)
+{
+}
+const AttributeView& FieldView::Declaration() const
+{
+    return m_data->fields.at(m_record).attributes.at(m_binding).declaration;
+}
+const step_source::Value& FieldView::Value() const
+{
+    return *Declaration().value;
+}
+AttributeLocation FieldView::Location() const
+{
+    const auto& bound = m_data->fields.at(m_record).attributes.at(m_binding);
+    const auto& record = m_data->source->Records().at(m_record);
+    return { record.id, record.components.at(bound.component).name, Value().span, { bound.parameter + 1 } };
+}
+std::size_t FieldView::ReferenceTarget() const
+{
+    return ResolveReference(*m_data, Value());
+}
+std::vector<std::size_t> FieldView::ReferenceTargets() const
+{
+    const auto& bound = m_data->fields.at(m_record).attributes.at(m_binding);
+    if (!bound.referenceAggregate || Value().kind != step_source::ValueKind::Aggregate)
+    {
+        throw std::invalid_argument("Source slot is not an explicit reference aggregate");
+    }
+    std::vector<std::size_t> result;
+    result.reserve(Value().children.size());
+    for (const auto& member : Value().children)
+    {
+        result.push_back(ResolveReference(*m_data, member));
+    }
+    return result;
 }
 std::vector<std::size_t> Snapshot::UsedIn(std::string_view target, std::string_view type, std::string_view field) const
 {

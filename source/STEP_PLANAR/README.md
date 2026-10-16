@@ -10,6 +10,10 @@ snapshot. Source IDs, attributes and raw bytes retain their original meanings. P
 once and always reports `model=null`, native build/full import/target UV/tolerance setting/material volume/shell
 self-intersection as `NotRun`.
 
+Field reads, resolved references and field diagnostic locations come from the semantic snapshot's shared bindings.
+The validator does not rebuild field-name or entity-ID tables. Its established per-record admission charge remains,
+so moving binding work into the existing semantic validation visits does not silently relax planar work limits.
+
 The compiled N2635 clause metadata covers the 72 registered entity declarations and their 77 WHERE/UNIQUE/INVERSE
 clauses, including guard populations with no instances. Active clauses are evaluated per instance; ancestor populations
 include actual subtypes. Singleton product guards prove the two UNIQUE clauses. Explicit metadata-assignment exclusions

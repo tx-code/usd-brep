@@ -53,6 +53,124 @@ int main(int argc, char** argv)
         Require(view.value->text == "110" && snapshot->Source().Find("203"), "owning semantic snapshot lifetime");
         ++groups;
 
+        auto bound = snapshot->Field(Index(*snapshot, "203"), "EDGE", "edge_start");
+        Require(bound.Declaration().declaredIn == "EDGE" && &bound.Value() == view.value, "Named query must reuse the inherited source value");
+        const auto site = bound.Location();
+        Require(
+            site.recordId == "203" && site.component == "EDGE_CURVE" && site.parameterPath == std::vector<std::size_t>{ 2 } &&
+                site.span.begin == view.value->span.begin && site.span.end == view.value->span.end,
+            "Named field location must retain its actual source slot"
+        );
+        Require(
+            snapshot->Field(Index(*snapshot, "10"), "NAMED_UNIT", "dimensions").Declaration().redeclaredBy == "SI_UNIT" &&
+                snapshot->Field(Index(*snapshot, "10"), "dimensions").Value().kind == step_source::ValueKind::Derived,
+            "Named lookup must retain the derived slot without evaluating it"
+        );
+        bool missingField = false;
+        try
+        {
+            snapshot->Field(Index(*snapshot, "203"), "EDGE_CURVE", "edge_start");
+        }
+        catch (const std::invalid_argument&)
+        {
+            missingField = true;
+        }
+        Require(missingField, "Qualified lookup must use the declaring type, not an inherited alias");
+        ++groups;
+
+        const auto retainedField = [&]()
+        {
+            auto input = step_source::InspectBytes(Read(corpus / "S203-P01/input.step"), step_source::Limits::PlanarFixtures());
+            auto checked = Check(input, Limits{});
+            return checked.snapshot->Field(Index(*checked.snapshot, "203"), "edge_start");
+        }();
+        Require(retainedField.Value().text == "110" && retainedField.Location().recordId == "203", "Field view must own its source lifetime");
+        ++groups;
+
+        Require(bound.ReferenceTarget() == Index(*snapshot, "110"), "Scalar reference keeps source identity");
+        Require(
+            snapshot->Field(Index(*snapshot, "300"), "edge_list").ReferenceTargets() ==
+                std::vector<std::size_t>{ Index(*snapshot, "204"), Index(*snapshot, "214"), Index(*snapshot, "224"), Index(*snapshot, "234") },
+            "Aggregate references keep the original traversal order"
+        );
+        Require(retainedField.ReferenceTarget() == Index(*snapshot, "110"), "Owned reference query survives caller release");
+        const auto copied = bound.Value();
+        bool copiedRejected = false;
+        try
+        {
+            snapshot->ReferenceTarget(copied);
+        }
+        catch (const std::invalid_argument&)
+        {
+            copiedRejected = true;
+        }
+        Require(copiedRejected, "Copied value must not masquerade as a source-owned reference");
+        const auto otherInput = step_source::InspectBytes(Read(corpus / "S203-P01/input.step"), step_source::Limits::PlanarFixtures());
+        const auto other = Check(otherInput, Limits{});
+        bool foreignRejected = false;
+        try
+        {
+            snapshot->ReferenceTarget(other.snapshot->Field(Index(*other.snapshot, "203"), "edge_start").Value());
+        }
+        catch (const std::invalid_argument&)
+        {
+            foreignRejected = true;
+        }
+        Require(foreignRejected, "Equal IDs and spans from a different source snapshot must be rejected");
+        ++groups;
+
+        const auto unset = snapshot->Field(Index(*snapshot, "11"), "SI_UNIT", "prefix");
+        Require(unset.Value().kind == step_source::ValueKind::Unset, "Unset field must remain a present source slot");
+        for (const auto& field : { unset, snapshot->Field(Index(*snapshot, "204"), "EDGE", "edge_start") })
+        {
+            bool rejected = false;
+            try
+            {
+                field.ReferenceTarget();
+            }
+            catch (const std::invalid_argument&)
+            {
+                rejected = true;
+            }
+            Require(rejected, "Unset and derived slots must not produce guessed reference targets");
+        }
+        bool numericAggregateRejected = false;
+        try
+        {
+            snapshot->Field(Index(*snapshot, "100"), "coordinates").ReferenceTargets();
+        }
+        catch (const std::invalid_argument&)
+        {
+            numericAggregateRejected = true;
+        }
+        Require(numericAggregateRejected, "Non-reference aggregate must not become an empty reference collection");
+        ++groups;
+
+        const auto units = snapshot->Field(Index(*snapshot, "12"), "GLOBAL_UNIT_ASSIGNED_CONTEXT", "units");
+        Require(
+            units.Location().component == "GLOBAL_UNIT_ASSIGNED_CONTEXT" && units.Location().parameterPath == std::vector<std::size_t>{ 1 } &&
+                units.ReferenceTargets() == std::vector<std::size_t>{ Index(*snapshot, "10"), Index(*snapshot, "11") },
+            "Complex facet source location and unit reference order"
+        );
+        const auto detachedLocation = [&]()
+        {
+            const auto input = step_source::InspectBytes(Read(corpus / "S203-P01/input.step"), step_source::Limits::PlanarFixtures());
+            const auto checked = Check(input, Limits{});
+            return checked.snapshot->Field(Index(*checked.snapshot, "203"), "edge_start").Location();
+        }();
+        Require(detachedLocation.recordId == "203" && detachedLocation.component == "EDGE_CURVE", "Returned location facts own their strings");
+        bool unknownField = false;
+        try
+        {
+            snapshot->Field(Index(*snapshot, "12"), "unregistered_field");
+        }
+        catch (const std::invalid_argument&)
+        {
+            unknownField = true;
+        }
+        Require(unknownField, "Unknown field query must not invent a missing or empty source value");
+        ++groups;
+
         const auto loop = Index(*snapshot, "300");
         Require(
             snapshot->IsA(loop, "EDGE_LOOP") && snapshot->IsA(loop, "LOOP") && snapshot->IsA(loop, "PATH") &&

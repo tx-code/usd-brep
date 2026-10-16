@@ -70,12 +70,27 @@ struct Catalog
 };
 const Catalog& Schema();
 
+struct BoundAttribute
+{
+    AttributeView declaration;
+    std::size_t component;
+    std::size_t parameter;
+    bool referenceAggregate;
+};
+struct BoundRecord
+{
+    std::vector<BoundAttribute> attributes; // Source component/slot order; values remain source-owned.
+    std::unordered_multimap<std::string_view, std::size_t> named;
+};
 struct SemanticData
 {
     std::shared_ptr<const step_source::SourceSnapshot> source;
     std::vector<std::bitset<128>> types; // Compact membership only; no second value/entity object graph.
     std::vector<std::vector<std::size_t>> populations;
     std::vector<unsigned char> representationUse;
+    std::vector<BoundRecord> fields;
+    std::unordered_map<const step_source::Value*, std::size_t> referenceTargets;
+    bool bindingsComplete = false;
     Part part;
     Units units;
 };

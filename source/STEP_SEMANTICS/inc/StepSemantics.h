@@ -84,6 +84,35 @@ struct Diagnostic
 };
 
 struct SemanticData;
+struct AttributeLocation
+{
+    std::string recordId;
+    std::string component;
+    step_source::Span span;
+    std::vector<std::size_t> parameterPath; // One-based source slot; strings/path own their storage.
+};
+
+// An owning, read-only field handle. References returned from it borrow its snapshot lifetime.
+class FieldView
+{
+public:
+
+    const AttributeView& Declaration() const;
+    const step_source::Value& Value() const;
+    AttributeLocation Location() const;
+    // Results are record indices local to this source graph, not portable entity identities.
+    std::size_t ReferenceTarget() const;
+    std::vector<std::size_t> ReferenceTargets() const;
+
+private:
+
+    friend class Snapshot;
+    FieldView(std::shared_ptr<const SemanticData> data, std::size_t record, std::size_t binding);
+    std::shared_ptr<const SemanticData> m_data;
+    std::size_t m_record;
+    std::size_t m_binding;
+};
+
 class Snapshot
 {
 public:
@@ -97,6 +126,11 @@ public:
     bool IsA(std::size_t recordIndex, std::string_view type) const; // Unknown type is an error.
     std::vector<std::string> TypesOf(std::size_t recordIndex) const;
     AttributeView Attribute(std::size_t recordIndex, std::size_t componentIndex, std::size_t parameterIndex) const;
+    // Named lookup rejects missing/ambiguous fields. Qualification uses the original declaring type.
+    FieldView Field(std::size_t recordIndex, std::string_view name) const;
+    FieldView Field(std::size_t recordIndex, std::string_view declaredIn, std::string_view name) const;
+    // Requires an actual reference Value owned by this source snapshot, not a copied/foreign value.
+    std::size_t ReferenceTarget(const step_source::Value& value) const;
     std::vector<std::size_t> UsedIn(std::string_view targetId, std::string_view ownerType, std::string_view field) const;
     bool UsedByRepresentation(std::size_t recordIndex) const; // RI-filtered use closure, not a generic management walk.
 
