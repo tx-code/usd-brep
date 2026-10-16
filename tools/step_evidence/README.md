@@ -11,7 +11,7 @@ The frozen 01 tool, corpus and mathematical/EXPRESS witnesses are unchanged. Thi
 build SMLib models or grant complete-import qualification.
 
 New packages retain the stage's `t02/t03/t04.evidence.v1` envelope and explicitly record
-`package_protocol=step-evidence.v2`, `source_provenance=execution-dependencies.v1` and their captured execution directory.
+`package_protocol=step-evidence.v2`, `source_provenance=execution-dependencies.v2` and their captured execution directory.
 All three producer adapters capture transitive tool/witness identities plus native source identities and verify those
 files and the executable again before publication. HTML receives the stage description directly, without replacing
 another stage's prose.
@@ -19,6 +19,8 @@ another stage's prose.
 `dependencies.py` defines the versioned project-owned source inventory for that provenance policy. New-protocol
 recheck requires the complete relevant inventory (including stage, comparator, common tool, native source and witness
 identities) without reading live source files. A changed dependency structure requires reviewing this contract.
+The v2 inventory adds the shared native report writer and composition headers. Packages that declared
+`execution-dependencies.v1` still use the frozen v1 inventory; they do not acquire new source-coverage claims.
 
 An absent `package_protocol` denotes the historical stage protocol. Unknown declared protocols are rejected.
 Historical packages keep their recorded source coverage and qualification: recheck never requires the original binary,
@@ -49,4 +51,5 @@ python -m unittest tools.step_evidence.tests.test_packages -v
 ```
 
 Protocol changes and explicit acceptance scope: [refactor contract](../../docs/step-import/evidence-runner-refactor.md).
+The native report writer has its own [bounded-report contract](../../docs/step-import/report-mechanics-refactor.md).
 Worker cancellation, process hard limits and native model lifetime remain outside this refactor.

@@ -2,6 +2,11 @@
 
 已确认总体基线：[独立STEP导入与受限修复规格0.1](../step-import-repair-spec.md)。基线保持不变；本目录是其后续P0细化，**暂不编码**。
 
+后续已授权的实施状态单独见[01](ticket01-acceptance.md)、[02](ticket02-acceptance.md)、
+[03](ticket03-acceptance.md)、[04](ticket04-acceptance.md)、
+[证据包重构](evidence-runner-refactor-acceptance.md)和
+[有界报告与位置重构](report-mechanics-refactor-acceptance.md)。下文设计阶段的NotRun是原阶段记录。
+
 | 材料 | 内容 |
 |---|---|
 | [P0平面/盒体切片](p0-planar-slice.md) | 能力包络、根/schema登记、属性清单入口、单位/参数/方向和验收顺序 |
