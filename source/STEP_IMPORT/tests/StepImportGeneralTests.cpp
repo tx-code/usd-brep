@@ -126,6 +126,22 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive)
     Require(result.brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0, "reloaded level2");
     return result;
 }
+double VolumeWithImportPolicy(const SmBrep& brep, step_import::Point origin)
+{
+    // ComputeVolume chooses the bounding-box midpoint; the import report uses
+    // the minimum corner in ComputeMassProperties. At finite relative accuracy,
+    // different integration origins can differ without any copy geometry change.
+    // Compare copies/archives with the SAME routine, origin and accuracy.
+    double area = 0, volume = 0, mass = 0;
+    SmPoint3d centroid;
+    SmVector3d moments, products;
+    Require(
+        SmApiBrepComputeMassProperties(&brep, 1e-4, 1, SmPoint3d(origin[0], origin[1], origin[2]), area, volume, mass, centroid, moments, products) ==
+            SM_SUCCESS,
+        "matching import measurement policy"
+    );
+    return volume;
+}
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
     auto options = step_import::Options::PlanarFixture();
@@ -207,7 +223,7 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     editable.model->Edit(
         [&](SmBrep& brep)
         {
-            Require(SmApiBrepComputeVolume(&brep, 1e-4, copiedVolume) == SM_SUCCESS, "development copy volume");
+            copiedVolume = VolumeWithImportPolicy(brep, info.boundsMm[0]);
         }
     );
     const auto expected = *result.model->MaterialVolumeMm3();
@@ -222,8 +238,7 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     loaded.brep->GetEdges(edges);
     loaded.brep->GetVertices(vertices);
     Require(faces.GetSize() == info.faces && edges.GetSize() == info.edges && vertices.GetSize() == info.vertices, "archive topology preserved");
-    double volume = 0;
-    Require(SmApiBrepComputeVolume(loaded.brep.get(), 1e-4, volume) == SM_SUCCESS, "development reloaded volume");
+    const double volume = VolumeWithImportPolicy(*loaded.brep, info.boundsMm[0]);
     Near(volume, expected, std::max(1e-6, expected * 1e-9), "archive preserves development geometry");
     SmPoint3d point;
     double queryDistance = 0;
