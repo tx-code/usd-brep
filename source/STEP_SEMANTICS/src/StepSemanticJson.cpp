@@ -162,12 +162,25 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.String(result.binding);
     out.Add(",\"type_fields\":");
     out.String(result.types);
+    const bool ap214 = result.schemaSelection && result.schemaSelection->qualified &&
+                       result.schemaSelection->qualified->kind == ProfileKind::Ap214e3Source;
+    if (ap214)
+    {
+        out.Add(",\"geometry_dependencies\":");
+        out.String(result.geometryDependencies);
+    }
     out.Add(",\"single_part_profile\":");
     out.String(result.part);
     out.Add(",\"si_units\":");
     out.String(result.siUnits);
+    // Report partial checks only when those source predicates were attempted;
+    // neither count grants complete AP214 entity/type qualification.
+    out.Add(",\"global_rules_47\":\"NotRun\",\"other_entity_where\":");
+    out.String(ap214 && result.geometryDependencyChecks.entityPredicates ? "Partial" : "NotRun");
+    out.Add(",\"named_measure_predicates\":");
+    out.String(ap214 && result.geometryDependencyChecks.typePredicates ? "Partial" : "NotRun");
     out.Add(
-        ",\"global_rules_47\":\"NotRun\",\"other_entity_where\":\"NotRun\",\"named_measure_predicates\":\"NotRun\","
+        ","
         "\"geometry_consistency\":\"NotRun\",\"conversion_units\":\"NotRun\","
         "\"uncertainty_evaluation\":\"NotRun\",\"native_build\":\"NotRun\",\"full_import\":\"NotRun\"}"
     );
@@ -175,6 +188,15 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.Number(result.limits.dependencyVisits);
     out.Add("},\"statistics\":{\"dependency_visits\":");
     out.Number(result.dependencyVisits);
+    if (ap214)
+    {
+        out.Add(",\"geometry_dependency_checks\":");
+        out.Number(result.geometryDependencyChecks.total);
+        out.Add(",\"geometry_type_predicate_checks\":");
+        out.Number(result.geometryDependencyChecks.typePredicates);
+        out.Add(",\"geometry_entity_predicate_checks\":");
+        out.Number(result.geometryDependencyChecks.entityPredicates);
+    }
     out.Add("}");
     out.Add(",\"snapshot\":");
     if (!result.snapshot)
@@ -281,6 +303,35 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
                     }
                     out.Add(",\"unique_elements\":");
                     out.Add(view.uniqueElements ? "true" : "false");
+                    if (!view.nestedAggregates.empty())
+                    {
+                        out.Add(",\"nested_aggregates\":[");
+                        for (std::size_t d = 0; d < view.nestedAggregates.size(); ++d)
+                        {
+                            const auto& dimension = view.nestedAggregates[d];
+                            if (d)
+                            {
+                                out.Add(",");
+                            }
+                            out.Add("{\"aggregate\":");
+                            out.String(dimension.aggregate);
+                            out.Add(",\"minimum\":");
+                            out.Number(dimension.minimum);
+                            out.Add(",\"maximum\":");
+                            if (dimension.maximum)
+                            {
+                                out.Number(*dimension.maximum);
+                            }
+                            else
+                            {
+                                out.Add("null");
+                            }
+                            out.Add(",\"unique_elements\":");
+                            out.Add(dimension.uniqueElements ? "true" : "false");
+                            out.Add("}");
+                        }
+                        out.Add("]");
+                    }
                     out.Add(",\"span\":");
                     out.Range(view.value->span);
                     out.Add("}");

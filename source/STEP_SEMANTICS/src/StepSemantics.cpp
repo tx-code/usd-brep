@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepCatalog.h"
+#include "StepGeometryDependencies.h"
 #include "StepSchemaSelection.h"
 
 #include <algorithm>
@@ -124,6 +125,27 @@ public:
                 Fields();
             }
         );
+        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        {
+            RunPhase(
+                Phase::GeometryDependencies,
+                [&]
+                {
+                    if (auto issue = CheckAp214GeometryDependencies(
+                            *m_data,
+                            [this](Span span)
+                            {
+                                Visit(span);
+                            },
+                            m_outcome.geometryDependencyChecks
+                        ))
+                    {
+                        State(Phase::GeometryDependencies) = Progress::Rejected;
+                        throw Failure{ Status::Rejected, std::move(*issue) };
+                    }
+                }
+            );
+        }
         RunPhase(
             Phase::Part,
             [&]
@@ -148,6 +170,7 @@ public:
     {
         m_outcome.binding = ProgressName(State(Phase::Binding));
         m_outcome.types = ProgressName(State(Phase::Types));
+        m_outcome.geometryDependencies = ProgressName(State(Phase::GeometryDependencies));
         m_outcome.part = ProgressName(State(Phase::Part));
         m_outcome.siUnits = ProgressName(State(Phase::Units));
     }
@@ -158,6 +181,7 @@ private:
     {
         Binding,
         Types,
+        GeometryDependencies,
         Part,
         Units
     };
@@ -174,7 +198,7 @@ private:
     std::shared_ptr<SemanticData> m_data;
     Outcome& m_outcome;
     std::optional<Phase> m_phase;
-    std::array<Progress, 4> m_progress{};
+    std::array<Progress, 5> m_progress{};
 
     std::string SourceAuthority() const
     {
@@ -626,6 +650,24 @@ private:
                 }
                 break;
             }
+            case FieldKind::Logical:
+                if (value.kind != ValueKind::Enumeration || (value.text != "T" && value.text != "F" && value.text != "U"))
+                {
+                    Fail(
+                        "LogicalValueInvalid",
+                        "D1",
+                        "LOGICAL accepts T/F/U without resolving unknown",
+                        value.span,
+                        Status::Rejected,
+                        r,
+                        c,
+                        path,
+                        "LOGICAL T/F/U",
+                        std::string(m_data->source->Raw(value.span)),
+                        SourceAuthority() + " LOGICAL"
+                    );
+                }
+                break;
             case FieldKind::Reference:
                 if (value.kind != ValueKind::Reference)
                 {
@@ -689,6 +731,98 @@ private:
         }
     }
 
+    void AggregateValue(
+        const Value& value,
+        const Field& field,
+        std::size_t r,
+        std::size_t c,
+        const std::vector<std::size_t>& path,
+        std::string_view declaredIn,
+        std::size_t depth = 0
+    )
+    {
+        // Validate each declared LIST dimension without flattening source rows. The
+        // outer field/member visit and error order is unchanged for existing AP203;
+        // only nested fields recurse, adding their actual one-based source indices.
+        const auto* inner = depth ? &field.nestedAggregates.at(depth - 1) : nullptr;
+        const auto minimum = inner ? inner->minimum : field.minimum;
+        const auto maximum = inner ? inner->maximum.value_or(static_cast<std::size_t>(-1)) : field.maximum;
+        const auto unique = inner ? inner->uniqueElements : field.unique != Unique::None;
+        const auto set = inner ? inner->aggregate == "SET" : field.unique == Unique::Set;
+        if (value.kind != ValueKind::Aggregate)
+        {
+            Fail(
+                "AttributeTypeMismatch",
+                "D1",
+                "Expected an aggregate value",
+                value.span,
+                Status::Rejected,
+                r,
+                c,
+                path,
+                "aggregate",
+                step_source::ValueKindName(value.kind),
+                SourceAuthority() + " aggregate"
+            );
+        }
+        if (value.children.size() < minimum || value.children.size() > maximum)
+        {
+            Fail(
+                "AggregateCardinalityViolation",
+                "D1",
+                "Aggregate cardinality violates the declared bounds",
+                value.span,
+                Status::Rejected,
+                r,
+                c,
+                path,
+                "declared bounds",
+                std::to_string(value.children.size()),
+                SourceAuthority() + " aggregate"
+            );
+        }
+        std::unordered_map<std::string, Span> members;
+        for (std::size_t i = 0; i < value.children.size(); ++i)
+        {
+            const auto& child = value.children[i];
+            auto childPath = path;
+            childPath.push_back(i + 1);
+            Visit(child.span);
+            if (depth < field.nestedAggregates.size())
+            {
+                AggregateValue(child, field, r, c, childPath, declaredIn, depth + 1);
+            }
+            else
+            {
+                Scalar(child, field.elementKind, field, r, c, childPath);
+            }
+            if (unique && !members.emplace(child.text, child.span).second)
+            {
+                try
+                {
+                    Fail(
+                        set ? "SetDuplicateMember" : "AggregateUniqueViolation",
+                        "D1",
+                        "Aggregate repeats an entity identity",
+                        child.span,
+                        Status::Rejected,
+                        r,
+                        c,
+                        childPath,
+                        "unique instance identity",
+                        child.text,
+                        std::string(declaredIn) + "." + field.name
+                    );
+                }
+                catch (Failure& failure)
+                {
+                    failure.diagnostic.source.related.push_back(members.at(child.text));
+                    throw;
+                }
+            }
+        }
+    }
+
     void Fields()
     {
         const auto& catalog = Schema(*m_data);
@@ -726,7 +860,12 @@ private:
                     Visit(value.span);
                     auto& bound = m_data->fields[r];
                     const auto index = bound.attributes.size();
-                    bound.attributes.push_back({ view, c, p, field.kind == FieldKind::Aggregate && field.elementKind == FieldKind::Reference });
+                    bound.attributes.push_back(
+                        { view,
+                          c,
+                          p,
+                          field.kind == FieldKind::Aggregate && field.elementKind == FieldKind::Reference && field.nestedAggregates.empty() }
+                    );
                     bound.named.emplace(view.name, index);
                     if (view.derivedSlot)
                     {
@@ -773,71 +912,7 @@ private:
                         Scalar(value, field.kind, field, r, c, path);
                         continue;
                     }
-                    if (value.kind != ValueKind::Aggregate)
-                    {
-                        Fail(
-                            "AttributeTypeMismatch",
-                            "D1",
-                            "Expected an aggregate value",
-                            value.span,
-                            Status::Rejected,
-                            r,
-                            c,
-                            path,
-                            "aggregate",
-                            step_source::ValueKindName(value.kind),
-                            SourceAuthority() + " aggregate"
-                        );
-                    }
-                    if (value.children.size() < field.minimum || value.children.size() > field.maximum)
-                    {
-                        Fail(
-                            "AggregateCardinalityViolation",
-                            "D1",
-                            "Aggregate cardinality violates the declared bounds",
-                            value.span,
-                            Status::Rejected,
-                            r,
-                            c,
-                            path,
-                            "declared bounds",
-                            std::to_string(value.children.size()),
-                            SourceAuthority() + " aggregate"
-                        );
-                    }
-                    std::unordered_map<std::string, Span> members;
-                    for (std::size_t i = 0; i < value.children.size(); ++i)
-                    {
-                        const auto& child = value.children[i];
-                        auto childPath = path;
-                        childPath.push_back(i + 1);
-                        Visit(child.span);
-                        Scalar(child, field.elementKind, field, r, c, childPath);
-                        if (field.unique != Unique::None && !members.emplace(child.text, child.span).second)
-                        {
-                            try
-                            {
-                                Fail(
-                                    field.unique == Unique::Set ? "SetDuplicateMember" : "AggregateUniqueViolation",
-                                    "D1",
-                                    "Aggregate repeats an entity identity",
-                                    child.span,
-                                    Status::Rejected,
-                                    r,
-                                    c,
-                                    childPath,
-                                    "unique instance identity",
-                                    child.text,
-                                    std::string(view.declaredIn) + "." + field.name
-                                );
-                            }
-                            catch (Failure& failure)
-                            {
-                                failure.diagnostic.source.related.push_back(members.at(child.text));
-                                throw;
-                            }
-                        }
-                    }
+                    AggregateValue(value, field, r, c, path, view.declaredIn);
                 }
             }
         }

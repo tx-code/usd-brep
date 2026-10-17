@@ -10,9 +10,26 @@ import tempfile
 import unittest
 
 from tools.step_semantic_validation.tests.test_ap214_entities import linked_source, presentation_source
+from tools.step_semantic_validation.tests.test_ap214_geometry import geometry_source
 
 
 class Ap214EntityBoundaryTests(unittest.TestCase):
+    def test_source_geometry_parameters_do_not_qualify_native_geometry(self):
+        for kind in ("CIRCLE", "ELLIPSE", "CYLINDRICAL_SURFACE", "CONICAL_SURFACE",
+                     "B_SPLINE_CURVE_WITH_KNOTS", "B_SPLINE_SURFACE_WITH_KNOTS"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(prefix="step-ap214-geometry-native-") as directory:
+                data = geometry_source(kind)
+                path = Path(directory) / "source.step"
+                path.write_bytes(data)
+                run = subprocess.run([os.environ["STEP_NATIVE_BINARY"], "--fixture-limits", "--quality", "Q-P0-mm-01",
+                                      str(path)], capture_output=True, timeout=15)
+                result = json.loads(run.stdout)
+                self.assertEqual(2, run.returncode, result.get("diagnostics"))
+                self.assertEqual("Checked", result["source"]["semantics"])
+                self.assertEqual("UnsupportedRuleProfile", result["diagnostics"][0]["key"])
+                self.assertEqual(0, result["native_calls"])
+                self.assertIsNone(result["model"])
+
     def test_presentation_and_linked_source_stop_before_protocol_rules_and_native_build(self):
         for data in (presentation_source(), linked_source()):
             with tempfile.TemporaryDirectory(prefix="step-ap214-native-") as directory:

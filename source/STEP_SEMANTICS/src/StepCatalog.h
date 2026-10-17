@@ -17,6 +17,7 @@ enum class FieldKind
     Real,
     Integer,
     Boolean,
+    Logical,
     Enumeration,
     Reference,
     Aggregate,
@@ -38,6 +39,7 @@ struct Field
     std::size_t minimum = 0;
     std::size_t maximum = static_cast<std::size_t>(-1);
     Unique unique = Unique::None;
+    std::vector<AggregateDimension> nestedAggregates;
 };
 struct Declaration
 {

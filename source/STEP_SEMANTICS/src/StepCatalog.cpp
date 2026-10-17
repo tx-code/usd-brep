@@ -49,6 +49,12 @@ constexpr NamedBranches Ap214ReferenceSelects[] = { { "PRESENTATION_STYLE_SELECT
                                                     { "SURFACE_STYLE_ELEMENT_SELECT", SurfaceElements },
                                                     { "FILL_STYLE_SELECT", FillStyles } };
 constexpr std::string_view SurfaceSides[] = { "POSITIVE", "NEGATIVE", "BOTH" };
+constexpr std::string_view ConicPlacements[] = { "AXIS2_PLACEMENT_3D" };
+constexpr std::string_view CurveForms[] = { "POLYLINE_FORM", "CIRCULAR_ARC", "ELLIPTIC_ARC", "PARABOLIC_ARC", "HYPERBOLIC_ARC", "UNSPECIFIED" };
+constexpr std::string_view SurfaceForms[] = { "PLANE_SURF",    "CYLINDRICAL_SURF",         "CONICAL_SURF", "SPHERICAL_SURF",
+                                              "TOROIDAL_SURF", "SURF_OF_REVOLUTION",       "RULED_SURF",   "GENERALISED_CONE",
+                                              "QUADRIC_SURF",  "SURF_OF_LINEAR_EXTRUSION", "UNSPECIFIED" };
+constexpr std::string_view KnotTypes[] = { "UNIFORM_KNOTS", "QUASI_UNIFORM_KNOTS", "PIECEWISE_BEZIER_KNOTS", "UNSPECIFIED" };
 
 struct SiPrefix
 {
@@ -210,6 +216,22 @@ Field Aggregate(const char* name, const char* type, std::size_t min, std::size_t
 Field Set(const char* name, const char* type)
 {
     return Aggregate(name, type, 1, static_cast<std::size_t>(-1), Unique::Set);
+}
+Field List(const char* name, const char* type, FieldKind element)
+{
+    return Aggregate(name, type, 2, static_cast<std::size_t>(-1), Unique::None, element);
+}
+Field ControlGrid()
+{
+    auto field = List("control_points_list", "CARTESIAN_POINT", FieldKind::Reference);
+    // AP214 B_SPLINE_SURFACE declares LIST[2:?] OF LIST[2:?] OF point.
+    // Rows and repeated references carry meaning; never flatten or deduplicate them.
+    field.nestedAggregates.push_back({ "LIST", 2, {}, false });
+    return field;
+}
+Field Logical(const char* name)
+{
+    return { name, "LOGICAL", FieldKind::Logical };
 }
 } // namespace
 
@@ -381,6 +403,59 @@ Catalog::Catalog(ProfileKind profile)
         )->simple = true;
         referenceSelects.insert(referenceSelects.end(), std::begin(Ap214ReferenceSelects), std::end(Ap214ReferenceSelects));
         enumerations.push_back({ "SURFACE_SIDE", SurfaceSides });
+        // Pinned AP214 conics share AXIS2_PLACEMENT; only its 3D branch is admitted
+        // in this source profile. Axes/radii/angles remain original source values.
+        declarations.insert(
+            declarations.end(),
+            {
+                { "CONIC", { "CURVE" }, { Ref("position", "AXIS2_PLACEMENT") } },
+                { "CIRCLE", { "CONIC" }, { Real("radius", "POSITIVE_LENGTH_MEASURE") }, true },
+                { "ELLIPSE", { "CONIC" }, { Real("semi_axis_1", "POSITIVE_LENGTH_MEASURE"), Real("semi_axis_2", "POSITIVE_LENGTH_MEASURE") }, true },
+                { "CYLINDRICAL_SURFACE", { "ELEMENTARY_SURFACE" }, { Real("radius", "POSITIVE_LENGTH_MEASURE") }, true },
+                { "CONICAL_SURFACE", { "ELEMENTARY_SURFACE" }, { Real("radius", "LENGTH_MEASURE"), Real("semi_angle", "PLANE_ANGLE_MEASURE") }, true },
+            }
+        );
+        referenceSelects.push_back({ "AXIS2_PLACEMENT", ConicPlacements });
+        declarations.insert(
+            declarations.end(),
+            {
+                { "BOUNDED_CURVE", { "CURVE" }, {} },
+                { "B_SPLINE_CURVE",
+                  { "BOUNDED_CURVE" },
+                  { { "degree", "INTEGER", FieldKind::Integer },
+                    List("control_points_list", "CARTESIAN_POINT", FieldKind::Reference),
+                    Enum("curve_form", "B_SPLINE_CURVE_FORM"),
+                    Logical("closed_curve"),
+                    Logical("self_intersect") } },
+                { "B_SPLINE_CURVE_WITH_KNOTS",
+                  { "B_SPLINE_CURVE" },
+                  { List("knot_multiplicities", "INTEGER", FieldKind::Integer),
+                    List("knots", "PARAMETER_VALUE", FieldKind::Real),
+                    Enum("knot_spec", "KNOT_TYPE") },
+                  true },
+                { "BOUNDED_SURFACE", { "SURFACE" }, {} },
+                { "B_SPLINE_SURFACE",
+                  { "BOUNDED_SURFACE" },
+                  { { "u_degree", "INTEGER", FieldKind::Integer },
+                    { "v_degree", "INTEGER", FieldKind::Integer },
+                    ControlGrid(),
+                    Enum("surface_form", "B_SPLINE_SURFACE_FORM"),
+                    Logical("u_closed"),
+                    Logical("v_closed"),
+                    Logical("self_intersect") } },
+                { "B_SPLINE_SURFACE_WITH_KNOTS",
+                  { "B_SPLINE_SURFACE" },
+                  { List("u_multiplicities", "INTEGER", FieldKind::Integer),
+                    List("v_multiplicities", "INTEGER", FieldKind::Integer),
+                    List("u_knots", "PARAMETER_VALUE", FieldKind::Real),
+                    List("v_knots", "PARAMETER_VALUE", FieldKind::Real),
+                    Enum("knot_spec", "KNOT_TYPE") },
+                  true },
+            }
+        );
+        enumerations.push_back({ "B_SPLINE_CURVE_FORM", CurveForms });
+        enumerations.push_back({ "B_SPLINE_SURFACE_FORM", SurfaceForms });
+        enumerations.push_back({ "KNOT_TYPE", KnotTypes });
     }
     if (declarations.size() > 128)
     {
@@ -585,6 +660,7 @@ AttributeView AttributeAt(const SemanticData& data, std::size_t r, std::size_t c
     view.declaredIn = binding.origin;
     view.declaredType = binding.field->type;
     view.optional = binding.field->optional;
+    view.nestedAggregates = binding.field->nestedAggregates;
     view.value = &component.parameters.at(p);
     if (binding.field->kind == FieldKind::Aggregate)
     {

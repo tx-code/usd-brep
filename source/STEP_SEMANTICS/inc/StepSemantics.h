@@ -68,6 +68,13 @@ struct SchemaSelection
     std::optional<QualifiedSchemaProfile> qualified; // Absent for known versions without an implemented profile.
 };
 
+struct AggregateDimension
+{
+    std::string_view aggregate;
+    std::size_t minimum = 0;
+    std::optional<std::size_t> maximum;
+    bool uniqueElements = false;
+};
 struct AttributeView
 {
     std::string_view name;
@@ -80,6 +87,7 @@ struct AttributeView
     std::size_t minimum = 0;
     std::optional<std::size_t> maximum;
     bool uniqueElements = false;
+    std::vector<AggregateDimension> nestedAggregates; // Inner LIST bounds; source Value retains the actual row structure.
     const step_source::Value* value = nullptr; // Borrowed from the immutable owning SourceSnapshot.
 };
 
@@ -148,6 +156,8 @@ public:
     AttributeLocation Location() const;
     // Results are record indices local to this source graph, not portable entity identities.
     std::size_t ReferenceTarget() const;
+    // Flat reference aggregates only. Walk nested Value rows with Snapshot::ReferenceTarget;
+    // flattening a control grid here would hide its source shape.
     std::vector<std::size_t> ReferenceTargets() const;
 
 private:
@@ -198,6 +208,12 @@ enum class Status
     SourceFailure
 };
 
+struct GeometryDependencyCounts
+{
+    std::size_t total = 0;
+    std::size_t typePredicates = 0;
+    std::size_t entityPredicates = 0;
+};
 struct Outcome
 {
     Status status = Status::SourceFailure;
@@ -205,9 +221,11 @@ struct Outcome
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
     std::string types = "NotRun";
+    std::string geometryDependencies = "NotRun"; // Selected AP214 source prerequisites, not complete local/global rules.
     std::string part = "NotRun";
     std::string siUnits = "NotRun";
     std::size_t dependencyVisits = 0;
+    GeometryDependencyCounts geometryDependencyChecks;
     Limits limits;
     std::vector<Diagnostic> diagnostics;
 };

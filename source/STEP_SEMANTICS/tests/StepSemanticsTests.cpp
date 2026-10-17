@@ -70,7 +70,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 83,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 94,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -152,6 +152,62 @@ int main(int argc, char** argv)
         Require(
             firstEndpoint.Value().text == "910" && colourName.Value().text == "RGB" && styles.ReferenceTargets().size() == 1,
             "Owning presentation/relationship field views must survive release of their raw outcome and snapshot"
+        );
+        ++groups;
+
+        auto gridText = Read(corpus / "S203-P01/input.step");
+        gridText.replace(gridText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        const std::string originalPlane = "PLANE('',#133)";
+        gridText.replace(
+            gridText.find(originalPlane),
+            originalPlane.size(),
+            "B_SPLINE_SURFACE_WITH_KNOTS('source surface',2,1,((#100,#101),(#103,#102),(#100,#102)),"
+            ".UNSPECIFIED.,.U.,.F.,.U.,(3,3),(2,2),(-2.,3.),(65.,66.),.UNSPECIFIED.)"
+        );
+        const std::string originalItems = "'body',(#21),#12";
+        gridText.replace(gridText.find(originalItems), originalItems.size(), "'body',(#21,#133),#12");
+        auto gridRaw = step_source::InspectBytes(gridText, step_source::Limits::PlanarFixtures());
+        auto gridResult = Check(gridRaw, Limits{});
+        Require(
+            gridResult.status == Status::Checked && gridResult.snapshot && gridResult.geometryDependencies == "Passed",
+            "Source spline dependencies must complete without geometric evaluation"
+        );
+        auto gridSnapshot = gridResult.snapshot;
+        const auto surface = Index(*gridSnapshot, "134");
+        auto grid = gridSnapshot->Field(surface, "B_SPLINE_SURFACE", "control_points_list");
+        auto knots = gridSnapshot->Field(surface, "u_knots");
+        const auto& pointRef = grid.Value().children[2].children[0];
+        Require(
+            grid.Declaration().nestedAggregates.size() == 1 && grid.Value().children.size() == 3 && grid.Value().children[0].children.size() == 2 &&
+                gridSnapshot->ReferenceTarget(pointRef) == Index(*gridSnapshot, "100") &&
+                &pointRef == &gridRaw.source->Find("134")->components[0].parameters[3].children[2].children[0],
+            "Nested source grid must preserve rows, repeated identities and actual reference values"
+        );
+        bool matrixFlatteningRefused = false;
+        try
+        {
+            grid.ReferenceTargets();
+        }
+        catch (const std::invalid_argument&)
+        {
+            matrixFlatteningRefused = true;
+        }
+        Require(
+            matrixFlatteningRefused && gridSnapshot->Field(surface, "u_closed").Value().text == "U" &&
+                gridSnapshot->IsA(surface, "BOUNDED_SURFACE") && gridSnapshot->IsA(surface, "B_SPLINE_SURFACE"),
+            "Matrix lookup must not flatten rows or resolve LOGICAL unknown"
+        );
+        Require(
+            gridResult.geometryDependencyChecks.total == 5 && gridResult.geometryDependencyChecks.entityPredicates == 4 &&
+                gridResult.geometryDependencyChecks.typePredicates == 0 && !snapshot->Instances("B_SPLINE_SURFACE"),
+            "Only the selected AP214 prerequisite subset is counted; AP203 catalog remains isolated"
+        );
+        gridRaw = {};
+        gridResult = {};
+        gridSnapshot.reset();
+        Require(
+            grid.Value().children[2].children[0].text == "100" && knots.Value().children[0].text == "-2.",
+            "Owning spline field views must keep original grid and knot parameters after snapshot release"
         );
         ++groups;
 

@@ -11,6 +11,8 @@ source diagnostics, budgets and product/unit interpretation; field queries use t
 This does not extend the admitted profile; existing indexed Snapshot queries retain their contracts.
 
 The checker tracks binding, types/fields, part/closure and units with private typed progress in that order.
+AP214 additionally checks selected source geometry dependencies between fields and part/closure;
+AP203 retains its existing phases, diagnostics, report bytes and traversal charges.
 The existing Outcome strings are written when Check returns; failure preserves completed phases and leaves later
 phases NotRun. Conversion-based units still yield Deferred only after the preceding semantic checks complete.
 
@@ -51,7 +53,7 @@ declaration pointers and named field queries use that snapshot's immutable catal
 there is no process-wide current-protocol switch. AP203 retains its original 72
 registered declarations and indexes. AP214 has 70 common declarations, excluding
 `MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source,
-plus 13 presentation/relationship declarations described below (83 total).
+plus 13 presentation/relationship and 11 geometry declarations described below (94 total).
 The admitted reference SELECT branches remain a closed project subset. This is
 source field/part/unit checking, not full-schema or modeling qualification.
 
@@ -83,9 +85,44 @@ detached styles or geometry; RI use follows actual representation items and RI
 references, without following non-RI style/unit/management paths. These attachment
 and ownership restrictions are project guards, not full AP214 rule evaluation.
 
-Generic material/property representations, other presentation branches and new
-curve/surface geometry remain outside this increment. Unsupported content is
+Generic material/property representations and other presentation branches remain
+outside this increment. Unsupported content is
 retained in the raw outcome with diagnostics and no partial typed publication.
+
+The AP214 geometry source subset adds `CONIC` / `CIRCLE` / `ELLIPSE`,
+`CYLINDRICAL_SURFACE` / `CONICAL_SURFACE`, and nonrational
+`B_SPLINE_CURVE_WITH_KNOTS` / `B_SPLINE_SURFACE_WITH_KNOTS` with their bounded/B-spline
+ancestors. Conic `AXIS2_PLACEMENT` admits the existing 3D branch; 2D placements,
+rational/other spline forms and unsupported complex signatures fail explicitly.
+No weights or defining geometry are discarded to fit this subset.
+
+`geometry_dependencies` records the separate AP214 source phase. It checks the
+positive-length predicate for radii/semi-axes, cone radius >= 0, rectangular control
+grids required by the surface DERIVE arrays, knot/multiplicity sizes, and the
+pinned `constraints_param_b_spline` function: degree >= 1 and below control count,
+positive bounded multiplicities, their required sum and strict distinct-knot order.
+Endpoints may have degree+1 multiplicity; interior knots may have at most degree.
+Original knots are compared exactly from decimal source text, including huge
+exponents; no binary-float conversion or power expansion occurs.
+
+Original REAL/INTEGER lexemes, ellipse axis order, cone angle-unit values,
+control-point row/column order and repetitions, multiplicities and distinct
+knots remain immutable. `LOGICAL` preserves `T`/`F`/`U`; no unknown flag becomes
+false. `AttributeView::nestedAggregates` and JSON `nested_aggregates` describe
+inner list bounds only when a field is nested. A grid remains nested in `Value`;
+`FieldView::ReferenceTargets()` accepts flat lists only, while individual grid
+references can be resolved through `Snapshot::ReferenceTarget()`.
+
+Source dependency progress/counts are separate from full AP214 qualification.
+`other_entity_where` and `named_measure_predicates` report `Partial` only if the
+corresponding selected source predicates were attempted; all remaining clauses,
+uniformity claims in `knot_spec`, actual closedness/self-intersection, geometric
+consistency, parameter conversion/reparameterization and full AP214 RULEs are
+still unverified. B-spline parameters are retained `PARAMETER_VALUE`s: no native
+domain, period or physical UV scale is invented. Coordinate/radius values remain
+in original length units and cone `semi_angle` in original angle units; canonical
+unit metadata never rewrites these fields. A source failure, budget stop or failed
+dependency publishes no typed snapshot and leaves later phases unrun.
 
 AP214 `CONVERSION_BASED_UNIT` redeclares `NAMED_UNIT.dimensions` as derived, so
 the original transport value must be `*`. `FieldView` retains the marker, original
@@ -96,8 +133,9 @@ interpretation remains deferred in this layer, with AP214 reason
 `Ap214ConversionUnitEvaluationNotRun` and no invented canonical length scale.
 
 The shared single-part, mechanical/design role, complete closure and nominal-unit
-restrictions are project guards. Entity WHERE/UNIQUE and AP214's 272 global RULEs
-have not been evaluated. `STEP_PLANAR::Check` rejects AP214 at `UnsupportedRuleProfile/D3`
+restrictions are project guards. Apart from the selected dependencies above,
+entity WHERE/UNIQUE and AP214's 272 global RULEs have not been evaluated.
+`STEP_PLANAR::Check` rejects AP214 at `UnsupportedRuleProfile/D3`
 before constructing the AP203 validator; local/global/geometry/conversion checks
 stay `NotRun`, and native import makes zero native calls and publishes no model.
 The legacy JSON `global_rules_47` key is retained as a compatibility field and
