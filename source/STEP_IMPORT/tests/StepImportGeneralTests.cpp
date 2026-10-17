@@ -147,9 +147,9 @@ double VolumeWithImportPolicy(const SmBrep& brep, step_import::Point origin)
 }
 void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b, bool definingCurve = true)
 {
-    // Native archive reload canonicalizes a derived 2D SmLine to a spline;
+    // Native archive reload may canonicalize a derived linear UV spline to SmLine;
     // allow only that lossless UV representation change, never a 3D promotion.
-    const bool sameClass = a.GetType() == b.GetType() || (!definingCurve && a.GetType() == SmLine_TYPE && b.GetType() == SmBSplineCurve_TYPE);
+    const bool sameClass = a.GetType() == b.GetType() || (!definingCurve && a.GetType() == SmBSplineCurve_TYPE && b.GetType() == SmLine_TYPE);
     if (!sameClass || a.GetDegree() != b.GetDegree())
     {
         throw std::runtime_error(
@@ -177,14 +177,27 @@ void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b, bool definingC
         Require(ka[i] == kb[i], "archive curve knot identity");
     }
 }
-void CompareNativeDefinitions(SmBrep& a, SmBrep& b)
+struct ArchiveClassChanges
+{
+    std::size_t extrusionSurfaces = 0, linearUv = 0;
+};
+ArchiveClassChanges CompareNativeDefinitions(SmBrep& a, SmBrep& b)
 {
     // Numerical integration depends on transient caches and is not an identity
     // test. Compare the actual exact native definitions as well: classes,
     // degrees, all control coefficients/weights/knots and installed UV nets.
     SmBrepCompareResult topology;
+    ArchiveClassChanges changes;
     topology.dVertexTolerance = 1e-9;
-    Require(a.CompareBreps(&b, topology) == SM_SUCCESS && topology.bPass, "archive topology/classes/vertices");
+    Require(a.CompareBreps(&b, topology) == SM_SUCCESS, "archive topology comparison call");
+    if (topology.lFaceCountA != topology.lFaceCountB || topology.lEdgeCountA != topology.lEdgeCountB ||
+        topology.lVertexCountA != topology.lVertexCountB || topology.lCurveTypeMismatches != 0 || topology.dMaxVertexGap > 1e-9)
+    {
+        throw std::runtime_error(
+            "archive topology/classes/vertices: surface=" + std::to_string(topology.lSurfaceTypeMismatches) +
+            " curve=" + std::to_string(topology.lCurveTypeMismatches) + " vertex=" + std::to_string(topology.dMaxVertexGap)
+        );
+    }
     SmTArray<SmEdge*> ea, eb;
     a.GetEdges(ea);
     b.GetEdges(eb);
@@ -203,6 +216,17 @@ void CompareNativeDefinitions(SmBrep& a, SmBrep& b)
     {
         const auto first = dynamic_cast<SmBSplineSurface*>(fa[i]->GetSurface());
         const auto second = dynamic_cast<SmBSplineSurface*>(fb[i]->GetSurface());
+        if (first && second && first->GetType() != second->GetType())
+        {
+            // The archive reader recognizes V-linear spline surfaces as exact
+            // extrusion subclasses. Allow only this observed canonicalization,
+            // and still compare EVERY coefficient, weight and knot below.
+            Require(
+                first->GetType() == SmBSplineSurface_TYPE && second->GetType() == SmSurfOfExtrusion_TYPE,
+                "unqualified archive surface reclassification"
+            );
+            ++changes.extrusionSurfaces;
+        }
         Require(first && second, "admitted exact native surface net");
         Require(
             first->GetDegree(SM_SP_U) == second->GetDegree(SM_SP_U) && first->GetDegree(SM_SP_V) == second->GetDegree(SM_SP_V),
@@ -243,8 +267,10 @@ void CompareNativeDefinitions(SmBrep& a, SmBrep& b)
         {
             Require(ua[k]->GetUVTrimCurve() && ub[k]->GetUVTrimCurve(), "archive UV present");
             CompareCurveCoefficients(*ua[k]->GetUVTrimCurve(), *ub[k]->GetUVTrimCurve(), false);
+            changes.linearUv += ua[k]->GetUVTrimCurve()->GetType() != ub[k]->GetUVTrimCurve()->GetType();
         }
     }
+    return changes;
 }
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
@@ -347,10 +373,11 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     // quadrature after cache-free reload. Coefficient identity is checked below;
     // this separate measure comparison allows the two numerical integrations.
     Near(volume, expected, std::max(1e-6, expected * 2e-4), "archive numerical volume agreement");
+    ArchiveClassChanges changes;
     editable.model->Edit(
         [&](SmBrep& copy)
         {
-            CompareNativeDefinitions(copy, *loaded.brep);
+            changes = CompareNativeDefinitions(copy, *loaded.brep);
         }
     );
     SmPoint3d point;
@@ -366,6 +393,7 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
         << options.quality.id << "\",\"faces\":" << info.faces << ",\"edges\":" << info.edges << ",\"vertices\":" << info.vertices
         << ",\"volume_mm3\":" << expected << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume
         << ",\"outside_distance_mm\":" << distance << ",\"reloaded_distance_mm\":" << queryDistance
+        << ",\"archive_spline_to_extrusion_surfaces\":" << changes.extrusionSurfaces << ",\"archive_spline_to_linear_uv\":" << changes.linearUv
         << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0}\n";
     Require(bool(checks), "development check receipt");
 }
