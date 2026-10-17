@@ -1,0 +1,23 @@
+# Recreated by the repository build and dependency tools.
+/_build/
+/_compiler/
+/_repo/
+/_builtpackages/
+
+# Python environments, bytecode and tool caches.
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local IDE and OS state.
+/.vs/
+*.vcxproj.user
+*.suo
+.DS_Store
+Thumbs.db
+Desktop.ini
