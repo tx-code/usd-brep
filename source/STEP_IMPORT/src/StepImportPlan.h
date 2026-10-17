@@ -53,6 +53,11 @@ struct BoxProof
     std::array<std::size_t, 8> corners;
     Fraction volume;
 };
+struct OpenSheetProof
+{
+    std::size_t sharedEdge;
+    ExactPoint minimum, maximum;
+};
 struct Plan
 {
     std::shared_ptr<const step_semantics::Snapshot> source;
@@ -64,6 +69,7 @@ struct Plan
     std::vector<EdgePlan> edges;
     std::vector<FacePlan> faces;
     std::optional<BoxProof> box;
+    std::optional<OpenSheetProof> openSheet;
 };
 Plan MakePlan(const step_planar::Outcome& checked);
 SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality);

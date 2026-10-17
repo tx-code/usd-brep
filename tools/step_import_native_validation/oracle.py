@@ -64,7 +64,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     vector(n["centroid_mm"], list(map(decode, truth["centroid"])), tolerance, "centroid")
     for actual, expected in zip(n["bounds_mm"], truth["bounds"]):
         vector(actual, list(map(decode, expected)), tolerance, "bounds")
-    if closed:
+    if closed or n["faces"] > 1:
         require(n["normal"] is None and n["window_mm"] is None, "no first-face shape-wide geometry")
     if material:
         require(n["material_volume"]["applicability"] == "Applicable" and
@@ -81,7 +81,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         for field in ("volume_gap_flux_bound_mm3", "volume_skipped_flux_bound_mm3"):
             require(observed[field] is not None and math.isfinite(observed[field]) and
                     0 <= F(observed[field]) <= decode(q["aux_volume_error_mm3"]), "actual native omissions bounded")
-    elif not closed:
+    elif n["faces"] == 1:
         vector(n["normal"], normal, tolerance, "selected face normal")
         require(n["material_volume"] == "NotApplicable", "open surface material-volume qualification")
         window = n["window_mm"]
@@ -96,7 +96,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
         require(all(observed[field] is None for field in ("volume_bound_mm3", "volume_junction_bound_mm",
                     "volume_gap_flux_bound_mm3", "volume_skipped_flux_bound_mm3")) and
                 observed["volume_evidence_policy"] == "NotApplicable", "surface has no material volume certificate")
-    require(n["free_boundary_edges"] == (0 if closed else n["edges"]),
+    require(n["free_boundary_edges"] == sum(len(faces) == 1 for faces in source_edge_faces(data).values()),
             "free boundary is separate from unique edge length")
     require(observed["normalization_policy"] == {
         "curve_parameter": "SourceIncreasingToNative01", "uv": "DerivedAfterTopologyOnSameOwner",
@@ -250,9 +250,22 @@ def loop_provenance(observed, data):
         bound_faces = {r["source_face"] for r in observed["loop_mappings"]
                        if any(u["source_edge"] == row["source_edge"] for u in r["uses"])}
         require(set(row["source_faces"]) == bound_faces <= source_faces and
-                len(row["source_faces"]) == len(bound_faces) == (2 if closed else 1) and
+                len(row["source_faces"]) == len(bound_faces) and
+                (len(bound_faces) == 2 if closed else len(bound_faces) in {1, 2}) and
                 row["native_edgeuses"] == 2 * len(bound_faces),
                 "actual shared identity and logical/native multiplicity")
+
+
+def source_edge_faces(data):
+    index = by_id(inventory(data))
+    result = {}
+    for face in (r for r in index.values() if r.kind == "ADVANCED_FACE"):
+        for token in aggregate(face.args[1]):
+            loop = index[ref(index[ref(token)].args[1])]
+            for use in aggregate(loop.args[1]):
+                edge = ref(index[ref(use)].args[3])
+                result.setdefault(edge, set()).add(face.entity_id)
+    return result
 
 
 def source_frame(index, face):

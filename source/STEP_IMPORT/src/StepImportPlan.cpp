@@ -178,6 +178,79 @@ BoxProof ProveBox(const Plan& plan)
     need(sides.size() == 6);
     return proof;
 }
+OpenSheetProof ProveOpenSheet(const Plan& plan)
+{
+    const auto need = [&](bool condition)
+    {
+        if (!condition)
+        {
+            throw Failure{ Status::Unsupported,
+                           "UnsupportedNativeOpenSheetScope",
+                           "Shared open-sheet qualification requires two exact noncoplanar rectangles sharing one complete edge",
+                           plan.record };
+        }
+    };
+    need(plan.faces.size() == 2 && plan.vertices.size() == 6 && plan.edges.size() == 7);
+    OpenSheetProof proof{};
+    std::size_t shared = 0;
+    for (std::size_t e = 0; e < plan.edges.size(); ++e)
+    {
+        const auto& edge = plan.edges[e];
+        need(edge.minimumMm == plan.vertices[edge.minimumVertex].pointMm && edge.maximumMm == plan.vertices[edge.maximumVertex].pointMm);
+        const auto count = std::count_if(
+            plan.faces.begin(),
+            plan.faces.end(),
+            [&](const auto& face)
+            {
+                return std::find(face.edges.begin(), face.edges.end(), e) != face.edges.end();
+            }
+        );
+        need(count == 1 || count == 2);
+        if (count == 2)
+        {
+            proof.sharedEdge = e;
+            ++shared;
+        }
+    }
+    need(shared == 1);
+    std::array<ExactPoint, 2> normals;
+    for (std::size_t f = 0; f < plan.faces.size(); ++f)
+    {
+        const auto& face = plan.faces[f];
+        need(face.loops.size() == 1 && face.loops[0].outer && face.vertices.size() == 4 && face.edges.size() == 4);
+        const auto& uses = face.loops[0].selectedUses;
+        need(uses.size() == 4);
+        std::array<ExactPoint, 4> points;
+        normals[f] = Cross(face.x, face.y);
+        for (std::size_t i = 0; i < uses.size(); ++i)
+        {
+            const auto& edge = plan.edges[uses[i].edge];
+            points[i] = plan.vertices[uses[i].forward ? edge.minimumVertex : edge.maximumVertex].pointMm;
+            need(Dot(normals[f], Subtract(points[i], face.originMm)) == Fraction());
+        }
+        const auto a = Subtract(points[1], points[0]), b = Subtract(points[3], points[0]);
+        need(Dot(a, a) > Fraction() && Dot(b, b) > Fraction() && Dot(a, b) == Fraction());
+        need(points[2] == Add(Add(points[0], a), b));
+        need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b));
+        need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
+    }
+    const auto axis = Cross(normals[0], normals[1]);
+    need(Dot(axis, axis) > Fraction());
+    // The two distinct planes intersect along the shared side's line. Each
+    // convex rectangle meets that line only on its complete shared side.
+    // Their trimmed intersection is therefore precisely that edge, not an
+    // untested shell intersection accepted on validator success alone.
+    proof.minimum = proof.maximum = plan.vertices.front().pointMm;
+    for (const auto& vertex : plan.vertices)
+    {
+        for (std::size_t i = 0; i < 3; ++i)
+        {
+            proof.minimum[i] = std::min(proof.minimum[i], vertex.pointMm[i]);
+            proof.maximum[i] = std::max(proof.maximum[i], vertex.pointMm[i]);
+        }
+    }
+    return proof;
+}
 } // namespace
 SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality)
 {
@@ -296,11 +369,12 @@ Plan MakePlan(const step_planar::Outcome& checked)
     }
     const auto& source = *evidence.source;
     const auto role = source.PartDefinition().shapeRole;
-    if (role != "MaterialSolid" && role != "ClosedSurfaceModel" && (role != "OpenSurfaceModel" || evidence.faces.size() != 1))
+    if (role != "MaterialSolid" && role != "ClosedSurfaceModel" &&
+        (role != "OpenSurfaceModel" || (evidence.faces.size() != 1 && evidence.faces.size() != 2)))
     {
         throw Failure{ Status::Unsupported,
                        "UnsupportedNativeShapeScope",
-                       "Native scope is one open planar face or a qualified rectangular box boundary with its declared role",
+                       "Native scope is one open planar face, two shared noncoplanar rectangles, or a qualified rectangular box boundary",
                        {} };
     }
     Plan plan{};
@@ -337,7 +411,7 @@ Plan MakePlan(const step_planar::Outcome& checked)
             plan.sourceShape.shellType = type;
         }
     }
-    if (!plan.closedBoundary)
+    if (!plan.closedBoundary && evidence.faces.size() == 1)
     {
         plan.record = evidence.faces.front().face;
     }
@@ -463,6 +537,10 @@ Plan MakePlan(const step_planar::Outcome& checked)
     if (plan.closedBoundary)
     {
         plan.box = ProveBox(plan);
+    }
+    else if (plan.faces.size() == 2)
+    {
+        plan.openSheet = ProveOpenSheet(plan);
     }
     return plan;
 }

@@ -111,7 +111,7 @@ struct Options
 struct Statistics
 {
     std::size_t faces = 0, edges = 0, vertices = 0;
-    double areaMm2 = 0, boundaryMm = 0;
+    double areaMm2 = 0, boundaryMm = 0; // boundaryMm sums unique edge lengths, including shared edges once.
     Bounds boundsMm{};
     Point centroidMm{};
     std::optional<Point> normal; // Shape-wide normal/window apply only to a single face. Per-face values are always present.

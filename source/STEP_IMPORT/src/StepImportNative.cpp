@@ -1215,11 +1215,9 @@ void Builder::VerifyAdjacency()
         }
         SmTArray<SmEdgeuse*> uses;
         Good(m_model->edges[e]->GetEdgeuses(uses));
-        Need(
-            expected.size() == (m_plan.closedBoundary ? 2U : 1U) && uses.GetSize() == 2 * expected.size(),
-            "NativeAdjacencyMultiplicity",
-            m_plan.edges[e].record
-        );
+        const bool shared = m_plan.closedBoundary || (m_plan.openSheet && m_plan.openSheet->sharedEdge == e);
+        Need(bool(m_model->edges[e]->IsLamina()) == !shared, "NativeSourceFreeEdgeMismatch", m_plan.edges[e].record);
+        Need(expected.size() == (shared ? 2U : 1U) && uses.GetSize() == 2 * expected.size(), "NativeAdjacencyMultiplicity", m_plan.edges[e].record);
         for (ULONG i = 0; i < uses.GetSize(); ++i)
         {
             const auto use = uses[i];
@@ -1230,7 +1228,7 @@ void Builder::VerifyAdjacency()
                 "NativeRadialOrMateMismatch",
                 m_plan.edges[e].record
             );
-            if (m_plan.closedBoundary)
+            if (shared)
             {
                 Need(
                     use->GetRadial()->GetLoopuse()->GetFaceuse()->GetFace() != use->GetLoopuse()->GetFaceuse()->GetFace(),
@@ -1252,7 +1250,7 @@ void Builder::Measure()
         MeasureFace(m_plan.faces[i], m_model->faces[i]);
     }
     Statistics info;
-    if (!m_plan.closedBoundary)
+    if (m_plan.faces.size() == 1)
     {
         info = m_model->faces[0].info;
     }
@@ -1321,32 +1319,62 @@ void Builder::Measure()
                     info.centroidMm[axis] += face.info.areaMm2 * face.info.centroidMm[axis];
                 }
             }
-            Need(std::isfinite(info.areaMm2) && info.areaMm2 > 0, "NativeClosedSurfaceAreaInvalid", m_plan.record);
+            Need(
+                std::isfinite(info.areaMm2) && info.areaMm2 > 0,
+                m_plan.closedBoundary ? "NativeClosedSurfaceAreaInvalid" : "NativeOpenSheetAreaInvalid",
+                m_plan.record
+            );
             for (auto& value : info.centroidMm)
             {
                 value /= info.areaMm2;
             }
-            Certify(
-                NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
-                m_options.quality.queryMm,
-                "NativeClosedSurfaceCentroidMismatch",
-                m_plan.record
-            );
+            if (m_plan.closedBoundary)
+            {
+                Certify(
+                    NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
+                    m_options.quality.queryMm,
+                    "NativeClosedSurfaceCentroidMismatch",
+                    m_plan.record
+                );
+            }
+            else
+            {
+                auto area = Exact(0);
+                IntervalPoint moment{ Exact(0), Exact(0), Exact(0) };
+                for (const auto& face : m_plan.faces)
+                {
+                    const auto weight = SqrtNonnegative(Enclose(face.sourceAreaSquared));
+                    area = area + weight;
+                    moment = Add(moment, Times(Enclose(face.sourceCentroid), weight));
+                }
+                Certify(
+                    NormUpper(Subtract(Exact(info.centroidMm), Times(moment, Exact(1) / area))),
+                    m_options.quality.queryMm,
+                    "NativeOpenSheetCentroidMismatch",
+                    m_plan.record
+                );
+            }
         }
         SmPoint3d minimum, maximum;
         Step(m_plan.record);
         Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, minimum, maximum));
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
+        const auto& minimumExpected = m_plan.closedBoundary ? m_plan.box->minimum : m_plan.openSheet->minimum;
+        const auto& maximumExpected = m_plan.closedBoundary ? m_plan.box->maximum : m_plan.openSheet->maximum;
         Certify(
-            NormUpper(Subtract(Exact(info.boundsMm[0]), Enclose(m_plan.box->minimum))),
+            NormUpper(Subtract(Exact(info.boundsMm[0]), Enclose(minimumExpected))),
             m_options.quality.queryMm,
-            m_plan.materialSolid ? "NativeSolidBoundsMismatch" : "NativeClosedSurfaceBoundsMismatch",
+            m_plan.materialSolid  ? "NativeSolidBoundsMismatch" :
+            m_plan.closedBoundary ? "NativeClosedSurfaceBoundsMismatch" :
+                                    "NativeOpenSheetBoundsMismatch",
             m_plan.record
         );
         Certify(
-            NormUpper(Subtract(Exact(info.boundsMm[1]), Enclose(m_plan.box->maximum))),
+            NormUpper(Subtract(Exact(info.boundsMm[1]), Enclose(maximumExpected))),
             m_options.quality.queryMm,
-            m_plan.materialSolid ? "NativeSolidBoundsMismatch" : "NativeClosedSurfaceBoundsMismatch",
+            m_plan.materialSolid  ? "NativeSolidBoundsMismatch" :
+            m_plan.closedBoundary ? "NativeClosedSurfaceBoundsMismatch" :
+                                    "NativeOpenSheetBoundsMismatch",
             m_plan.record
         );
         auto expectedArea = Exact(0), expectedLength = Exact(0);
@@ -1358,7 +1386,9 @@ void Builder::Measure()
         Certify(
             std::max(std::abs(areaError.low), std::abs(areaError.high)),
             m_options.quality.areaMm2,
-            m_plan.materialSolid ? "NativeSolidAreaMismatch" : "NativeClosedSurfaceAreaMismatch",
+            m_plan.materialSolid  ? "NativeSolidAreaMismatch" :
+            m_plan.closedBoundary ? "NativeClosedSurfaceAreaMismatch" :
+                                    "NativeOpenSheetAreaMismatch",
             m_plan.record
         );
         for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
@@ -1373,7 +1403,9 @@ void Builder::Measure()
         Certify(
             std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
             m_options.quality.queryMm,
-            m_plan.materialSolid ? "NativeSolidEdgeLengthMismatch" : "NativeClosedSurfaceEdgeLengthMismatch",
+            m_plan.materialSolid  ? "NativeSolidEdgeLengthMismatch" :
+            m_plan.closedBoundary ? "NativeClosedSurfaceEdgeLengthMismatch" :
+                                    "NativeOpenSheetEdgeLengthMismatch",
             m_plan.record
         );
     }
@@ -1386,7 +1418,8 @@ void Builder::Measure()
             ++info.freeBoundaryEdges;
         }
     }
-    Need(info.freeBoundaryEdges == (m_plan.closedBoundary ? 0U : m_plan.edges.size()), "NativeFreeBoundaryMismatch", m_plan.record);
+    const auto expectedFreeEdges = m_plan.closedBoundary ? 0U : m_plan.edges.size() - (m_plan.openSheet ? 1U : 0U);
+    Need(info.freeBoundaryEdges == expectedFreeEdges, "NativeFreeBoundaryMismatch", m_plan.record);
     m_model->info = info;
     m_report.native = info;
 }

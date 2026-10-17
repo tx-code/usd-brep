@@ -79,6 +79,14 @@ if(STEP_IMPORT_BUILD_TESTS)
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
     add_test(NAME step_import_copy_contracts COMMAND step_import_copy_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
+    add_executable(step_import_sheet_tests tests/StepImportSheetTests.cpp)
+    target_link_libraries(step_import_sheet_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_sheet_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_sheet_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_sheet_contracts COMMAND step_import_sheet_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step")
+    set_tests_properties(step_import_sheet_contracts PROPERTIES TIMEOUT 60)
     if(WIN32)
         add_executable(step_import_resources tests/StepImportResources.cpp)
         target_compile_definitions(step_import_resources PRIVATE NOMINMAX)
@@ -97,13 +105,17 @@ if(STEP_IMPORT_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P08/input.step")
         add_test(NAME step_import_lifecycle_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P01/input.step" lifecycle)
+        add_test(NAME step_import_sheet_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step")
+        add_test(NAME step_import_sheet_lifecycle_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step" lifecycle)
     endif()
 endif()
 if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests)
+foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD
