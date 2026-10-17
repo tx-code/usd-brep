@@ -88,7 +88,7 @@ if(STEP_IMPORT_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step")
     add_test(NAME step_import_coplanar_sheet_contracts COMMAND step_import_sheet_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/coplanar_shared_sheet.step" coplanar)
-    foreach(shape convex triangular pentagonal)
+    foreach(shape convex triangular pentagonal concave collinear)
         add_test(NAME step_import_${shape}_sheet_contracts COMMAND step_import_sheet_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/${shape}_shared_sheet.step" ${shape})
         set_tests_properties(step_import_${shape}_sheet_contracts PROPERTIES TIMEOUT 60)
@@ -120,7 +120,7 @@ if(STEP_IMPORT_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/coplanar_shared_sheet.step")
         add_test(NAME step_import_coplanar_sheet_lifecycle_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/coplanar_shared_sheet.step" lifecycle)
-        foreach(shape convex triangular pentagonal)
+        foreach(shape convex triangular pentagonal concave collinear)
             add_test(NAME step_import_${shape}_sheet_resources COMMAND step_import_resources
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/${shape}_shared_sheet.step")
             add_test(NAME step_import_${shape}_sheet_lifecycle_resources COMMAND step_import_resources

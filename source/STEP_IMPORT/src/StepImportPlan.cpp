@@ -184,12 +184,10 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
     {
         if (!condition)
         {
-            throw Failure{
-                Status::Unsupported,
-                "UnsupportedNativeOpenSheetScope",
-                "Shared open-sheet qualification requires two exact strictly convex simple polygons whose trimmed intersection is one complete shared edge",
-                plan.record
-            };
+            throw Failure{ Status::Unsupported,
+                           "UnsupportedNativeOpenSheetScope",
+                           "Shared open-sheet qualification requires two exact simple polygons meeting only on one complete shared supporting edge",
+                           plan.record };
         }
     };
     need(plan.faces.size() == 2 && plan.vertices.size() >= 4 && plan.edges.size() >= 5);
@@ -220,6 +218,7 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
         }
     }
     need(shared == 1);
+    const auto& common = plan.edges[proof.sharedEdge];
     std::array<ExactPoint, 2> normals;
     for (std::size_t f = 0; f < plan.faces.size(); ++f)
     {
@@ -246,23 +245,51 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
         else
         {
             // Source Checked has already proved a simple finite LINE loop.
-            // For a simple polygon, strictly same-signed consecutive turns
-            // prove strict convexity without another quadratic segment walk.
+            // Keep the established strict-convexity arithmetic/capacity path.
+            // For a simple polygon, these turns prove that every side supports it.
+            bool strictlyConvex = true;
             std::optional<bool> positive;
             for (std::size_t i = 0; i < points.size(); ++i)
             {
                 const auto j = (i + 1) % points.size(), k = (i + 2) % points.size();
                 const auto turn = Dot(normals[f], Cross(Subtract(points[j], points[i]), Subtract(points[k], points[j])));
-                need(turn != Fraction());
                 const bool current = turn > Fraction();
-                need(!positive || current == *positive);
+                if (turn == Fraction() || (positive && current != *positive))
+                {
+                    strictlyConvex = false;
+                    break;
+                }
                 positive = current;
+            }
+            if (!strictlyConvex)
+            {
+                // Concavities and forward collinear vertices are harmless away
+                // from the shared line if every other vertex is strictly on one
+                // side. Source Checked already excludes self-crossing/touching;
+                // its simple filled polygon therefore meets the line only on
+                // the shared edge. No convex hull, vertex removal or O(n^2) walk.
+                const auto direction = Subtract(common.maximumMm, common.minimumMm);
+                std::optional<bool> sidePositive;
+                for (const auto& use : uses)
+                {
+                    const auto& edge = plan.edges[use.edge];
+                    const auto vertex = use.forward ? edge.minimumVertex : edge.maximumVertex;
+                    if (vertex == common.minimumVertex || vertex == common.maximumVertex)
+                    {
+                        continue;
+                    }
+                    const auto side = Dot(normals[f], Cross(direction, Subtract(plan.vertices[vertex].pointMm, common.minimumMm)));
+                    need(side != Fraction());
+                    const bool current = side > Fraction();
+                    need(!sidePositive || current == *sidePositive);
+                    sidePositive = current;
+                }
+                need(sidePositive.has_value());
             }
         }
     }
     need(plan.vertices.size() == plan.faces[0].vertices.size() + plan.faces[1].vertices.size() - 2);
     need(plan.edges.size() == plan.faces[0].edges.size() + plan.faces[1].edges.size() - 1);
-    const auto& common = plan.edges[proof.sharedEdge];
     std::size_t commonVertices = 0;
     for (std::size_t v = 0; v < vertexFaces.size(); ++v)
     {
@@ -285,12 +312,12 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
         };
         const auto a = side(plan.faces[0]), b = side(plan.faces[1]);
         need((a > Fraction() && b < Fraction()) || (a < Fraction() && b > Fraction()));
-        // Each strictly convex polygon lies in the half-plane selected by its
-        // interior centroid. Strictly opposite signs exclude positive-area
-        // overlap; their common boundary is the complete shared side.
+        // The proofs above put each filled polygon strictly on one side away
+        // from the shared edge, so its area centroid selects that half-plane
+        // even for a concave polygon. Opposite signs exclude area overlap.
     }
     // For distinct planes their intersection line contains the shared side.
-    // Each strictly convex polygon meets it only on that complete side. Either
+    // Each qualified polygon meets it only on that complete side. Either
     // admitted case has exactly the declared finite intersection, independently
     // of native validator success.
     proof.minimum = proof.maximum = plan.vertices.front().pointMm;
@@ -427,7 +454,7 @@ Plan MakePlan(const step_planar::Outcome& checked)
     {
         throw Failure{ Status::Unsupported,
                        "UnsupportedNativeShapeScope",
-                       "Native scope is one open planar face, two shared noncoplanar rectangles, or a qualified rectangular box boundary",
+                       "Native scope is one open planar face, two polygons with a shared supporting edge, or a qualified rectangular box boundary",
                        {} };
     }
     Plan plan{};

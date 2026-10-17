@@ -22,6 +22,8 @@ COPLANAR_SHEET = SHEET.with_name("coplanar_shared_sheet.step")
 CONVEX_SHEET = SHEET.with_name("convex_shared_sheet.step")
 TRIANGULAR_SHEET = SHEET.with_name("triangular_shared_sheet.step")
 PENTAGONAL_SHEET = SHEET.with_name("pentagonal_shared_sheet.step")
+CONCAVE_SHEET = SHEET.with_name("concave_shared_sheet.step")
+COLLINEAR_SHEET = SHEET.with_name("collinear_shared_sheet.step")
 # P0 S1 analytic truth: face areas 12 and 6; unique edge lengths total 21.
 # Area moments: (48, 27, 6); no CAD-generated expectations.
 TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 7, "vertices": 6},
@@ -58,6 +60,16 @@ PENTAGONAL_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edg
                     "perimeter_bounds": _pentagon_bounds,
                     "centroid": [exact(F(20, 7)), exact(F(103, 63)), exact(F(4, 7))],
                     "bounds": [[exact(0), exact(0), exact(0)], [exact(4), exact(4), exact(3)]]}
+# Remove the E-G-F triangle (area 2, centroid y=2,z=5/3) from the area-7 trapezoid.
+# FB then has area 5 and moments (20,25/3,4); FA has moments (24,18,0).
+CONCAVE_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 8, "vertices": 7},
+                 "measures": {"area": exact(17), "perimeter": _pentagon_length},
+                 "perimeter_bounds": _pentagon_bounds,
+                 "centroid": [exact(F(44, 17)), exact(F(79, 51)), exact(F(4, 17))],
+                 "bounds": [[exact(0), exact(0), exact(0)], [exact(4), exact(4), exact(2)]]}
+# The same area-7 trapezoid, with G retained on E-F as a distinct source vertex.
+COLLINEAR_TRUTH = deepcopy(CONVEX_TRUTH)
+COLLINEAR_TRUTH["source_topology"] = {"faces": 2, "edges": 8, "vertices": 7}
 
 
 class SheetTests(unittest.TestCase):
@@ -84,11 +96,13 @@ class SheetTests(unittest.TestCase):
             data = self.replace(data, f"#{record.entity_id}={record.raw};", f"#{record.entity_id}={body};")
         return data
 
-    def test_coplanar_convex_faces_remain_separate_without_overlap(self):
+    def test_coplanar_supported_polygons_remain_separate_without_overlap(self):
         for fixture, base_truth, center_x, xmax in (
                 (CONVEX_SHEET, CONVEX_TRUTH, F(178, 57), 6),
                 (TRIANGULAR_SHEET, TRIANGULAR_TRUTH, F(10, 3), 6),
-                (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, F(24, 7), 7)):
+                (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, F(24, 7), 7),
+                (CONCAVE_SHEET, CONCAVE_TRUTH, F(48, 17), 6),
+                (COLLINEAR_SHEET, COLLINEAR_TRUTH, F(178, 57), 6)):
             data = self.unfolded(fixture.read_bytes())
             truth = deepcopy(base_truth)
             truth["centroid"] = [exact(center_x), base_truth["centroid"][1], exact(0)]
@@ -100,8 +114,8 @@ class SheetTests(unittest.TestCase):
                 self.assertEqual([4.5, 1, 0], observed["query"]["closest_point_mm"])
                 self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
 
-    def test_same_side_coplanar_convex_faces_do_not_enter_native(self):
-        for fixture in (CONVEX_SHEET, TRIANGULAR_SHEET, PENTAGONAL_SHEET):
+    def test_same_side_coplanar_polygons_do_not_enter_native(self):
+        for fixture in (CONVEX_SHEET, TRIANGULAR_SHEET, PENTAGONAL_SHEET, CONCAVE_SHEET, COLLINEAR_SHEET):
             data = self.unfolded(fixture.read_bytes(), -1)
             with self.subTest(fixture=fixture.name):
                 actual, observed = self.invoke(data)
@@ -122,27 +136,86 @@ class SheetTests(unittest.TestCase):
         self.assertEqual([4, 2, 2], observed["query"]["closest_point_mm"])
         self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
 
-    def test_valid_concave_or_collinear_boundaries_do_not_get_simplified(self):
-        for y, z in ((2, 1), (2, 2)):
-            data = PENTAGONAL_SHEET.read_bytes()
-            changes = [("#105=CARTESIAN_POINT('',(4.,2.,3.))", f"#105=CARTESIAN_POINT('',(4.,{float(y)},{float(z)}))"),
-                       ("#305=DIRECTION('',(0.,2.,1.))", f"#305=DIRECTION('',(0.,{float(y)},{float(z-2)}))"),
-                       ("#306=DIRECTION('',(0.,2.,-1.))", f"#306=DIRECTION('',(0.,{float(4-y)},{float(2-z)}))")]
-            for old, new in changes:
-                data = self.replace(data, old, new)
-            with self.subTest(shape="concave" if z == 1 else "collinear"):
-                actual, observed = self.invoke(data)
-                self.assertEqual(2, actual.returncode)
-                self.assertEqual("Checked", observed["source"]["planar"])
-                self.assertEqual(("Unsupported", 0, "None"),
-                                 (observed["status"], observed["native_calls"], observed["repair"]))
-                self.assertEqual("UnsupportedNativeOpenSheetScope", observed["diagnostics"][0]["key"])
-                self.assertIsNone(observed["model"])
+    def test_concave_boundary_keeps_the_indentation_and_every_source_use(self):
+        data = CONCAVE_SHEET.read_bytes()
+        actual, observed = self.invoke(data)
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed, data, CONCAVE_TRUTH)
+        self.assertEqual((7, 90), (observed["native_measurements"]["free_boundary_edges"], len(observed["tolerances"])))
+        self.assertEqual(9, sum(len(row["uses"]) for row in observed["loop_mappings"]))
 
-    def test_convex_faces_preserve_shape_in_an_oblique_world_frame(self):
+    def test_collinear_source_vertex_and_both_segments_remain_distinct(self):
+        data = COLLINEAR_SHEET.read_bytes()
+        actual, observed = self.invoke(data)
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed, data, COLLINEAR_TRUTH)
+        self.assertEqual((7, 90), (observed["native_measurements"]["free_boundary_edges"], len(observed["tolerances"])))
+        self.assertEqual(9, sum(len(row["uses"]) for row in observed["loop_mappings"]))
+
+    def test_closest_point_outside_the_concave_face_does_not_fill_its_notch(self):
+        data = CONCAVE_SHEET.read_bytes()
+        actual, observed = self.invoke(data, "--query", "5", "1.5", "2")
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed["import"], data, CONCAVE_TRUTH)
+        # Orthogonal projection onto E-G has t=3/5, giving (4,6/5,7/5).
+        # Its squared distance is 29/20, less than any other boundary segment.
+        for a, b in zip(observed["query"]["closest_point_mm"], (4, F(6, 5), F(7, 5))):
+            self.assertAlmostEqual(float(b), a, delta=1e-7)
+        bounds = sqrt_interval(F(29, 20))
+        actual_distance = F(observed["query"]["distance_mm"])
+        self.assertLessEqual(max(abs(actual_distance-decode(bounds[k])) for k in ("lower", "upper")), F(1, 10**7))
+
+    def test_crossing_or_touching_the_supporting_line_stays_outside_native_scope(self):
+        for z in (-1, 0):
+            data = PENTAGONAL_SHEET.read_bytes()
+            for old, new in (("#105=CARTESIAN_POINT('',(4.,2.,3.))", "#105=CARTESIAN_POINT('',(4.,5.,2.))"),
+                             ("#106=CARTESIAN_POINT('',(4.,4.,2.))", f"#106=CARTESIAN_POINT('',(4.,5.,{float(z)}))"),
+                             ("#305=DIRECTION('',(0.,2.,1.))", "#305=DIRECTION('',(0.,5.,0.))"),
+                             ("#306=DIRECTION('',(0.,2.,-1.))", f"#306=DIRECTION('',(0.,0.,{float(z-2)}))"),
+                             ("#307=DIRECTION('',(0.,-1.,-2.))", f"#307=DIRECTION('',(0.,-2.,{float(-z)}))")):
+                data = self.replace(data, old, new)
+            for coplanar in (False, True):
+                variant = self.unfolded(data) if coplanar else data
+                with self.subTest(z=z, coplanar=coplanar):
+                    actual, observed = self.invoke(variant)
+                    self.assertEqual(2, actual.returncode)
+                    self.assertEqual("Checked", observed["source"]["planar"])
+                    self.assertEqual(("Unsupported", 0, "None"),
+                                     (observed["status"], observed["native_calls"], observed["repair"]))
+                    self.assertEqual(("UnsupportedNativeOpenSheetScope", "D5", "TargetUnsupported"),
+                                     tuple(observed["diagnostics"][0][k] for k in ("key", "stage", "classification")))
+                    self.assertIsNone(observed["model"])
+
+    def test_both_faces_can_be_concave_without_losing_the_shared_edge(self):
+        data = CONCAVE_SHEET.read_bytes()
+        for old, new in (("#303=DIRECTION('',(0.,-3.,0.))", "#303=DIRECTION('',(1.,-1.5,0.))"),
+                         ("#603=EDGE_CURVE('',#203,#200,#503,.T.)", "#603=EDGE_CURVE('',#203,#207,#503,.T.)"),
+                         ("#705=EDGE_LOOP('',(#800,#801,#802,#803))", "#705=EDGE_LOOP('',(#800,#801,#802,#803,#804))")):
+            data = self.replace(data, old, new)
+        # FA loses a triangle of area 3/2 and centroid (1/3,3/2,0).
+        extra = ("#107=CARTESIAN_POINT('',(1.,1.5,0.));\n#207=VERTEX_POINT('',#107);\n"
+                 "#308=DIRECTION('',(-1.,-1.5,0.));\n#408=VECTOR('',#308,1.);\n"
+                 "#508=LINE('',#107,#408);\n#608=EDGE_CURVE('',#207,#200,#508,.T.);\n"
+                 "#804=ORIENTED_EDGE('',*,*,#608,.T.);\n")
+        data = self.replace(data, "ENDSEC;\nEND-ISO-10303-21;", extra + "ENDSEC;\nEND-ISO-10303-21;")
+        a, b = sqrt_interval(F(13)), sqrt_interval(F(5))
+        lo, hi = (13 + decode(a[k]) + 3*decode(b[k]) for k in ("lower", "upper"))
+        truth = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 9, "vertices": 8},
+                 "measures": {"area": exact(F(31, 2)), "perimeter": exact((lo+hi)/2)},
+                 "perimeter_bounds": [exact(lo), exact(hi)],
+                 "centroid": [exact(F(87, 31)), exact(F(289, 186)), exact(F(8, 31))],
+                 "bounds": deepcopy(CONCAVE_TRUTH["bounds"])}
+        actual, observed = self.invoke(data)
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed, data, truth)
+        self.assertEqual(10, sum(len(row["uses"]) for row in observed["loop_mappings"]))
+
+    def test_supported_polygons_preserve_shape_in_an_oblique_world_frame(self):
         for fixture, base_truth, xmax, ymax in ((CONVEX_SHEET, CONVEX_TRUTH, F(11), 2),
                                                (TRIANGULAR_SHEET, TRIANGULAR_TRUTH, F(11), 1),
-                                               (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, F(59, 5), 2)):
+                                               (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, F(59, 5), 2),
+                                               (CONCAVE_SHEET, CONCAVE_TRUTH, F(11), 2),
+                                               (COLLINEAR_SHEET, COLLINEAR_TRUTH, F(11), 2)):
             data = fixture.read_bytes()
             for record in inventory(data):
                 if record.kind not in {"CARTESIAN_POINT", "DIRECTION"}:
@@ -167,9 +240,10 @@ class SheetTests(unittest.TestCase):
                     self.assertAlmostEqual(a, b, delta=1e-7)
                 self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
 
-    def test_independent_checker_rejects_lost_convex_geometry(self):
+    def test_independent_checker_rejects_lost_polygon_geometry(self):
         for fixture, truth in ((CONVEX_SHEET, CONVEX_TRUTH), (TRIANGULAR_SHEET, TRIANGULAR_TRUTH),
-                                (PENTAGONAL_SHEET, PENTAGONAL_TRUTH)):
+                                (PENTAGONAL_SHEET, PENTAGONAL_TRUTH), (CONCAVE_SHEET, CONCAVE_TRUTH),
+                                (COLLINEAR_SHEET, COLLINEAR_TRUTH)):
             data = fixture.read_bytes()
             actual, observed = self.invoke(data)
             self.assertEqual(0, actual.returncode)
@@ -307,7 +381,8 @@ class SheetTests(unittest.TestCase):
 
     def test_si_restatement_preserves_sheet_and_dimensionless_parameters(self):
         for fixture, truth in ((SHEET, TRUTH), (COPLANAR_SHEET, COPLANAR_TRUTH), (CONVEX_SHEET, CONVEX_TRUTH),
-                                (TRIANGULAR_SHEET, TRIANGULAR_TRUTH), (PENTAGONAL_SHEET, PENTAGONAL_TRUTH)):
+                                (TRIANGULAR_SHEET, TRIANGULAR_TRUTH), (PENTAGONAL_SHEET, PENTAGONAL_TRUTH),
+                                (CONCAVE_SHEET, CONCAVE_TRUTH), (COLLINEAR_SHEET, COLLINEAR_TRUTH)):
             data = fixture.read_bytes().replace(b"SI_UNIT(.MILLI.,.METRE.)", b"SI_UNIT(.CENTI.,.METRE.)")
             for record in inventory(data):
                 args = list(record.args)
@@ -370,7 +445,9 @@ class SheetTests(unittest.TestCase):
                                         (COPLANAR_SHEET, COPLANAR_TRUTH, (5, 1.5, 0)),
                                         (CONVEX_SHEET, CONVEX_TRUTH, (4, 1.5, 1)),
                                         (TRIANGULAR_SHEET, TRIANGULAR_TRUTH, (4, 1.5, 1)),
-                                        (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, (4, 1.5, 1))):
+                                        (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, (4, 1.5, 1)),
+                                        (CONCAVE_SHEET, CONCAVE_TRUTH, (4, 1.5, 1)),
+                                        (COLLINEAR_SHEET, COLLINEAR_TRUTH, (4, 1.5, 1))):
             for flags, data in self.variants(fixture.read_bytes()):
                 with self.subTest(fixture=fixture.name, flags=flags):
                     actual, observed = self.invoke(data, "--query", "5", "1.5", "1")
