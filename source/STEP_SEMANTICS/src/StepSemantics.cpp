@@ -176,6 +176,21 @@ private:
     std::optional<Phase> m_phase;
     std::array<Progress, 4> m_progress{};
 
+    std::string SourceAuthority() const
+    {
+        // Used only after binding: attribute failures belong to the snapshot's pinned
+        // source declarations, not the downstream rule profile or project restrictions.
+        // Keep the existing AP203 labels so its diagnostic contract remains unchanged.
+        Expects(m_data->catalog.has_value());
+        switch (m_data->profile.kind)
+        {
+            case ProfileKind::Ap203e2Planar:
+                return "N2635";
+            case ProfileKind::Ap214e3Source:
+                return "AP214E3_2010.exp";
+        }
+        throw std::logic_error("Unknown source profile authority");
+    }
     Progress& State(Phase phase)
     {
         return m_progress.at(static_cast<std::size_t>(phase));
@@ -466,7 +481,7 @@ private:
                         {},
                         "compatible partial types",
                         "ONEOF conflict",
-                        "N2635 audited subtype groups"
+                        SourceAuthority() + " audited subtype groups"
                     );
                 }
                 if (!std::is_sorted(explicitTypes.begin(), explicitTypes.end()))
@@ -546,7 +561,7 @@ private:
                 path,
                 field.type,
                 step_source::ValueKindName(value.kind),
-                "N2635 explicit attribute"
+                SourceAuthority() + " explicit attribute"
             );
         };
         switch (kind)
@@ -583,7 +598,7 @@ private:
                         path,
                         "BOOLEAN T/F",
                         std::string(m_data->source->Raw(value.span)),
-                        "N2635 BOOLEAN"
+                        SourceAuthority() + " BOOLEAN"
                     );
                 }
                 break;
@@ -598,7 +613,7 @@ private:
                     Fail(
                         "EnumerationValueInvalid",
                         "D1",
-                        "Enumeration token is absent from the fixed N2635 type",
+                        "Enumeration token is absent from the fixed " + SourceAuthority() + " type",
                         value.span,
                         Status::Rejected,
                         r,
@@ -606,7 +621,7 @@ private:
                         path,
                         field.type,
                         value.text,
-                        "fixed N2635 enumeration"
+                        "fixed " + SourceAuthority() + " enumeration"
                     );
                 }
                 break;
@@ -631,7 +646,7 @@ private:
                             path,
                             field.type,
                             Record(UnboundTarget(value)).components[0].name,
-                            "N2635 explicit reference type"
+                            SourceAuthority() + " explicit reference type"
                         );
                     }
                     catch (Failure& failure)
@@ -699,7 +714,7 @@ private:
                         {},
                         std::to_string(count),
                         std::to_string(part.parameters.size()),
-                        "N2635 attribute layout"
+                        SourceAuthority() + " attribute layout"
                     );
                 }
                 for (std::size_t p = 0; p < count; ++p)
@@ -750,7 +765,7 @@ private:
                             path,
                             field.type,
                             "$",
-                            "N2635 required attribute"
+                            SourceAuthority() + " required attribute"
                         );
                     }
                     if (field.kind != FieldKind::Aggregate)
@@ -771,7 +786,7 @@ private:
                             path,
                             "aggregate",
                             step_source::ValueKindName(value.kind),
-                            "N2635 aggregate"
+                            SourceAuthority() + " aggregate"
                         );
                     }
                     if (value.children.size() < field.minimum || value.children.size() > field.maximum)
@@ -787,7 +802,7 @@ private:
                             path,
                             "declared bounds",
                             std::to_string(value.children.size()),
-                            "N2635 aggregate"
+                            SourceAuthority() + " aggregate"
                         );
                     }
                     std::unordered_map<std::string, Span> members;

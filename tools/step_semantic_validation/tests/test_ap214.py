@@ -90,6 +90,29 @@ class Ap214Tests(unittest.TestCase):
         begin, end = diagnostic["span"]
         self.assertEqual(b"#17", data[begin:end])
 
+    def test_field_failures_name_the_selected_schema_artifact(self):
+        original = (CORPUS / "S203-P01/input.step").read_bytes()
+        mutations = (
+            (b".METRE.", b".UNKNOWN.", "EnumerationValueInvalid", "fixed {} enumeration"),
+            (b"PRODUCT('P0-PART',", b"PRODUCT($,", "RequiredAttributeMissing", "{} required attribute"),
+            (b"SI_UNIT(.MILLI.,.METRE.)", b"SI_UNIT(.METRE.)", "AttributeCountMismatch", "{} attribute layout"),
+        )
+        for data, authority in ((original, "N2635"), (ap214_source(original), "AP214E3_2010.exp")):
+            for before, after, key, responsibility in mutations:
+                with self.subTest(authority=authority, key=key):
+                    self.assertEqual(1, data.count(before))
+                    run, result = self.invoke(data.replace(before, after))
+                    self.assertEqual(1, run.returncode)
+                    self.assertIsNone(result["snapshot"])
+                    diagnostic = result["diagnostics"][0]
+                    self.assertEqual(key, diagnostic["key"])
+                    self.assertEqual(responsibility.format(authority), diagnostic["responsibility"])
+                    if key == "EnumerationValueInvalid":
+                        self.assertEqual("Enumeration token is absent from the fixed " + authority + " type",
+                                         diagnostic["message"])
+                        begin, end = diagnostic["span"]
+                        self.assertEqual(b".UNKNOWN.", data.replace(before, after)[begin:end])
+
     def test_retired_contexts_and_other_versions_do_not_use_the_ap214_catalog(self):
         data = ap214_source((CORPUS / "S203-P10/input.step").read_bytes())
         run, result = self.invoke(data)
