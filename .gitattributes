@@ -9,8 +9,9 @@
 /docs/step-import-repair-*.md text eol=lf
 /source/STEP_*/** text eol=lf
 /cmake/** text eol=lf
+/third_party/README.md text eol=lf
 # Preserve the pinned upstream bytes, including license and provenance.
-/third_party/microsoft-gsl/** -text
+/third_party/microsoft-gsl/** -text -whitespace
 /tools/step_*_validation/** text eol=lf
 /tools/step_evidence/** text eol=lf
 # Frozen evidence and schema witnesses are content-addressed byte artifacts.
