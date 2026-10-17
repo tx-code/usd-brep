@@ -4,6 +4,10 @@
 /_repo/
 /_builtpackages/
 
+# Per-machine plans, handoffs and execution records.
+/.local/
+/.learning/
+
 # Python environments, bytecode and tool caches.
 .venv/
 __pycache__/
