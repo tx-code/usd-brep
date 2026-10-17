@@ -6,3 +6,9 @@ trim_trailing_whitespace = true
 max_line_length = 120
 insert_final_newline = true
 end_of_line = lf
+
+# Vendored upstream files are pinned byte-for-byte, including mixed line endings.
+[third_party/microsoft-gsl/**]
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = false
