@@ -36,6 +36,21 @@ See the [build instructions](README.md#build-it) for prerequisites and Windows/m
 - **Indent:** 4 spaces, LF line endings, UTF-8, trailing whitespace trimmed (`.editorconfig`)
 - **Batch files:** CRLF; **Shell scripts:** LF (`.gitattributes`)
 
+### Comments for Critical Code
+
+- **Critical code must have comments.** When adding or changing nontrivial algorithms, protocol/schema
+  interpretation, numerical tolerances, ownership or mutation, cancellation/cleanup, concurrency, or resource
+  boundaries, explain the reasoning and the invariants the implementation must preserve.
+- Put comments beside the relevant decision or at the owning function/module. Describe assumptions, units,
+  orientation/parameter conventions, failure behavior, or why an apparently simpler alternative is incorrect;
+  avoid comments that only repeat the code.
+- For standards-derived behavior, name the fixed source artifact and entity/clause, or link the canonical
+  repository contract. Distinguish source requirements, project restrictions, derived data, and unimplemented
+  checks; recognizing a format or type must not be described as validating it.
+- Update or remove stale comments with the code. Before completing a change, review each critical changed path
+  for an adequate explanation or a nearby contract reference. Comments complement types, checks and tests;
+  they do not replace them. Preserve vendored upstream files unchanged.
+
 ## Architecture
 
 ### Layers
