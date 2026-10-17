@@ -5,7 +5,7 @@ project(STEP_SEMANTICS LANGUAGES CXX)
 enable_testing()
 add_subdirectory(../STEP_SOURCE source-reader)
 add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepSemantics.cpp src/StepSemanticJson.cpp src/StepSchemaSelection.cpp
-    src/StepGeometryDependencies.cpp src/StepSourceNumber.cpp)
+    src/StepGeometryDependencies.cpp src/StepSourceNumber.cpp src/StepUnitDependencies.cpp src/StepUnitRational.cpp)
 target_include_directories(STEP_SEMANTICS PUBLIC inc PRIVATE src)
 target_compile_features(STEP_SEMANTICS PUBLIC cxx_std_20)
 target_link_libraries(STEP_SEMANTICS PUBLIC STEP_SOURCE PRIVATE usd_brep_gsl)

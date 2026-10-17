@@ -11,9 +11,23 @@ import unittest
 
 from tools.step_semantic_validation.tests.test_ap214_entities import linked_source, presentation_source
 from tools.step_semantic_validation.tests.test_ap214_geometry import geometry_source
+from tools.step_semantic_validation.tests.test_ap214_units import unit_source
 
 
 class Ap214EntityBoundaryTests(unittest.TestCase):
+    def test_derived_dimensions_do_not_grant_native_model_qualification(self):
+        with tempfile.TemporaryDirectory(prefix="step-ap214-units-native-") as directory:
+            path = Path(directory) / "source.step"
+            path.write_bytes(unit_source())
+            command = [os.environ["STEP_NATIVE_BINARY"], "--fixture-limits", "--quality", "Q-P0-mm-01", str(path)]
+            run = subprocess.run(command, capture_output=True, timeout=15)
+            result = json.loads(run.stdout)
+            self.assertEqual(2, run.returncode)
+            self.assertEqual("Checked", result["source"]["semantics"])
+            self.assertEqual("UnsupportedRuleProfile", result["diagnostics"][0]["key"])
+            self.assertEqual(0, result["native_calls"])
+            self.assertIsNone(result["model"])
+
     def test_source_geometry_parameters_do_not_qualify_native_geometry(self):
         for kind in ("CIRCLE", "ELLIPSE", "CYLINDRICAL_SURFACE", "CONICAL_SURFACE",
                      "B_SPLINE_CURVE_WITH_KNOTS", "B_SPLINE_SURFACE_WITH_KNOTS"):

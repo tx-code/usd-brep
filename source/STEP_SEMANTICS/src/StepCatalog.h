@@ -72,6 +72,8 @@ struct Catalog
     std::vector<DerivedSlot> derivedSlots;
     std::vector<NamedBranches> referenceSelects;
     std::vector<NamedBranches> enumerations;
+    std::vector<std::span<const std::string_view>> complexSignatures;
+    std::vector<std::string_view> measureBranches;
     explicit Catalog(ProfileKind profile);
     std::optional<std::size_t> Find(std::string_view name) const;
     bool HasField(std::size_t type, std::string_view field) const;

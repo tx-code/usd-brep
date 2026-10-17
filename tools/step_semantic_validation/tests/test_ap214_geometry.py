@@ -272,5 +272,7 @@ class Ap214GeometryTests(unittest.TestCase):
         self.assertEqual("Partial", result["checks"]["other_entity_where"])
         self.assertEqual("NotRun", result["checks"]["named_measure_predicates"])
         circle = self.invoke(geometry_source())[1]
-        self.assertEqual("NotRun", circle["checks"]["other_entity_where"])
+        self.assertEqual("Partial", circle["checks"]["other_entity_where"])
+        self.assertEqual(0, circle["statistics"]["geometry_entity_predicate_checks"])
+        self.assertGreater(circle["statistics"]["unit_dependency_checks"], 0)
         self.assertEqual("Partial", circle["checks"]["named_measure_predicates"])

@@ -8,10 +8,11 @@ The internal type catalog owns the fixed complex signatures, exclusive subtype g
 enumeration and measure choices, SI-prefix powers, and declaration-qualified derived-slot descriptions. It checks
 descriptor references against the registered declarations during initialization. The checker retains traversal order,
 source diagnostics, budgets and product/unit interpretation; field queries use the same derived-slot descriptions.
-This does not extend the admitted profile; existing indexed Snapshot queries retain their contracts.
+Catalog ownership does not itself grant admission; the implemented subsets are listed below.
+Existing indexed Snapshot queries retain their contracts.
 
 The checker tracks binding, types/fields, part/closure and units with private typed progress in that order.
-AP214 additionally checks selected source geometry dependencies between fields and part/closure;
+AP214 additionally checks selected source unit dimensions, then geometry dependencies, between fields and part/closure;
 AP203 retains its existing phases, diagnostics, report bytes and traversal charges.
 The existing Outcome strings are written when Check returns; failure preserves completed phases and leaves later
 phases NotRun. Conversion-based units still yield Deferred only after the preceding semantic checks complete.
@@ -53,7 +54,8 @@ declaration pointers and named field queries use that snapshot's immutable catal
 there is no process-wide current-protocol switch. AP203 retains its original 72
 registered declarations and indexes. AP214 has 70 common declarations, excluding
 `MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source,
-plus 13 presentation/relationship and 11 geometry declarations described below (94 total).
+plus 13 presentation/relationship, 11 geometry and one mass-measure declaration (95 total).
+The AP214 unit increment also replaces its existing derived-unit guard entries with exact source fields.
 The admitted reference SELECT branches remain a closed project subset. This is
 source field/part/unit checking, not full-schema or modeling qualification.
 
@@ -128,9 +130,44 @@ AP214 `CONVERSION_BASED_UNIT` redeclares `NAMED_UNIT.dimensions` as derived, so
 the original transport value must be `*`. `FieldView` retains the marker, original
 slot and declaring/redeclaring types; `ReferenceTarget()` rejects it as a
 non-reference. AP203 conversion dimensions retain their explicit reference.
-Neither binding rewrites source data or defining 3D curves. Physical conversion
+Neither binding rewrites source data or defining 3D curves. Source dimensions are
+computed by the AP214 unit pass below; physical conversion
 interpretation remains deferred in this layer, with AP214 reason
 `Ap214ConversionUnitEvaluationNotRun` and no invented canonical length scale.
+
+AP214 `DERIVED_UNIT` retains `elements : SET[1:?] OF DERIVED_UNIT_ELEMENT`;
+its derived `name` is not a serialized slot. Each element retains its original
+named-unit reference and REAL exponent. The profile admits SI mass and conversion
+mass signatures (eight signatures total), `MASS_MEASURE_WITH_UNIT` and its typed
+`MASS_MEASURE` branch. AP203 retains its original six signatures and length-only
+measure branches. A plain `NAMED_UNIT` can retain explicit seven-component REAL
+dimensions without acquiring an inferred nominal type or physical scale.
+
+The separate AP214 `unit_dependencies` phase computes dimensions in
+length/mass/time/current/temperature/amount/luminous order. It uses explicit
+dependency frames and memoization, including conversion-factor unit references;
+cycles fail before recursive dimensional evaluation. It checks
+`DERIVED_UNIT.WR1`, selected nominal length/mass/angle predicates,
+`SI_UNIT.WR1` and selected `MEASURE_WITH_UNIT.WR1` / subtype unit predicates.
+The SI mass prefix requirement uses actual element references, including zero
+exponents; a transitive reference through a conversion factor is not the same
+`USEDIN` condition. The SI interpretation subset is metre/gram/radian/steradian;
+other nominal families and SI names remain explicit unsupported cases.
+
+Dimension exponents use exact bounded fractions, never double, tolerance-based
+comparison or unbounded exponent expansion. Checked arithmetic capacity failure
+is `UnitDimensionCapacityExceeded/ResourceLimit`, not a source-invalid verdict.
+Raw exponent tokens, element IDs/order, equivalent or cancelling basis units,
+factor values, prefixes and derived markers stay unchanged. Zero contributions
+do not remove elements, cycles or SI prefix obligations. Dimensions alone never
+promote a derived unit to a named mass/length/angle unit.
+
+Only a complete source result exposes `Units::dimensionDefinitions` (and JSON
+`units.dimension_definitions`) as separate derived facts with owning rational
+strings. Source field views still return original values/references. SI mass
+metadata uses canonical kg, alongside mm/rad/sr; no derived scale or conversion
+factor is evaluated, and geometry values are not rescaled. Later part/context
+failure withholds the typed snapshot even if unit prerequisites passed.
 
 The shared single-part, mechanical/design role, complete closure and nominal-unit
 restrictions are project guards. Apart from the selected dependencies above,
@@ -194,7 +231,7 @@ This stage implements:
 | Check | Contract |
 |---|---|
 | Binding | Exact single AP203e2 N2635 or AP214e3 name/OID selects its source artifact/profile; no alias/year inference |
-| Fields | Existing AP203 simple leaves and six complete complex signatures; AP214 omits the two retired contexts and adds the source leaves above; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN, enums, aggregates and protocol-specific derived markers |
+| Fields | Existing AP203 simple leaves and six complete complex signatures; AP214 omits the two retired contexts, uses eight signatures and adds the source leaves above; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN/LOGICAL, enums, aggregates and protocol-specific derived markers |
 | Types | All admitted entity ancestors, including diamonds; explicit constituents and original source identity are retained |
 | Part | Unique AC/APD/PC/PDC/product/formation/PD/PDS/SDR/representation/context and consistent reference identities |
 | Profile guards | Roles, purposes, category, one shape, explicit outer bound, complete ownership; unknown content is not skipped |
@@ -267,9 +304,9 @@ and optional scale. A rejected/unsupported result retains its raw source outcome
 but does not publish a partial semantic graph.
 
 Not implemented here: AP203's 47 / AP214's 272 global RULEs and the remaining entity WHEREs / named measure predicates,
-conversion factor/dimensions/cycle interpretation, uncertainty evaluation, geometric
+conversion scale/positivity, remaining unit families, uncertainty evaluation, geometric
 consistency/region checks and native construction. The two legacy-context predicates,
-context dimension_count positivity and the selected AP214 geometry prerequisites
+context dimension_count positivity and the selected AP214 unit/geometry prerequisites
 listed above are explicitly checked where interpreted;
 they do not imply a general evaluator. Source shape roles are claims, with
 `shape_geometry_verified=false`. Closed-shell text does not prove closedness.

@@ -109,13 +109,24 @@ struct Part
 struct SiUnit
 {
     std::size_t recordIndex = 0;
-    std::string quantity; // Length / PlaneAngle / SolidAngle; nominal type is preserved.
+    std::string quantity; // Length / PlaneAngle / SolidAngle / Mass; nominal type is preserved.
     std::string siName;
     std::string prefix; // Empty means explicitly absent prefix, not a guessed unit.
     std::array<int, 7> dimensions{};
-    int canonicalPower10 = 0; // Exact scale to mm/rad/sr. No floating point conversion.
+    int canonicalPower10 = 0; // Exact SI metadata scale to mm/rad/sr/kg; original unit/value data stay unchanged.
 };
 
+struct DimensionExponent
+{
+    std::string numerator;
+    std::string denominator;
+};
+struct UnitDimensionDefinition
+{
+    std::size_t recordIndex = 0;
+    std::string nominal; // Source subtype identity, never inferred from an equal vector.
+    std::array<DimensionExponent, 7> dimensions; // L/M/T/I/temperature/amount/luminous; derived data, source unchanged.
+};
 struct Units
 {
     std::size_t lengthUnit = 0;
@@ -123,6 +134,7 @@ struct Units
     std::optional<std::size_t> solidAngleUnit;
     std::vector<SiUnit> siDefinitions;
     std::optional<int> lengthPower10Mm; // Absent for deferred conversion-based interpretation.
+    std::vector<UnitDimensionDefinition> dimensionDefinitions; // AP214 source-dimensional analysis only, not a unit scale.
 };
 
 struct Diagnostic
@@ -208,6 +220,11 @@ enum class Status
     SourceFailure
 };
 
+struct UnitDependencyCounts
+{
+    std::size_t total = 0;
+    std::size_t unitDefinitions = 0;
+};
 struct GeometryDependencyCounts
 {
     std::size_t total = 0;
@@ -221,11 +238,13 @@ struct Outcome
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
     std::string types = "NotRun";
+    std::string unitDependencies = "NotRun";
     std::string geometryDependencies = "NotRun"; // Selected AP214 source prerequisites, not complete local/global rules.
     std::string part = "NotRun";
     std::string siUnits = "NotRun";
     std::size_t dependencyVisits = 0;
     GeometryDependencyCounts geometryDependencyChecks;
+    UnitDependencyCounts unitDependencyChecks;
     Limits limits;
     std::vector<Diagnostic> diagnostics;
 };

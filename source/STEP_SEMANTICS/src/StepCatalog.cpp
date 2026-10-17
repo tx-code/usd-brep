@@ -21,6 +21,8 @@ constexpr std::string_view SiLength[] = { "LENGTH_UNIT", "NAMED_UNIT", "SI_UNIT"
 constexpr std::string_view SiPlaneAngle[] = { "NAMED_UNIT", "PLANE_ANGLE_UNIT", "SI_UNIT" };
 constexpr std::string_view SiSolidAngle[] = { "NAMED_UNIT", "SI_UNIT", "SOLID_ANGLE_UNIT" };
 constexpr std::string_view ConversionLength[] = { "CONVERSION_BASED_UNIT", "LENGTH_UNIT", "NAMED_UNIT" };
+constexpr std::string_view SiMass[] = { "MASS_UNIT", "NAMED_UNIT", "SI_UNIT" };
+constexpr std::string_view ConversionMass[] = { "CONVERSION_BASED_UNIT", "MASS_UNIT", "NAMED_UNIT" };
 constexpr Names ComplexSignatures[] = { Context, ContextWithUncertainty, SiLength, SiPlaneAngle, SiSolidAngle, ConversionLength };
 static_assert(std::size(ComplexSignatures) == 6);
 
@@ -93,9 +95,9 @@ void ValidateProfile(const Catalog& catalog)
         }
         return *id;
     };
-    for (std::size_t i = 0; i < std::size(ComplexSignatures); ++i)
+    for (std::size_t i = 0; i < catalog.complexSignatures.size(); ++i)
     {
-        const auto signature = ComplexSignatures[i];
+        const auto signature = catalog.complexSignatures[i];
         if (!std::is_sorted(signature.begin(), signature.end()) || std::adjacent_find(signature.begin(), signature.end()) != signature.end())
         {
             throw std::logic_error("Complex profile facets must be unique and sorted");
@@ -113,7 +115,7 @@ void ValidateProfile(const Catalog& catalog)
         }
         for (std::size_t j = 0; j < i; ++j)
         {
-            if (std::equal(signature.begin(), signature.end(), ComplexSignatures[j].begin(), ComplexSignatures[j].end()))
+            if (std::equal(signature.begin(), signature.end(), catalog.complexSignatures[j].begin(), catalog.complexSignatures[j].end()))
             {
                 throw std::logic_error("Duplicate complex profile signature");
             }
@@ -239,6 +241,8 @@ Catalog::Catalog(ProfileKind profile)
 {
     referenceSelects.assign(std::begin(ReferenceSelects), std::end(ReferenceSelects));
     enumerations.assign(std::begin(Enumerations), std::end(Enumerations));
+    complexSignatures.assign(std::begin(ComplexSignatures), std::end(ComplexSignatures));
+    measureBranches.assign(std::begin(MeasureBranches), std::end(MeasureBranches));
     // Share the admitted common transport fields/parents; remove the AP203-only legacy contexts below.
     // Registered guard entries are not serialized leaves of this closed profile.
     // Apply protocol-specific removals and DERIVE overrides before creating indexes or field pointers;
@@ -347,6 +351,29 @@ Catalog::Catalog(ProfileKind profile)
     derivedSlots.assign(std::begin(CommonDerivedSlots), std::end(CommonDerivedSlots));
     if (profile == ProfileKind::Ap214e3Source)
     {
+        // Pinned AP214 unit fields replace guard-only entries before any pointers
+        // are bound. DERIVED_UNIT.name is DERIVE, never a transmitted name slot.
+        for (auto& declaration : declarations)
+        {
+            if (declaration.name == "DERIVED_UNIT")
+            {
+                declaration.fields = { Set("elements", "DERIVED_UNIT_ELEMENT") };
+                declaration.simple = true;
+            }
+            if (declaration.name == "DERIVED_UNIT_ELEMENT")
+            {
+                declaration.fields = { Ref("unit", "NAMED_UNIT"), Real("exponent") };
+                declaration.simple = true;
+            }
+            if (declaration.name == "NAMED_UNIT")
+            {
+                declaration.simple = true;
+            }
+        }
+        complexSignatures.push_back(SiMass);
+        complexSignatures.push_back(ConversionMass);
+        measureBranches.push_back("MASS_MEASURE");
+        declarations.push_back({ "MASS_MEASURE_WITH_UNIT", { "MEASURE_WITH_UNIT" }, {}, true });
         // These two deprecated AP203 types do not occur in the pinned AP214e3 artifact.
         declarations.erase(
             std::remove_if(
@@ -530,8 +557,8 @@ bool Catalog::HasField(std::size_t type, std::string_view name) const
 bool Catalog::AdmitsComplex(std::span<const std::string> facets) const
 {
     return std::any_of(
-        std::begin(ComplexSignatures),
-        std::end(ComplexSignatures),
+        complexSignatures.begin(),
+        complexSignatures.end(),
         [&](Names signature)
         {
             return std::equal(facets.begin(), facets.end(), signature.begin(), signature.end());
@@ -597,7 +624,7 @@ bool Catalog::ContainsEnumeration(std::string_view type, std::string_view value)
 }
 bool Catalog::AdmitsMeasure(std::string_view type) const
 {
-    return Contains(MeasureBranches, type);
+    return Contains(measureBranches, type);
 }
 int Catalog::PrefixPower10(std::string_view prefix) const
 {

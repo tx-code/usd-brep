@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepSemantics.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -70,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 94,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 95,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -208,6 +209,64 @@ int main(int argc, char** argv)
         Require(
             grid.Value().children[2].children[0].text == "100" && knots.Value().children[0].text == "-2.",
             "Owning spline field views must keep original grid and knot parameters after snapshot release"
+        );
+        ++groups;
+
+        auto unitText = Read(corpus / "S203-P01/input.step");
+        unitText.replace(unitText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        const std::string oldAssignments = "GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))";
+        unitText.replace(unitText.find(oldAssignments), oldAssignments.size(), "GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11,#903))");
+        unitText.insert(unitText.find("ENDSEC;", unitText.find("DATA;")), R"STEP(
+#900=(MASS_UNIT() NAMED_UNIT(*) SI_UNIT(.KILO.,.GRAM.));
+#901=DERIVED_UNIT_ELEMENT(#900,+1.0);
+#902=DERIVED_UNIT_ELEMENT(#10,-3.);
+#903=DERIVED_UNIT((#901,#902));
+)STEP");
+        auto unitRaw = step_source::InspectBytes(unitText, step_source::Limits::PlanarFixtures());
+        auto unitResult = Check(unitRaw, Limits{});
+        Require(unitResult.status == Status::Checked && unitResult.snapshot && unitResult.unitDependencies == "Passed", "Derived source unit checks");
+        auto unitSnapshot = unitResult.snapshot;
+        auto power = unitSnapshot->Field(Index(*unitSnapshot, "902"), "exponent");
+        auto unitElements = unitSnapshot->Field(Index(*unitSnapshot, "903"), "elements");
+        auto dimensionDefinitions = unitSnapshot->UnitContext().dimensionDefinitions;
+        const auto foundDimension = std::find_if(
+            dimensionDefinitions.begin(),
+            dimensionDefinitions.end(),
+            [&](const UnitDimensionDefinition& value)
+            {
+                return value.recordIndex == Index(*unitSnapshot, "903");
+            }
+        );
+        Require(
+            foundDimension != dimensionDefinitions.end() && foundDimension->nominal == "Derived" && foundDimension->dimensions[0].numerator == "-3" &&
+                foundDimension->dimensions[0].denominator == "1" && foundDimension->dimensions[1].numerator == "1",
+            "Derived dimension facts must retain their source role"
+        );
+        Require(
+            &power.Value() == &unitRaw.source->Find("902")->components[0].parameters[1] &&
+                unitElements.ReferenceTargets() == std::vector<std::size_t>{ Index(*unitSnapshot, "901"), Index(*unitSnapshot, "902") } &&
+                unitSnapshot->Field(Index(*unitSnapshot, "901"), "unit").ReferenceTarget() == Index(*unitSnapshot, "900"),
+            "Unit queries must preserve original source values, order and reference identities"
+        );
+        bool derivedNameMissing = false;
+        try
+        {
+            unitSnapshot->Field(Index(*unitSnapshot, "903"), "name");
+        }
+        catch (const std::invalid_argument&)
+        {
+            derivedNameMissing = true;
+        }
+        Require(
+            derivedNameMissing && snapshot->UnitContext().dimensionDefinitions.empty() && snapshot->RegisteredTypes().size() == 72,
+            "A derived name is not a serialized slot, and AP214 facts cannot change a live AP203 snapshot"
+        );
+        unitRaw = {};
+        unitResult = {};
+        unitSnapshot.reset();
+        Require(
+            power.Value().text == "-3." && unitElements.ReferenceTargets().size() == 2 && foundDimension->dimensions[0].numerator == "-3",
+            "Owning field views and copied dimension strings must survive parent outcome/snapshot release"
         );
         ++groups;
 

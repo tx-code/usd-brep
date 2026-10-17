@@ -3,6 +3,7 @@
 #include "StepCatalog.h"
 #include "StepGeometryDependencies.h"
 #include "StepSchemaSelection.h"
+#include "StepUnitDependencies.h"
 
 #include <algorithm>
 #include <iterator>
@@ -128,6 +129,24 @@ public:
         if (m_data->profile.kind == ProfileKind::Ap214e3Source)
         {
             RunPhase(
+                Phase::UnitDependencies,
+                [&]
+                {
+                    if (auto issue = CheckAp214UnitDependencies(
+                            *m_data,
+                            [this](Span span)
+                            {
+                                Visit(span);
+                            },
+                            m_outcome.unitDependencyChecks
+                        ))
+                    {
+                        State(Phase::UnitDependencies) = FailureProgress(issue->status);
+                        throw Failure{ issue->status, std::move(issue->diagnostic) };
+                    }
+                }
+            );
+            RunPhase(
                 Phase::GeometryDependencies,
                 [&]
                 {
@@ -170,6 +189,7 @@ public:
     {
         m_outcome.binding = ProgressName(State(Phase::Binding));
         m_outcome.types = ProgressName(State(Phase::Types));
+        m_outcome.unitDependencies = ProgressName(State(Phase::UnitDependencies));
         m_outcome.geometryDependencies = ProgressName(State(Phase::GeometryDependencies));
         m_outcome.part = ProgressName(State(Phase::Part));
         m_outcome.siUnits = ProgressName(State(Phase::Units));
@@ -181,6 +201,7 @@ private:
     {
         Binding,
         Types,
+        UnitDependencies,
         GeometryDependencies,
         Part,
         Units
@@ -198,7 +219,7 @@ private:
     std::shared_ptr<SemanticData> m_data;
     Outcome& m_outcome;
     std::optional<Phase> m_phase;
-    std::array<Progress, 5> m_progress{};
+    std::array<Progress, 6> m_progress{};
 
     std::string SourceAuthority() const
     {
@@ -548,13 +569,15 @@ private:
                     Fail(
                         "UnsupportedComplexSignature",
                         "D2",
-                        "Complete complex mapping is outside the six admitted signatures",
+                        m_data->profile.kind == ProfileKind::Ap214e3Source ?
+                            "Complete complex mapping is outside the selected AP214 source signatures" :
+                            "Complete complex mapping is outside the six admitted signatures",
                         records[r].span,
                         Status::Unsupported,
                         r,
                         0,
                         {},
-                        "one of six signatures",
+                        m_data->profile.kind == ProfileKind::Ap214e3Source ? "registered AP214 source signature" : "one of six signatures",
                         "other signature",
                         "profile mapping"
                     );
@@ -710,13 +733,15 @@ private:
                     Fail(
                         "UnsupportedMeasureBranch",
                         "D2",
-                        "This profile consumes only the registered length measure family",
+                        m_data->profile.kind == ProfileKind::Ap214e3Source ?
+                            "This source profile consumes the registered length/mass measure families" :
+                            "This profile consumes only the registered length measure family",
                         value.span,
                         Status::Unsupported,
                         r,
                         c,
                         path,
-                        "typed length measure",
+                        m_data->profile.kind == ProfileKind::Ap214e3Source ? "registered typed length/mass measure" : "typed length measure",
                         value.text,
                         "profile measure SELECT guard"
                     );
@@ -1618,8 +1643,9 @@ private:
             definition.prefix = FieldValue(r, "prefix").kind == ValueKind::Unset ? "" : FieldValue(r, "prefix").text;
             const bool length = IsA(*m_data, r, "LENGTH_UNIT");
             const bool angle = IsA(*m_data, r, "PLANE_ANGLE_UNIT");
-            definition.quantity = length ? "Length" : angle ? "PlaneAngle" : "SolidAngle";
-            const std::string expected = length ? "METRE" : angle ? "RADIAN" : "STERADIAN";
+            const bool mass = IsA(*m_data, r, "MASS_UNIT");
+            definition.quantity = length ? "Length" : angle ? "PlaneAngle" : mass ? "Mass" : "SolidAngle";
+            const std::string expected = length ? "METRE" : angle ? "RADIAN" : mass ? "GRAM" : "STERADIAN";
             if (definition.siName != expected)
             {
                 FieldFailure(
@@ -1636,10 +1662,16 @@ private:
                     "profile nominal SI-unit guard"
                 );
             }
-            definition.canonicalPower10 = Schema(*m_data).PrefixPower10(definition.prefix) + (length ? 3 : 0);
+            // Canonical mass metadata uses kg; the source SI enumeration remains GRAM
+            // and original prefix/value data are retained. No derived scale is inferred.
+            definition.canonicalPower10 = Schema(*m_data).PrefixPower10(definition.prefix) + (length ? 3 : mass ? -3 : 0);
             if (length)
             {
                 definition.dimensions[0] = 1;
+            }
+            if (mass)
+            {
+                definition.dimensions[1] = 1;
             }
             if (r == lengths[0])
             {
@@ -1647,7 +1679,9 @@ private:
             }
             m_data->units.siDefinitions.push_back(std::move(definition));
         }
-        // Conversion factor/dimensions/positivity/cycles and uncertainty evaluation belong to later tickets.
+        // AP214 source dimensions/cycles were checked before this phase. Conversion
+        // scale/positivity and uncertainty evaluation are still deferred; AP203 retains
+        // its existing interpretation boundary for conversion dimensions and cycles.
     }
 };
 } // namespace

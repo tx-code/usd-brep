@@ -166,6 +166,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
                        result.schemaSelection->qualified->kind == ProfileKind::Ap214e3Source;
     if (ap214)
     {
+        out.Add(",\"unit_dependencies\":");
+        out.String(result.unitDependencies);
         out.Add(",\"geometry_dependencies\":");
         out.String(result.geometryDependencies);
     }
@@ -176,7 +178,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     // Report partial checks only when those source predicates were attempted;
     // neither count grants complete AP214 entity/type qualification.
     out.Add(",\"global_rules_47\":\"NotRun\",\"other_entity_where\":");
-    out.String(ap214 && result.geometryDependencyChecks.entityPredicates ? "Partial" : "NotRun");
+    out.String(ap214 && (result.geometryDependencyChecks.entityPredicates || result.unitDependencyChecks.total) ? "Partial" : "NotRun");
     out.Add(",\"named_measure_predicates\":");
     out.String(ap214 && result.geometryDependencyChecks.typePredicates ? "Partial" : "NotRun");
     out.Add(
@@ -196,6 +198,10 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Number(result.geometryDependencyChecks.typePredicates);
         out.Add(",\"geometry_entity_predicate_checks\":");
         out.Number(result.geometryDependencyChecks.entityPredicates);
+        out.Add(",\"unit_dependency_checks\":");
+        out.Number(result.unitDependencyChecks.total);
+        out.Add(",\"unit_dimension_definitions\":");
+        out.Number(result.unitDependencyChecks.unitDefinitions);
     }
     out.Add("}");
     out.Add(",\"snapshot\":");
@@ -434,7 +440,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
                 out.String(unit.prefix);
             }
             out.Add(",\"canonical_unit\":");
-            out.String(unit.quantity == "Length" ? "mm" : unit.quantity == "PlaneAngle" ? "rad" : "sr");
+            out.String(unit.quantity == "Length" ? "mm" : unit.quantity == "PlaneAngle" ? "rad" : unit.quantity == "Mass" ? "kg" : "sr");
             out.Add(",\"scale\":");
             Scale(out, unit.canonicalPower10);
             out.Add(",\"dimensions\":[");
@@ -448,8 +454,40 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             }
             out.Add("]}");
         }
+        out.Add("]");
+        if (ap214)
+        {
+            out.Add(",\"dimension_definitions\":[");
+            const auto& dimensions = data.UnitContext().dimensionDefinitions;
+            for (std::size_t i = 0; i < dimensions.size(); ++i)
+            {
+                if (i)
+                {
+                    out.Add(",");
+                }
+                out.Add("{\"source_id\":");
+                out.String(records[dimensions[i].recordIndex].id);
+                out.Add(",\"nominal\":");
+                out.String(dimensions[i].nominal);
+                out.Add(",\"dimensions\":[");
+                for (std::size_t d = 0; d < 7; ++d)
+                {
+                    if (d)
+                    {
+                        out.Add(",");
+                    }
+                    out.Add("{\"kind\":\"rational\",\"num\":");
+                    out.String(dimensions[i].dimensions[d].numerator);
+                    out.Add(",\"den\":");
+                    out.String(dimensions[i].dimensions[d].denominator);
+                    out.Add("}");
+                }
+                out.Add("]}");
+            }
+            out.Add("]");
+        }
         out.Add(
-            "]},\"parameter_contract\":{\"coordinates\":\"Length\",\"direction_ratios\":\"Dimensionless\","
+            "},\"parameter_contract\":{\"coordinates\":\"Length\",\"direction_ratios\":\"Dimensionless\","
             "\"vector_magnitude\":\"Length\",\"line_parameter\":\"Dimensionless\",\"plane_parameters\":\"Length\","
             "\"target_mapping\":\"NotRun\",\"geometry_conversion\":\"NotRun\"}}"
         );
