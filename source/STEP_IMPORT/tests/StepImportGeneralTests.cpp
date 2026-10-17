@@ -145,9 +145,18 @@ double VolumeWithImportPolicy(const SmBrep& brep, step_import::Point origin)
     );
     return volume;
 }
-void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b)
+void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b, bool definingCurve = true)
 {
-    Require(a.GetType() == b.GetType() && a.GetDegree() == b.GetDegree(), "archive curve class and degree");
+    // Native archive reload canonicalizes a derived 2D SmLine to a spline;
+    // allow only that lossless UV representation change, never a 3D promotion.
+    const bool sameClass = a.GetType() == b.GetType() || (!definingCurve && a.GetType() == SmLine_TYPE && b.GetType() == SmBSplineCurve_TYPE);
+    if (!sameClass || a.GetDegree() != b.GetDegree())
+    {
+        throw std::runtime_error(
+            "archive curve class/degree/dim " + std::to_string(a.GetType()) + "/" + std::to_string(a.GetDegree()) + "/" + std::to_string(a.GetDim()) +
+            " -> " + std::to_string(b.GetType()) + "/" + std::to_string(b.GetDegree()) + "/" + std::to_string(b.GetDim())
+        );
+    }
     const auto first = dynamic_cast<const SmBSplineCurve*>(&a), second = dynamic_cast<const SmBSplineCurve*>(&b);
     Require(first && second, "admitted exact native curve net");
     SmTArray<SmPoint3d> ca, cb;
@@ -233,7 +242,7 @@ void CompareNativeDefinitions(SmBrep& a, SmBrep& b)
         for (ULONG k = 0; k < ua.GetSize(); ++k)
         {
             Require(ua[k]->GetUVTrimCurve() && ub[k]->GetUVTrimCurve(), "archive UV present");
-            CompareCurveCoefficients(*ua[k]->GetUVTrimCurve(), *ub[k]->GetUVTrimCurve());
+            CompareCurveCoefficients(*ua[k]->GetUVTrimCurve(), *ub[k]->GetUVTrimCurve(), false);
         }
     }
 }

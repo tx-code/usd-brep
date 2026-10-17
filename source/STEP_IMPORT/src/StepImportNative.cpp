@@ -1508,9 +1508,17 @@ void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
     SmTArray<SmSurface*> surfaces;
     SmTArray<long> trees;
     SmTArray<SmBrep*> breps;
-    breps.Add(m_data->brep.get());
-    // Retain native analytic/NURBS classes. The writer's optional approximation
-    // path is disabled; archiving does not mutate the owning import snapshot.
+    // SmBrepData's writer canonicalizes 2D UV storage in place (z=NL_NOZ).
+    // Give it a private deep copy so serialization cannot alter snapshot data,
+    // including the already measured UV curves. Destroy BRep before its context.
+    auto context = std::make_unique<SmContext>();
+    std::unique_ptr<SmBrep> archive(new (*context) SmBrep(*m_data->brep, nullptr, nullptr, TRUE, FALSE));
+    if (!archive || archive->GetContext() != context.get())
+    {
+        throw std::runtime_error("Native archive copy context mismatch");
+    }
+    breps.Add(archive.get());
+    // Retain defining analytic/NURBS classes; optional fitting is disabled.
     detail::Good(SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, SM_BINARY, TRUE, FALSE));
 }
 FaceView::FaceView(std::shared_ptr<detail::ModelData> data, std::size_t face) : m_data(std::move(data)), m_face(face)
