@@ -17,7 +17,8 @@ class Ap214EntityBoundaryTests(unittest.TestCase):
     def test_source_geometry_parameters_do_not_qualify_native_geometry(self):
         for kind in ("CIRCLE", "ELLIPSE", "CYLINDRICAL_SURFACE", "CONICAL_SURFACE",
                      "B_SPLINE_CURVE_WITH_KNOTS", "B_SPLINE_SURFACE_WITH_KNOTS"):
-            with self.subTest(kind=kind), tempfile.TemporaryDirectory(prefix="step-ap214-geometry-native-") as directory:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(
+                    prefix="step-ap214-geometry-native-") as directory:
                 data = geometry_source(kind)
                 path = Path(directory) / "source.step"
                 path.write_bytes(data)

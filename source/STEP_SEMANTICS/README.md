@@ -266,10 +266,11 @@ snapshot carries partial unit qualification explicitly; callers must inspect sta
 and optional scale. A rejected/unsupported result retains its raw source outcome
 but does not publish a partial semantic graph.
 
-Not implemented here: AP203's 47 / AP214's 272 global RULEs, other entity WHEREs, named measure predicates,
+Not implemented here: AP203's 47 / AP214's 272 global RULEs and the remaining entity WHEREs / named measure predicates,
 conversion factor/dimensions/cycle interpretation, uncertainty evaluation, geometric
-consistency/region checks and native construction. The two legacy-context predicates
-and context dimension_count positivity are explicitly checked where interpreted;
+consistency/region checks and native construction. The two legacy-context predicates,
+context dimension_count positivity and the selected AP214 geometry prerequisites
+listed above are explicitly checked where interpreted;
 they do not imply a general evaluator. Source shape roles are claims, with
 `shape_geometry_verified=false`. Closed-shell text does not prove closedness.
 

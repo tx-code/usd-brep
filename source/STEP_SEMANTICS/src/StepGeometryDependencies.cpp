@@ -16,6 +16,22 @@ struct Stop
 {
     Diagnostic diagnostic;
 };
+struct SplineDirection
+{
+    std::string_view degree, multiplicities, knots, countClause, parameterClause;
+};
+// Keep fields and governing clauses paired; never exchange source U/V to fit a target convention.
+constexpr SplineDirection CurveDirection{ "degree", "knot_multiplicities", "knots", "B_SPLINE_CURVE_WITH_KNOTS.WR2", "B_SPLINE_CURVE_WITH_KNOTS.WR1" };
+constexpr SplineDirection UDirection{ "u_degree",
+                                      "u_multiplicities",
+                                      "u_knots",
+                                      "B_SPLINE_SURFACE_WITH_KNOTS.WR3",
+                                      "B_SPLINE_SURFACE_WITH_KNOTS.WR1" };
+constexpr SplineDirection VDirection{ "v_degree",
+                                      "v_multiplicities",
+                                      "v_knots",
+                                      "B_SPLINE_SURFACE_WITH_KNOTS.WR4",
+                                      "B_SPLINE_SURFACE_WITH_KNOTS.WR2" };
 class GeometryDependencies
 {
 public:
@@ -58,15 +74,7 @@ public:
             }
             if (IsA(r, "B_SPLINE_CURVE_WITH_KNOTS"))
             {
-                Direction(
-                    r,
-                    "degree",
-                    Field(r, "control_points_list").declaration.value->children.size(),
-                    "knot_multiplicities",
-                    "knots",
-                    "B_SPLINE_CURVE_WITH_KNOTS.WR2",
-                    "B_SPLINE_CURVE_WITH_KNOTS.WR1"
-                );
+                Direction(r, Field(r, "control_points_list").declaration.value->children.size(), CurveDirection);
             }
             if (IsA(r, "B_SPLINE_SURFACE_WITH_KNOTS"))
             {
@@ -94,16 +102,8 @@ public:
                         );
                     }
                 }
-                Direction(
-                    r,
-                    "u_degree",
-                    grid.children.size(),
-                    "u_multiplicities",
-                    "u_knots",
-                    "B_SPLINE_SURFACE_WITH_KNOTS.WR3",
-                    "B_SPLINE_SURFACE_WITH_KNOTS.WR1"
-                );
-                Direction(r, "v_degree", width, "v_multiplicities", "v_knots", "B_SPLINE_SURFACE_WITH_KNOTS.WR4", "B_SPLINE_SURFACE_WITH_KNOTS.WR2");
+                Direction(r, grid.children.size(), UDirection);
+                Direction(r, width, VDirection);
             }
         }
     }
@@ -177,18 +177,10 @@ private:
         issue.responsibility = "AP214E3_2010.exp " + std::string(clause);
         throw Stop{ std::move(issue) };
     }
-    void Direction(
-        std::size_t r,
-        std::string_view degreeName,
-        std::size_t controls,
-        std::string_view multName,
-        std::string_view knotsName,
-        std::string_view countClause,
-        std::string_view paramClause
-    )
+    void Direction(std::size_t r, std::size_t controls, const SplineDirection& direction)
     {
-        const auto& mult = Field(r, multName);
-        const auto& knots = Field(r, knotsName);
+        const auto& mult = Field(r, direction.multiplicities);
+        const auto& knots = Field(r, direction.knots);
         const auto& multiplicities = mult.declaration.value->children;
         const auto& values = knots.declaration.value->children;
         Count(mult.declaration.value->span);
@@ -196,15 +188,15 @@ private:
         // distinct knot list and multiplicities without expansion/normalization.
         if (multiplicities.size() != values.size())
         {
-            Fail(r, mult, *mult.declaration.value, countClause, std::to_string(values.size()), std::to_string(multiplicities.size()));
+            Fail(r, mult, *mult.declaration.value, direction.countClause, std::to_string(values.size()), std::to_string(multiplicities.size()));
         }
-        const auto& degreeField = Field(r, degreeName);
+        const auto& degreeField = Field(r, direction.degree);
         const auto& degreeValue = *degreeField.declaration.value;
         Count(degreeValue.span);
         const auto degree = SourceIndexAtMost(degreeValue.text, controls - 1);
         if (!degree || *degree < 1)
         {
-            Fail(r, degreeField, degreeValue, paramClause, "1 <= degree <= control count - 1", degreeValue.text);
+            Fail(r, degreeField, degreeValue, direction.parameterClause, "1 <= degree <= control count - 1", degreeValue.text);
         }
         // AP214 constraints_param_b_spline, pinned lines12267ff. End multiplicities
         // <=degree+1, interior <=degree; sum=control count+degree+1. Source node/byte
@@ -219,20 +211,20 @@ private:
             const auto n = SourceIndexAtMost(value.text, maximum);
             if (!n || *n < 1 || *n > required - sum)
             {
-                Fail(r, mult, value, paramClause, "positive bounded knot multiplicity with required total", value.text, { i + 1 });
+                Fail(r, mult, value, direction.parameterClause, "positive bounded knot multiplicity with required total", value.text, { i + 1 });
             }
             sum += *n;
         }
         if (sum != required)
         {
-            Fail(r, mult, *mult.declaration.value, paramClause, std::to_string(required), std::to_string(sum));
+            Fail(r, mult, *mult.declaration.value, direction.parameterClause, std::to_string(required), std::to_string(sum));
         }
         for (std::size_t i = 0; i < values.size(); ++i)
         {
             m_visit(values[i].span);
             if (i && CompareSourceReals(values[i - 1].text, values[i].text) >= 0)
             {
-                Fail(r, knots, values[i], paramClause, "strictly increasing distinct source knots", values[i].text, { i + 1 });
+                Fail(r, knots, values[i], direction.parameterClause, "strictly increasing distinct source knots", values[i].text, { i + 1 });
             }
         }
     }
