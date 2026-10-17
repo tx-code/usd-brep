@@ -1,6 +1,6 @@
 # AP203e2首个profile：本地实施票
 
-2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05—08已实现并验收。2026-10-17的09单位重述与conversion、10可选来源声明和旧类型也已完成，11—12仍未领取/on-hold。
+2026-10-15用户确认12票拆分及依赖关系；01/02已验收关闭。2026-10-16用户明确授权的03单零件、类型与SI源语义及04必要源规则/平面区域均已实现并验收关闭，codex负责；随后用户授权的05—08已实现并验收。2026-10-17的09单位重述、10可选来源及11生命周期/合作取消均已完成，12仍未领取/on-hold。
 
 ## 状态与执行限制
 
@@ -9,7 +9,7 @@
 01—04原19条验收及进入05前的核心准备已经完成，详见
 [05之前准备完成记录](../../docs/step-import/pre05-readiness.md)。三个STEP目标及其CLI/原生测试
 当前以C++20为基线；本页下方C++17与各阶段“后续未开始”描述保留初次验收的历史时点。
-随后用户要求按后续计划继续，05已实现并验收关闭；06和07也已完成，见[05验收](../../docs/step-import/ticket05-acceptance.md)、[07验收](../../docs/step-import/ticket07-acceptance.md)；08见[08验收](../../docs/step-import/ticket08-acceptance.md)，09见[09验收](../../docs/step-import/ticket09-acceptance.md)，10见[10验收](../../docs/step-import/ticket10-acceptance.md)；11—12仍为on-hold。
+随后用户要求按后续计划继续，05—10已完成；历史结果见各票验收记录。11的当前执行与生命周期契约见[STEP_IMPORT](../../source/STEP_IMPORT/README.md)，运行流水保留本地；12仍为on-hold。
 前置准备的验收不代替05实际native构建与后验检查。
 
 后续核心收尾包括[全局身份](../../docs/step-import/global-rule-identity.md)、
@@ -19,9 +19,9 @@
 
 ### 票据状态
 
-- **Status：01—10为closed，11为in-progress，12为ready-for-agent**。ready-for-agent不表示已开工。
-- **Execution：01—10为completed，11为in-progress，12为on-hold**。
-- **Assignee：01—11为codex，12为None**。11已按10完成后的继续指令开始；12仍保持on-hold。
+- **Status：01—11为closed，12为ready-for-agent**。ready-for-agent不表示已开工。
+- **Execution：01—11为completed，12为on-hold**。
+- **Assignee：01—11为codex，12为None**。11生命周期/合作取消已完成；12仍保持on-hold。
 - Blocked by只列直接技术前置。前置票实际完成验收并关闭后才解除相应阻塞；未执行的验收框保持未勾选。
 - 后续明确开工后，先按授权范围更新Execution与负责人再执行；没有新指令时不自动领取frontier。
 
@@ -70,7 +70,9 @@
 
 **10实际验收：** [10验收记录](../../docs/step-import/ticket10-acceptance.md)。P08/P09/P10/P12交付完整F1模型及owning来源声明/依赖闭包；uncertainty按自身单位记录告警、不改Q/tol，旧context/SOURCE与rad/sr身份保留，原负例及新关系准确阻断。双配置各15个CTest目标和35组CLI通过，旧核心结果按源码身份复用；49项为13 Accepted/29 Rejected/7 Unsupported，11—12未开工。
 
-共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01的4条、02的5条、03的5条、04的5条已完成，加05的5条、06的4条、07的4条、08的3条、09的4条、10的4条，共43条；其余10条未执行。
+**11当前交付：** 合作取消/唯一终态提交、配置及源冻结、独立可编辑副本、准确资源限额和同进程清理已验证。长期契约与验证入口归[STEP_IMPORT](../../source/STEP_IMPORT/README.md)；运行流水保留本地，12未开工。
+
+共15条直接阻塞边；所有前置票编号均小于依赖它的票，依赖无环。53条原验收条件文字保持；01—10的43条及11的5条已完成，共48条；12的5条未执行。
 
 ```mermaid
 flowchart TD
