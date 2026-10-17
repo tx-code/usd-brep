@@ -14,6 +14,14 @@ void Writer::Add(std::string_view text)
 }
 void Writer::String(std::string_view text)
 {
+    StringValue(text, false);
+}
+void Writer::Utf8String(std::string_view text)
+{
+    StringValue(text, true);
+}
+void Writer::StringValue(std::string_view text, bool utf8)
+{
     Add("\"");
     const char hex[] = "0123456789abcdef";
     for (const unsigned char c : text)
@@ -26,7 +34,7 @@ void Writer::String(std::string_view text)
         {
             Add("\\\\");
         }
-        else if (c < 32 || c >= 127)
+        else if (c < 32 || c == 127 || (!utf8 && c >= 128))
         {
             const char escaped[] = { '\\', 'u', '0', '0', hex[c >> 4], hex[c & 15] };
             Add(std::string_view(escaped, 6));

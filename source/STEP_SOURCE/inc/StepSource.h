@@ -57,7 +57,7 @@ struct Value
 {
     ValueKind kind = ValueKind::Unset;
     Span span;
-    // Numbers: exact source lexeme, never double. Strings: decoded plain ASCII.
+    // Numbers: exact source lexeme, never double. Strings: decoded UTF-8.
     // Reference: canonical decimal ID (without '#'); typed value: type name.
     std::string text;
     std::vector<Value> children;

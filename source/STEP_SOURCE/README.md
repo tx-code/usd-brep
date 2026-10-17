@@ -49,10 +49,11 @@ The current carrier slice is deliberately narrow:
 | Supported | Explicitly unsupported |
 |---|---|
 | Self-contained ASCII Part21 text, FILE_DESCRIPTION `2;1`, exactly one unparameterized DATA | Other implementation levels, multiple/parameterized DATA, extra HEADER records, ANCHOR/REFERENCE/SIGNATURE |
-| Required FILE_DESCRIPTION/FILE_NAME/FILE_SCHEMA values; complete DATA and end marker | ZIP, gzip, XML, BOM/non-ASCII/control-byte encodings |
+| Required FILE_DESCRIPTION/FILE_NAME/FILE_SCHEMA values; complete DATA and end marker | ZIP, gzip, XML, BOM/raw non-ASCII and other control-byte encodings |
 | Spaces/tabs, LF/CRLF/CR separators, block comments, multiline records | Print directives, binary values, user-defined keywords, value-instance forms |
-| Simple and external complex syntax, all constituent names/values in source order | Unicode/code-page string directives (`X`, `X2`, `X4`, `S`, `P`) |
-| Plain graphic ASCII strings, doubled apostrophe and doubled backslash | Literal control characters inside strings |
+| Simple and external complex syntax, all constituent names/values in source order | ISO 8859 alphabets other than part 1 (`PB` through `PI`) |
+| ASCII string envelope; `X`, `X2`, `X4`, Latin-1 `S` and `PA`; doubled apostrophe/backslash | Print control directives (unknown/malformed directives are rejected) |
+| CR/LF/tab layout inside strings is ignored, including within directives/doubled delimiters | Layout inserted inside non-string tokens is outside this slice |
 | Exact integer/real lexemes, enum tokens, typed values, aggregates, `$`, `*`, IDs/references | Numeric interpretation, enum membership, required/derived-slot and EXPRESS validation |
 
 Unknown ordinary entity/type keywords and unknown complex constituents are retained
@@ -67,6 +68,31 @@ Lexical implementation was checked against the editor-hosted
 Numbers remain strings, so exponent size, leading zeroes and signed zero never
 pass through `double`. This narrow implementation does not claim edition-3 or
 complete Part21/P1 conformance.
+
+String values expose decoded UTF-8, without Unicode normalization. `X` consumes
+two uppercase hexadecimal digits; `X2` and `X4` consume nonempty groups of four
+and eight respectively, terminated by `X0`. Groups denote UCS code points, not
+a UTF-16 stream: surrogate code points (including paired surrogate groups) and
+values above U+10FFFF return `InvalidStringCodePoint`. Malformed directives
+return `InvalidStringEncoding`; neither case publishes a partial source graph.
+Well-formed unsupported alphabets and print controls return
+`UnsupportedStringEncoding`. Literal high bytes are not decoded by guessing the
+machine locale or a legacy code page; direct UTF-8 requires a separate carrier
+profile and is not enabled by this increment.
+
+Physical CR/LF/tab inside a string contributes no effective character. A value
+newline is encoded with `X` (for example `\X\0A`). Spaces are always preserved.
+Raw bytes, SHA256, spans and byte locations retain the complete original token,
+including physical layout and escape directives. String budgets and
+`max_string_bytes` count those original bytes, including both apostrophes; they
+do not count decoded Unicode characters or decoded UTF-8 bytes. Decoding cannot
+expand beyond the original string token's byte size. This is a reader contract,
+not a claim of complete Part21 encoding conformance.
+
+JSON `text` fields contain Unicode values. Raw byte fields and diagnostic byte
+strings retain the existing byte-preserving escaping; decoded value reporting
+uses a separate UTF-8 path in the same bounded writer. The actual emitted byte
+count, including UTF-8 and JSON escapes, controls the report limit.
 
 IDs are positive decimal strings, canonicalized only for identity lookup. `#0001`
 and `#1` collide; their original spellings/spans remain in captured bytes. No storage

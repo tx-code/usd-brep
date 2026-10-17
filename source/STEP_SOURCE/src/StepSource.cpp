@@ -275,6 +275,159 @@ private:
         }
     }
 
+    void StringCodePoint(std::string& decoded, std::uint32_t value, Span span)
+    {
+        if (value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff))
+        {
+            Fail("InvalidStringCodePoint", "String directive must encode a Unicode scalar value", span);
+        }
+        if (value <= 0x7f)
+        {
+            decoded += static_cast<char>(value);
+        }
+        else if (value <= 0x7ff)
+        {
+            decoded += static_cast<char>(0xc0 | (value >> 6));
+            decoded += static_cast<char>(0x80 | (value & 0x3f));
+        }
+        else if (value <= 0xffff)
+        {
+            decoded += static_cast<char>(0xe0 | (value >> 12));
+            decoded += static_cast<char>(0x80 | ((value >> 6) & 0x3f));
+            decoded += static_cast<char>(0x80 | (value & 0x3f));
+        }
+        else
+        {
+            decoded += static_cast<char>(0xf0 | (value >> 18));
+            decoded += static_cast<char>(0x80 | ((value >> 12) & 0x3f));
+            decoded += static_cast<char>(0x80 | ((value >> 6) & 0x3f));
+            decoded += static_cast<char>(0x80 | (value & 0x3f));
+        }
+    }
+
+    std::size_t StringPosition(std::size_t position) const
+    {
+        const auto& text = *m_data->bytes;
+        while (position < text.size() && (text[position] == '\r' || text[position] == '\n' || text[position] == '\t'))
+        {
+            ++position;
+        }
+        return position;
+    }
+
+    char StringCharacter(std::size_t start, std::size_t directive)
+    {
+        const auto& text = *m_data->bytes;
+        m_pos = StringPosition(m_pos);
+        Bound(m_pos - start, m_result.limits.stringBytes, "StringByteLimit", { start, m_pos });
+        if (m_pos == text.size())
+        {
+            Fail("InvalidStringEncoding", "Incomplete string control directive", { directive, m_pos });
+        }
+        Bound(m_pos - start + 1, m_result.limits.stringBytes, "StringByteLimit", { start, m_pos + 1 });
+        return text[m_pos++];
+    }
+
+    void StringExpected(char expected, std::size_t start, std::size_t directive)
+    {
+        if (StringCharacter(start, directive) != expected)
+        {
+            Fail("InvalidStringEncoding", "Malformed string control directive", { directive, m_pos });
+        }
+    }
+
+    std::uint32_t StringHex(int digits, std::size_t start, std::size_t directive)
+    {
+        std::uint32_t value = 0;
+        for (int digit = 0; digit < digits; ++digit)
+        {
+            const char c = StringCharacter(start, directive);
+            if (!(Digit(c) || (c >= 'A' && c <= 'F')))
+            {
+                Fail("InvalidStringEncoding", "Expected uppercase hexadecimal digits", { directive, m_pos });
+            }
+            value = value * 16 + static_cast<unsigned>(Digit(c) ? c - '0' : c - 'A' + 10);
+        }
+        return value;
+    }
+
+    void StringDirective(std::string& decoded, std::size_t start, std::size_t directive)
+    {
+        const auto& text = *m_data->bytes;
+        const char control = StringCharacter(start, directive);
+        if (control == '\\')
+        {
+            decoded += '\\';
+            return;
+        }
+        if (control == 'N' || control == 'F')
+        {
+            StringExpected('\\', start, directive);
+            Fail("UnsupportedStringEncoding", "Print control directives are outside this slice", { directive, m_pos }, Status::Unsupported);
+        }
+        if (control == 'S')
+        {
+            StringExpected('\\', start, directive);
+            const auto c = static_cast<unsigned char>(StringCharacter(start, directive));
+            if (c < 0x20 || c > 0x7e)
+            {
+                Fail("InvalidStringEncoding", "PAGE requires a graphic ASCII character", { directive, m_pos });
+            }
+            StringCodePoint(decoded, c + 128, { directive, m_pos });
+            return;
+        }
+        if (control == 'P')
+        {
+            const char alphabet = StringCharacter(start, directive);
+            StringExpected('\\', start, directive);
+            if (alphabet < 'A' || alphabet > 'I')
+            {
+                Fail("InvalidStringEncoding", "Alphabet must select ISO 8859 part 1 through 9", { directive, m_pos });
+            }
+            if (alphabet != 'A')
+            {
+                Fail("UnsupportedStringEncoding", "Only the ISO 8859-1 string alphabet is supported", { directive, m_pos }, Status::Unsupported);
+            }
+            return;
+        }
+        if (control != 'X')
+        {
+            Fail("InvalidStringEncoding", "Unknown string control directive", { directive, m_pos });
+        }
+        const char mode = StringCharacter(start, directive);
+        if (mode == '\\')
+        {
+            const auto value = StringHex(2, start, directive);
+            StringCodePoint(decoded, value, { directive, m_pos });
+            return;
+        }
+        if (mode != '2' && mode != '4')
+        {
+            Fail("InvalidStringEncoding", "Expected X, X2 or X4 string directive", { directive, m_pos });
+        }
+        StringExpected('\\', start, directive);
+        bool any = false;
+        while (true)
+        {
+            const auto group = StringPosition(m_pos);
+            if (group == text.size() || text[group] == '\\')
+            {
+                break;
+            }
+            const auto value = StringHex(mode == '2' ? 4 : 8, start, directive);
+            StringCodePoint(decoded, value, { group, m_pos });
+            any = true;
+        }
+        if (!any)
+        {
+            Fail("InvalidStringEncoding", "Extended string directive requires a code point", { directive, m_pos });
+        }
+        StringExpected('\\', start, directive);
+        StringExpected('X', start, directive);
+        StringExpected('0', start, directive);
+        StringExpected('\\', start, directive);
+    }
+
     Token Lex()
     {
         const auto& text = *m_data->bytes;
@@ -335,13 +488,18 @@ private:
                 std::string decoded;
                 while (m_pos < text.size())
                 {
-                    Bound(m_pos - start + 1, m_result.limits.stringBytes, "StringByteLimit", { start, m_pos + 1 });
-                    const char item = text[m_pos++];
+                    if (StringPosition(m_pos) == text.size())
+                    {
+                        Bound(text.size() - start, m_result.limits.stringBytes, "StringByteLimit", { start, text.size() });
+                        break;
+                    }
+                    const char item = StringCharacter(start, start);
                     if (item == '\'')
                     {
-                        if (m_pos < text.size() && text[m_pos] == '\'')
+                        const auto next = StringPosition(m_pos);
+                        if (next < text.size() && text[next] == '\'')
                         {
-                            ++m_pos;
+                            StringCharacter(start, start);
                         }
                         else
                         {
@@ -351,28 +509,8 @@ private:
                     }
                     else if (item == '\\')
                     {
-                        if (m_pos < text.size() && text[m_pos] == '\\')
-                        {
-                            ++m_pos;
-                        }
-                        else
-                        {
-                            Fail(
-                                "UnsupportedStringEncoding",
-                                "Only doubled apostrophes and doubled reverse solidi are supported",
-                                { m_pos - 1, m_pos },
-                                Status::Unsupported
-                            );
-                        }
-                    }
-                    else if (item == '\n' || item == '\r' || item == '\t')
-                    {
-                        Fail(
-                            "UnsupportedStringEncoding",
-                            "Control characters inside a string are outside this slice",
-                            { m_pos - 1, m_pos },
-                            Status::Unsupported
-                        );
+                        StringDirective(decoded, start, m_pos - 1);
+                        continue;
                     }
                     decoded += item;
                 }

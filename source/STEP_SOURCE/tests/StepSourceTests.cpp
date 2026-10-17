@@ -128,6 +128,20 @@ int main()
         Require(p[0].text == "it's" && p[1].text == "path\\name", "string quote/reverse solidus decoding failed");
         ++checks;
 
+        const auto encoded = File("#1=A('\\X2\\4E2D\\X0\\\\X4\\0001F600\\X0\\\r\n\\S\\D');\n");
+        auto unicode = InspectBytes(encoded, limits);
+        Require(unicode.source != nullptr, "Unicode source did not inspect");
+        auto unicodeOwner = unicode.source;
+        unicode = {};
+        const auto& unicodeValue = unicodeOwner->Records()[0].components[0].parameters[0];
+        Require(unicodeValue.text == "\xe4\xb8\xad\xf0\x9f\x98\x80\xc3\x84", "Decoded string is not exact owning UTF-8");
+        Require(unicodeOwner->Bytes() == encoded, "Unicode decoding modified raw bytes");
+        Require(
+            unicodeOwner->Raw(unicodeValue.span) == "'\\X2\\4E2D\\X0\\\\X4\\0001F600\\X0\\\r\n\\S\\D'",
+            "Unicode string span does not address original bytes"
+        );
+        ++checks;
+
         auto crlf = original;
         for (std::size_t i = 0; (i = crlf.find('\n', i)) != std::string::npos; i += 2)
         {

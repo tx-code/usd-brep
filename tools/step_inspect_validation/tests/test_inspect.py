@@ -153,7 +153,7 @@ class InspectTests(unittest.TestCase):
 
     def test_unterminated_comments_and_strings_are_located(self):
         self.rejected(document("#1=A();\n") + b"/* open", "UnterminatedComment")
-        self.rejected(document("#1=A('open\n"), "UnsupportedStringEncoding", 2)
+        self.rejected(document("#1=A('open\n"), "UnterminatedString")
         data = document("#1=A();\n").split(b"#1=")[0] + b"#1=A('open"
         self.rejected(data, "UnterminatedString")
 
@@ -183,13 +183,111 @@ class InspectTests(unittest.TestCase):
         for data in (b"PK\x03\x04rest", b"<?xml version='1.0'?>", b"\x1f\x8brest"):
             self.rejected(data, "UnsupportedCarrier", 2)
 
-    def test_unimplemented_string_directives_are_not_silently_decoded(self):
-        for directive in ("\\X2\\4E2D\\X0\\", "\\X4\\00004E2D\\X0\\", "\\S\\D", "\\PA\\"):
+    def test_unimplemented_string_alphabets_are_not_guessed(self):
+        for alphabet in "BCDEFGHI":
+            self.rejected(document("#1=A('\\P" + alphabet + "\\\\S\\D');\n"), "UnsupportedStringEncoding", 2)
+
+    def test_print_control_in_a_string_remains_explicitly_unsupported(self):
+        for directive in ("\\N\\", "\\F\\"):
             self.rejected(document("#1=A('" + directive + "');\n"), "UnsupportedStringEncoding", 2)
 
     def test_literal_backslash_and_apostrophe_decoding(self):
         result = self.good(document("#1=A('a\\\\b','it''s');\n"))
         self.assertEqual(["a\\b", "it's"], [p["text"] for p in result["records"][0]["components"][0]["parameters"]])
+
+    def test_ucs_string_is_decoded_as_unicode_without_changing_source_bytes(self):
+        data = document("#1=A('\\X2\\4E2D6587\\X0\\');\n")
+        result = self.good(data)
+        value = result["records"][0]["components"][0]["parameters"][0]
+        self.assertEqual("中文", value["text"])
+        self.assertEqual("'\\X2\\4E2D6587\\X0\\'", value["raw"])
+        self.assertEqual(hashlib.sha256(data).hexdigest(), result["input"]["sha256"])
+
+    def test_standard_string_directives_have_literal_unicode_truth(self):
+        examples = [
+            ("\\X2\\03B103B203B3\\X0\\", "αβγ"),
+            ("\\X4\\0001F6000010FFFF\\X0\\", "😀\U0010ffff"),
+            (r"see \X\A7 4.1", "see § 4.1"),
+            (r"a\X\00\X\0A\X\7Fb", "a\0\n\x7fb"),
+            (r"\S\Drger", "Ärger"),
+            (r"h\S\ttel", "hôtel"),
+            (r"\PA\\S\D", "Ä"),
+            ("\\PA\\", ""),
+            (r"\S\'", "§"),
+            (r"\S\\", "Ü"),
+            (r"\X\27\X\5C", "'\\"),
+            ("\\X2\\0041\\X0\\\\S\\D\\X4\\0001F600\\X0\\", "AÄ😀"),
+        ]
+        for encoded, expected in examples:
+            with self.subTest(encoded=encoded):
+                result = self.good(document("#1=A('" + encoded + "');\n"))
+                self.assertEqual(expected, result["records"][0]["components"][0]["parameters"][0]["text"])
+
+    def test_physical_string_layout_is_ignored_and_byte_locations_stay_original(self):
+        data = document("#1=A('left\r\nright\t','a\\X\\0Ab','it'\r\n's',"
+                        "'path\\\n\\name','\\X2\\4E\r\n2D\\X0\\');\n#2=B(#1);\n")
+        result = self.good(data)
+        values = result["records"][0]["components"][0]["parameters"]
+        self.assertEqual(["leftright", "a\nb", "it's", "path\\name", "中"], [v["text"] for v in values])
+        for value in values:
+            begin, end = value["span"]
+            self.assertEqual(data[begin:end].decode("ascii"), value["raw"])
+        reference = result["references"][0]
+        self.assertEqual(data.index(b"#1", data.index(b"#2=")), reference["span"][0])
+        # Physical CRLF/tab may also split the letters, digits and delimiters of a directive.
+        encoded = "\\X2\\4E2D\\X0\\"
+        spaced = "\r\n\t".join(encoded)
+        value = self.good(document("#1=A('" + spaced + "');\n"))["records"][0]["components"][0]["parameters"][0]
+        self.assertEqual("中", value["text"])
+
+    def test_malformed_string_directives_reject_without_a_partial_graph(self):
+        malformed = ["\\", "\\Q\\", "\\x2\\0041\\X0\\", "\\X\\", "\\X\\A", "\\X\\GG",
+                     "\\X2\\\\X0\\", "\\X4\\\\X0\\", "\\X2\\123\\X0\\", "\\X4\\0000041\\X0\\",
+                     "\\X2\\4e2d\\X0\\", "\\X2\\0041", "\\X2\\0041\\X1\\", "\\X2\\0041\\X0",
+                     "\\X2\\0041 \\X0\\", "\\X0\\", "\\X3\\0041\\X0\\", "\\PZ\\", "\\PA", "\\S"]
+        for encoded in malformed:
+            with self.subTest(encoded=encoded):
+                result = self.rejected(document("#1=GOOD();\n#2=A('" + encoded + "');\n"), "InvalidStringEncoding")
+                self.assertEqual("2", result["diagnostics"][0]["record_id"])
+                self.assertTrue(result["input"]["capture_complete"])
+        for encoded in ("\\X2\\D800\\X0\\", "\\X2\\DC00\\X0\\", "\\X2\\D83DDE00\\X0\\",
+                        "\\X4\\0000DFFF\\X0\\", "\\X4\\00110000\\X0\\", "\\X4\\FFFFFFFF\\X0\\"):
+            with self.subTest(encoded=encoded):
+                self.rejected(document("#1=A('" + encoded + "');\n"), "InvalidStringCodePoint")
+        data = document("#1=A('first\r\n\\X2\\D800\\X0\\');\n")
+        diagnostic = self.rejected(data, "InvalidStringCodePoint")["diagnostics"][0]
+        begin = data.index(b"D800")
+        self.assertEqual([begin, begin + 4], diagnostic["span"])
+        self.assertEqual({"line": 9, "column": 5}, diagnostic["location"])
+
+    def test_string_budget_counts_source_bytes_including_layout_and_escapes(self):
+        for tail in ("it''s", "path\\\\name", "'\r\n'", "\\X\\FF", "\\X2\\4E2D\\X0\\",
+                     "\\X4\\0001F600\\X0\\", "\\S\\D", "\\P\r\nA\\", "\r\n\t"):
+            encoded = "'" + "a" * 40 + tail + "'"
+            data = document("#1=A(" + encoded + ");\n")
+            with self.subTest(encoded=encoded):
+                exact = self.good(data, "--max-string-bytes", len(encoded))
+                self.assertEqual(len(encoded), exact["statistics"]["max_string_bytes"])
+                self.rejected(data, "StringByteLimit", 3, "--max-string-bytes", len(encoded) - 1)
+        # Layout after the closing quote does not belong to this string token.
+        encoded = "'" + "a" * 40 + "'"
+        self.good(document("#1=A(" + encoded + "\r\n\t);\n"), "--max-string-bytes", len(encoded))
+
+    def test_unicode_report_limit_counts_emitted_utf8_bytes_and_is_atomic(self):
+        data = document("#1=A('\\X2\\4E2D6587\\X0\\\\X4\\0001F600\\X0\\');\n")
+        process, result = self.invoke(data)
+        self.assertEqual(0, process.returncode)
+        self.assertIn("中文😀".encode("utf-8"), process.stdout)
+        maximum = len(process.stdout)
+        for _ in range(3):
+            process, result = self.invoke(data, "--max-report-bytes", maximum)
+            self.assertEqual(0, process.returncode)
+            maximum = len(process.stdout)
+        process, result = self.invoke(data, "--max-report-bytes", maximum - 1)
+        self.assertEqual(5, process.returncode)
+        self.assertEqual(b"", process.stdout)
+        self.assertIsNone(result)
+        self.assertIn(b"ReportByteLimit", process.stderr)
 
     def test_binary_user_defined_and_print_extensions_are_unsupported(self):
         for record in ('#1=A("0F");\n', '#1=!USER();\n', '@1=A();\n', '\\N\\\n#1=A();\n'):

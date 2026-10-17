@@ -17,7 +17,7 @@ void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
     out.Add(",\"raw\":");
     out.String(source.Raw(value.span));
     out.Add(",\"text\":");
-    out.String(value.text);
+    out.Utf8String(value.text);
     out.Add(",\"children\":[");
     for (std::size_t i = 0; i < value.children.size(); ++i)
     {

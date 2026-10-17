@@ -34,6 +34,8 @@ public:
 
     void Add(std::string_view text);
     void String(std::string_view text);
+    // Decoded source values are valid UTF-8; arbitrary raw bytes use String instead.
+    void Utf8String(std::string_view text);
     void Number(std::size_t value);
     void Bool(bool value);
     void Range(Span span);
@@ -49,6 +51,7 @@ private:
     }
     std::size_t m_maximum;
     std::string m_text;
+    void StringValue(std::string_view text, bool utf8);
 };
 
 void WriteJson(Writer& writer, const InspectOutcome& outcome);
