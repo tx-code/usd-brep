@@ -13,9 +13,23 @@ from tools.step_semantic_validation.tests.test_ap214_entities import linked_sour
 from tools.step_semantic_validation.tests.test_ap214_geometry import geometry_source
 from tools.step_semantic_validation.tests.test_ap214_units import unit_source
 from tools.step_semantic_validation.tests.test_ap214_measure import measure_source
+from tools.step_semantic_validation.tests.test_ap214_property import quantity_property_source
 
 
 class Ap214EntityBoundaryTests(unittest.TestCase):
+    def test_property_attachment_preserves_source_only_native_boundary(self):
+        with tempfile.TemporaryDirectory(prefix="step-ap214-property-native-") as directory:
+            path = Path(directory) / "source.step"
+            path.write_bytes(quantity_property_source())
+            run = subprocess.run([os.environ["STEP_NATIVE_BINARY"], "--fixture-limits", "--quality", "Q-P0-mm-01",
+                                  str(path)], capture_output=True, timeout=15)
+            result = json.loads(run.stdout)
+            self.assertEqual(2, run.returncode)
+            self.assertEqual("Checked", result["source"]["semantics"])
+            self.assertEqual("UnsupportedRuleProfile", result["diagnostics"][0]["key"])
+            self.assertEqual(0, result["native_calls"])
+            self.assertIsNone(result["model"])
+
     def test_measure_item_source_check_does_not_publish_a_native_model(self):
         with tempfile.TemporaryDirectory(prefix="step-ap214-measure-native-") as directory:
             path = Path(directory) / "source.step"

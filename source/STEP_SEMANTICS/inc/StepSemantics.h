@@ -99,7 +99,14 @@ struct Role
 
 struct Part
 {
+    struct PropertyAttachment
+    {
+        // Source indices belonging to this snapshot, not portable IDs or inferred
+        // material values. Keep each source link even when names/items are shared.
+        std::size_t link, propertyDefinition, characterizedDefinition, productDefinition, representation, context;
+    };
     std::vector<Role> roles; // Source indices, not copies of the entity/value graph.
+    std::vector<PropertyAttachment> propertyAttachments;
     std::string shapeRole; // MaterialSolid / OpenSurfaceModel / ClosedSurfaceModel: source claims only.
     std::string apdStatus;
     std::string apdSchemaClaim;
@@ -246,6 +253,7 @@ struct Outcome
     std::size_t dependencyVisits = 0;
     GeometryDependencyCounts geometryDependencyChecks;
     UnitDependencyCounts unitDependencyChecks;
+    std::size_t propertyAttachmentChecks = 0; // Actual AP214 links attempted within part/closure guards.
     Limits limits;
     std::vector<Diagnostic> diagnostics;
 };

@@ -1091,13 +1091,19 @@ private:
         for (const auto representation : Population("REPRESENTATION"))
         {
             Visit(Record(representation).span);
+            // A plain representation is only a metadata candidate here. Closure
+            // grants ownership only after proving its property link and part.
             if (representation != selected.definition && representation != selected.body &&
-                !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION"))
+                !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION") && !IsPlainRepresentation(representation))
             {
                 unsupported(representation, "Additional representation is outside the selected root/body/presentation graph");
             }
         }
         return selected;
+    }
+    bool IsPlainRepresentation(std::size_t record) const
+    {
+        return Record(record).components.size() == 1 && Record(record).components.front().name == "REPRESENTATION";
     }
     void Product()
     {
@@ -1425,6 +1431,95 @@ private:
         }
         return visited;
     }
+    void AttachAp214Properties()
+    {
+        // Product() already proved one selected PD/PDS and their identity link.
+        // AP214E3_2010.exp PDR/PD fields supply source references; allowing these
+        // metadata roots is a project attachment guard, not full EXPRESS WHERE.
+        const auto& definitions = Population("PRODUCT_DEFINITION");
+        const auto& shapes = Population("PRODUCT_DEFINITION_SHAPE");
+        Expects(definitions.size() == 1 && shapes.size() == 1);
+        const auto pd = definitions.front(), pds = shapes.front();
+        std::vector<Part::PropertyAttachment> attached;
+        const auto reject = [&](std::size_t owner,
+                                std::string_view field,
+                                const Value& at,
+                                const char* key,
+                                const char* expected,
+                                std::optional<std::size_t> item = {})
+        {
+            const auto& bound = Binding(owner, field);
+            std::vector<std::size_t> path{ bound.parameter + 1 };
+            if (item)
+            {
+                path.push_back(*item);
+            }
+            Fail(
+                key,
+                "D2",
+                "Property metadata is outside the selected-part attachment subset",
+                at.span,
+                Status::Unsupported,
+                owner,
+                bound.component,
+                std::move(path),
+                expected,
+                at.text,
+                "profile property attachment guard; not complete EXPRESS WHERE"
+            );
+        };
+        for (const auto link : Population("PROPERTY_DEFINITION_REPRESENTATION"))
+        {
+            if (IsA(*m_data, link, "SHAPE_DEFINITION_REPRESENTATION"))
+            {
+                continue; // The SDR is the existing geometry root, not a metadata link.
+            }
+            ++m_outcome.propertyAttachmentChecks;
+            Visit(Record(link).span);
+            const auto& definition = FieldValue(link, "definition");
+            Visit(definition.span);
+            const auto property = Target(definition);
+            const auto& characterized = FieldValue(property, "definition");
+            Visit(characterized.span);
+            const auto owner = Target(characterized);
+            if (owner != pd && owner != pds)
+            {
+                reject(property, "definition", characterized, "UnsupportedPropertyAttachment", "selected PD or PDS identity");
+            }
+            const auto& used = FieldValue(link, "used_representation");
+            Visit(used.span);
+            const auto representation = Target(used);
+            if (!IsPlainRepresentation(representation))
+            {
+                reject(link, "used_representation", used, "UnsupportedPropertyRepresentation", "plain property REPRESENTATION");
+            }
+            const auto& items = FieldValue(representation, "items").children;
+            for (std::size_t i = 0; i < items.size(); ++i)
+            {
+                const auto& value = items[i];
+                Visit(value.span);
+                const auto target = Target(value);
+                // Restrict the entire metadata item boundary, not just its name.
+                // MRI can reference only units; DRI has text. Neither can smuggle
+                // geometry in through a style, placement or another BRep shape.
+                if (!IsA(*m_data, target, "MEASURE_REPRESENTATION_ITEM") && !IsA(*m_data, target, "DESCRIPTIVE_REPRESENTATION_ITEM"))
+                {
+                    reject(representation, "items", value, "UnsupportedPropertyItem", "measure or descriptive item", i + 1);
+                }
+            }
+            const auto& context = FieldValue(representation, "context_of_items");
+            Visit(context.span);
+            attached.push_back({ link, property, owner, pd, representation, Target(context) });
+        }
+        // Grant roots only after every link has proven its owner and item boundary.
+        // Preserve every source link, shared representation/item and original context;
+        // property units never replace m_context or the body's selected unit scale.
+        for (std::size_t i = 0; i < attached.size(); ++i)
+        {
+            m_data->part.roles.push_back({ "property_link_" + std::to_string(i), attached[i].link });
+        }
+        m_data->part.propertyAttachments = std::move(attached);
+    }
     void AttachAp214Presentations()
     {
         std::vector<std::size_t> items;
@@ -1490,6 +1585,7 @@ private:
         }
         if (m_data->profile.kind == ProfileKind::Ap214e3Source)
         {
+            AttachAp214Properties();
             AttachAp214Presentations();
         }
         std::vector<std::size_t> seeds;

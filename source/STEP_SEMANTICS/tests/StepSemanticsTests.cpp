@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 96,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 97,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -240,6 +240,54 @@ int main(int argc, char** argv)
                 measureValue.Value().children.front().text == "+25.400E+0" && measureUnit.Value().text == "10" &&
                 measureUnit.Location().parameterPath == std::vector<std::size_t>{ 3 },
             "Owning MRI fields must retain the original tag, REAL lexeme, unit identity and slot after caller release"
+        );
+        ++groups;
+
+        auto propertyText = Read(corpus / "S203-P01/input.step");
+        propertyText.replace(propertyText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        propertyText.insert(propertyText.find("ENDSEC;", propertyText.find("DATA;")), R"STEP(
+#920=PROPERTY_DEFINITION('material property',$,#7);
+#921=PROPERTY_DEFINITION_REPRESENTATION(#920,#922);
+#922=REPRESENTATION('material name',(#923),#924);
+#923=DESCRIPTIVE_REPRESENTATION_ITEM('source alloy','original description');
+#924=REPRESENTATION_CONTEXT('source properties','metadata');
+#930=PROPERTY_DEFINITION('quantity','length',#8);
+#931=PROPERTY_DEFINITION_REPRESENTATION(#930,#932);
+#932=REPRESENTATION('quantity',(#933),#934);
+#933=MEASURE_REPRESENTATION_ITEM('source length',LENGTH_MEASURE(+0.025400E+3),#935);
+#934=REPRESENTATION_CONTEXT('quantity context','metadata');
+#935=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.));
+)STEP");
+        auto propertyRaw = step_source::InspectBytes(propertyText, step_source::Limits::PlanarFixtures());
+        auto propertyResult = Check(propertyRaw, Limits{});
+        Require(propertyResult.status == Status::Checked && propertyResult.snapshot, "Property source attachment checks");
+        auto propertySnapshot = propertyResult.snapshot;
+        const auto propertyFacts = propertySnapshot->PartDefinition().propertyAttachments;
+        Require(
+            propertyFacts.size() == 2 && propertyFacts[0].link == Index(*propertySnapshot, "921") &&
+                propertyFacts[1].characterizedDefinition == Index(*propertySnapshot, "8") &&
+                propertyFacts[1].productDefinition == Index(*propertySnapshot, "7") && propertyFacts[1].context == Index(*propertySnapshot, "934") &&
+                propertySnapshot->PartDefinition().shapeRole == "OpenSurfaceModel" && propertySnapshot->UnitContext().lengthPower10Mm == 0,
+            "Source links must retain the selected part, original property context and body role/unit scale"
+        );
+        auto propertyOwner = propertySnapshot->Field(Index(*propertySnapshot, "930"), "definition");
+        auto propertyLink = propertySnapshot->Field(Index(*propertySnapshot, "931"), "used_representation");
+        auto propertyValue = propertySnapshot->Field(Index(*propertySnapshot, "933"), "value_component");
+        auto propertyUnit = propertySnapshot->Field(Index(*propertySnapshot, "933"), "unit_component");
+        Require(
+            &propertyOwner.Value() == &propertyRaw.source->Find("930")->components[0].parameters[2] &&
+                propertyLink.ReferenceTarget() == Index(*propertySnapshot, "932") &&
+                propertyUnit.ReferenceTarget() == Index(*propertySnapshot, "935"),
+            "Property fields must borrow their source references without copying values or filling context units"
+        );
+        propertyRaw = {};
+        propertyResult = {};
+        propertySnapshot.reset();
+        Require(
+            propertyOwner.Value().text == "8" && propertyLink.Location().recordId == "931" &&
+                propertyValue.Value().children.front().text == "+0.025400E+3" && propertyUnit.Value().text == "935" &&
+                snapshot->PartDefinition().propertyAttachments.empty(),
+            "Owning property fields must survive parent release without changing the live AP203 snapshot"
         );
         ++groups;
 

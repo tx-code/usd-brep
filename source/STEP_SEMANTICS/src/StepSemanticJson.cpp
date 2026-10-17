@@ -204,6 +204,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Number(result.unitDependencyChecks.unitDefinitions);
         out.Add(",\"unit_type_predicate_checks\":");
         out.Number(result.unitDependencyChecks.typePredicates);
+        out.Add(",\"property_attachment_checks\":");
+        out.Number(result.propertyAttachmentChecks);
     }
     out.Add("}");
     out.Add(",\"snapshot\":");
@@ -362,6 +364,33 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         }
         out.Add("},\"source_shape_role\":");
         out.String(data.PartDefinition().shapeRole);
+        if (ap214)
+        {
+            out.Add(",\"property_attachments\":[");
+            bool firstAttachment = true;
+            for (const auto& attachment : data.PartDefinition().propertyAttachments)
+            {
+                if (!firstAttachment)
+                {
+                    out.Add(",");
+                }
+                firstAttachment = false;
+                out.Add("{\"link\":");
+                out.String(records[attachment.link].id);
+                out.Add(",\"property_definition\":");
+                out.String(records[attachment.propertyDefinition].id);
+                out.Add(",\"characterized_definition\":");
+                out.String(records[attachment.characterizedDefinition].id);
+                out.Add(",\"product_definition\":");
+                out.String(records[attachment.productDefinition].id);
+                out.Add(",\"representation\":");
+                out.String(records[attachment.representation].id);
+                out.Add(",\"context\":");
+                out.String(records[attachment.context].id);
+                out.Add("}");
+            }
+            out.Add("]");
+        }
         out.Add(",\"shape_geometry_verified\":false,\"apd_status\":");
         out.String(data.PartDefinition().apdStatus);
         out.Add(",\"apd_schema_claim\":");

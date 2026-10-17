@@ -54,7 +54,7 @@ declaration pointers and named field queries use that snapshot's immutable catal
 there is no process-wide current-protocol switch. AP203 retains its original 72
 registered declarations and indexes. AP214 has 70 common declarations, excluding
 `MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source,
-plus 13 presentation/relationship, 11 geometry, one mass-measure and one measure-item declaration (96 total).
+plus 13 presentation/relationship, 11 geometry, one mass-measure and two metadata-item declarations (97 total).
 The AP214 unit increment also replaces its existing derived-unit guard entries with exact source fields.
 The admitted reference SELECT branches remain a closed project subset. This is
 source field/part/unit checking, not full-schema or modeling qualification.
@@ -87,9 +87,9 @@ detached styles or geometry; RI use follows actual representation items and RI
 references, without following non-RI style/unit/management paths. These attachment
 and ownership restrictions are project guards, not full AP214 rule evaluation.
 
-Generic material/property representations and other presentation branches remain
-outside this increment. Unsupported content is
-retained in the raw outcome with diagnostics and no partial typed publication.
+Generic material/property representations use the attachment subset below; other
+presentation branches remain unsupported. Unsupported content is retained in the
+raw outcome with diagnostics and no partial typed publication.
 
 The AP214 geometry source subset adds `CONIC` / `CIRCLE` / `ELLIPSE`,
 `CYLINDRICAL_SURFACE` / `CONICAL_SURFACE`, and nonrational
@@ -182,11 +182,43 @@ without changing its source branch, value or unit. Unknown branches stay unsuppo
 `unit_type_predicate_checks` and `named_measure_predicates` report actual attempts;
 they do not grant complete type or entity validation.
 
-Admitting this source entity does not attach a material/property representation,
-make an orphan owned, or allow non-shape items in the selected body's representation.
-Generic material/property links remain a separate increment. MRI-as-conversion-factor
-tests isolate the existing MWU reference/field contract; they do not claim full RI.WR1
-or AP214 global-rule validation, physical conversion evaluation or native construction.
+Admitting this source entity alone does not make an orphan owned or allow non-shape
+items in the selected body's representation. MRI-as-conversion-factor tests isolate
+the existing MWU reference/field contract; they do not claim full RI.WR1 or AP214
+global-rule validation, physical conversion evaluation or native construction.
+
+The AP214 property subset admits simple `PROPERTY_DEFINITION_REPRESENTATION`,
+`PROPERTY_DEFINITION`, ordinary `REPRESENTATION` and `REPRESENTATION_CONTEXT`,
+plus `DESCRIPTIVE_REPRESENTATION_ITEM` with inherited RI name and required description.
+Their derived names, IDs and descriptions do not become extra transport slots.
+`CHARACTERIZED_DEFINITION` remains limited to the registered PD/PDS branches, and
+`REPRESENTED_DEFINITION` to property definitions; this is not the full schema SELECT.
+The existing nine complete complex signatures are unchanged; the new DRI leaf uses
+simple mapping only. Unsupported external mappings fail explicitly.
+
+Part/closure checks each non-SDR property link before granting it a root: the
+property definition's original characterized reference must be the selected PD or
+selected PDS, and its used representation must be ordinary REP containing only
+MRI/DRI metadata items. An inherited PDS property can supply the same selected PD
+identity. Geometry, placements and styles cannot be attached as property items;
+shape/presentation representations cannot become property representations. These
+are project ownership guards, not new EXPRESS WHERE clauses or name-based inference.
+
+`Part::propertyAttachments` and JSON `part.property_attachments` retain each source
+link, property definition, characterized definition, selected product definition,
+representation and context identity. Repeated links/names and shared representations
+remain distinct source facts. Field views still borrow exact source values; no
+material data, number, unit reference, factor or prefix is rewritten. Metadata
+contexts never replace the body's selected context/units or source shape role.
+Only proven links become `property_link_N` roles. Complete closure still rejects
+detached properties, representations and contexts. The owning snapshot is withheld
+if any link, later closure/unit check or resource budget fails.
+
+`property_attachment_checks` counts actual links attempted in the existing part
+phase. Unit/geometry prerequisites still precede it: an invalid typed measure/unit
+pair can fail before attachment (counter zero). Successful field/attachment checks
+do not evaluate the remaining ID/name/description-attribute WHERE clauses, full
+RI/global rules, material meaning, physical conversion or native construction.
 
 The shared single-part, mechanical/design role, complete closure and nominal-unit
 restrictions are project guards. Apart from the selected dependencies above,

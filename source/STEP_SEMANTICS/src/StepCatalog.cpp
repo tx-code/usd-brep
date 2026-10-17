@@ -370,6 +370,13 @@ Catalog::Catalog(ProfileKind profile)
             {
                 declaration.simple = true;
             }
+            // AP214 property metadata uses the existing exact base declarations.
+            // DERIVE names/IDs/descriptions are not extra transmitted parameters.
+            if (declaration.name == "PROPERTY_DEFINITION_REPRESENTATION" || declaration.name == "PROPERTY_DEFINITION" ||
+                declaration.name == "REPRESENTATION" || declaration.name == "REPRESENTATION_CONTEXT")
+            {
+                declaration.simple = true;
+            }
         }
         complexSignatures.push_back(SiMass);
         complexSignatures.push_back(ConversionMass);
@@ -492,6 +499,7 @@ Catalog::Catalog(ProfileKind profile)
         // External mapping transmits each parent's local fields in its own facet;
         // the empty MRI facet does not duplicate or reorder those source values.
         complexSignatures.push_back(MeasureRepresentation);
+        declarations.push_back({ "DESCRIPTIVE_REPRESENTATION_ITEM", { "REPRESENTATION_ITEM" }, { Text("description", "TEXT") }, true });
     }
     if (declarations.size() > 128)
     {
