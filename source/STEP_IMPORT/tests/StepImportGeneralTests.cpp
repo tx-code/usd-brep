@@ -10,6 +10,9 @@
 #include <SmBrep.h>
 #include <SmBrepData.h>
 #include <SmContext.h>
+#include <SmEdge.h>
+#include <SmEdgeuse.h>
+#include <SmFace.h>
 #include <SmLine.h>
 #include <SmPlane.h>
 #include <cmath>
@@ -142,6 +145,98 @@ double VolumeWithImportPolicy(const SmBrep& brep, step_import::Point origin)
     );
     return volume;
 }
+void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b)
+{
+    Require(a.GetType() == b.GetType() && a.GetDegree() == b.GetDegree(), "archive curve class and degree");
+    const auto first = dynamic_cast<const SmBSplineCurve*>(&a), second = dynamic_cast<const SmBSplineCurve*>(&b);
+    Require(first && second, "admitted exact native curve net");
+    SmTArray<SmPoint3d> ca, cb;
+    SmTArray<double> wa, wb, ka, kb;
+    Require(first->GetControlPolygon(ca, wa) == SM_SUCCESS && second->GetControlPolygon(cb, wb) == SM_SUCCESS, "archive curve coefficients");
+    Require(first->GetKnotsAll(ka) == SM_SUCCESS && second->GetKnotsAll(kb) == SM_SUCCESS, "archive curve knots");
+    Require(ca.GetSize() == cb.GetSize() && wa.GetSize() == wb.GetSize() && ka.GetSize() == kb.GetSize(), "archive curve net shape");
+    for (ULONG i = 0; i < ca.GetSize(); ++i)
+    {
+        Near(ca[i].DistanceBetween(cb[i]), 0, 1e-9, "archive defining curve control point");
+    }
+    for (ULONG i = 0; i < wa.GetSize(); ++i)
+    {
+        Near(wa[i], wb[i], 1e-12, "archive curve weight");
+    }
+    for (ULONG i = 0; i < ka.GetSize(); ++i)
+    {
+        Require(ka[i] == kb[i], "archive curve knot identity");
+    }
+}
+void CompareNativeDefinitions(SmBrep& a, SmBrep& b)
+{
+    // Numerical integration depends on transient caches and is not an identity
+    // test. Compare the actual exact native definitions as well: classes,
+    // degrees, all control coefficients/weights/knots and installed UV nets.
+    SmBrepCompareResult topology;
+    topology.dVertexTolerance = 1e-9;
+    Require(a.CompareBreps(&b, topology) == SM_SUCCESS && topology.bPass, "archive topology/classes/vertices");
+    SmTArray<SmEdge*> ea, eb;
+    a.GetEdges(ea);
+    b.GetEdges(eb);
+    for (ULONG i = 0; i < ea.GetSize(); ++i)
+    {
+        Require(
+            ea[i]->GetInterval().GetMin() == eb[i]->GetInterval().GetMin() && ea[i]->GetInterval().GetMax() == eb[i]->GetInterval().GetMax(),
+            "archive edge interval"
+        );
+        CompareCurveCoefficients(*ea[i]->GetCurve(), *eb[i]->GetCurve());
+    }
+    SmTArray<SmFace*> fa, fb;
+    a.GetFaces(fa);
+    b.GetFaces(fb);
+    for (ULONG i = 0; i < fa.GetSize(); ++i)
+    {
+        const auto first = dynamic_cast<SmBSplineSurface*>(fa[i]->GetSurface());
+        const auto second = dynamic_cast<SmBSplineSurface*>(fb[i]->GetSurface());
+        Require(first && second, "admitted exact native surface net");
+        Require(
+            first->GetDegree(SM_SP_U) == second->GetDegree(SM_SP_U) && first->GetDegree(SM_SP_V) == second->GetDegree(SM_SP_V),
+            "archive surface degrees"
+        );
+        ULONG au = 0, av = 0, bu = 0, bv = 0;
+        double *ca = nullptr, *cb = nullptr;
+        Require(
+            first->GetControlPointsPointer(au, av, ca) == SM_SUCCESS && second->GetControlPointsPointer(bu, bv, cb) == SM_SUCCESS && au == bu &&
+                av == bv,
+            "archive surface net shape"
+        );
+        for (ULONG k = 0; k < au * av * 4; ++k)
+        {
+            if (ca[k] != cb[k])
+            {
+                Near(ca[k], cb[k], k % 4 == 3 ? 1e-12 : 1e-9, "archive surface coefficient");
+            }
+        }
+        double *ka = nullptr, *la = nullptr, *kb = nullptr, *lb = nullptr;
+        Require(
+            first->GetKnotsPointers(au, av, ka, la) == SM_SUCCESS && second->GetKnotsPointers(bu, bv, kb, lb) == SM_SUCCESS && au == bu && av == bv,
+            "archive surface knots shape"
+        );
+        for (ULONG k = 0; k < au; ++k)
+        {
+            Require(ka[k] == kb[k], "archive surface U knot identity");
+        }
+        for (ULONG k = 0; k < av; ++k)
+        {
+            Require(la[k] == lb[k], "archive surface V knot identity");
+        }
+        SmTArray<SmEdgeuse*> ua, ub;
+        fa[i]->GetUpwardEdgeuses(ua);
+        fb[i]->GetUpwardEdgeuses(ub);
+        Require(ua.GetSize() == ub.GetSize(), "archive UV inventory");
+        for (ULONG k = 0; k < ua.GetSize(); ++k)
+        {
+            Require(ua[k]->GetUVTrimCurve() && ub[k]->GetUVTrimCurve(), "archive UV present");
+            CompareCurveCoefficients(*ua[k]->GetUVTrimCurve(), *ub[k]->GetUVTrimCurve());
+        }
+    }
+}
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
     auto options = step_import::Options::PlanarFixture();
@@ -239,7 +334,16 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     loaded.brep->GetVertices(vertices);
     Require(faces.GetSize() == info.faces && edges.GetSize() == info.edges && vertices.GetSize() == info.vertices, "archive topology preserved");
     const double volume = VolumeWithImportPolicy(*loaded.brep, info.boundsMm[0]);
-    Near(volume, expected, std::max(1e-6, expected * 1e-9), "archive preserves development geometry");
+    // The native integrator requests relative 1e-4, not bitwise deterministic
+    // quadrature after cache-free reload. Coefficient identity is checked below;
+    // this separate measure comparison allows the two numerical integrations.
+    Near(volume, expected, std::max(1e-6, expected * 2e-4), "archive numerical volume agreement");
+    editable.model->Edit(
+        [&](SmBrep& copy)
+        {
+            CompareNativeDefinitions(copy, *loaded.brep);
+        }
+    );
     SmPoint3d point;
     double queryDistance = 0;
     Require(
@@ -248,11 +352,12 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     );
     Near(queryDistance, distance, 1e-5, "archive boundary distance preserved");
     std::ofstream checks(directory / "checks.json", std::ios::binary);
-    checks << std::setprecision(17) << "{\"status\":\"Passed\",\"source_sha256\":\"" << result.report.sourceSha256 << "\",\"quality_id\":\""
-           << options.quality.id << "\",\"faces\":" << info.faces << ",\"edges\":" << info.edges << ",\"vertices\":" << info.vertices
-           << ",\"volume_mm3\":" << expected << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume
-           << ",\"outside_distance_mm\":" << distance << ",\"reloaded_distance_mm\":" << queryDistance
-           << ",\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0}\n";
+    checks
+        << std::setprecision(17) << "{\"status\":\"Passed\",\"source_sha256\":\"" << result.report.sourceSha256 << "\",\"quality_id\":\""
+        << options.quality.id << "\",\"faces\":" << info.faces << ",\"edges\":" << info.edges << ",\"vertices\":" << info.vertices
+        << ",\"volume_mm3\":" << expected << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume
+        << ",\"outside_distance_mm\":" << distance << ",\"reloaded_distance_mm\":" << queryDistance
+        << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0}\n";
     Require(bool(checks), "development check receipt");
 }
 } // namespace
