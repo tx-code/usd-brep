@@ -87,6 +87,15 @@ class InteroperabilityTests(unittest.TestCase):
         self.assertEqual(2, run.returncode)
         self.assertIsNone(rejected["snapshot"])
 
+    def test_region_deferral_does_not_overwrite_failed_ownership_phase(self):
+        data = property_source().replace(b"FACE_OUTER_BOUND", b"FACE_BOUND")
+        data = append_records(data, b"#970=CARTESIAN_POINT('detached',(1.,2.,3.));\n")
+        run, result = self.invoke(data, "--interop-nongeometric", "--general-brep-source")
+        self.assertEqual(2, run.returncode)
+        self.assertEqual("UnownedOrOrphanProfileContent", result["diagnostics"][0]["key"])
+        self.assertEqual("Unsupported", result["checks"]["single_part_profile"])
+        self.assertIsNone(result["snapshot"])
+
     def test_missing_labels_are_retained_but_missing_geometry_is_fatal(self):
         data = property_source().replace(b"'body'", b"$")
         self.assertEqual(1, self.invoke(data)[0].returncode)

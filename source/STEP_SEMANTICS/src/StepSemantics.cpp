@@ -220,7 +220,9 @@ public:
                 m_outcome.unitDependencies = "CheckedWithDiagnostics";
             }
         }
-        if (!m_data->part.deferredRegionFaces.empty())
+        // A source-region deferral qualifies a completed ownership check. It
+        // must never hide a later orphan failure or a traversal resource limit.
+        if (State(Phase::Part) == Progress::Passed && !m_data->part.deferredRegionFaces.empty())
         {
             m_outcome.part = "Deferred";
         }
