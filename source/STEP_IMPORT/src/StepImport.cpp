@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportExecution.h"
 #include "StepImportPlan.h"
 
 #include <algorithm>
@@ -15,7 +16,7 @@ Quality Quality::PlanarFixture()
 }
 Options Options::PlanarFixture()
 {
-    return { step_source::Limits::PlanarFixtures(), {}, {}, Quality::PlanarFixture(), {} };
+    return { step_source::Limits::PlanarFixtures(), {}, {}, Quality::PlanarFixture(), {}, {} };
 }
 namespace
 {
@@ -61,13 +62,23 @@ void Diagnostic(Report& report, const detail::Failure& failure)
 {
     step_semantics::Diagnostic diagnostic;
     diagnostic.source.key = failure.key;
-    diagnostic.source.stage = "D5";
+    diagnostic.source.stage = failure.stage;
     diagnostic.source.message = failure.message;
-    diagnostic.classification = failure.status == Status::Unsupported   ? "TargetUnsupported" :
+    diagnostic.classification = failure.status == Status::Cancelled     ? "Cancelled" :
+                                failure.status == Status::Unsupported   ? "TargetUnsupported" :
                                 failure.status == Status::ResourceLimit ? "ResourceLimit" :
                                 failure.status == Status::Indeterminate ? "Indeterminate" :
                                                                           "NativeCandidateFailure";
-    diagnostic.responsibility = "native candidate preparation/construction/postcheck; Repair=None";
+    if (failure.stage == "Execution" && failure.status == Status::Unsupported)
+    {
+        diagnostic.classification = "ExecutionUnsupported";
+    }
+    if (failure.stage == "Execution" && failure.status == Status::BuildFailure)
+    {
+        diagnostic.classification = "ExecutionFailure";
+    }
+    diagnostic.responsibility = failure.stage == "Execution" ? "in-process cooperative execution" :
+                                                               "native candidate preparation/construction/postcheck; Repair=None";
     if (failure.record && report.source)
     {
         const auto& record = report.source->Records().at(*failure.record);
@@ -76,113 +87,167 @@ void Diagnostic(Report& report, const detail::Failure& failure)
     }
     report.diagnostics.push_back(std::move(diagnostic));
 }
-Outcome Import(step_source::InspectOutcome raw, const Options& options)
+template <class Capture>
+Outcome Import(const Options& options, Capture capture)
 {
     Outcome result;
     auto& report = result.report;
-    report.source = raw.source;
-    report.captured = raw.captured;
-    report.sourceSha256 = raw.sha256;
-    report.sourceStatus = step_source::StatusName(raw.status);
-    auto semantics = step_semantics::Check(raw, options.semanticLimits);
-    report.semanticStatus = step_semantics::StatusName(semantics.status);
-    auto planar = step_planar::Check(semantics, { options.quality.id, options.quality.consistencyMm }, options.planarLimits);
-    report.planarStatus = step_planar::StatusName(planar.status);
-    report.diagnostics = planar.diagnostics;
+    report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
+    step_source::InspectOutcome raw;
+    raw.limits = options.sourceLimits;
+    detail::Execution execution(options, report);
     std::shared_ptr<detail::ModelData> candidate;
-    if (planar.status != step_planar::Status::Checked)
+    std::shared_ptr<const ModelSnapshot> prepared;
+    try
     {
-        switch (planar.status)
+        execution.Check(Phase::BeforeCapture);
+        raw = capture();
+        report.source = raw.source;
+        report.captured = raw.captured;
+        report.sourceSha256 = raw.sha256;
+        report.sourceStatus = step_source::StatusName(raw.status);
+        if (raw.status == step_source::Status::Inspected)
         {
-            case step_planar::Status::Deferred:
-                result.status = Status::Deferred;
-                break;
-            case step_planar::Status::Unsupported:
+            execution.Check(Phase::Captured);
+        }
+        auto semantics = step_semantics::Check(raw, options.semanticLimits);
+        report.semanticStatus = step_semantics::StatusName(semantics.status);
+        if (semantics.status == step_semantics::Status::Checked || semantics.status == step_semantics::Status::Deferred)
+        {
+            execution.Check(Phase::SemanticsChecked);
+        }
+        auto planar = step_planar::Check(semantics, { options.quality.id, options.quality.consistencyMm }, options.planarLimits);
+        report.planarStatus = step_planar::StatusName(planar.status);
+        report.diagnostics = planar.diagnostics;
+        if (planar.status != step_planar::Status::Checked)
+        {
+            switch (planar.status)
+            {
+                case step_planar::Status::Deferred:
+                    result.status = Status::Deferred;
+                    break;
+                case step_planar::Status::Unsupported:
+                    result.status = Status::Unsupported;
+                    break;
+                case step_planar::Status::Indeterminate:
+                    result.status = Status::Indeterminate;
+                    break;
+                case step_planar::Status::ResourceLimit:
+                    result.status = Status::ResourceLimit;
+                    break;
+                default:
+                    result.status = Status::Rejected;
+                    break;
+            }
+            if (raw.status == step_source::Status::IoFailure)
+            {
+                result.status = Status::SourceFailure;
+            }
+            else if (raw.status == step_source::Status::Unsupported || semantics.status == step_semantics::Status::Unsupported)
+            {
                 result.status = Status::Unsupported;
-                break;
-            case step_planar::Status::Indeterminate:
-                result.status = Status::Indeterminate;
-                break;
-            case step_planar::Status::ResourceLimit:
+            }
+            else if (raw.status == step_source::Status::ResourceLimit || semantics.status == step_semantics::Status::ResourceLimit)
+            {
                 result.status = Status::ResourceLimit;
-                break;
-            default:
-                result.status = Status::Rejected;
-                break;
+            }
         }
-        if (raw.status == step_source::Status::IoFailure)
+        else
         {
-            result.status = Status::SourceFailure;
-        }
-        else if (raw.status == step_source::Status::Unsupported || semantics.status == step_semantics::Status::Unsupported)
-        {
-            result.status = Status::Unsupported;
-        }
-        else if (raw.status == step_source::Status::ResourceLimit || semantics.status == step_semantics::Status::ResourceLimit)
-        {
-            result.status = Status::ResourceLimit;
-        }
-    }
-    else
-    {
-        try
-        {
+            execution.Check(Phase::PlanarChecked);
             report.declarations = detail::DescribeSource(planar, options.quality);
             const auto plan = detail::MakePlan(planar);
-            candidate = detail::Build(plan, options, report);
+            candidate = detail::Build(plan, options, report, execution);
+            prepared = detail::Access::Snapshot(std::move(candidate));
+            execution.Check(Phase::NativeReady);
             result.status = Status::Accepted;
-        }
-        catch (const detail::Failure& failure)
-        {
-            result.status = failure.status;
-            Diagnostic(report, failure);
-        }
-        catch (const std::overflow_error& error)
-        {
-            result.status = Status::Indeterminate;
-            Diagnostic(report, { result.status, error.what(), "Bounded native numerical evidence is unestablished", {} });
-        }
-        catch (const std::domain_error& error)
-        {
-            result.status = Status::Indeterminate;
-            Diagnostic(report, { result.status, error.what(), "Native derived evidence is unestablished", {} });
-        }
-        catch (const std::exception& error)
-        {
-            result.status = Status::BuildFailure;
-            Diagnostic(report, { result.status, "NativeReturnOrConstructionFailure", error.what(), {} });
+            execution.Check(Phase::BeforeReport);
+            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
+            execution.Check(Phase::ReportReady);
+            execution.Check(Phase::BeforeCommit);
+            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
+            execution.Commit();
+            result.model = std::move(prepared); // No allocation, callback or native operation after the successful atomic commit.
+            return result;
         }
     }
+    catch (const detail::Failure& failure)
+    {
+        result.status = failure.status;
+        Diagnostic(report, failure);
+    }
+    catch (const std::bad_alloc&)
+    {
+        throw; // Unexpected allocation failure is not a configured quota or a proved source error.
+    }
+    catch (const std::invalid_argument&)
+    {
+        throw; // Preserve the existing invalid-configuration exception contract of the source stages.
+    }
+    catch (const std::overflow_error& error)
+    {
+        result.status = Status::Indeterminate;
+        Diagnostic(report, { result.status, error.what(), "Bounded native numerical evidence is unestablished", {} });
+    }
+    catch (const std::domain_error& error)
+    {
+        result.status = Status::Indeterminate;
+        Diagnostic(report, { result.status, error.what(), "Native derived evidence is unestablished", {} });
+    }
+    catch (const std::exception& error)
+    {
+        result.status = Status::BuildFailure;
+        Diagnostic(report, { result.status, "NativeReturnOrConstructionFailure", error.what(), {} });
+    }
+    catch (...)
+    {
+        result.status = Status::BuildFailure;
+        Diagnostic(report, { result.status, "UnknownImportFailure", "Unknown internal exception; no source-invalid claim", {}, "Execution" });
+    }
+    const bool held = bool(candidate) || bool(prepared);
+    prepared.reset();
+    candidate.reset();
+    report.candidateDiscarded = report.candidateDiscarded || held;
     try
     {
         detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
     }
     catch (const detail::Failure& failure)
     {
-        const bool held = bool(candidate);
-        candidate.reset();
-        report.candidateDiscarded = report.candidateDiscarded || held;
-        result.status = failure.status;
+        if (result.status != Status::Cancelled)
+        {
+            result.status = failure.status;
+        }
         Diagnostic(report, failure);
         report.json.clear();
-    }
-    // The owning model becomes visible at this sole commit point, after mandatory report completion.
-    if (result.status == Status::Accepted)
-    {
-        result.model = detail::Access::Snapshot(std::move(candidate));
     }
     return result;
 }
 } // namespace
 Outcome ImportBytes(std::string bytes, const Options& options)
 {
-    Validate(options);
-    return Import(step_source::InspectBytes(std::move(bytes), options.sourceLimits), options);
+    const Options frozen = options;
+    Validate(frozen);
+    return Import(
+        frozen,
+        [&]
+        {
+            return step_source::InspectBytes(std::move(bytes), frozen.sourceLimits);
+        }
+    );
 }
 Outcome ImportFile(const std::filesystem::path& path, const Options& options)
 {
-    Validate(options);
-    return Import(step_source::InspectFile(path, options.sourceLimits), options);
+    const Options frozen = options;
+    const auto capturedPath = path;
+    Validate(frozen);
+    return Import(
+        frozen,
+        [&]
+        {
+            return step_source::InspectFile(capturedPath, frozen.sourceLimits);
+        }
+    );
 }
 const char* StatusName(Status status)
 {
@@ -206,6 +271,8 @@ const char* StatusName(Status status)
             return "PostcheckFailure";
         case Status::SourceFailure:
             return "SourceFailure";
+        case Status::Cancelled:
+            return "Cancelled";
     }
     throw std::logic_error("Unknown import status");
 }

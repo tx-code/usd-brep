@@ -272,6 +272,32 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add(",\"planar\":");
             w.String(report.planarStatus);
             w.Add("}");
+            w.Add(",\"execution\":{\"last_boundary\":");
+            w.String(PhaseName(report.lastBoundary));
+            w.Add(",\"checkpoints\":");
+            w.Number(report.checkpoints);
+            w.Add(",\"memory_observation_cutoff\":\"BeforeFinalReportSerialization\",\"maximum_observed_private_bytes\":");
+            const auto memory = [&](const std::optional<std::size_t>& value)
+            {
+                if (value)
+                {
+                    w.Number(*value);
+                }
+                else
+                {
+                    w.Add("null");
+                }
+            };
+            memory(report.maximumObservedPrivateBytes);
+            w.Add(",\"process_lifetime_peak_commit_bytes\":");
+            memory(report.processPeakCommitBytes);
+            w.Add(",\"process_private_limit_bytes\":");
+            memory(report.processPrivateLimitBytes);
+            w.Add(",\"hard_memory_limit_bytes\":");
+            memory(report.hardMemoryLimitBytes);
+            w.Add(",\"deadline_configured\":");
+            w.Bool(report.deadlineConfigured);
+            w.Add("}");
             w.Add(",\"source_declarations\":");
             if (report.declarations)
             {

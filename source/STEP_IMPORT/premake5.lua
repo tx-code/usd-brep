@@ -10,6 +10,7 @@ project "STEP_IMPORT"
     links { "STEP_PLANAR", "STEP_SEMANTICS", "STEP_SOURCE", "SM_API", "SMLib" }
     defines { "NL_DEBUG_CODE" }
     filter { "system:windows" }
+        links { "Psapi" }
         buildoptions { "/fp:strict", "/permissive-" }
     filter { "system:linux or macosx" }
         buildoptions { "-fno-fast-math", "-ffp-contract=off" }

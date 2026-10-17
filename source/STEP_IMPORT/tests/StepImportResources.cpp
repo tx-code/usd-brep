@@ -28,6 +28,7 @@ struct Memory
 {
     unsigned long long bytes = 0, blocks = 0, privateBytes = 0;
     unsigned long long tick = 0, crtBytes = 0, crtBlocks = 0;
+    unsigned long long processLifetimePeakCommitBytes = 0;
     // Matched SDK and adapter share ucrtbased.dll; native calloc/new use this CRT.
     // Whole-process heaps also contain OS/runtime bookkeeping that grows without imports.
     // Keep those values diagnostic, and calibrate the selected observer with retained models.
@@ -83,19 +84,22 @@ Memory Sample()
         "Private usage measurement"
     );
     result.privateBytes = process.PrivateUsage;
+    result.processLifetimePeakCommitBytes = process.PeakPagefileUsage;
     return result;
 }
 void Json(const Memory& memory)
 {
     std::cout << "{\"heap_busy_bytes\":" << memory.bytes << ",\"heap_busy_blocks\":" << memory.blocks << ",\"private_bytes\":" << memory.privateBytes
-              << ",\"tick\":" << memory.tick << ",\"crt_bytes\":" << memory.crtBytes << ",\"crt_blocks\":" << memory.crtBlocks << '}';
+              << ",\"tick\":" << memory.tick << ",\"crt_bytes\":" << memory.crtBytes << ",\"crt_blocks\":" << memory.crtBlocks
+              << ",\"process_lifetime_peak_commit_bytes\":" << memory.processLifetimePeakCommitBytes << '}';
 }
 } // namespace
 int main(int argc, char** argv)
 {
     try
     {
-        Require(argc == 2, "Pass F1 input");
+        Require(argc == 2 || (argc == 3 && std::string_view(argv[2]) == "lifecycle"), "Pass fixture input and optional lifecycle mode");
+        const bool lifecycle = argc == 3;
         std::ifstream stream(argv[1], std::ios::binary);
         const std::string bytes{ std::istreambuf_iterator<char>(stream), {} };
         Require(!bytes.empty(), "Readable fixture");
@@ -108,10 +112,25 @@ int main(int argc, char** argv)
         const auto job = [&](std::size_t i)
         {
             auto options = step_import::Options::PlanarFixture();
+            if (lifecycle && i % 4 == 0)
+            {
+                options.execution.control = std::make_shared<step_import::ImportControl>();
+                const auto control = options.execution.control;
+                options.execution.progress = [&, control](step_import::Progress progress)
+                {
+                    if (progress.phase == step_import::Phase::BeforeNativeCall && progress.nativeCalls == (i / 4) % calls)
+                    {
+                        control->RequestCancel();
+                    }
+                };
+            }
             switch (i % 4)
             {
                 case 0:
-                    options.nativeLimits.nativeCalls = (i / 4) % calls;
+                    if (!lifecycle)
+                    {
+                        options.nativeLimits.nativeCalls = (i / 4) % calls;
+                    }
                     break;
                 case 1:
                     options.nativeLimits.reportBytes = 1;
@@ -124,10 +143,21 @@ int main(int argc, char** argv)
                     break;
             }
             const auto result = step_import::ImportBytes(bytes, options);
-            const auto expected = i % 4 == 2 ? step_import::Status::Indeterminate :
-                                  i % 4 == 3 ? step_import::Status::Accepted :
-                                               step_import::Status::ResourceLimit;
+            const auto expected = lifecycle && i % 4 == 0 ? step_import::Status::Cancelled :
+                                  i % 4 == 2              ? step_import::Status::Indeterminate :
+                                  i % 4 == 3              ? step_import::Status::Accepted :
+                                                            step_import::Status::ResourceLimit;
             Require(result.status == expected && bool(result.model) == (i % 4 == 3), "Resource job status");
+            if (lifecycle && result.model)
+            {
+                auto copy = result.model->CopyForModeling();
+                Require(copy.status == step_import::Status::Accepted && bool(copy.model), "Resource copy created");
+                copy.model->Edit(
+                    [](SmBrep&)
+                    {
+                    }
+                );
+            }
         };
         // Warm every native-call boundary and all four outcomes before measuring retained allocations.
         for (std::size_t i = 0; i < 8 * calls; ++i)
@@ -163,6 +193,7 @@ int main(int argc, char** argv)
 #else
                   << "ProcessHeaps"
 #endif
+                  << "\",\"mode\":\"" << (lifecycle ? "CancellationAndEditableCopies" : "OrdinaryFailures")
                   << "\",\"measured_imports\":" << 16 * calls << ",\"native_boundaries\":" << calls << ",\"samples\":[";
         for (std::size_t i = 0; i < samples.size(); ++i)
         {

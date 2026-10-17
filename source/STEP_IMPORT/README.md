@@ -1,8 +1,8 @@
 # STEP_IMPORT（内部 C++20）
 
-05—10 的 STEP→SMLib 闭环：单零件、canonical 毫米；源长度可SI前缀或已验证conversion链，
+STEP→SMLib 内部导入：单零件、canonical 毫米；源长度可SI前缀或已验证conversion链，
 几何为开放 LINE/PLANE 平面及孔，或经过独立证明的矩形盒体边界，
-基于 02—04 自研读取和源检查。没有 OCCT 读取依赖。
+基于 STEP_SOURCE、STEP_SEMANTICS 和 STEP_PLANAR 的自研读取与源检查。没有 OCCT 读取依赖。
 
 `ImportFile` / `ImportBytes` 显式接收 `Options`。先保存不可变原始文档，完成类型、单位、规则与区域检查，
 再建立不含 SMLib 指针的中立计划。候选 context、BRep 与尚未移交的几何分别有所有者。
@@ -24,7 +24,7 @@ if (result.model) {
 该名称的数值不可改写；其他配置必须另取 ID。无效 options 抛出 `invalid_argument`。
 定义曲线和支撑面不拟合；源顶点、递增 LINE 参数、四层方向各自保留。
 目标曲线重参数化到 [0,1]，源根式参数映射留在报告，UV 在拓扑构建后装到 SAME member。
-06 保留各源 bound/loop 与每次 ORIENTED_EDGE 使用的有向顶点、实际 UV、SAME owner 和所在侧。
+保留各源 bound/loop 与每次 ORIENTED_EDGE 使用的有向顶点、实际 UV、SAME owner 和所在侧。
 内核首环必须为外环；仅将源 SET 中的外环提前，源身份与声明方向不改，规范化政策显式记录。
 孔沿源语义构建，不翻向、填充或放宽容差。负 UV 与平移后的源原点保持。
 有限 window 为 trim 包围域加有记录的浮点保护；域外求值先拒绝，不使用内核夹取掩盖错误。
@@ -34,7 +34,7 @@ if (result.model) {
 
 模型没有编辑或 native 指针接口，面视图强引用模型，报告不保活 native BRep。
 `MaterialVolumeMm3()` 对所有表面模型返回空值。面查询在同一模型内串行；尚未授予一般多线程内核资格。
-07 的材料盒体按八角、三组正交边、六个完整外向矩形面证明，支持有理刚体变换和参数/顺序变化，
+材料盒体按八角、三组正交边、六个完整外向矩形面证明，支持有理刚体变换和参数/顺序变化，
 没有使用盒体 primitive 替代源几何。唯一源边只构建一次，其他面复用同一 native edge；
 每面的 mate pair 有各自的 SAME UV，逐项核验实际 radial 邻接和区域/壳的 owner。
 `Faces()` / `Face(index)` 返回带源身份的 owning 面视图，`FaceView::Info()` 为每面属性。
@@ -42,7 +42,7 @@ if (result.model) {
 `ClassifyMaterial()` 对表面返回空值；材料实体返回内/外/面/边/顶点，
 native 工作容差给出的边界分类若不能满足查询误差则返回 Indeterminate。
 
-08 保留 MSSR→SBSM→CLOSED_SHELL 的 `ClosedSurfaceModel`，与07同边界材料盒体分开资格。
+闭合表面保留 MSSR→SBSM→CLOSED_SHELL 的 `ClosedSurfaceModel`，与同边界材料盒体分开资格。
 闭合表面的内外空间区域均标记void；有界void是空间单元，不表示材料包围的空腔。
 原生 `IsManifoldSolid()` 只检查拓扑条件，在此可为真；它不能授予材料资格。
 `source_shape` 保存原表示/形状/壳身份与角色，`native_role` 保存实际区域/壳数量、材料/有界void数量及该原生谓词。
@@ -61,23 +61,52 @@ P04材料路径继续计算材料属性；P05全部材料分类返回空值/NotA
 `nativeCalls` 只计构造、UV 安装、validator、主要测量的调用检查点；系数/拓扑只读访问不逐项计费，
 它不是计时、总内存或硬取消限制。任意 OOM、崩溃恢复、worker、公开绑定均未在本票授予资格。
 
-09保留源单位与参数：VP/LINE/PLANE位置统一到毫米，方向比和源LINE t保持无量纲，
+源单位与参数：VP/LINE/PLANE位置统一到毫米，方向比和源LINE t保持无量纲，
 源PLANE UV通过单独长度比例映射到目标UV。unit_normalization记录原单位、精确尺度、typed factor和共享定义链。
-03的conversion类型快照仍Deferred，04补齐源量纲及正尺度/无环解释，完整Checked后才准入native。
+STEP_SEMANTICS的conversion快照明确Deferred；STEP_PLANAR补齐源量纲及正尺度/无环解释，完整Checked后才准入native。
 名字不决定factor；零负尺度、环、量纲反证各归正确D3/D4，容差与误差预算继续是canonical单位。
-10 保留可选来源声明。`Report::declarations` 拥有完整typed源快照，和按源顺序排列的声明记录及引用依赖闭包；
+可选来源声明：`Report::declarations` 拥有完整typed源快照，和按源顺序排列的声明记录及引用依赖闭包；
 JSON `source_declarations` 保留原始记录、位置、实际/继承类型和名义单位分配。
 uncertainty按自己的unit_component解释，记录原值、单位和可得的精确毫米值；
 与显式一致性预算比较后仅产生独立告警，不覆盖Q、工作tol或Repair=None。
 附加声明数值超出有理数容量时明确比较Unestablished，源记录完整保留，不伪造数值。
 part分类、旧MECHANICAL_CONTEXT/DESIGN_CONTEXT、指定SOURCE枚举及rad/sr身份不会转成基类或按维数合并。
-03/04仍先检查源约束；未知关系明确拒绝，不能丢弃后继续发布。
+源层先检查约束；未知关系明确拒绝，不能丢弃后继续发布。
 声明与报告不持有native对象，模型或面视图释放后仍能读取声明。
-组合P13可沿通用路径执行，完整组合与首profile资格仍留12；
+组合P13可沿通用路径执行，完整组合与首profile资格仍需独立总验收；
 一般多面体、开放共享片、截面/切割及一般修复没有因材料盒体通过而自动获得资格。
 原始来源仍保留；不支持时返回明确诊断，不静默少件。`Repair=None`。
 
 ## 构建与验证
+
+### 执行、取消和独立副本
+
+`Options`及文件路径在同步调用入口冻结；原始字节在捕获后不再读取路径。
+`execution.control`可指定一次性的`ImportControl`。其他线程可请求取消，返回
+Requested/AlreadyRequested/TooLate/AlreadyCompleted；取消请求自身不访问native。
+`execution.progress`在捕获、源检查、逐native调用间、报告及提交前同步通知。
+不可中断调用先安全返回，候选撤销完成后返回Cancelled；旧快照和捕获源不变。
+observer异常是ExecutionFailure；意外`bad_alloc`向调用者传播，不能伪称已配置限额耗尽。
+
+模型owner和必需报告在发布前完整准备，取消/成功由一次原子提交裁决。
+成功之后迟到取消返回TooLate，模型寿命由快照/view持有者决定。
+本模块的native构建、查询、副本、编辑回调和释放共用进程内串行锁；
+其他直接native调用者仍须协调，独立context不代表整个SMLib可任意并发。
+
+`nativeLimits.processPrivateBytes`检查进程PrivateUsage的软上限，`execution.deadline`使用steady clock。
+检查发生于安全边界并在发布前复核，单次操作可以超出边界间预算；不提供OS硬保证。
+`hardMemoryBytes`明确返回UnsupportedHardMemoryContract。
+执行报告区分未测null、检查点最大private commit和进程生命周期峰值；后者不归因于单请求。
+观测截止为最终报告序列化之前，发布前预算拒绝会记录额外失败观测。
+工作内存、截止和取消与硬取消/崩溃隔离分开，生产档位仍待实测定标。
+
+`ModelSnapshot::CopyForModeling()`返回独立结果和`EditableBrep` owner：
+深复制保留几何类型/材料角色，在独立context中通过指针及LEVEL2验证后交付。
+`Edit(callback)`仅在串行回调作用域借出BRep，允许非消费式原地编辑；
+不能删除/消费根或保留native借用。副本释放与原快照无关，编辑结果不继承原导入质量资格。
+报告和声明仍不持有native对象。进一步建模、worker和跨进程物化各需自己的资格。
+
+### 命令行
 
 根 Premake 注册两个项目。独立 CMake 可接收已有 `SMLib` / `SM_API` targets；本机 Windows 路径使用
 匹配源码、配置、CRT、宏及工具链的 SDK，目录中分别为 `release/`、`debug/` 的 DLL 与 import lib：
@@ -92,7 +121,10 @@ python -m unittest tools.step_import_native_validation.tests.test_native -v
 ```
 
 CLI 返回 0 Accepted、1 Rejected、2 Unsupported/参数错误、3 ResourceLimit、4 SourceFailure、
-5 必需输出未发布、6 BuildFailure/调用异常、7 Deferred、8 Indeterminate、9 PostcheckFailure。
+5 必需输出未发布、6 BuildFailure/调用异常、7 Deferred、8 Indeterminate、9 PostcheckFailure、10 Cancelled。
+CLI可指定源字节/记录/引用/值/深度/字符串/单记录/ID长度、语义访问和planar工作限额，
+以及`--max-process-private-bytes`、`--deadline-ms`和`--hard-memory-bytes`。
+CLI截止可设在24小时内；所有执行限制按上述合作性质处理。
 JSON 输出为 binary stdout，字节预算不受 Windows 换行转换影响。
 测试直接沿内部公开接口和真实 CLI；没有另建测试包发布机制。
 Windows 资源检查包含成功、各调用预算边界、后验预算不足、报告超限及保留模型的阳性对照。
@@ -102,11 +134,5 @@ Windows 资源检查包含成功、各调用预算边界、后验预算不足、
 
 本机已验证的 C++20 适配器配套原生内核仍为 C++17；不代表全仓升级或一般 ABI/跨平台资格。
 `SmIterationValue::operator==` 仅补 `const` 以使头文件能在 C++20 equality rewriting 下编译，
-函数原有恒 FALSE 主体与求解算法不变。详细实现和验收见
-[实施合同](../../docs/step-import/ticket05-implementation.md)与
-[05 验收](../../docs/step-import/ticket05-acceptance.md)和
-[06 验收](../../docs/step-import/ticket06-acceptance.md)和
-[07 验收](../../docs/step-import/ticket07-acceptance.md)。
-08 的角色与原生表示约束见[实施合同](../../docs/step-import/ticket08-implementation.md)与[验收记录](../../docs/step-import/ticket08-acceptance.md)。
-09 的单位/参数与转换解释见[实施合同](../../docs/step-import/ticket09-implementation.md)与[验收记录](../../docs/step-import/ticket09-acceptance.md)。
-10 的可选声明、旧类型与来源所有权见[实施合同](../../docs/step-import/ticket10-implementation.md)与[验收记录](../../docs/step-import/ticket10-acceptance.md)。
+函数原有恒 FALSE 主体与求解算法不变。对应头文件见
+[SmLocalSolve1d.h](../SMLib/inc/SmLocalSolve1d.h)。

@@ -5,13 +5,18 @@
 #include "StepPlanar.h"
 
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-// Internal native-import interface. No native pointer or editing operation escapes this module.
+class SmBrep;
+
+// Internal native-import interface. Imported snapshots expose no mutable native handles.
 namespace step_import
 {
 using Point = std::array<double, 3>;
@@ -20,8 +25,62 @@ using Fraction = step_planar::Rational;
 namespace detail
 {
 struct ModelData;
+struct EditableData;
 struct Access;
+class Execution;
 } // namespace detail
+enum class CancelResult
+{
+    Requested,
+    AlreadyRequested,
+    TooLate,
+    AlreadyCompleted
+};
+class ImportControl
+{
+public:
+
+    CancelResult RequestCancel() noexcept; // One control per invocation; thread safe. A request is not immediate completion.
+
+private:
+
+    friend class detail::Execution;
+    enum class State
+    {
+        Ready,
+        Requested,
+        Accepted,
+        Cancelled,
+        Failed
+    };
+    std::atomic<State> m_state{ State::Ready };
+    std::atomic<bool> m_started{ false };
+};
+enum class Phase
+{
+    NotStarted,
+    BeforeCapture,
+    Captured,
+    SemanticsChecked,
+    PlanarChecked,
+    BeforeNativeCall,
+    NativeReady,
+    BeforeReport,
+    ReportReady,
+    BeforeCommit
+};
+struct Progress
+{
+    Phase phase;
+    std::size_t nativeCalls;
+};
+struct ExecutionOptions
+{
+    std::shared_ptr<ImportControl> control;
+    std::function<void(Progress)> progress; // Synchronous safe-boundary observer; exceptions are execution failures.
+    std::optional<std::chrono::steady_clock::time_point> deadline;
+    bool measureProcessMemory = false;
+};
 struct Quality
 {
     std::string id;
@@ -36,6 +95,8 @@ struct Limits
     // Read-only coefficient/topology accessors are not individually charged. This is not a timeout or memory cap.
     std::size_t nativeCalls = 10000;
     std::size_t reportBytes = 16 * 1024 * 1024;
+    std::optional<std::size_t> processPrivateBytes; // Cooperative, process-wide commit charge at safe boundaries; not a hard cap.
+    std::optional<std::size_t> hardMemoryBytes; // Unsupported in this in-process execution mode; never silently relaxed.
 };
 struct Options
 {
@@ -44,6 +105,7 @@ struct Options
     step_planar::Limits planarLimits;
     Quality quality;
     Limits nativeLimits;
+    ExecutionOptions execution;
     static Options PlanarFixture();
 };
 struct Statistics
@@ -63,6 +125,7 @@ struct ClosestPoint
     Point pointMm{};
     double distanceMm = 0;
 };
+struct EditableCopyOutcome;
 enum class PointClass
 {
     Outside,
@@ -107,6 +170,7 @@ public:
     std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
+    EditableCopyOutcome CopyForModeling() const;
 
 private:
 
@@ -203,6 +267,11 @@ struct Report
     std::string kernelPath;
     std::size_t nativeCalls = 0;
     bool candidateDiscarded = false;
+    Phase lastBoundary = Phase::NotStarted;
+    std::size_t checkpoints = 0;
+    std::optional<std::size_t> maximumObservedPrivateBytes, processPeakCommitBytes;
+    std::optional<std::size_t> processPrivateLimitBytes, hardMemoryLimitBytes;
+    bool deadlineConfigured = false;
     std::string json; // Mandatory bounded report, completed before a model is published.
 };
 enum class Status
@@ -215,7 +284,8 @@ enum class Status
     ResourceLimit,
     BuildFailure,
     PostcheckFailure,
-    SourceFailure
+    SourceFailure,
+    Cancelled
 };
 struct Outcome
 {
@@ -223,9 +293,31 @@ struct Outcome
     std::shared_ptr<const ModelSnapshot> model;
     Report report;
 };
+class EditableBrep
+{
+public:
+
+    ~EditableBrep();
+    // Borrowed only during this serialized callback. Do not delete/consume the root or retain native references.
+    // Edits have no imported-model quality qualification and cannot affect the original snapshot/report.
+    void Edit(const std::function<void(SmBrep&)>& edit);
+
+private:
+
+    friend class ModelSnapshot;
+    explicit EditableBrep(std::unique_ptr<detail::EditableData> data);
+    std::unique_ptr<detail::EditableData> m_data;
+};
+struct EditableCopyOutcome
+{
+    Status status = Status::BuildFailure;
+    std::unique_ptr<EditableBrep> model;
+    std::string errorKey, message;
+};
 Outcome ImportBytes(std::string bytes, const Options& options);
 Outcome ImportFile(const std::filesystem::path& path, const Options& options);
 // Invalid options throw std::invalid_argument; allocation failure is not a qualified recoverable outcome.
 const char* StatusName(Status status);
 const char* MaterialPointClassName(MaterialPointClass classification);
+const char* PhaseName(Phase phase);
 } // namespace step_import

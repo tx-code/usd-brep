@@ -11,6 +11,7 @@ struct Failure
     Status status;
     std::string key, message;
     std::optional<std::size_t> record;
+    std::string stage = "D5";
 };
 struct VertexPlan
 {
@@ -66,7 +67,8 @@ struct Plan
 };
 Plan MakePlan(const step_planar::Outcome& checked);
 SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality);
-std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report);
+class Execution;
+std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report, Execution& execution);
 struct Access
 {
     static std::shared_ptr<const ModelSnapshot> Snapshot(std::shared_ptr<ModelData> data);

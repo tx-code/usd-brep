@@ -71,6 +71,40 @@ class NativeTests(unittest.TestCase):
         return (CORPUS / "cases/S203-P04/input.step").read_bytes(), next(
             c["truth"] for c in self.cases if c["case_id"] == "S203-P04")
 
+    def test_execution_limits_have_separate_diagnostics_and_real_memory(self):
+        for flag, expected, code in (("--hard-memory-bytes", "UnsupportedHardMemoryContract", 2),
+                                      ("--max-process-private-bytes", "ProcessMemoryLimit", 3),
+                                      ("--deadline-ms", "DeadlineExceeded", 3)):
+            actual, observed = self.invoke(self.p01, flag, 0)
+            self.assertEqual(code, actual.returncode)
+            self.assertEqual((expected, "Execution"),
+                             (observed["diagnostics"][0]["key"], observed["diagnostics"][0]["stage"]))
+            self.assertEqual(0, observed["native_calls"])
+            self.assertIsNone(observed["model"])
+            if flag == "--max-process-private-bytes":
+                self.assertGreater(observed["execution"]["maximum_observed_private_bytes"], 0)
+                self.assertGreater(observed["execution"]["process_lifetime_peak_commit_bytes"], 0)
+        normal = self.good(self.p01)
+        self.assertIsNone(normal["execution"]["maximum_observed_private_bytes"])
+        self.assertIsNone(normal["execution"]["process_lifetime_peak_commit_bytes"])
+
+    def test_source_quotas_are_forwarded_and_block_native_work(self):
+        self.assertEqual(2508, len(self.p01))
+        for flag, bound in (("--max-input-bytes", 2508), ("--max-records", 51)):
+            actual, observed = self.invoke(self.p01, flag, bound)
+            self.assertEqual(0, actual.returncode)
+            accepted(observed, self.p01, self.truth)
+            actual, observed = self.invoke(self.p01, flag, bound - 1)
+            self.assertEqual(3, actual.returncode)
+            self.assertEqual(0, observed["native_calls"])
+            self.assertIsNone(observed["model"])
+        for flag in ("--max-references", "--max-values", "--max-nesting", "--max-string-bytes", "--max-record-bytes",
+                     "--max-id-digits", "--max-semantic-visits", "--max-planar-work"):
+            actual, observed = self.invoke(self.p01, flag, 1)
+            self.assertEqual(3, actual.returncode, (flag, actual.stderr or actual.stdout))
+            self.assertEqual(0, observed["native_calls"])
+            self.assertIsNone(observed["model"])
+
     def test_optional_branches_deliver_the_same_f1_queries(self):
         for key in ("P08", "P09", "P10", "P12"):
             with self.subTest(case=key):

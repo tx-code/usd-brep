@@ -69,6 +69,8 @@ int Exit(step_import::Status status)
             return 8;
         case Status::PostcheckFailure:
             return 9;
+        case Status::Cancelled:
+            return 10;
     }
     return 6;
 }
@@ -112,7 +114,7 @@ int main(int argc, char** argv)
                     }
                 }
             }
-            else if ((arg == "--max-native-calls" || arg == "--max-report-bytes") && i + 1 < argc)
+            else if ((arg.starts_with("--max-") || arg == "--deadline-ms" || arg == "--hard-memory-bytes") && i + 1 < argc)
             {
                 std::size_t value = 0;
                 const std::string_view token(argv[++i]);
@@ -121,13 +123,51 @@ int main(int argc, char** argv)
                 {
                     throw std::invalid_argument("Unsigned limit required");
                 }
-                if (arg == "--max-native-calls")
+                const std::pair<std::string_view, std::size_t*> counters[] = { { "--max-native-calls", &options.nativeLimits.nativeCalls },
+                                                                               { "--max-report-bytes", &options.nativeLimits.reportBytes },
+                                                                               { "--max-input-bytes", &options.sourceLimits.inputBytes },
+                                                                               { "--max-records", &options.sourceLimits.records },
+                                                                               { "--max-references", &options.sourceLimits.references },
+                                                                               { "--max-values", &options.sourceLimits.values },
+                                                                               { "--max-nesting", &options.sourceLimits.nesting },
+                                                                               { "--max-string-bytes", &options.sourceLimits.stringBytes },
+                                                                               { "--max-record-bytes", &options.sourceLimits.recordBytes },
+                                                                               { "--max-id-digits", &options.sourceLimits.idDigits },
+                                                                               { "--max-semantic-visits", &options.semanticLimits.dependencyVisits },
+                                                                               { "--max-planar-work", &options.planarLimits.work } };
+                bool assigned = false;
+                for (const auto& [name, target] : counters)
                 {
-                    options.nativeLimits.nativeCalls = value;
+                    if (arg == name)
+                    {
+                        *target = value;
+                        assigned = true;
+                        break;
+                    }
+                }
+                if (assigned)
+                {
+                    continue;
+                }
+                if (arg == "--max-process-private-bytes")
+                {
+                    options.nativeLimits.processPrivateBytes = value;
+                }
+                else if (arg == "--hard-memory-bytes")
+                {
+                    options.nativeLimits.hardMemoryBytes = value;
+                }
+                else if (arg == "--deadline-ms")
+                {
+                    if (value > 24 * 60 * 60 * 1000)
+                    {
+                        throw std::invalid_argument("CLI deadline must be within 24 hours");
+                    }
+                    options.execution.deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(value);
                 }
                 else
                 {
-                    options.nativeLimits.reportBytes = value;
+                    throw std::invalid_argument("Unknown declared limit");
                 }
             }
             else if (!arg.starts_with("--") && file.empty())

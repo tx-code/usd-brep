@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportExecution.h"
 #include "StepImportInterval.h"
 
 #include <SmApiQueries.h>
@@ -33,6 +34,11 @@
 
 namespace step_import::detail
 {
+std::recursive_mutex& NativeMutex()
+{
+    static std::recursive_mutex mutex;
+    return mutex;
+}
 struct NativeFaceData
 {
     SmFace* face = nullptr;
@@ -43,6 +49,12 @@ struct NativeFaceData
 };
 struct ModelData
 {
+    ~ModelData()
+    {
+        std::lock_guard lock(NativeMutex());
+        brep.reset();
+        context.reset();
+    }
     std::unique_ptr<SmContext> context; // Reverse destruction order: BRep before context.
     std::unique_ptr<SmBrep> brep;
     std::shared_ptr<const step_semantics::Snapshot> source;
@@ -58,6 +70,17 @@ struct ModelData
     Fraction queryBudget;
     Statistics info;
     mutable std::mutex mutex;
+};
+struct EditableData
+{
+    std::unique_ptr<SmContext> context;
+    std::unique_ptr<SmBrep> brep;
+    ~EditableData()
+    {
+        std::lock_guard lock(NativeMutex());
+        brep.reset();
+        context.reset();
+    }
 };
 namespace
 {
@@ -223,8 +246,8 @@ class Builder
 {
 public:
 
-    Builder(const Plan& plan, const Options& options, Report& report)
-        : m_plan(plan), m_options(options), m_report(report), m_model(std::make_shared<ModelData>())
+    Builder(const Plan& plan, const Options& options, Report& report, Execution& execution)
+        : m_plan(plan), m_options(options), m_report(report), m_model(std::make_shared<ModelData>()), m_execution(execution)
     {
         m_model->source = m_plan.source;
         m_model->queryTolerance = Value(m_options.quality.queryMm);
@@ -339,6 +362,7 @@ private:
     const Options& m_options;
     Report& m_report;
     std::shared_ptr<ModelData> m_model;
+    Execution& m_execution;
     std::map<std::string, double> initialTolerances;
     std::string Id(std::size_t record) const
     {
@@ -452,6 +476,7 @@ private:
     }
     void Step(std::size_t record)
     {
+        m_execution.Check(Phase::BeforeNativeCall);
         if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
         {
             throw Failure{ Status::ResourceLimit, "NativeCallLimit", "Bounded native call allowance exhausted", record };
@@ -1366,9 +1391,10 @@ void Builder::Measure()
     m_report.native = info;
 }
 } // namespace
-std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report)
+std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report, Execution& execution)
 {
-    return Builder(plan, options, report).Run();
+    std::lock_guard lock(NativeMutex());
+    return Builder(plan, options, report, execution).Run();
 }
 std::shared_ptr<const ModelSnapshot> Access::Snapshot(std::shared_ptr<ModelData> data)
 {
@@ -1378,6 +1404,57 @@ std::shared_ptr<const ModelSnapshot> Access::Snapshot(std::shared_ptr<ModelData>
 
 namespace step_import
 {
+EditableBrep::EditableBrep(std::unique_ptr<detail::EditableData> data) : m_data(std::move(data))
+{
+}
+EditableBrep::~EditableBrep() = default;
+void EditableBrep::Edit(const std::function<void(SmBrep&)>& edit)
+{
+    if (!edit)
+    {
+        throw std::invalid_argument("A scoped, non-consuming edit callback is required");
+    }
+    std::lock_guard lock(detail::NativeMutex());
+    edit(*m_data->brep);
+}
+EditableCopyOutcome ModelSnapshot::CopyForModeling() const
+{
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard lock(m_data->mutex);
+    try
+    {
+        auto copy = std::make_unique<detail::EditableData>();
+        copy->context = std::make_unique<SmContext>();
+        copy->brep.reset(new (*copy->context) SmBrep(*m_data->brep, nullptr, nullptr, TRUE, FALSE));
+        if (!copy->brep || copy->brep->GetContext() != copy->context.get())
+        {
+            return { Status::BuildFailure, {}, "EditableCopyContextMismatch", "Copy must own a separate native context" };
+        }
+        SmAssertArray pointers;
+        if (copy->brep->ValidatePointers(&pointers) != SM_SUCCESS || pointers.GetSize() != 0)
+        {
+            return { Status::PostcheckFailure, {}, "EditableCopyPointerValidation", "Copied topology failed pointer validation" };
+        }
+        SmAssertArray deep;
+        if (!copy->brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) || deep.GetSize() != 0)
+        {
+            return { Status::PostcheckFailure, {}, "EditableCopyDeepValidation", "Copied topology failed level-2 validation" };
+        }
+        return { Status::Accepted, std::unique_ptr<EditableBrep>(new EditableBrep(std::move(copy))), {}, {} };
+    }
+    catch (const std::bad_alloc&)
+    {
+        throw;
+    }
+    catch (const std::exception& error)
+    {
+        return { Status::BuildFailure, {}, "EditableCopyFailure", error.what() };
+    }
+    catch (...)
+    {
+        return { Status::BuildFailure, {}, "EditableCopyFailure", "Unknown native copy failure" };
+    }
+}
 ModelSnapshot::ModelSnapshot(std::shared_ptr<detail::ModelData> data) : m_data(std::move(data))
 {
 }
@@ -1423,6 +1500,7 @@ Statistics FaceView::Info() const
 }
 Point FaceView::EvaluateSurface(double u, double v) const
 {
+    std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     const auto plane = m_data->faces[m_face].plane;
     const auto domain = plane->GetNaturalUVDomain();
@@ -1447,6 +1525,7 @@ ClosestPoint FaceView::Closest(const Point& point) const
     {
         throw std::invalid_argument("Finite query required");
     }
+    std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPoint3d closest;
     double distance = 0;
@@ -1470,6 +1549,7 @@ ClosestPoint ModelSnapshot::Closest(const Point& point) const
     {
         throw std::invalid_argument("Finite query required");
     }
+    std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPoint3d closest;
     double distance = 0;
@@ -1482,6 +1562,7 @@ PointClass FaceView::ClassifyUV(double u, double v) const
     {
         throw std::invalid_argument("Finite query required");
     }
+    std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     int classification = 0;
     detail::Good(SmApiFaceClassifyUV(m_data->faces[m_face].face, SmPoint2d(u, v), classification));
@@ -1514,6 +1595,7 @@ std::optional<MaterialPointClass> ModelSnapshot::ClassifyMaterial(const Point& p
     {
         throw std::invalid_argument("Finite query required");
     }
+    std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPointClassification classification(m_data->queryTolerance, m_data->context.get());
     detail::Good(m_data->brep->Point3DClassify(detail::Native(point), m_data->queryTolerance, TRUE, classification));

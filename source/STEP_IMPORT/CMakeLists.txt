@@ -23,11 +23,14 @@ if(NOT TARGET SMLib OR NOT TARGET SM_API)
     endforeach()
 endif()
 
-add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportReport.cpp)
+add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
 target_link_libraries(STEP_IMPORT PUBLIC STEP_PLANAR PRIVATE SM_API SMLib)
+if(WIN32)
+    target_link_libraries(STEP_IMPORT PRIVATE Psapi)
+endif()
 target_compile_definitions(STEP_IMPORT PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
     $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
 if(MSVC)
@@ -65,6 +68,17 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_link_libraries(step_import_declaration_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_declaration_contracts COMMAND step_import_declaration_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
+    add_executable(step_import_lifecycle_tests tests/StepImportLifecycleTests.cpp)
+    target_link_libraries(step_import_lifecycle_tests PRIVATE STEP_IMPORT)
+    add_test(NAME step_import_lifecycle_contracts COMMAND step_import_lifecycle_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
+    add_executable(step_import_copy_tests tests/StepImportCopyTests.cpp)
+    target_link_libraries(step_import_copy_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_copy_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_copy_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_copy_contracts COMMAND step_import_copy_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases")
     if(WIN32)
         add_executable(step_import_resources tests/StepImportResources.cpp)
         target_compile_definitions(step_import_resources PRIVATE NOMINMAX)
@@ -81,10 +95,15 @@ if(STEP_IMPORT_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P11/input.step")
         add_test(NAME step_import_declaration_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P08/input.step")
+        add_test(NAME step_import_lifecycle_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P01/input.step" lifecycle)
     endif()
 endif()
+if(TARGET step_import_lifecycle_tests)
+    set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
+endif()
 
-foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests)
+foreach(target step_native_import step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD
