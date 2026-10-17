@@ -184,6 +184,16 @@ public:
         {
             State(Phase::Units) = Progress::Deferred;
         }
+        if (Interoperability())
+        {
+            RunPhase(
+                Phase::Interoperability,
+                [&]
+                {
+                    ApprovePreservedMetadata();
+                }
+            );
+        }
     }
     void PublishProgress()
     {
@@ -193,6 +203,27 @@ public:
         m_outcome.geometryDependencies = ProgressName(State(Phase::GeometryDependencies));
         m_outcome.part = ProgressName(State(Phase::Part));
         m_outcome.siUnits = ProgressName(State(Phase::Units));
+        m_outcome.interoperability = ProgressName(State(Phase::Interoperability));
+        for (const auto& diagnostic : m_data->preservedDiagnostics)
+        {
+            const auto& key = diagnostic.source.key;
+            if (key == "RequiredAttributeMissing")
+            {
+                m_outcome.types = "CheckedWithDiagnostics";
+            }
+            else if (key == "UnsupportedProductCategory" || key == "UnsupportedDefinitionContextRole" || key == "UnownedOrOrphanProfileContent")
+            {
+                m_outcome.part = "CheckedWithDiagnostics";
+            }
+            else
+            {
+                m_outcome.unitDependencies = "CheckedWithDiagnostics";
+            }
+        }
+        if (!m_data->part.deferredRegionFaces.empty())
+        {
+            m_outcome.part = "Deferred";
+        }
     }
 
 private:
@@ -204,7 +235,8 @@ private:
         UnitDependencies,
         GeometryDependencies,
         Part,
-        Units
+        Units,
+        Interoperability
     };
     enum class Progress
     {
@@ -219,7 +251,7 @@ private:
     std::shared_ptr<SemanticData> m_data;
     Outcome& m_outcome;
     std::optional<Phase> m_phase;
-    std::array<Progress, 6> m_progress{};
+    std::array<Progress, 7> m_progress{};
 
     std::string SourceAuthority() const
     {
@@ -263,6 +295,7 @@ private:
             case Status::ResourceLimit:
                 return Progress::ResourceLimit;
             case Status::Checked:
+            case Status::CheckedWithDiagnostics:
             case Status::Deferred:
             case Status::SourceFailure:
                 break;
@@ -344,6 +377,47 @@ private:
         if (++m_outcome.dependencyVisits > m_outcome.limits.dependencyVisits)
         {
             Fail("DependencyVisitLimit", "D2", "Configured semantic traversal budget exceeded", span, Status::ResourceLimit);
+        }
+    }
+    bool Interoperability() const
+    {
+        return m_data->policy == SourcePolicy::PreserveNonGeometric && m_data->profile.kind == ProfileKind::Ap214e3Source;
+    }
+    bool NonGeometricStyle(std::size_t record) const
+    {
+        // Closed declarations whose outgoing references stay in the style chain.
+        // STYLED_ITEM is deliberately absent: it references a geometric RI and
+        // must still pass the existing selected-body attachment proof.
+        constexpr std::string_view names[] = {
+            "PRESENTATION_STYLE_ASSIGNMENT", "SURFACE_STYLE_USAGE", "SURFACE_SIDE_STYLE", "SURFACE_STYLE_FILL_AREA", "FILL_AREA_STYLE",
+            "FILL_AREA_STYLE_COLOUR",        "COLOUR_RGB"
+        };
+        return std::any_of(
+            std::begin(names),
+            std::end(names),
+            [&](auto name)
+            {
+                return IsA(*m_data, record, name);
+            }
+        );
+    }
+    void Preserve(Failure failure)
+    {
+        // Capture the original strict diagnostic, not a replacement verdict. It
+        // remains provisional until attachment and physical-dependency checks pass.
+        m_data->pendingIssues.push_back({ failure.status, std::move(failure.diagnostic) });
+        // Fail marked the phase terminal. Restore it only for this provisional
+        // issue; the final proof still precedes every typed snapshot publication.
+        State(*m_phase) = Progress::Running;
+        if (m_data->pendingIssues.size() > m_outcome.limits.preservedDiagnostics)
+        {
+            Fail(
+                "PreservedDiagnosticLimit",
+                "D2",
+                "Interoperability diagnostic capacity exceeded",
+                m_data->pendingIssues.back().diagnostic.source.primary,
+                Status::ResourceLimit
+            );
         }
     }
     const step_source::Record& Record(std::size_t index) const
@@ -918,19 +992,35 @@ private:
                         {
                             continue;
                         }
-                        Fail(
-                            "RequiredAttributeMissing",
-                            "D1",
-                            "A required attribute is missing; empty string is a distinct value",
-                            value.span,
-                            Status::Rejected,
-                            r,
-                            c,
-                            path,
-                            field.type,
-                            "$",
-                            SourceAuthority() + " required attribute"
-                        );
+                        try
+                        {
+                            Fail(
+                                "RequiredAttributeMissing",
+                                "D1",
+                                "A required attribute is missing; empty string is a distinct value",
+                                value.span,
+                                Status::Rejected,
+                                r,
+                                c,
+                                path,
+                                field.type,
+                                "$",
+                                SourceAuthority() + " required attribute"
+                            );
+                        }
+                        catch (Failure& failure)
+                        {
+                            // Only RI/REP labels are nondefining. Keep '$' in the
+                            // original Value; axes, points, references and units
+                            // never acquire a default through this policy.
+                            if (!Interoperability() || field.name != "name" || field.kind != FieldKind::String ||
+                                (!IsA(*m_data, r, "REPRESENTATION_ITEM") && !IsA(*m_data, r, "REPRESENTATION") && !NonGeometricStyle(r)))
+                            {
+                                throw;
+                            }
+                            Preserve(std::move(failure));
+                            continue;
+                        }
                     }
                     if (field.kind != FieldKind::Aggregate)
                     {
@@ -1221,19 +1311,32 @@ private:
         }
         if (FieldValue(pdc, "name").text != "part definition")
         {
-            FieldFailure(
-                "UnsupportedDefinitionContextRole",
-                "D2",
-                "Definition context is outside the single-part profile",
-                FieldValue(pdc, "name").span,
-                Status::Unsupported,
-                pdc,
-                "name",
-                FieldDetail::AttributePath,
-                "part definition",
-                FieldValue(pdc, "name").text,
-                "profile role guard"
-            );
+            try
+            {
+                FieldFailure(
+                    "UnsupportedDefinitionContextRole",
+                    "D2",
+                    "Definition context is outside the single-part profile",
+                    FieldValue(pdc, "name").span,
+                    Status::Unsupported,
+                    pdc,
+                    "name",
+                    FieldDetail::AttributePath,
+                    "part definition",
+                    FieldValue(pdc, "name").text,
+                    "profile role guard"
+                );
+            }
+            catch (Failure& failure)
+            {
+                // The unique selected PD->PDC link was already checked above.
+                // Its administrative label cannot choose or transform geometry.
+                if (!Interoperability())
+                {
+                    throw;
+                }
+                Preserve(std::move(failure));
+            }
         }
         if (FieldValue(pdc, "life_cycle_stage").text != "design")
         {
@@ -1295,21 +1398,34 @@ private:
         {
             const auto category = categories[0];
             const auto& products = FieldValue(category, "products");
-            if (FieldValue(category, "name").text != "part" || products.children.size() != 1 || Target(products.children[0]) != product)
+            if (products.children.size() != 1 || Target(products.children[0]) != product || FieldValue(category, "name").text != "part")
             {
-                FieldFailure(
-                    "UnsupportedProductCategory",
-                    "D2",
-                    "Category name/products are outside the single-part guard",
-                    FieldValue(category, "name").span,
-                    Status::Unsupported,
-                    category,
-                    "name",
-                    FieldDetail::AttributePath,
-                    "part for this product",
-                    FieldValue(category, "name").text,
-                    "profile category guard"
-                );
+                try
+                {
+                    FieldFailure(
+                        "UnsupportedProductCategory",
+                        "D2",
+                        "Category name/products are outside the single-part guard",
+                        FieldValue(category, "name").span,
+                        Status::Unsupported,
+                        category,
+                        "name",
+                        FieldDetail::AttributePath,
+                        "part for this product",
+                        FieldValue(category, "name").text,
+                        "profile category guard"
+                    );
+                }
+                catch (Failure& failure)
+                {
+                    // An arbitrary source category label is not geometry, but
+                    // membership must still be exactly the selected product.
+                    if (!Interoperability() || products.children.size() != 1 || Target(products.children[0]) != product)
+                    {
+                        throw;
+                    }
+                    Preserve(std::move(failure));
+                }
             }
             m_data->part.roles.push_back({ "category", category });
         }
@@ -1389,6 +1505,14 @@ private:
             }
             if (outer != 1)
             {
+                if (outer == 0 && m_data->profile.kind == ProfileKind::Ap214e3Source && m_data->geometryScope == GeometryScope::GeneralBrep)
+                {
+                    // Ordinary FACE_BOUND is legal source data. Do not guess its
+                    // role or silently change the source type: general native
+                    // construction must classify all regions before publication.
+                    m_data->part.deferredRegionFaces.push_back(face);
+                    continue;
+                }
                 FieldFailure(
                     "UnsupportedExplicitOuterBoundRequired",
                     "D2",
@@ -1628,7 +1752,54 @@ private:
                 {
                     failure.diagnostic.source.related.push_back(Record(orphans[i]).idSpan);
                 }
-                throw;
+                std::vector<unsigned char> bodyUse;
+                const auto styledItem = [&](auto r)
+                {
+                    return IsA(*m_data, r, "STYLED_ITEM");
+                };
+                if (Interoperability() && std::any_of(orphans.begin(), orphans.end(), styledItem))
+                {
+                    std::vector<std::size_t> bodyItems;
+                    for (const auto& value : FieldValue(m_representation, "items").children)
+                    {
+                        bodyItems.push_back(Target(value));
+                    }
+                    bodyUse = Reach(std::move(bodyItems), true);
+                }
+                const auto nondefiningResidue = [&](std::size_t r)
+                {
+                    Visit(Record(r).span);
+                    if (styledItem(r))
+                    {
+                        // An absent presentation owner cannot hide another shape.
+                        // The explicit target must already be used by this body.
+                        const auto& target = FieldValue(r, "item");
+                        Visit(target.span);
+                        return !bodyUse.empty() && bodyUse[Target(target)];
+                    }
+                    if (!NonGeometricStyle(r))
+                    {
+                        return false;
+                    }
+                    for (auto reference : m_outgoing[r])
+                    {
+                        Visit(references[reference].span);
+                        if (!NonGeometricStyle(references[reference].targetRecordIndex))
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                };
+                const bool stylesOnly = Interoperability() && std::all_of(orphans.begin(), orphans.end(), nondefiningResidue);
+                if (!stylesOnly)
+                {
+                    throw;
+                }
+                // Preserve source-only residue separately. No part role or fake
+                // geometry/presentation attachment is manufactured for these IDs.
+                m_data->unattachedStyles = orphans;
+                Preserve(std::move(failure));
             }
         }
         std::vector<std::size_t> items;
@@ -1655,6 +1826,55 @@ private:
         m_data->representationUse = Reach(std::move(items), true);
     }
 
+    void ApprovePreservedMetadata()
+    {
+        if (m_data->pendingIssues.empty())
+        {
+            return;
+        }
+        Expects(Interoperability());
+        // All property roots are now proven. A bad MRI may be retained only if
+        // it is an actual metadata item and is absent from body geometry and
+        // physical-unit dependencies (including conversion-factor references).
+        const auto physical = Reach({ m_representation, m_context }, false);
+        std::vector<unsigned char> metadata(m_data->types.size());
+        for (const auto& attachment : m_data->part.propertyAttachments)
+        {
+            for (const auto& value : FieldValue(attachment.representation, "items").children)
+            {
+                Visit(value.span);
+                metadata[Target(value)] = 1;
+            }
+        }
+        if (m_data->pendingIssues.size() > m_outcome.limits.preservedDiagnostics)
+        {
+            Fail(
+                "PreservedDiagnosticLimit",
+                "D2",
+                "Interoperability diagnostic capacity exceeded",
+                m_data->pendingIssues.back().diagnostic.source.primary,
+                Status::ResourceLimit
+            );
+        }
+        for (auto& issue : m_data->pendingIssues)
+        {
+            Visit(issue.diagnostic.source.primary);
+            const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
+            const auto& key = issue.diagnostic.source.key;
+            const bool measure = key == "SourceRuleViolation:MEASURE_WITH_UNIT.WR1" || key == "SourceRuleViolation:POSITIVE_RATIO_MEASURE.WR1";
+            if (measure && (!metadata[record] || physical[record]))
+            {
+                State(Phase::UnitDependencies) = FailureProgress(issue.status);
+                State(Phase::Interoperability) = FailureProgress(issue.status);
+                throw Failure{ issue.status, std::move(issue.diagnostic) };
+            }
+        }
+        for (auto& issue : m_data->pendingIssues)
+        {
+            m_data->preservedDiagnostics.push_back(std::move(issue.diagnostic));
+        }
+        m_data->pendingIssues.clear();
+    }
     void UnitContext()
     {
         const auto& dimension = FieldValue(m_context, "coordinate_space_dimension");
@@ -1809,6 +2029,14 @@ const Units& Snapshot::UnitContext() const
 {
     return m_data->units;
 }
+const std::vector<Diagnostic>& Snapshot::PreservedDiagnostics() const
+{
+    return m_data->preservedDiagnostics;
+}
+const std::vector<std::size_t>& Snapshot::UnattachedNonGeometricDeclarations() const
+{
+    return m_data->unattachedStyles;
+}
 const std::vector<std::string>& Snapshot::RegisteredTypes() const
 {
     return Schema(*m_data).names;
@@ -1919,8 +2147,19 @@ bool Snapshot::UsedByRepresentation(std::size_t record) const
 }
 Outcome Check(const step_source::InspectOutcome& source, Limits limits)
 {
+    return Check(source, limits, SourcePolicy::Strict);
+}
+Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope)
+{
+    if ((policy != SourcePolicy::Strict && policy != SourcePolicy::PreserveNonGeometric) ||
+        (scope != GeometryScope::ExplicitOuterBounds && scope != GeometryScope::GeneralBrep))
+    {
+        throw std::invalid_argument("Unknown source checking policy or geometry scope");
+    }
     Outcome result;
     result.limits = limits;
+    result.policy = policy;
+    result.geometryScope = scope;
     if (!source.source || source.status != step_source::Status::Inspected)
     {
         for (const auto& diagnostic : source.diagnostics)
@@ -1946,11 +2185,23 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits)
     }
     auto data = std::make_shared<SemanticData>();
     data->source = source.source;
+    data->policy = policy;
+    data->geometryScope = scope;
+    data->preservedDiagnosticLimit = limits.preservedDiagnostics;
     Checker checker(data, result);
     try
     {
         checker.Run();
         result.status = data->units.lengthPower10Mm ? Status::Checked : Status::Deferred;
+        if (!data->part.deferredRegionFaces.empty())
+        {
+            result.status = Status::Deferred;
+        }
+        result.preservedDiagnostics = data->preservedDiagnostics;
+        if (result.status == Status::Checked && !result.preservedDiagnostics.empty())
+        {
+            result.status = Status::CheckedWithDiagnostics;
+        }
         result.snapshot = std::make_shared<const Snapshot>(std::move(data));
     }
     catch (const Failure& failure)
@@ -1967,6 +2218,8 @@ const char* StatusName(Status status)
     {
         case Status::Checked:
             return "Checked";
+        case Status::CheckedWithDiagnostics:
+            return "CheckedWithDiagnostics";
         case Status::Deferred:
             return "Deferred";
         case Status::Rejected:

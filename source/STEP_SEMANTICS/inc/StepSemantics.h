@@ -28,6 +28,17 @@ enum class ProfileKind
 struct Limits
 {
     std::size_t dependencyVisits = 1000000; // Explicit source-test preset; no production precision policy.
+    std::size_t preservedDiagnostics = 1024; // Explicit interoperability only; never suppress excess issues.
+};
+enum class SourcePolicy
+{
+    Strict,
+    PreserveNonGeometric
+};
+enum class GeometryScope
+{
+    ExplicitOuterBounds,
+    GeneralBrep // Source regions without an explicit outer bound require a later geometric proof.
 };
 
 enum class Protocol
@@ -107,6 +118,7 @@ struct Part
     };
     std::vector<Role> roles; // Source indices, not copies of the entity/value graph.
     std::vector<PropertyAttachment> propertyAttachments;
+    std::vector<std::size_t> deferredRegionFaces; // Source faces only; no bound has been relabeled or selected as outer.
     std::string shapeRole; // MaterialSolid / OpenSurfaceModel / ClosedSurfaceModel: source claims only.
     std::string apdStatus;
     std::string apdSchemaClaim;
@@ -199,6 +211,8 @@ public:
     const SchemaIdentifier& SchemaIdentity() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
+    const std::vector<Diagnostic>& PreservedDiagnostics() const;
+    const std::vector<std::size_t>& UnattachedNonGeometricDeclarations() const;
     const std::vector<std::string>& RegisteredTypes() const;
     const std::vector<std::size_t>* Instances(std::string_view type) const; // Null: unregistered, not a proved empty set.
     bool IsA(std::size_t recordIndex, std::string_view type) const; // Unknown type is an error.
@@ -220,6 +234,7 @@ private:
 enum class Status
 {
     Checked, // Only the ticket-03 checks; never complete AP validity or model acceptance.
+    CheckedWithDiagnostics, // Explicit interoperability; original nonconformances remain in the owning source.
     Deferred,
     Rejected,
     Unsupported,
@@ -242,6 +257,8 @@ struct GeometryDependencyCounts
 struct Outcome
 {
     Status status = Status::SourceFailure;
+    SourcePolicy policy = SourcePolicy::Strict;
+    GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
     std::shared_ptr<const Snapshot> snapshot;
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
@@ -250,15 +267,18 @@ struct Outcome
     std::string geometryDependencies = "NotRun"; // Selected AP214 source prerequisites, not complete local/global rules.
     std::string part = "NotRun";
     std::string siUnits = "NotRun";
+    std::string interoperability = "NotRun";
     std::size_t dependencyVisits = 0;
     GeometryDependencyCounts geometryDependencyChecks;
     UnitDependencyCounts unitDependencyChecks;
     std::size_t propertyAttachmentChecks = 0; // Actual AP214 links attempted within part/closure guards.
     Limits limits;
     std::vector<Diagnostic> diagnostics;
+    std::vector<Diagnostic> preservedDiagnostics; // Approved nongeometric issues only, separate from fatal failures.
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
+Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope = GeometryScope::ExplicitOuterBounds);
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& semantics, std::string& output);
 const char* StatusName(Status status);
 } // namespace step_semantics

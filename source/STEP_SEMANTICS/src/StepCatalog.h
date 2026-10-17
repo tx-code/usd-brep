@@ -101,6 +101,17 @@ struct BoundRecord
 };
 struct SemanticData
 {
+    struct PendingIssue
+    {
+        Status status;
+        Diagnostic diagnostic;
+    };
+    SourcePolicy policy = SourcePolicy::Strict;
+    GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
+    std::size_t preservedDiagnosticLimit = 1024;
+    std::vector<PendingIssue> pendingIssues; // Provisional only; no metadata/root qualification until the final proof.
+    std::vector<Diagnostic> preservedDiagnostics;
+    std::vector<std::size_t> unattachedStyles; // Proven nongeometric residue, never a selected-part ownership root.
     std::shared_ptr<const step_source::SourceSnapshot> source;
     std::optional<gsl::not_null<const Catalog*>> catalog; // Selected by binding, before type/field interpretation.
     QualifiedSchemaProfile profile;

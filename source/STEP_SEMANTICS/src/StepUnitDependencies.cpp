@@ -431,73 +431,102 @@ private:
             {
                 continue;
             }
-            const auto& unit = Field(r, "unit_component");
-            const auto target = Target(*unit.declaration.value);
-            const auto& value = Field(r, "value_component");
-            const auto& tag = value.declaration.value->text;
-            if (tag == "POSITIVE_RATIO_MEASURE")
+            try
             {
-                // AP214E3_2010.exp POSITIVE_RATIO_MEASURE.WR1: compare the exact
-                // source REAL, including signed zero/huge exponents, without
-                // changing its typed branch or guessing a quantity from RI.name.
-                Count(value.declaration.value->span);
-                ++m_counts.typePredicates;
-                if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
+                const auto& unit = Field(r, "unit_component");
+                const auto target = Target(*unit.declaration.value);
+                const auto& value = Field(r, "value_component");
+                const auto& tag = value.declaration.value->text;
+                if (tag == "POSITIVE_RATIO_MEASURE")
                 {
-                    Rule(r, value, "POSITIVE_RATIO_MEASURE.WR1");
+                    // AP214E3_2010.exp POSITIVE_RATIO_MEASURE.WR1: compare the exact
+                    // source REAL, including signed zero/huge exponents, without
+                    // changing its typed branch or guessing a quantity from RI.name.
+                    Count(value.declaration.value->span);
+                    ++m_counts.typePredicates;
+                    if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
+                    {
+                        Rule(r, value, "POSITIVE_RATIO_MEASURE.WR1");
+                    }
                 }
-            }
-            Dimensions required;
-            if (tag == "MASS_MEASURE")
-            {
-                required = Basis(1);
-            }
-            else if (tag == "LENGTH_MEASURE" || tag == "NON_NEGATIVE_LENGTH_MEASURE" || tag == "POSITIVE_LENGTH_MEASURE")
-            {
-                required = Basis(0);
-            }
-            else if (tag == "RATIO_MEASURE" || tag == "POSITIVE_RATIO_MEASURE")
-            {
-                // valid_units tests TYPEOF: positive_ratio_measure inherits ratio,
-                // so its unit must also be dimensionless. Preserve a density-named
-                // ratio paired with M/L^3 as source data and diagnose the conflict;
-                // the name is not authority to relabel the measure or its unit.
-                required = {};
-            }
-            else
-            {
-                Fail(
-                    Status::Unsupported,
-                    r,
-                    value,
-                    "UnsupportedMeasureDimensionBranch",
-                    "interpreted length/mass/ratio measure family",
-                    tag,
-                    "profile dimensional interpretation subset; no guessed dimension"
-                );
-            }
-            // The admitted measure branches are explicit length aliases, mass and ratios.
-            // Remaining measure families are rejected by typed admission, never guessed.
-            Count(unit.declaration.value->span);
-            if (m_nodes[Index(target)].dimensions != required)
-            {
-                Rule(r, unit, "MEASURE_WITH_UNIT.WR1");
-            }
-            if (IsA(r, "LENGTH_MEASURE_WITH_UNIT"))
-            {
+                Dimensions required;
+                if (tag == "MASS_MEASURE")
+                {
+                    required = Basis(1);
+                }
+                else if (tag == "LENGTH_MEASURE" || tag == "NON_NEGATIVE_LENGTH_MEASURE" || tag == "POSITIVE_LENGTH_MEASURE")
+                {
+                    required = Basis(0);
+                }
+                else if (tag == "RATIO_MEASURE" || tag == "POSITIVE_RATIO_MEASURE")
+                {
+                    // valid_units tests TYPEOF: positive_ratio_measure inherits ratio,
+                    // so its unit must also be dimensionless. Preserve a density-named
+                    // ratio paired with M/L^3 as source data and diagnose the conflict;
+                    // the name is not authority to relabel the measure or its unit.
+                    required = {};
+                }
+                else
+                {
+                    Fail(
+                        Status::Unsupported,
+                        r,
+                        value,
+                        "UnsupportedMeasureDimensionBranch",
+                        "interpreted length/mass/ratio measure family",
+                        tag,
+                        "profile dimensional interpretation subset; no guessed dimension"
+                    );
+                }
+                // The admitted measure branches are explicit length aliases, mass and ratios.
+                // Remaining measure families are rejected by typed admission, never guessed.
                 Count(unit.declaration.value->span);
-                if (!IsA(target, "LENGTH_UNIT"))
+                if (m_nodes[Index(target)].dimensions != required)
                 {
-                    Rule(r, unit, "LENGTH_MEASURE_WITH_UNIT.WR1");
+                    Rule(r, unit, "MEASURE_WITH_UNIT.WR1");
+                }
+                if (IsA(r, "LENGTH_MEASURE_WITH_UNIT"))
+                {
+                    Count(unit.declaration.value->span);
+                    if (!IsA(target, "LENGTH_UNIT"))
+                    {
+                        Rule(r, unit, "LENGTH_MEASURE_WITH_UNIT.WR1");
+                    }
+                }
+                if (IsA(r, "MASS_MEASURE_WITH_UNIT"))
+                {
+                    Count(unit.declaration.value->span);
+                    if (!IsA(target, "MASS_UNIT"))
+                    {
+                        Rule(r, unit, "MASS_MEASURE_WITH_UNIT.WR1");
+                    }
                 }
             }
-            if (IsA(r, "MASS_MEASURE_WITH_UNIT"))
+            catch (Stop& stop)
             {
-                Count(unit.declaration.value->span);
-                if (!IsA(target, "MASS_UNIT"))
+                const auto& key = stop.failure.diagnostic.source.key;
+                if (m_data.policy != SourcePolicy::PreserveNonGeometric || !IsA(r, "MEASURE_REPRESENTATION_ITEM") ||
+                    stop.failure.status != Status::Rejected ||
+                    (key != "SourceRuleViolation:MEASURE_WITH_UNIT.WR1" && key != "SourceRuleViolation:POSITIVE_RATIO_MEASURE.WR1"))
                 {
-                    Rule(r, unit, "MASS_MEASURE_WITH_UNIT.WR1");
+                    throw;
                 }
+                // This is only a deferred source error. The outer checker must
+                // still prove that the MRI belongs to an attached property and
+                // is not a body/physical-unit dependency before any publication.
+                if (m_data.pendingIssues.size() >= m_data.preservedDiagnosticLimit)
+                {
+                    Fail(
+                        Status::ResourceLimit,
+                        r,
+                        Field(r, "value_component"),
+                        "PreservedDiagnosticLimit",
+                        "configured preserved diagnostic capacity",
+                        std::to_string(m_data.pendingIssues.size() + 1),
+                        "explicit interoperability capacity; no diagnostics silently discarded"
+                    );
+                }
+                m_data.pendingIssues.push_back({ stop.failure.status, std::move(stop.failure.diagnostic) });
             }
         }
     }

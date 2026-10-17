@@ -17,6 +17,39 @@ AP203 retains its existing phases, diagnostics, report bytes and traversal charg
 The existing Outcome strings are written when Check returns; failure preserves completed phases and leaves later
 phases NotRun. Conversion-based units still yield Deferred only after the preceding semantic checks complete.
 
+The two-argument `Check` remains strict. Its explicit policy overload and CLI
+`--interop-nongeometric` can preserve a closed set of nondefining issues for AP214:
+missing RI/REP/style labels, arbitrary labels on the uniquely linked definition
+context/product category, unattached declarations wholly within the admitted
+nongeometric style chain, and the selected MRI ratio/value-unit predicates.
+An orphan STYLED_ITEM is preservable only when its explicit target is already in
+the selected body's RI closure; it remains without a fabricated presentation owner.
+Original values, unset markers, diagnostic keys/classification/locations and raw
+bytes stay intact. Style residue is exposed as `UnattachedNonGeometricDeclarations`
+and is never assigned a fake part root.
+
+MRI errors remain provisional until complete property attachment and a separate
+outbound closure from the selected body and its physical unit context prove that
+the item is metadata only. A shared physical conversion factor, unowned MRI,
+geometric data error, unknown branch or unit dependency cycle remains fatal.
+`Limits::preservedDiagnostics`, visits and report bytes bound this work; excess
+issues are not discarded. `PreservedDiagnostics` belongs to the owning snapshot
+and is also reported separately from fatal `diagnostics`. Successful preservation
+returns `CheckedWithDiagnostics`, with corresponding phase markers; it does not
+claim strict source conformance or qualify a native model. Failed requests expose
+no approved partial snapshot or preserved-issue list.
+
+The separate `GeometryScope::GeneralBrep` / `--general-brep-source` admits legal
+ordinary FACE_BOUND regions without choosing an outer bound. Such source faces
+are retained in `Part::deferredRegionFaces`, and the source result remains
+`Deferred` with `GeneralBrepRegionClassificationNotRun`. Native construction must
+prove their regions before publishing a model. Multiple explicit outer bounds
+remain rejected. The default `ExplicitOuterBounds` scope and all existing strict
+AP203 behavior remain unchanged; neither source option bypasses geometric checks
+or the existing downstream AP203 validator/native qualification gates.
+The independent `interoperability_approval` phase records final proof/budget
+failures; a typed source snapshot is not evidence of native construction.
+
 Schema declaration parsing and version recognition live in `StepSchemaSelection.cpp`.
 `Outcome::schemaSelection` owns every decoded HEADER identifier, name spelling,
 numeric OID arc string, source span and recognition result, including after failed

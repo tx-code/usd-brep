@@ -25,6 +25,8 @@ int main(int argc, char** argv)
 #endif
         auto limits = step_source::Limits::PlanarFixtures();
         step_semantics::Limits semanticLimits;
+        auto policy = step_semantics::SourcePolicy::Strict;
+        auto geometryScope = step_semantics::GeometryScope::ExplicitOuterBounds;
         const std::unordered_map<std::string_view, std::size_t*> options = { { "--max-input-bytes", &limits.inputBytes },
                                                                              { "--max-records", &limits.records },
                                                                              { "--max-values", &limits.values },
@@ -34,7 +36,9 @@ int main(int argc, char** argv)
                                                                              { "--max-record-bytes", &limits.recordBytes },
                                                                              { "--max-report-bytes", &limits.reportBytes },
                                                                              { "--max-id-digits", &limits.idDigits },
-                                                                             { "--max-semantic-visits", &semanticLimits.dependencyVisits } };
+                                                                             { "--max-semantic-visits", &semanticLimits.dependencyVisits },
+                                                                             { "--max-preserved-diagnostics",
+                                                                               &semanticLimits.preservedDiagnostics } };
         bool selected = false;
         std::string path;
         for (int i = 1; i < argc; ++i)
@@ -43,6 +47,14 @@ int main(int argc, char** argv)
             if (arg == "--fixture-limits")
             {
                 selected = true;
+            }
+            else if (arg == "--interop-nongeometric")
+            {
+                policy = step_semantics::SourcePolicy::PreserveNonGeometric;
+            }
+            else if (arg == "--general-brep-source")
+            {
+                geometryScope = step_semantics::GeometryScope::GeneralBrep;
             }
             else if (options.count(arg))
             {
@@ -74,7 +86,7 @@ int main(int argc, char** argv)
             return 64;
         }
         const auto source = step_source::InspectFile(std::filesystem::path(path), limits);
-        const auto semantics = step_semantics::Check(source, semanticLimits);
+        const auto semantics = step_semantics::Check(source, semanticLimits, policy, geometryScope);
         std::string output;
         if (!step_semantics::InspectJson(source, semantics, output))
         {
@@ -89,6 +101,7 @@ int main(int argc, char** argv)
         switch (semantics.status)
         {
             case step_semantics::Status::Checked:
+            case step_semantics::Status::CheckedWithDiagnostics:
                 return 0;
             case step_semantics::Status::Deferred:
                 return 7;

@@ -31,6 +31,66 @@ void RecordIds(Writer& out, const Snapshot& data, const std::vector<std::size_t>
     }
     out.Add("]");
 }
+void Diagnostics(Writer& out, const step_source::InspectOutcome& source, const std::vector<Diagnostic>& diagnostics)
+{
+    out.Add("[");
+    for (std::size_t i = 0; i < diagnostics.size(); ++i)
+    {
+        const auto& diagnostic = diagnostics[i];
+        const auto& error = diagnostic.source;
+        if (i)
+        {
+            out.Add(",");
+        }
+        out.Add("{\"key\":");
+        out.String(error.key);
+        out.Add(",\"stage\":");
+        out.String(error.stage);
+        out.Add(",\"classification\":");
+        out.String(diagnostic.classification);
+        out.Add(",\"message\":");
+        out.String(error.message);
+        out.Add(",\"span\":");
+        out.Range(error.primary);
+        out.Add(",\"location\":");
+        out.Position(source, error.primary.begin);
+        out.Add(",\"record_id\":");
+        out.String(error.recordId);
+        out.Add(",\"component\":");
+        out.String(error.component);
+        out.Add(",\"parameter_path\":");
+        out.Path(error.parameterPath);
+        out.Add(",\"target_id\":");
+        out.String(error.targetId);
+        out.Add(",\"field\":");
+        out.String(diagnostic.field);
+        out.Add(",\"declared_in\":");
+        out.String(diagnostic.declaredIn);
+        out.Add(",\"declared_type\":");
+        out.String(diagnostic.declaredType);
+        out.Add(",\"expected\":");
+        out.String(diagnostic.expected);
+        out.Add(",\"actual\":");
+        out.String(diagnostic.actual);
+        out.Add(",\"responsibility\":");
+        out.String(diagnostic.responsibility);
+        out.Add(",\"related\":[");
+        for (std::size_t r = 0; r < error.related.size(); ++r)
+        {
+            if (r)
+            {
+                out.Add(",");
+            }
+            out.Add("{\"span\":");
+            out.Range(error.related[r]);
+            out.Add(",\"location\":");
+            out.Position(source, error.related[r].begin);
+            out.Add("}");
+        }
+        out.Add("]}");
+    }
+    out.Add("]");
+}
 } // namespace
 
 void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelection>& selection)
@@ -145,10 +205,18 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.Add(",\"deferred_reason\":");
     if (result.status == Status::Deferred)
     {
-        out.String(
-            result.snapshot && result.snapshot->SelectedProfile().kind == ProfileKind::Ap214e3Source ? "Ap214ConversionUnitEvaluationNotRun" :
-                                                                                                       "ConversionLengthInterpretationPendingTicket09"
-        );
+        if (result.snapshot && !result.snapshot->PartDefinition().deferredRegionFaces.empty())
+        {
+            out.String("GeneralBrepRegionClassificationNotRun");
+        }
+        else
+        {
+            out.String(
+                result.snapshot && result.snapshot->SelectedProfile().kind == ProfileKind::Ap214e3Source ?
+                    "Ap214ConversionUnitEvaluationNotRun" :
+                    "ConversionLengthInterpretationPendingTicket09"
+            );
+        }
     }
     else
     {
@@ -175,6 +243,11 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.String(result.part);
     out.Add(",\"si_units\":");
     out.String(result.siUnits);
+    if (result.policy == SourcePolicy::PreserveNonGeometric)
+    {
+        out.Add(",\"interoperability_approval\":");
+        out.String(result.interoperability);
+    }
     // Report partial checks only when those source predicates were attempted;
     // neither count grants complete AP214 entity/type qualification.
     out.Add(",\"global_rules_47\":\"NotRun\",\"other_entity_where\":");
@@ -188,6 +261,11 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     );
     out.Add(",\"limits\":{\"dependency_visits\":");
     out.Number(result.limits.dependencyVisits);
+    if (result.policy == SourcePolicy::PreserveNonGeometric)
+    {
+        out.Add(",\"preserved_diagnostics\":");
+        out.Number(result.limits.preservedDiagnostics);
+    }
     out.Add("},\"statistics\":{\"dependency_visits\":");
     out.Number(result.dependencyVisits);
     if (ap214)
@@ -349,7 +427,18 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             }
             out.Add("]}");
         }
-        out.Add("],\"part\":{\"roles\":{");
+        out.Add("]");
+        if (result.policy == SourcePolicy::PreserveNonGeometric)
+        {
+            out.Add(",\"unattached_non_geometric_declarations\":");
+            RecordIds(out, data, data.UnattachedNonGeometricDeclarations());
+        }
+        if (result.geometryScope == GeometryScope::GeneralBrep)
+        {
+            out.Add(",\"deferred_region_faces\":");
+            RecordIds(out, data, data.PartDefinition().deferredRegionFaces);
+        }
+        out.Add(",\"part\":{\"roles\":{");
         first = true;
         for (const auto& role : data.PartDefinition().roles)
         {
@@ -523,63 +612,20 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             "\"target_mapping\":\"NotRun\",\"geometry_conversion\":\"NotRun\"}}"
         );
     }
-    out.Add(",\"diagnostics\":[");
-    for (std::size_t i = 0; i < result.diagnostics.size(); ++i)
+    out.Add(",\"diagnostics\":");
+    Diagnostics(out, source, result.diagnostics);
+    if (result.policy == SourcePolicy::PreserveNonGeometric)
     {
-        const auto& diagnostic = result.diagnostics[i];
-        const auto& error = diagnostic.source;
-        if (i)
-        {
-            out.Add(",");
-        }
-        out.Add("{\"key\":");
-        out.String(error.key);
-        out.Add(",\"stage\":");
-        out.String(error.stage);
-        out.Add(",\"classification\":");
-        out.String(diagnostic.classification);
-        out.Add(",\"message\":");
-        out.String(error.message);
-        out.Add(",\"span\":");
-        out.Range(error.primary);
-        out.Add(",\"location\":");
-        out.Position(source, error.primary.begin);
-        out.Add(",\"record_id\":");
-        out.String(error.recordId);
-        out.Add(",\"component\":");
-        out.String(error.component);
-        out.Add(",\"parameter_path\":");
-        out.Path(error.parameterPath);
-        out.Add(",\"target_id\":");
-        out.String(error.targetId);
-        out.Add(",\"field\":");
-        out.String(diagnostic.field);
-        out.Add(",\"declared_in\":");
-        out.String(diagnostic.declaredIn);
-        out.Add(",\"declared_type\":");
-        out.String(diagnostic.declaredType);
-        out.Add(",\"expected\":");
-        out.String(diagnostic.expected);
-        out.Add(",\"actual\":");
-        out.String(diagnostic.actual);
-        out.Add(",\"responsibility\":");
-        out.String(diagnostic.responsibility);
-        out.Add(",\"related\":[");
-        for (std::size_t r = 0; r < error.related.size(); ++r)
-        {
-            if (r)
-            {
-                out.Add(",");
-            }
-            out.Add("{\"span\":");
-            out.Range(error.related[r]);
-            out.Add(",\"location\":");
-            out.Position(source, error.related[r].begin);
-            out.Add("}");
-        }
-        out.Add("]}");
+        out.Add(",\"source_policy\":\"PreserveNonGeometric\",\"preserved_diagnostics\":");
+        Diagnostics(out, source, result.preservedDiagnostics);
+        out.Add(",\"source_conformance\":");
+        out.String(result.snapshot ? (result.preservedDiagnostics.empty() ? "SelectedSubsetChecked" : "NonGeometricIssuesPreserved") : "NotQualified");
     }
-    out.Add("]}\n");
+    if (result.geometryScope == GeometryScope::GeneralBrep)
+    {
+        out.Add(",\"geometry_scope\":\"GeneralBrep\"");
+    }
+    out.Add("}\n");
 }
 
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& result, std::string& output)

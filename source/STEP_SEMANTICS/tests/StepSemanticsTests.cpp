@@ -291,6 +291,38 @@ int main(int argc, char** argv)
         );
         ++groups;
 
+        auto interoperabilityText = propertyText;
+        interoperabilityText.replace(interoperabilityText.find("'body'"), std::string("'body'").size(), "$");
+        const std::string quantity = "LENGTH_MEASURE(+0.025400E+3)";
+        interoperabilityText.replace(interoperabilityText.find(quantity), quantity.size(), "POSITIVE_RATIO_MEASURE(0.)");
+        auto interoperabilityRaw = step_source::InspectBytes(interoperabilityText, step_source::Limits::PlanarFixtures());
+        const auto strictInteroperability = Check(interoperabilityRaw, Limits{});
+        Require(
+            strictInteroperability.status == Status::Rejected && !strictInteroperability.snapshot,
+            "Strict behavior cannot change for interoperability"
+        );
+        auto interoperability = Check(interoperabilityRaw, Limits{}, SourcePolicy::PreserveNonGeometric);
+        Require(
+            interoperability.status == Status::CheckedWithDiagnostics && interoperability.snapshot &&
+                interoperability.preservedDiagnostics.size() == 2,
+            "Only proven nongeometric issues can yield a source snapshot with diagnostics"
+        );
+        auto interoperabilitySnapshot = interoperability.snapshot;
+        auto preservedQuantity = interoperabilitySnapshot->Field(Index(*interoperabilitySnapshot, "933"), "value_component");
+        Require(
+            &preservedQuantity.Value() == &interoperabilityRaw.source->Find("933")->components[0].parameters[1] &&
+                interoperabilitySnapshot->PreservedDiagnostics().size() == 2 && snapshot->PreservedDiagnostics().empty(),
+            "Explicit policy must retain original values/diagnostics and remain isolated from a live strict snapshot"
+        );
+        interoperability = {};
+        interoperabilityRaw = {};
+        interoperabilitySnapshot.reset();
+        Require(
+            preservedQuantity.Value().text == "POSITIVE_RATIO_MEASURE" && preservedQuantity.Value().children.front().text == "0.",
+            "Owning interoperability source cannot silently rewrite the bad metadata branch or scalar"
+        );
+        ++groups;
+
         auto unitText = Read(corpus / "S203-P01/input.step");
         unitText.replace(unitText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
         const std::string oldAssignments = "GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))";
