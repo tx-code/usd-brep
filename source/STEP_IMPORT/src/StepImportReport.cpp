@@ -240,6 +240,176 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
         output,
         [&](Writer& w)
         {
+            if (report.generalBrep)
+            {
+                // Separate scope: do not serialize unexecuted planar proofs as
+                // qualification for analytic/NURBS models or complete AP214 rules.
+                w.Add("{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":");
+                w.String(StatusName(outcome.status));
+                w.Add(",\"repair\":\"None\",\"quality_id\":");
+                w.String(quality.id);
+                w.Add(",\"quality\":{");
+                const std::pair<const char*, Fraction> budgets[] = { { "definition_mm", quality.definitionMm },
+                                                                     { "consistency_mm", quality.consistencyMm },
+                                                                     { "derived_uv_mm", quality.derivedUvMm },
+                                                                     { "initial_work_tolerance_mm", quality.initialWorkToleranceMm },
+                                                                     { "maximum_work_tolerance_mm", quality.maximumWorkToleranceMm },
+                                                                     { "tolerance_growth_mm", quality.toleranceGrowthMm },
+                                                                     { "query_mm", quality.queryMm } };
+                bool budgetComma = false;
+                for (const auto& [name, value] : budgets)
+                {
+                    if (budgetComma)
+                    {
+                        w.Add(",");
+                    }
+                    budgetComma = true;
+                    w.String(name);
+                    w.Add(":");
+                    FractionJson(w, value);
+                }
+                w.Add("}");
+                w.Add(
+                    ",\"measurement_policy\":{\"native_requested_relative_accuracy\":0.0001,\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\"}"
+                );
+                w.Add(
+                    ",\"qualification\":\"SelectedSourceChecksAndNativeMeasuredPostchecks\",\"full_schema_conformance\":false,\"planar_proofs\":\"NotApplicable\",\"source_sha256\":"
+                );
+                w.String(report.sourceSha256);
+                w.Add(",\"native_calls\":");
+                w.Number(report.nativeCalls);
+                w.Add(",\"candidate_discarded\":");
+                w.Bool(report.candidateDiscarded);
+                w.Add(",\"last_boundary\":");
+                w.String(PhaseName(report.lastBoundary));
+                w.Add(",\"source_inspection\":");
+                if (report.generalSource)
+                {
+                    step_semantics::report::WriteJson(w, source, *report.generalSource);
+                }
+                else
+                {
+                    w.Add("null");
+                }
+                w.Add(",\"diagnostics\":[");
+                for (std::size_t i = 0; i < report.diagnostics.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& d = report.diagnostics[i];
+                    w.Add("{\"key\":");
+                    w.String(d.source.key);
+                    w.Add(",\"record_id\":");
+                    w.String(d.source.recordId);
+                    w.Add(",\"stage\":");
+                    w.String(d.source.stage);
+                    w.Add(",\"message\":");
+                    w.String(d.source.message);
+                    w.Add("}");
+                }
+                w.Add("],\"model\":");
+                if (report.native && outcome.status == Status::Accepted)
+                {
+                    StatisticsJson(w, *report.native);
+                }
+                else
+                {
+                    w.Add("null");
+                }
+                w.Add(",\"validations\":{\"pointer_reports\":");
+                if (report.pointerReports)
+                {
+                    w.Number(*report.pointerReports);
+                }
+                else
+                {
+                    w.Add("null");
+                }
+                w.Add(",\"level2_reports\":");
+                if (report.deepReports)
+                {
+                    w.Number(*report.deepReports);
+                }
+                else
+                {
+                    w.Add("null");
+                }
+                w.Add("},\"measurements\":[");
+                for (std::size_t i = 0; i < report.tolerances.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& t = report.tolerances[i];
+                    w.Add("{\"stage\":");
+                    w.String(t.stage);
+                    w.Add(",\"kind\":");
+                    w.String(t.kind);
+                    w.Add(",\"source_id\":");
+                    w.String(t.sourceId);
+                    w.Add(",\"value_mm\":");
+                    Number(w, t.valueMm);
+                    w.Add("}");
+                }
+                w.Add("],\"representation_normalizations\":[");
+                for (std::size_t i = 0; i < report.normalizations.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& change = report.normalizations[i];
+                    w.Add("{\"kind\":");
+                    w.String(change.kind);
+                    w.Add(",\"source_face\":");
+                    w.String(change.sourceFaceId);
+                    const auto ids = [&](const char* name, const std::vector<std::string>& values)
+                    {
+                        w.Add(",");
+                        w.String(name);
+                        w.Add(":[");
+                        for (std::size_t k = 0; k < values.size(); ++k)
+                        {
+                            if (k)
+                            {
+                                w.Add(",");
+                            }
+                            w.String(values[k]);
+                        }
+                        w.Add("]");
+                    };
+                    ids("source_bounds", change.sourceBoundIds);
+                    ids("source_vertices", change.sourceVertexIds);
+                    w.Add(",\"target_edge_index\":");
+                    if (change.targetEdgeIndex)
+                    {
+                        w.Number(*change.targetEdgeIndex);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
+                    w.Add(",\"source_rewritten\":false}");
+                }
+                w.Add("],\"classified_outer_bounds\":[");
+                for (std::size_t i = 0; i < report.classifiedOuterBounds.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    w.Add("{\"source_face\":");
+                    w.String(report.classifiedOuterBounds[i].first);
+                    w.Add(",\"source_bound\":");
+                    w.String(report.classifiedOuterBounds[i].second);
+                    w.Add(",\"method\":\"NativePlanarCurveIntersectionContainment\",\"source_rewritten\":false}");
+                }
+                w.Add("]}");
+                return;
+            }
             w.Add("{\"format_version\":\"step-native-import.v2\",\"scope\":\"PlanarNativeImport\",\"status\":");
             w.String(StatusName(outcome.status));
             w.Add(",\"repair\":\"None\",\"profile\":");

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
 #include "StepImportInterval.h"
+#include "StepImportNativeData.h"
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
@@ -39,38 +40,12 @@ std::recursive_mutex& NativeMutex()
     static std::recursive_mutex mutex;
     return mutex;
 }
-struct NativeFaceData
+ModelData::~ModelData()
 {
-    SmFace* face = nullptr;
-    SmPlane* plane = nullptr;
-    std::vector<SmLoop*> loops;
-    std::string faceId;
-    Statistics info;
-};
-struct ModelData
-{
-    ~ModelData()
-    {
-        std::lock_guard lock(NativeMutex());
-        brep.reset();
-        context.reset();
-    }
-    std::unique_ptr<SmContext> context; // Reverse destruction order: BRep before context.
-    std::unique_ptr<SmBrep> brep;
-    std::shared_ptr<const step_semantics::Snapshot> source;
-    std::vector<NativeFaceData> faces;
-    std::vector<SmVertex*> vertices;
-    std::vector<SmEdge*> edges;
-    std::vector<SmLine*> curves;
-    SmRegion* material = nullptr;
-    SmRegion* bounded = nullptr; // Enclosed spatial region; void for a closed surface, material only for a solid.
-    SmShell* outside = nullptr;
-    SmShell* inside = nullptr;
-    double queryTolerance = 0;
-    Fraction queryBudget;
-    Statistics info;
-    mutable std::mutex mutex;
-};
+    std::lock_guard lock(NativeMutex());
+    brep.reset();
+    context.reset();
+}
 struct EditableData
 {
     std::unique_ptr<SmContext> context;
@@ -1525,6 +1500,19 @@ std::optional<double> ModelSnapshot::MaterialVolumeMm3() const
 {
     return m_data->info.materialVolumeMm3;
 }
+void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
+{
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard lock(m_data->mutex);
+    SmTArray<SmCurve*> curves;
+    SmTArray<SmSurface*> surfaces;
+    SmTArray<long> trees;
+    SmTArray<SmBrep*> breps;
+    breps.Add(m_data->brep.get());
+    // Retain native analytic/NURBS classes. The writer's optional approximation
+    // path is disabled; archiving does not mutate the owning import snapshot.
+    detail::Good(SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, SM_BINARY, TRUE, FALSE));
+}
 FaceView::FaceView(std::shared_ptr<detail::ModelData> data, std::size_t face) : m_data(std::move(data)), m_face(face)
 {
 }
@@ -1536,11 +1524,18 @@ Statistics FaceView::Info() const
 {
     return m_data->faces[m_face].info;
 }
+std::array<double, 4> FaceView::ParameterDomain() const
+{
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard lock(m_data->mutex);
+    const auto domain = m_data->faces[m_face].face->GetSurface()->GetNaturalUVDomain();
+    return { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y };
+}
 Point FaceView::EvaluateSurface(double u, double v) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
-    const auto plane = m_data->faces[m_face].plane;
+    const auto plane = m_data->faces[m_face].face->GetSurface();
     const auto domain = plane->GetNaturalUVDomain();
     if (!std::isfinite(u) || !std::isfinite(v) || u < domain.GetMin().x || u > domain.GetMax().x || v < domain.GetMin().y || v > domain.GetMax().y)
     {

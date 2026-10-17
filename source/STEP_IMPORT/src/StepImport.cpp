@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
+#include "StepImportNativeData.h"
 #include "StepImportPlan.h"
 
 #include <algorithm>
@@ -13,6 +14,21 @@ Quality Quality::PlanarFixture()
 {
     return { "Q-P0-mm-01", Fraction(1, 100000000), Fraction(1, 10000000), Fraction(1, 10000000), Fraction(1, 100000), Fraction(1, 10000),
              Fraction(),   Fraction(1, 10000000),  Fraction(1, 1000000),  Fraction(1, 100000) };
+}
+Quality Quality::GeneralDevelopment()
+{
+    // Explicit calibration candidate for real-file development. Source uncertainty
+    // never chooses these budgets, and this is not a production default.
+    return { "Q-AP214-development-mm-01", Fraction(1, 1000000000), Fraction(1, 1000), Fraction(1, 1000),
+             Fraction(1, 1000),           Fraction(1, 1000),       Fraction(),        Fraction(1, 100000),
+             Fraction(1, 1000),           Fraction(1, 100) };
+}
+Quality Quality::GeneralToleranceStudy()
+{
+    auto quality = GeneralDevelopment();
+    quality.id = "Q-AP214-tolerance-study-mm-01";
+    quality.consistencyMm = quality.derivedUvMm = quality.initialWorkToleranceMm = quality.maximumWorkToleranceMm = Fraction(1, 100);
+    return quality;
 }
 Options Options::PlanarFixture()
 {
@@ -57,6 +73,12 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Frozen quality identity cannot be reused for different native parameters");
     }
+    if ((q.id == "Q-AP214-development-mm-01" && fields(q) != fields(Quality::GeneralDevelopment())) ||
+        (q.id == "Q-AP214-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralToleranceStudy())) ||
+        (options.generalBrep && q.id == "Q-P0-mm-01") || (!options.generalBrep && options.sourcePolicy != step_semantics::SourcePolicy::Strict))
+    {
+        throw std::invalid_argument("Explicit general geometry quality and source policy must match the selected import path");
+    }
 }
 void Diagnostic(Report& report, const detail::Failure& failure)
 {
@@ -93,6 +115,7 @@ Outcome Import(const Options& options, Capture capture)
     Outcome result;
     auto& report = result.report;
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
+    report.generalBrep = options.generalBrep;
     step_source::InspectOutcome raw;
     raw.limits = options.sourceLimits;
     detail::Execution execution(options, report);
@@ -109,6 +132,36 @@ Outcome Import(const Options& options, Capture capture)
         if (raw.status == step_source::Status::Inspected)
         {
             execution.Check(Phase::Captured);
+        }
+        if (options.generalBrep)
+        {
+            report
+                .generalSource = step_semantics::Check(raw, options.semanticLimits, options.sourcePolicy, step_semantics::GeometryScope::GeneralBrep);
+            const auto& checked = *report.generalSource;
+            report.sourceSchema = checked.schemaSelection;
+            report.semanticStatus = step_semantics::StatusName(checked.status);
+            report.planarStatus = "NotApplicable";
+            report.diagnostics = checked.diagnostics;
+            if (!checked.snapshot)
+            {
+                const auto status = checked.status == step_semantics::Status::ResourceLimit ? Status::ResourceLimit :
+                                    checked.status == step_semantics::Status::Unsupported   ? Status::Unsupported :
+                                                                                              Status::Rejected;
+                throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
+            }
+            execution.Check(Phase::SemanticsChecked);
+            candidate = detail::BuildGeneral(checked.snapshot, options, report, execution);
+            prepared = detail::Access::Snapshot(std::move(candidate));
+            execution.Check(Phase::NativeReady);
+            result.status = Status::Accepted;
+            execution.Check(Phase::BeforeReport);
+            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
+            execution.Check(Phase::ReportReady);
+            execution.Check(Phase::BeforeCommit);
+            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
+            execution.Commit();
+            result.model = std::move(prepared);
+            return result;
         }
         auto semantics = step_semantics::Check(raw, options.semanticLimits);
         report.sourceSchema = semantics.schemaSelection;

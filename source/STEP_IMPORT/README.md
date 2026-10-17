@@ -1,5 +1,33 @@
 # STEP_IMPORT（内部 C++20）
 
+新增显式的通用开发路径 `Options.generalBrep=true`，用于 AP214 单个普通
+`MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、非有理节点 B 样条边，
+PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE 和非有理节点 B 样条曲面。
+仍保留下面原有平面路径的行为和资格；默认选项不进入通用路径。
+
+通用路径先检查类型化源图、所选实体角色、物理单位和源共享拓扑，然后直接构建私有
+SMLib 候选。以源 EC 身份共享边，保留所有源顶点和原定义；不调用缝合或修复器。
+两圆环完整圆柱可添加一条使用两次的精确参数缝；未标外环的平面必须经曲线相交/包含
+分类证明。螺旋带可以使用严格位于同一圆柱支撑上的有理参数图，源曲线/顶点不改写。
+这些动作记录源身份，不能把 surface-model 升级为材料实体。
+
+`Quality::GeneralDevelopment()` 为明确选择的 1 μm 一致性/UV/工作容差开发配置；
+`Quality::GeneralToleranceStudy()` 是独立的 10 μm 研究配置。两者都不允许容差增长，
+不由源 uncertainty 自动选值，也不是生产默认。源错误必须按显式
+`SourcePolicy::PreserveNonGeometric` 的已证明非几何白名单保留；严格源模式不变。
+
+通用报告 `GeneralBrepDevelopment` 只授予声明的源检查、原生构建和量测后验检查。
+它不是完整 AP214 conformance，也不继承平面路径的全段/全域区间证明。
+曲面投影误差是内核量测，面积/体积以原生相对精度 1e-4 计算；尚未建立全局定义误差、
+全局曲线—曲面误差或面积/体积绝对误差界。报告明确标记这些未建立的资格。
+
+返回模型是 owning 只读快照，`FaceView::ParameterDomain()` 返回实际原生求值域，
+不承诺它是源 UV 或以毫米计。`WriteNative(path)` 保存不拟合解析定义的二进制原生
+`.smb`，`CopyForModeling()` 生成独立 context/BRep；报告对应原快照。
+
+以下说明专指既有已资格的平面路径。
+
+
 STEP→SMLib 内部导入：单零件、canonical 毫米；源长度可SI前缀或已验证conversion链，
 几何为开放 LINE/PLANE 平面及孔、两个可带孔平面区域组成的无重叠共享支撑边面片，或经过独立证明的矩形盒体边界，
 基于 STEP_SOURCE、STEP_SEMANTICS 和 STEP_PLANAR 的自研读取与源检查。没有 OCCT 读取依赖。

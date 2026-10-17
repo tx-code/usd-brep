@@ -85,6 +85,7 @@ int main(int argc, char** argv)
         auto options = step_import::Options::PlanarFixture();
         std::optional<step_import::Point> query;
         std::string file;
+        std::optional<std::filesystem::path> nativeOutput;
         bool limits = false, quality = false;
         for (int i = 1; i < argc; ++i)
         {
@@ -95,11 +96,26 @@ int main(int argc, char** argv)
             }
             else if (arg == "--quality" && i + 1 < argc)
             {
-                quality = std::string_view(argv[++i]) == "Q-P0-mm-01";
+                const std::string_view id(argv[++i]);
+                quality = id == "Q-P0-mm-01" || id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01";
+                if (id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01")
+                {
+                    options.generalBrep = true;
+                    options.quality = id == "Q-AP214-development-mm-01" ? step_import::Quality::GeneralDevelopment() :
+                                                                          step_import::Quality::GeneralToleranceStudy();
+                }
                 if (!quality)
                 {
                     throw std::invalid_argument("Unsupported explicit quality identifier");
                 }
+            }
+            else if (arg == "--interop-nongeometric")
+            {
+                options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+            }
+            else if (arg == "--write-native" && i + 1 < argc)
+            {
+                nativeOutput = std::filesystem::path(argv[++i]);
             }
             else if (arg == "--query" && i + 3 < argc)
             {
@@ -134,6 +150,8 @@ int main(int argc, char** argv)
                                                                                { "--max-record-bytes", &options.sourceLimits.recordBytes },
                                                                                { "--max-id-digits", &options.sourceLimits.idDigits },
                                                                                { "--max-semantic-visits", &options.semanticLimits.dependencyVisits },
+                                                                               { "--max-preserved-diagnostics",
+                                                                                 &options.semanticLimits.preservedDiagnostics },
                                                                                { "--max-planar-work", &options.planarLimits.work } };
                 bool assigned = false;
                 for (const auto& [name, target] : counters)
@@ -183,6 +201,12 @@ int main(int argc, char** argv)
         {
             throw std::invalid_argument("Use --fixture-limits --quality Q-P0-mm-01 input.step [--query x y z]");
         }
+        if (options.generalBrep)
+        {
+            // The general report embeds the full owning source inspection.
+            // One explicit CLI report cap must bound both nested and outer output.
+            options.sourceLimits.reportBytes = options.nativeLimits.reportBytes;
+        }
         auto result = step_import::ImportFile(file, options);
         if (result.report.json.empty())
         {
@@ -190,6 +214,10 @@ int main(int argc, char** argv)
             return 5;
         }
         std::string output = result.report.json;
+        if (nativeOutput && result.model)
+        {
+            result.model->WriteNative(*nativeOutput);
+        }
         if (query && result.model)
         {
             const auto closest = result.model->Closest(*query);

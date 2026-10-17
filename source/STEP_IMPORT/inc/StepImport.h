@@ -88,6 +88,8 @@ struct Quality
     Fraction initialWorkToleranceMm, maximumWorkToleranceMm, toleranceGrowthMm;
     Fraction queryMm, areaMm2, volumeMm3;
     static Quality PlanarFixture(); // Explicit synthetic-test candidate, never a production default.
+    static Quality GeneralDevelopment(); // Explicit development profile; production calibration remains open.
+    static Quality GeneralToleranceStudy(); // Explicit 10-micrometre study, not an automatic source-uncertainty policy.
 };
 struct Limits
 {
@@ -106,6 +108,8 @@ struct Options
     Quality quality;
     Limits nativeLimits;
     ExecutionOptions execution;
+    bool generalBrep = false; // Explicit native geometry path; never implies full AP/schema conformance.
+    step_semantics::SourcePolicy sourcePolicy = step_semantics::SourcePolicy::Strict;
     static Options PlanarFixture();
 };
 struct Statistics
@@ -114,7 +118,7 @@ struct Statistics
     double areaMm2 = 0, boundaryMm = 0; // boundaryMm sums unique edge lengths, including shared edges once.
     Bounds boundsMm{};
     Point centroidMm{};
-    std::optional<Point> normal; // Shape-wide normal/window apply only to a single face. Per-face values are always present.
+    std::optional<Point> normal; // The qualified planar path supplies normals/mm windows; general charts can omit them.
     std::optional<std::array<double, 4>> windowMm; // umin, vmin, umax, vmax; computational window, not a new trim.
     std::optional<double> materialVolumeMm3;
     std::size_t freeBoundaryEdges = 0;
@@ -148,6 +152,7 @@ public:
 
     std::string SourceId() const;
     Statistics Info() const;
+    std::array<double, 4> ParameterDomain() const; // Native evaluator parameters; general charts do not imply source UV or millimetres.
     Point EvaluateSurface(double u, double v) const; // Rejects domain violations before native evaluation.
     ClosestPoint Closest(const Point& pointMm) const;
     PointClass ClassifyUV(double u, double v) const;
@@ -170,6 +175,7 @@ public:
     std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
+    void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
     EditableCopyOutcome CopyForModeling() const;
 
 private:
@@ -243,8 +249,18 @@ struct SourceDeclarations
     std::vector<std::size_t> records; // Declaration roots and their complete outbound dependency closure, in source order.
     std::vector<SourceUncertainty> uncertainties;
 };
+struct RepresentationNormalization
+{
+    std::string kind, sourceFaceId;
+    std::vector<std::string> sourceBoundIds, sourceVertexIds;
+    std::optional<std::size_t> targetEdgeIndex; // Index in the private model edge mapping, not a source entity ID.
+};
 struct Report
 {
+    bool generalBrep = false;
+    std::optional<step_semantics::Outcome> generalSource; // Source diagnostics and original records survive native failure.
+    std::vector<std::pair<std::string, std::string>> classifiedOuterBounds; // Derived face/bound IDs, never source relabeling.
+    std::vector<RepresentationNormalization> normalizations;
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
     std::optional<step_semantics::SchemaSelection> sourceSchema; // Owning HEADER identity, including unsupported profile selection.
     std::shared_ptr<const step_source::SourceSnapshot> source;
