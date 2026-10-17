@@ -5,6 +5,7 @@
 #include <SmApiGeneral.h>
 #include <SmApiQueries.h>
 #include <SmBrep.h>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -22,23 +23,55 @@ void Near(double actual, double expected, const char* message)
 {
     Require(std::isfinite(actual) && std::abs(actual - expected) <= 1e-7, message);
 }
+struct SheetTruth
+{
+    std::string_view mode;
+    std::size_t vertices, edges, freeEdges, uses, toleranceRows;
+    double area, uniqueLength, firstArea, secondArea, maxZ;
+    step_import::Point centroid, closest;
+};
+SheetTruth Expected(std::string_view mode)
+{
+    const SheetTruth cases[] = {
+        { "folded", 6, 7, 6, 8, 80, 18, 21, 12, 6, 2, { 8.0 / 3, 1.5, 1.0 / 3 }, { 4, 1.5, 1 } },
+        { "coplanar", 6, 7, 6, 8, 80, 18, 21, 12, 6, 0, { 3, 1.5, 0 }, { 5, 1.5, 0 } },
+        { "convex", 6, 7, 6, 8, 80, 19, 20 + std::sqrt(5.0), 12, 7, 2, { 52.0 / 19, 91.0 / 57, 22.0 / 57 }, { 4, 1.5, 1 } },
+        { "triangular", 4, 5, 4, 6, 60, 9, 14 + std::sqrt(13.0), 6, 3, 2, { 28.0 / 9, 1, 2.0 / 9 }, { 4, 1.5, 1 } },
+        { "pentagonal", 7, 8, 7, 9, 90, 21, 16 + 3 * std::sqrt(5.0), 12, 9, 3, { 20.0 / 7, 103.0 / 63, 4.0 / 7 }, { 4, 1.5, 1 } }
+    };
+    const auto found = std::find_if(
+        std::begin(cases),
+        std::end(cases),
+        [&](const auto& row)
+        {
+            return row.mode == mode;
+        }
+    );
+    Require(found != std::end(cases), "Known independently specified sheet mode");
+    return *found;
+}
 } // namespace
 int main(int argc, char** argv)
 {
     try
     {
-        Require(argc == 2 || (argc == 3 && std::string_view(argv[2]) == "coplanar"), "Pass sheet fixture and optional coplanar mode");
-        const bool coplanar = argc == 3;
+        Require(argc == 2 || argc == 3, "Pass sheet fixture and optional truth mode");
+        const auto truth = Expected(argc == 3 ? argv[2] : "folded");
         const auto options = step_import::Options::PlanarFixture();
         auto imported = step_import::ImportFile(argv[1], options);
         Require(imported.status == step_import::Status::Accepted && imported.model, "S1 yields an owning open sheet");
         const auto original = imported.model->Info();
-        Require(original.faces == 2 && original.edges == 7 && original.vertices == 6 && original.freeBoundaryEdges == 6, "Independent S1 census");
-        Near(original.areaMm2, 18, "Both face areas contribute");
-        Near(original.boundaryMm, 21, "Shared edge counted once in unique edge length");
-        Near(original.centroidMm[0], coplanar ? 3 : 8.0 / 3, "Area-weighted sheet centroid x");
-        Near(original.centroidMm[1], 1.5, "Area-weighted sheet centroid y");
-        Near(original.centroidMm[2], coplanar ? 0 : 1.0 / 3, "Area-weighted sheet centroid z");
+        Require(
+            original.faces == 2 && original.edges == truth.edges && original.vertices == truth.vertices &&
+                original.freeBoundaryEdges == truth.freeEdges,
+            "Independent variable sheet census"
+        );
+        Near(original.areaMm2, truth.area, "Both face areas contribute");
+        Near(original.boundaryMm, truth.uniqueLength, "Shared edge counted once in unique edge length");
+        for (std::size_t i = 0; i < 3; ++i)
+        {
+            Near(original.centroidMm[i], truth.centroid[i], "Independent area-weighted sheet centroid");
+        }
         Require(!original.normal && !original.windowMm && !imported.model->MaterialVolumeMm3(), "No shape-wide plane or material volume");
         Require(!imported.model->ClassifyMaterial({ 2, 1, 0 }), "An open sheet never acquires material classification");
         Require(
@@ -46,26 +79,29 @@ int main(int argc, char** argv)
                 !imported.report.nativeRole->manifoldSolidPredicate,
             "Actual native spatial role remains an open surface"
         );
-        Require(imported.report.tolerances.size() == 80, "Five stages cover BRep, both faces, seven edges and six vertices");
+        Require(imported.report.tolerances.size() == truth.toleranceRows, "Five stages cover BRep, faces, edges and vertices");
         for (const auto& tolerance : imported.report.tolerances)
         {
             Require(tolerance.valueMm == 1e-5, "Canonical working tolerance never grows");
         }
         std::size_t logicalUses = 0;
+        std::size_t sharedUses = 0;
         for (const auto& loop : imported.report.loops)
         {
             logicalUses += loop.uses.size();
             for (const auto& use : loop.uses)
             {
-                if (use.orientedEdgeId == "801")
+                if (use.edgeId == "601" && loop.faceId == "704")
                 {
+                    ++sharedUses;
                     Require(
                         use.uvStartMm == std::array<double, 2>{ 4, 0 } && use.uvEndMm == std::array<double, 2>{ 4, 3 },
                         "FA shared side uses its own UV and direction"
                     );
                 }
-                if (use.orientedEdgeId == "813")
+                if (use.edgeId == "601" && loop.faceId == "714")
                 {
+                    ++sharedUses;
                     Require(
                         use.uvStartMm == std::array<double, 2>{ 0, 3 } && use.uvEndMm == std::array<double, 2>{ 0, 0 },
                         "FB shared side uses its own reversed UV"
@@ -73,7 +109,7 @@ int main(int argc, char** argv)
                 }
             }
         }
-        Require(logicalUses == 8, "Eight logical source occurrences, sixteen native mate uses");
+        Require(logicalUses == truth.uses && sharedUses == 2, "Every logical source occurrence and both shared uses retained");
         auto views = imported.model->Faces();
         Require(views.size() == 2, "Both independent owning face views");
         const auto bytes = imported.model->Source()->Source().Bytes();
@@ -117,13 +153,13 @@ int main(int argc, char** argv)
         auto copy = imported.model->CopyForModeling();
         Require(copy.status == step_import::Status::Accepted && copy.model, "Open shared sheet has an independent editable copy");
         copy.model->Edit(
-            [coplanar](SmBrep& brep)
+            [&truth](SmBrep& brep)
             {
                 Require(SmApiTranslate(&brep, { 100, -20, 3 }) == SM_SUCCESS, "Translate independent open sheet copy");
                 SmPoint3d minimum, maximum;
                 Require(SmApiBrepBoundingBox(&brep, TRUE, minimum, maximum) == SM_SUCCESS, "Measure translated copy");
                 Near(minimum.x, 100, "Copy minimum x");
-                Near(maximum.z, coplanar ? 3 : 5, "Copy maximum z");
+                Near(maximum.z, truth.maxZ + 3, "Copy maximum z");
                 long materials = 0, boundedVoids = 0;
                 Require(
                     SmApiBrepMaterialCensus(&brep, materials, boundedVoids) == SM_SUCCESS && materials == 0 && boundedVoids == 0,
@@ -137,12 +173,14 @@ int main(int argc, char** argv)
         );
         const auto nearSecondFace = imported.model->Closest({ 5, 1.5, 1 });
         Near(nearSecondFace.distanceMm, 1, "Whole-sheet closest point reaches the second face");
-        Near(nearSecondFace.pointMm[0], coplanar ? 5 : 4, "Second face closest x");
-        Near(nearSecondFace.pointMm[2], coplanar ? 0 : 1, "Second face closest z");
+        for (std::size_t i = 0; i < 3; ++i)
+        {
+            Near(nearSecondFace.pointMm[i], truth.closest[i], "Whole-sheet query reaches the second face");
+        }
         imported = {};
         for (const auto& view : views)
         {
-            Near(view.Info().areaMm2, view.SourceId() == "704" ? 12 : 6, "Owning view survives original result release");
+            Near(view.Info().areaMm2, view.SourceId() == "704" ? truth.firstArea : truth.secondArea, "Owning view survives original result release");
             const auto at = view.Info().centroidMm;
             Near(view.Closest(at).distanceMm, 0, "Released-result view remains queryable");
         }

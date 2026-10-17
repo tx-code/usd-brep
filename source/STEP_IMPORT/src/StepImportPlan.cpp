@@ -184,27 +184,34 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
     {
         if (!condition)
         {
-            throw Failure{ Status::Unsupported,
-                           "UnsupportedNativeOpenSheetScope",
-                           "Shared open-sheet qualification requires two exact rectangles whose trimmed intersection is one complete shared edge",
-                           plan.record };
+            throw Failure{
+                Status::Unsupported,
+                "UnsupportedNativeOpenSheetScope",
+                "Shared open-sheet qualification requires two exact strictly convex simple polygons whose trimmed intersection is one complete shared edge",
+                plan.record
+            };
         }
     };
-    need(plan.faces.size() == 2 && plan.vertices.size() == 6 && plan.edges.size() == 7);
+    need(plan.faces.size() == 2 && plan.vertices.size() >= 4 && plan.edges.size() >= 5);
     OpenSheetProof proof{};
+    std::vector<std::size_t> edgeFaces(plan.edges.size()), vertexFaces(plan.vertices.size());
+    for (const auto& face : plan.faces)
+    {
+        for (const auto e : face.edges)
+        {
+            ++edgeFaces.at(e);
+        }
+        for (const auto v : face.vertices)
+        {
+            ++vertexFaces.at(v);
+        }
+    }
     std::size_t shared = 0;
     for (std::size_t e = 0; e < plan.edges.size(); ++e)
     {
         const auto& edge = plan.edges[e];
         need(edge.minimumMm == plan.vertices[edge.minimumVertex].pointMm && edge.maximumMm == plan.vertices[edge.maximumVertex].pointMm);
-        const auto count = std::count_if(
-            plan.faces.begin(),
-            plan.faces.end(),
-            [&](const auto& face)
-            {
-                return std::find(face.edges.begin(), face.edges.end(), e) != face.edges.end();
-            }
-        );
+        const auto count = edgeFaces[e];
         need(count == 1 || count == 2);
         if (count == 2)
         {
@@ -217,10 +224,10 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
     for (std::size_t f = 0; f < plan.faces.size(); ++f)
     {
         const auto& face = plan.faces[f];
-        need(face.loops.size() == 1 && face.loops[0].outer && face.vertices.size() == 4 && face.edges.size() == 4);
+        need(face.loops.size() == 1 && face.loops[0].outer && face.vertices.size() >= 3 && face.edges.size() == face.vertices.size());
         const auto& uses = face.loops[0].selectedUses;
-        need(uses.size() == 4);
-        std::array<ExactPoint, 4> points;
+        need(uses.size() == face.vertices.size());
+        std::vector<ExactPoint> points(uses.size());
         normals[f] = Cross(face.x, face.y);
         for (std::size_t i = 0; i < uses.size(); ++i)
         {
@@ -228,17 +235,49 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
             points[i] = plan.vertices[uses[i].forward ? edge.minimumVertex : edge.maximumVertex].pointMm;
             need(Dot(normals[f], Subtract(points[i], face.originMm)) == Fraction());
         }
-        const auto a = Subtract(points[1], points[0]), b = Subtract(points[3], points[0]);
-        need(Dot(a, a) > Fraction() && Dot(b, b) > Fraction() && Dot(a, b) == Fraction());
-        need(points[2] == Add(Add(points[0], a), b));
-        need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b));
-        need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
+        const auto a = Subtract(points[1], points[0]), b = Subtract(points.back(), points[0]);
+        if (points.size() == 4 && Dot(a, b) == Fraction() && points[2] == Add(Add(points[0], a), b))
+        {
+            // Retain the established rectangle arithmetic and capacity path.
+            need(Dot(a, a) > Fraction() && Dot(b, b) > Fraction());
+            need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b));
+            need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
+        }
+        else
+        {
+            // Source Checked has already proved a simple finite LINE loop.
+            // For a simple polygon, strictly same-signed consecutive turns
+            // prove strict convexity without another quadratic segment walk.
+            std::optional<bool> positive;
+            for (std::size_t i = 0; i < points.size(); ++i)
+            {
+                const auto j = (i + 1) % points.size(), k = (i + 2) % points.size();
+                const auto turn = Dot(normals[f], Cross(Subtract(points[j], points[i]), Subtract(points[k], points[j])));
+                need(turn != Fraction());
+                const bool current = turn > Fraction();
+                need(!positive || current == *positive);
+                positive = current;
+            }
+        }
     }
+    need(plan.vertices.size() == plan.faces[0].vertices.size() + plan.faces[1].vertices.size() - 2);
+    need(plan.edges.size() == plan.faces[0].edges.size() + plan.faces[1].edges.size() - 1);
+    const auto& common = plan.edges[proof.sharedEdge];
+    std::size_t commonVertices = 0;
+    for (std::size_t v = 0; v < vertexFaces.size(); ++v)
+    {
+        need(vertexFaces[v] == 1 || vertexFaces[v] == 2);
+        if (vertexFaces[v] == 2)
+        {
+            need(v == common.minimumVertex || v == common.maximumVertex);
+            ++commonVertices;
+        }
+    }
+    need(commonVertices == 2);
     const auto axis = Cross(normals[0], normals[1]);
     if (Dot(axis, axis) == Fraction())
     {
         need(Dot(normals[0], Subtract(plan.faces[1].originMm, plan.faces[0].originMm)) == Fraction());
-        const auto& common = plan.edges[proof.sharedEdge];
         const auto direction = Subtract(common.maximumMm, common.minimumMm);
         const auto side = [&](const FacePlan& face)
         {
@@ -246,12 +285,12 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
         };
         const auto a = side(plan.faces[0]), b = side(plan.faces[1]);
         need((a > Fraction() && b < Fraction()) || (a < Fraction() && b > Fraction()));
-        // Each convex rectangle lies in the closed half-plane selected by its
+        // Each strictly convex polygon lies in the half-plane selected by its
         // interior centroid. Strictly opposite signs exclude positive-area
         // overlap; their common boundary is the complete shared side.
     }
     // For distinct planes their intersection line contains the shared side.
-    // Each convex rectangle meets it only on that complete side. Thus either
+    // Each strictly convex polygon meets it only on that complete side. Either
     // admitted case has exactly the declared finite intersection, independently
     // of native validator success.
     proof.minimum = proof.maximum = plan.vertices.front().pointMm;

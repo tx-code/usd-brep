@@ -1200,18 +1200,23 @@ void Builder::VerifyAdjacency()
             m_plan.faces[f].face
         );
     }
+    std::vector<std::vector<std::size_t>> incidentFaces(m_plan.edges.size());
+    for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+    {
+        for (const auto e : m_plan.faces[f].edges)
+        {
+            incidentFaces.at(e).push_back(f);
+        }
+    }
     for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
     {
         std::set<SmFace*> expected, actual;
         EdgeAdjacency row;
         row.edgeId = Id(m_plan.edges[e].record);
-        for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
+        for (const auto f : incidentFaces[e])
         {
-            if (std::find(m_plan.faces[f].edges.begin(), m_plan.faces[f].edges.end(), e) != m_plan.faces[f].edges.end())
-            {
-                expected.insert(m_model->faces[f].face);
-                row.faceIds.push_back(Id(m_plan.faces[f].face));
-            }
+            expected.insert(m_model->faces[f].face);
+            row.faceIds.push_back(Id(m_plan.faces[f].face));
         }
         SmTArray<SmEdgeuse*> uses;
         Good(m_model->edges[e]->GetEdgeuses(uses));

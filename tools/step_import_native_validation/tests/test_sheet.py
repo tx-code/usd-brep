@@ -14,11 +14,14 @@ import tempfile
 import unittest
 
 from tools.step_import_native_validation.oracle import accepted
-from tools.step_import_validation.oracle import exact
-from tools.step_import_validation.records import aggregate, inventory, vector as source_vector
+from tools.step_import_validation.oracle import decode, exact, sqrt_interval
+from tools.step_import_validation.records import aggregate, by_id, inventory, ref, vector as source_vector
 
 SHEET = Path(__file__).resolve().parents[3] / "source/STEP_IMPORT/tests/fixtures/open_shared_sheet.step"
 COPLANAR_SHEET = SHEET.with_name("coplanar_shared_sheet.step")
+CONVEX_SHEET = SHEET.with_name("convex_shared_sheet.step")
+TRIANGULAR_SHEET = SHEET.with_name("triangular_shared_sheet.step")
+PENTAGONAL_SHEET = SHEET.with_name("pentagonal_shared_sheet.step")
 # P0 S1 analytic truth: face areas 12 and 6; unique edge lengths total 21.
 # Area moments: (48, 27, 6); no CAD-generated expectations.
 TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 7, "vertices": 6},
@@ -31,7 +34,163 @@ COPLANAR_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges
                   "bounds": [[exact(0), exact(0), exact(0)], [exact(6), exact(3), exact(0)]]}
 
 
+def radical_length(base, squared, multiplier=1):
+    bounds = sqrt_interval(F(squared))
+    low, high = base + multiplier * decode(bounds["lower"]), base + multiplier * decode(bounds["upper"])
+    return exact((low + high) / 2), [exact(low), exact(high)]
+
+
+_trapezoid_length, _trapezoid_bounds = radical_length(20, 5)
+CONVEX_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 7, "vertices": 6},
+                "measures": {"area": exact(19), "perimeter": _trapezoid_length},
+                "perimeter_bounds": _trapezoid_bounds,
+                "centroid": [exact(F(52, 19)), exact(F(91, 57)), exact(F(22, 57))],
+                "bounds": [[exact(0), exact(0), exact(0)], [exact(4), exact(4), exact(2)]]}
+_triangle_length, _triangle_bounds = radical_length(14, 13)
+TRIANGULAR_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 5, "vertices": 4},
+                    "measures": {"area": exact(9), "perimeter": _triangle_length},
+                    "perimeter_bounds": _triangle_bounds,
+                    "centroid": [exact(F(28, 9)), exact(1), exact(F(2, 9))],
+                    "bounds": [[exact(0), exact(0), exact(0)], [exact(4), exact(3), exact(2)]]}
+_pentagon_length, _pentagon_bounds = radical_length(16, 5, 3)
+PENTAGONAL_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 8, "vertices": 7},
+                    "measures": {"area": exact(21), "perimeter": _pentagon_length},
+                    "perimeter_bounds": _pentagon_bounds,
+                    "centroid": [exact(F(20, 7)), exact(F(103, 63)), exact(F(4, 7))],
+                    "bounds": [[exact(0), exact(0), exact(0)], [exact(4), exact(4), exact(3)]]}
+
+
 class SheetTests(unittest.TestCase):
+    def polygon_checked(self, observed, data, truth):
+        accepted(observed, data, truth)
+        if "perimeter_bounds" in truth:
+            actual = F(observed["native_measurements"]["boundary_mm"])
+            self.assertLessEqual(max(abs(actual - decode(v)) for v in truth["perimeter_bounds"]), F(1, 10**7))
+
+    def unfolded(self, data, side=1):
+        index = by_id(inventory(data))
+        directions, points = {710, 711}, set()
+        for token in aggregate(index[715].args[1]):
+            edge = index[ref(index[ref(token)].args[3])]
+            vector = index[ref(index[ref(edge.args[3])].args[2])]
+            directions.add(ref(vector.args[1]))
+            points.update(ref(index[ref(v)].args[1]) for v in edge.args[1:3])
+        for record in index.values():
+            if record.entity_id not in directions | points:
+                continue
+            x, y, z = source_vector(record.args[1])
+            value = (side*z, y, -side*x) if record.kind == "DIRECTION" else (4+side*z, y, -side*(x-4))
+            body = record.kind + "('',(" + ",".join(str(float(v)) for v in value) + "))"
+            data = self.replace(data, f"#{record.entity_id}={record.raw};", f"#{record.entity_id}={body};")
+        return data
+
+    def test_coplanar_convex_faces_remain_separate_without_overlap(self):
+        for fixture, base_truth, center_x, xmax in (
+                (CONVEX_SHEET, CONVEX_TRUTH, F(178, 57), 6),
+                (TRIANGULAR_SHEET, TRIANGULAR_TRUTH, F(10, 3), 6),
+                (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, F(24, 7), 7)):
+            data = self.unfolded(fixture.read_bytes())
+            truth = deepcopy(base_truth)
+            truth["centroid"] = [exact(center_x), base_truth["centroid"][1], exact(0)]
+            truth["bounds"][1] = [exact(xmax), base_truth["bounds"][1][1], exact(0)]
+            with self.subTest(fixture=fixture.name):
+                actual, observed = self.invoke(data, "--query", "4.5", "1", "-1")
+                self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+                self.polygon_checked(observed["import"], data, truth)
+                self.assertEqual([4.5, 1, 0], observed["query"]["closest_point_mm"])
+                self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
+
+    def test_same_side_coplanar_convex_faces_do_not_enter_native(self):
+        for fixture in (CONVEX_SHEET, TRIANGULAR_SHEET, PENTAGONAL_SHEET):
+            data = self.unfolded(fixture.read_bytes(), -1)
+            with self.subTest(fixture=fixture.name):
+                actual, observed = self.invoke(data)
+                self.assertEqual(2, actual.returncode)
+                self.assertEqual("Checked", observed["source"]["planar"])
+                self.assertEqual("UnsupportedNativeOpenSheetScope", observed["diagnostics"][0]["key"])
+                self.assertEqual(("Unsupported", 0), (observed["status"], observed["native_calls"]))
+                self.assertIsNone(observed["model"])
+
+    def test_convex_pentagon_keeps_every_vertex_and_use(self):
+        data = PENTAGONAL_SHEET.read_bytes()
+        actual, observed = self.invoke(data, "--query", "5", "2", "2")
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed["import"], data, PENTAGONAL_TRUTH)
+        self.assertEqual((7, 90), (observed["import"]["native_measurements"]["free_boundary_edges"],
+                                  len(observed["import"]["tolerances"])))
+        self.assertEqual(9, sum(len(row["uses"]) for row in observed["import"]["loop_mappings"]))
+        self.assertEqual([4, 2, 2], observed["query"]["closest_point_mm"])
+        self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
+
+    def test_valid_concave_or_collinear_boundaries_do_not_get_simplified(self):
+        for y, z in ((2, 1), (2, 2)):
+            data = PENTAGONAL_SHEET.read_bytes()
+            changes = [("#105=CARTESIAN_POINT('',(4.,2.,3.))", f"#105=CARTESIAN_POINT('',(4.,{float(y)},{float(z)}))"),
+                       ("#305=DIRECTION('',(0.,2.,1.))", f"#305=DIRECTION('',(0.,{float(y)},{float(z-2)}))"),
+                       ("#306=DIRECTION('',(0.,2.,-1.))", f"#306=DIRECTION('',(0.,{float(4-y)},{float(2-z)}))")]
+            for old, new in changes:
+                data = self.replace(data, old, new)
+            with self.subTest(shape="concave" if z == 1 else "collinear"):
+                actual, observed = self.invoke(data)
+                self.assertEqual(2, actual.returncode)
+                self.assertEqual("Checked", observed["source"]["planar"])
+                self.assertEqual(("Unsupported", 0, "None"),
+                                 (observed["status"], observed["native_calls"], observed["repair"]))
+                self.assertEqual("UnsupportedNativeOpenSheetScope", observed["diagnostics"][0]["key"])
+                self.assertIsNone(observed["model"])
+
+    def test_convex_faces_preserve_shape_in_an_oblique_world_frame(self):
+        for fixture, base_truth, xmax, ymax in ((CONVEX_SHEET, CONVEX_TRUTH, F(11), 2),
+                                               (TRIANGULAR_SHEET, TRIANGULAR_TRUTH, F(11), 1),
+                                               (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, F(59, 5), 2)):
+            data = fixture.read_bytes()
+            for record in inventory(data):
+                if record.kind not in {"CARTESIAN_POINT", "DIRECTION"}:
+                    continue
+                x, y, z = source_vector(record.args[1])
+                value = (F(3, 5)*x + F(4, 5)*z, y, -F(4, 5)*x + F(3, 5)*z)
+                if record.kind == "CARTESIAN_POINT":
+                    value = tuple(a+b for a, b in zip(value, (7, -2, 5)))
+                body = record.kind + "('',(" + ",".join(str(float(v)) for v in value) + "))"
+                data = self.replace(data, f"#{record.entity_id}={record.raw};", f"#{record.entity_id}={body};")
+            truth = deepcopy(base_truth)
+            x, y, z = map(decode, base_truth["centroid"])
+            truth["centroid"] = [exact(7 + F(3, 5)*x + F(4, 5)*z), exact(y-2),
+                                 exact(5 - F(4, 5)*x + F(3, 5)*z)]
+            truth["bounds"] = [[exact(7), exact(-2), exact(F(9, 5))],
+                               [exact(xmax), exact(ymax), exact(5)]]
+            with self.subTest(fixture=fixture.name):
+                actual, observed = self.invoke(data, "--query", "10.4", "-1", "1.3")
+                self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+                self.polygon_checked(observed["import"], data, truth)
+                for a, b in zip(observed["query"]["closest_point_mm"], (9.8, -1, 2.1)):
+                    self.assertAlmostEqual(a, b, delta=1e-7)
+                self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
+
+    def test_independent_checker_rejects_lost_convex_geometry(self):
+        for fixture, truth in ((CONVEX_SHEET, CONVEX_TRUTH), (TRIANGULAR_SHEET, TRIANGULAR_TRUTH),
+                                (PENTAGONAL_SHEET, PENTAGONAL_TRUTH)):
+            data = fixture.read_bytes()
+            actual, observed = self.invoke(data)
+            self.assertEqual(0, actual.returncode)
+            self.polygon_checked(observed, data, truth)
+            for defect in ("vertex", "use", "area", "centroid", "uv", "material"):
+                bad = deepcopy(observed)
+                if defect == "vertex":
+                    bad["native_measurements"]["vertices"] -= 1
+                elif defect == "use":
+                    bad["loop_mappings"][1]["uses"].pop()
+                elif defect == "area":
+                    bad["native_measurements"]["area_mm2"] = 18
+                elif defect == "centroid":
+                    bad["native_measurements"]["centroid_mm"] = [2, 1.5, 0]
+                elif defect == "uv":
+                    bad["loop_mappings"][1]["uses"][0]["uv_end_mm"] = [99, 99]
+                else:
+                    bad["model"]["role"] = "MaterialSolid"
+                with self.subTest(fixture=fixture.name, defect=defect), self.assertRaises(AssertionError):
+                    self.polygon_checked(bad, data, truth)
+
     def replace(self, data, old, new):
         old, new = old.encode("ascii"), new.encode("ascii")
         self.assertEqual(1, data.count(old), old)
@@ -128,22 +287,27 @@ class SheetTests(unittest.TestCase):
                 self.assertIsNone(observed["model"])
                 self.assertEqual((0, "None"), (observed["native_calls"], observed["repair"]))
 
-    def test_source_valid_trapezoid_is_not_guessed_into_a_rectangle(self):
-        data = SHEET.read_bytes()
-        for old, new in (("#105=CARTESIAN_POINT('',(4.,3.,2.))", "#105=CARTESIAN_POINT('',(4.,4.,2.))"),
-                         ("#405=VECTOR('',#305,3.)", "#405=VECTOR('',#305,4.)"),
-                         ("#306=DIRECTION('',(0.,0.,-1.))", "#306=DIRECTION('',(0.,-1.,-2.))"),
-                         ("#406=VECTOR('',#306,2.)", "#406=VECTOR('',#306,1.)")):
-            data = self.replace(data, old, new)
+    def test_convex_trapezoid_is_preserved_without_fitting_a_rectangle(self):
+        data = CONVEX_SHEET.read_bytes()
         actual, observed = self.invoke(data)
-        self.assertEqual(2, actual.returncode)
-        self.assertEqual("Checked", observed["source"]["planar"])
-        self.assertEqual("UnsupportedNativeOpenSheetScope", observed["diagnostics"][0]["key"])
-        self.assertEqual(0, observed["native_calls"])
-        self.assertIsNone(observed["model"])
+        self.assertEqual(0, actual.returncode, observed["diagnostics"])
+        self.polygon_checked(observed, data, CONVEX_TRUTH)
+
+    def test_two_triangles_preserve_variable_census_and_complete_boundaries(self):
+        data = TRIANGULAR_SHEET.read_bytes()
+        actual, observed = self.invoke(data, "--query", "5", "1", "0.5")
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed["import"], data, TRIANGULAR_TRUTH)
+        self.assertEqual((4, 60), (observed["import"]["native_measurements"]["free_boundary_edges"],
+                                  len(observed["import"]["tolerances"])))
+        self.assertEqual(6, sum(len(row["uses"]) for row in observed["import"]["loop_mappings"]))
+        self.assertEqual([4, 1, 0.5], observed["query"]["closest_point_mm"])
+        self.assertAlmostEqual(1, observed["query"]["distance_mm"], delta=1e-7)
+        self.assertEqual("NotApplicable", observed["query"]["material_location"])
 
     def test_si_restatement_preserves_sheet_and_dimensionless_parameters(self):
-        for fixture, truth in ((SHEET, TRUTH), (COPLANAR_SHEET, COPLANAR_TRUTH)):
+        for fixture, truth in ((SHEET, TRUTH), (COPLANAR_SHEET, COPLANAR_TRUTH), (CONVEX_SHEET, CONVEX_TRUTH),
+                                (TRIANGULAR_SHEET, TRIANGULAR_TRUTH), (PENTAGONAL_SHEET, PENTAGONAL_TRUTH)):
             data = fixture.read_bytes().replace(b"SI_UNIT(.MILLI.,.METRE.)", b"SI_UNIT(.CENTI.,.METRE.)")
             for record in inventory(data):
                 args = list(record.args)
@@ -158,7 +322,7 @@ class SheetTests(unittest.TestCase):
             with self.subTest(fixture=fixture.name):
                 actual, observed = self.invoke(data)
                 self.assertEqual(0, actual.returncode)
-                accepted(observed, data, truth)
+                self.polygon_checked(observed, data, truth)
                 self.assertEqual(exact(10), observed["unit_normalization"]["length_to_mm"])
                 self.assertEqual("DimensionlessUnchanged", observed["unit_normalization"]["line_parameter"])
 
@@ -170,7 +334,7 @@ class SheetTests(unittest.TestCase):
                 args = list(record.args)
                 identity = record.entity_id
                 toggle = lambda token: ".F." if token == ".T." else ".T."
-                if record.kind == "DIRECTION" and reverse_curve and 300 <= identity <= 306:
+                if record.kind == "DIRECTION" and reverse_curve and 300 <= identity < 400:
                     args[1] = "(" + ",".join(str(-float(v)) for v in source_vector(args[1])) + ")"
                 elif record.kind == "EDGE_CURVE":
                     if swap_edges:
@@ -203,12 +367,15 @@ class SheetTests(unittest.TestCase):
 
     def test_equivalent_senses_face_order_and_sparse_identity_preserve_sheet(self):
         for fixture, truth, closest in ((SHEET, TRUTH, (4, 1.5, 1)),
-                                        (COPLANAR_SHEET, COPLANAR_TRUTH, (5, 1.5, 0))):
+                                        (COPLANAR_SHEET, COPLANAR_TRUTH, (5, 1.5, 0)),
+                                        (CONVEX_SHEET, CONVEX_TRUTH, (4, 1.5, 1)),
+                                        (TRIANGULAR_SHEET, TRIANGULAR_TRUTH, (4, 1.5, 1)),
+                                        (PENTAGONAL_SHEET, PENTAGONAL_TRUTH, (4, 1.5, 1))):
             for flags, data in self.variants(fixture.read_bytes()):
                 with self.subTest(fixture=fixture.name, flags=flags):
                     actual, observed = self.invoke(data, "--query", "5", "1.5", "1")
                     self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
-                    accepted(observed["import"], data, truth)
+                    self.polygon_checked(observed["import"], data, truth)
                     self.assertEqual("NotApplicable", observed["query"]["material_location"])
                     for a, b in zip(observed["query"]["closest_point_mm"], closest):
                         self.assertAlmostEqual(a, b, delta=1e-7)
