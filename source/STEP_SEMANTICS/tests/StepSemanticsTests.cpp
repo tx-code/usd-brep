@@ -70,7 +70,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 70,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 83,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -96,6 +96,62 @@ int main(int argc, char** argv)
         Require(
             derivedReferenceRefused && derivedDimensions.Value().kind == step_source::ValueKind::Derived,
             "Owning derived field must survive outcome release without inventing a reference"
+        );
+        ++groups;
+
+        auto presentationText = Read(corpus / "S203-P01/input.step");
+        presentationText.replace(presentationText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        const std::string sdrLink = "SHAPE_DEFINITION_REPRESENTATION(#8,#20)";
+        presentationText.replace(presentationText.find(sdrLink), sdrLink.size(), "SHAPE_DEFINITION_REPRESENTATION(#8,#910)");
+        presentationText.insert(presentationText.find("ENDSEC;", presentationText.find("DATA;")), R"STEP(
+#900=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('display',(#901),#12);
+#901=STYLED_ITEM('source style',(#902),#21);
+#902=PRESENTATION_STYLE_ASSIGNMENT((#903));
+#903=SURFACE_STYLE_USAGE(.BOTH.,#904);
+#904=SURFACE_SIDE_STYLE('side',(#905));
+#905=SURFACE_STYLE_FILL_AREA(#906);
+#906=FILL_AREA_STYLE('fill',(#907));
+#907=FILL_AREA_STYLE_COLOUR('colour',#908);
+#908=COLOUR_RGB('RGB',0.25,0.5,0.75);
+#910=SHAPE_REPRESENTATION('source root',(#133),#12);
+#911=SHAPE_REPRESENTATION_RELATIONSHIP('source link',$,#910,#20);
+)STEP");
+        auto presentationRaw = step_source::InspectBytes(presentationText, step_source::Limits::PlanarFixtures());
+        auto presentationResult = Check(presentationRaw, Limits{});
+        Require(presentationResult.status == Status::Checked && presentationResult.snapshot, "AP214 presentation source graph");
+        auto presentation = presentationResult.snapshot;
+        const auto style = Index(*presentation, "901"), relationship = Index(*presentation, "911");
+        auto styles = presentation->Field(style, "styles");
+        auto firstEndpoint = presentation->Field(relationship, "REPRESENTATION_RELATIONSHIP", "rep_1");
+        auto colourName = presentation->Field(Index(*presentation, "908"), "COLOUR_SPECIFICATION", "name");
+        Require(
+            &firstEndpoint.Value() == &presentationRaw.source->Find("911")->components[0].parameters[2] &&
+                presentation->Source().Records()[firstEndpoint.ReferenceTarget()].id == "910" &&
+                presentation->Source().Records()[presentation->Field(relationship, "rep_2").ReferenceTarget()].id == "20",
+            "Relationship endpoints must keep their actual declaring type, source values and directions"
+        );
+        // USEDIN returns incoming reference-occurrence indexes, not owner record indexes.
+        const auto incoming = presentation->UsedIn("20", "REPRESENTATION_RELATIONSHIP", "rep_2");
+        Require(
+            incoming.size() == 1 && presentation->Source().References()[incoming[0]].recordIndex == relationship,
+            "Relationship inverse query must retain the actual source reference occurrence"
+        );
+        Require(
+            styles.ReferenceTargets() == std::vector<std::size_t>{ Index(*presentation, "902") } && presentation->UsedByRepresentation(style) &&
+                !presentation->UsedByRepresentation(Index(*presentation, "908")),
+            "Presentation source references and RI-only use closure"
+        );
+        Require(
+            !snapshot->Instances("STYLED_ITEM") && snapshot->RegisteredTypes().size() == 72 &&
+                snapshot->Field(Index(*snapshot, "20"), "items").ReferenceTargets() == std::vector<std::size_t>{ Index(*snapshot, "21") },
+            "AP214 declarations must not leak into a live AP203 snapshot"
+        );
+        presentationRaw = {};
+        presentationResult = {};
+        presentation.reset();
+        Require(
+            firstEndpoint.Value().text == "910" && colourName.Value().text == "RGB" && styles.ReferenceTargets().size() == 1,
+            "Owning presentation/relationship field views must survive release of their raw outcome and snapshot"
         );
         ++groups;
 

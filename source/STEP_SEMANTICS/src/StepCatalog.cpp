@@ -29,11 +29,6 @@ constexpr std::string_view NominalQuantities[] = { "LENGTH_UNIT", "PLANE_ANGLE_U
 constexpr std::string_view ContextBranches[] = { "PRODUCT_CONTEXT", "PRODUCT_DEFINITION_CONTEXT" };
 constexpr Names ExclusiveGroups[] = { UnitDefinitions, NominalQuantities, ContextBranches };
 
-struct NamedBranches
-{
-    std::string_view name;
-    Names branches;
-};
 constexpr std::string_view UnitBranches[] = { "NAMED_UNIT", "DERIVED_UNIT" };
 constexpr std::string_view ShellBranches[] = { "OPEN_SHELL", "CLOSED_SHELL" };
 constexpr std::string_view CharacterizedBranches[] = { "PRODUCT_DEFINITION", "PRODUCT_DEFINITION_SHAPE" };
@@ -43,6 +38,17 @@ constexpr NamedBranches ReferenceSelects[] = { { "UNIT", UnitBranches },
                                                { "SHELL", ShellBranches },
                                                { "CHARACTERIZED_DEFINITION", CharacterizedBranches },
                                                { "REPRESENTED_DEFINITION", RepresentedBranches } };
+// AP214E3_2010.exp: these are admitted branches, not the complete EXPRESS SELECTs.
+// Keep them in the selected catalog so AP203 cannot acquire presentation types by accident.
+constexpr std::string_view PresentationStyles[] = { "SURFACE_STYLE_USAGE", "FILL_AREA_STYLE" };
+constexpr std::string_view SurfaceSideStyles[] = { "SURFACE_SIDE_STYLE" };
+constexpr std::string_view SurfaceElements[] = { "SURFACE_STYLE_FILL_AREA" };
+constexpr std::string_view FillStyles[] = { "FILL_AREA_STYLE_COLOUR" };
+constexpr NamedBranches Ap214ReferenceSelects[] = { { "PRESENTATION_STYLE_SELECT", PresentationStyles },
+                                                    { "SURFACE_SIDE_STYLE_SELECT", SurfaceSideStyles },
+                                                    { "SURFACE_STYLE_ELEMENT_SELECT", SurfaceElements },
+                                                    { "FILL_STYLE_SELECT", FillStyles } };
+constexpr std::string_view SurfaceSides[] = { "POSITIVE", "NEGATIVE", "BOTH" };
 
 struct SiPrefix
 {
@@ -114,7 +120,7 @@ void ValidateProfile(const Catalog& catalog)
             typeId(name);
         }
     }
-    for (const auto& select : ReferenceSelects)
+    for (const auto& select : catalog.referenceSelects)
     {
         for (const auto name : select.branches)
         {
@@ -144,8 +150,8 @@ void ValidateProfile(const Catalog& catalog)
             if (field.kind == FieldKind::Reference || (field.kind == FieldKind::Aggregate && field.elementKind == FieldKind::Reference))
             {
                 const bool select = std::any_of(
-                    std::begin(ReferenceSelects),
-                    std::end(ReferenceSelects),
+                    catalog.referenceSelects.begin(),
+                    catalog.referenceSelects.end(),
                     [&](const NamedBranches& entry)
                     {
                         return entry.name == field.type;
@@ -158,8 +164,8 @@ void ValidateProfile(const Catalog& catalog)
             }
             if (field.kind == FieldKind::Enumeration && field.type != "SI_PREFIX" &&
                 std::none_of(
-                    std::begin(Enumerations),
-                    std::end(Enumerations),
+                    catalog.enumerations.begin(),
+                    catalog.enumerations.end(),
                     [&](const NamedBranches& entry)
                     {
                         return entry.name == field.type;
@@ -209,6 +215,8 @@ Field Set(const char* name, const char* type)
 
 Catalog::Catalog(ProfileKind profile)
 {
+    referenceSelects.assign(std::begin(ReferenceSelects), std::end(ReferenceSelects));
+    enumerations.assign(std::begin(Enumerations), std::end(Enumerations));
     // Share the admitted common transport fields/parents; remove the AP203-only legacy contexts below.
     // Registered guard entries are not serialized leaves of this closed profile.
     // Apply protocol-specific removals and DERIVE overrides before creating indexes or field pointers;
@@ -332,6 +340,47 @@ Catalog::Catalog(ProfileKind profile)
         // AP214E3_2010.exp, CONVERSION_BASED_UNIT DERIVE: dimensions is transmitted as '*'.
         // The source value stays a marker; this descriptor must not invent the factor unit's dimensions reference.
         derivedSlots.push_back({ "CONVERSION_BASED_UNIT", "NAMED_UNIT", "dimensions" });
+        // Pinned AP214E3_2010.exp, presentation entities and their inherited explicit fields.
+        // All values/reference directions stay source-owned. Registering these transport
+        // declarations does not evaluate the MDGPR/style/colour WHERE clauses or global RULEs.
+        declarations.insert(
+            declarations.end(),
+            {
+                { "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION", { "REPRESENTATION" }, {}, true },
+                { "STYLED_ITEM",
+                  { "REPRESENTATION_ITEM" },
+                  { Set("styles", "PRESENTATION_STYLE_ASSIGNMENT"), Ref("item", "REPRESENTATION_ITEM") },
+                  true },
+                { "PRESENTATION_STYLE_ASSIGNMENT", { "FOUNDED_ITEM" }, { Set("styles", "PRESENTATION_STYLE_SELECT") }, true },
+                { "SURFACE_STYLE_USAGE", { "FOUNDED_ITEM" }, { Enum("side", "SURFACE_SIDE"), Ref("style", "SURFACE_SIDE_STYLE_SELECT") }, true },
+                { "SURFACE_SIDE_STYLE",
+                  { "FOUNDED_ITEM" },
+                  { Text("name"), Aggregate("styles", "SURFACE_STYLE_ELEMENT_SELECT", 1, 7, Unique::Set) },
+                  true },
+                { "SURFACE_STYLE_FILL_AREA", { "FOUNDED_ITEM" }, { Ref("fill_area", "FILL_AREA_STYLE") }, true },
+                { "FILL_AREA_STYLE", { "FOUNDED_ITEM" }, { Text("name"), Set("fill_styles", "FILL_STYLE_SELECT") }, true },
+                { "FILL_AREA_STYLE_COLOUR", {}, { Text("name"), Ref("fill_colour", "COLOUR") }, true },
+                { "COLOUR", {}, {} },
+                { "COLOUR_SPECIFICATION", { "COLOUR" }, { Text("name") } },
+                { "COLOUR_RGB", { "COLOUR_SPECIFICATION" }, { Real("red"), Real("green"), Real("blue") }, true },
+                { "REPRESENTATION_RELATIONSHIP",
+                  {},
+                  { Text("name"), Text("description", "TEXT", true), Ref("rep_1", "REPRESENTATION"), Ref("rep_2", "REPRESENTATION") } },
+                { "SHAPE_REPRESENTATION_RELATIONSHIP", { "REPRESENTATION_RELATIONSHIP" }, {}, true },
+            }
+        );
+        // The AP214 source root may be a placement-only SHAPE_REPRESENTATION linked
+        // to the BRep representation; admitting its fields does not apply a transform.
+        std::find_if(
+            declarations.begin(),
+            declarations.end(),
+            [](const Declaration& declaration)
+            {
+                return declaration.name == "SHAPE_REPRESENTATION";
+            }
+        )->simple = true;
+        referenceSelects.insert(referenceSelects.end(), std::begin(Ap214ReferenceSelects), std::end(Ap214ReferenceSelects));
+        enumerations.push_back({ "SURFACE_SIDE", SurfaceSides });
     }
     if (declarations.size() > 128)
     {
@@ -432,7 +481,7 @@ bool Catalog::HasSubtypeConflict(const std::bitset<128>& types) const
 }
 bool Catalog::MatchesReference(const std::bitset<128>& types, std::string_view expected) const
 {
-    for (const auto& select : ReferenceSelects)
+    for (const auto& select : referenceSelects)
     {
         if (select.name == expected)
         {
@@ -462,7 +511,7 @@ bool Catalog::ContainsEnumeration(std::string_view type, std::string_view value)
             }
         );
     }
-    for (const auto& entry : Enumerations)
+    for (const auto& entry : enumerations)
     {
         if (entry.name == type)
         {

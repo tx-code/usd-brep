@@ -55,6 +55,11 @@ struct DerivedSlot
 {
     std::string_view recordType, declaredIn, field;
 };
+struct NamedBranches
+{
+    std::string_view name;
+    std::span<const std::string_view> branches;
+};
 struct Catalog
 {
     std::vector<Declaration> declarations;
@@ -63,6 +68,8 @@ struct Catalog
     std::vector<std::bitset<128>> ancestors;
     std::vector<std::vector<FieldBinding>> flattened;
     std::vector<DerivedSlot> derivedSlots;
+    std::vector<NamedBranches> referenceSelects;
+    std::vector<NamedBranches> enumerations;
     explicit Catalog(ProfileKind profile);
     std::optional<std::size_t> Find(std::string_view name) const;
     bool HasField(std::size_t type, std::string_view field) const;

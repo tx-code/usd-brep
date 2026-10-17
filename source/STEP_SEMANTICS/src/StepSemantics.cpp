@@ -908,13 +908,120 @@ private:
             );
         }
     }
+    struct SourceRepresentations
+    {
+        std::size_t definition;
+        std::size_t body;
+        std::optional<std::size_t> relationship;
+    };
+    SourceRepresentations SelectAp214Representations(std::size_t sdr)
+    {
+        const auto root = Target(FieldValue(sdr, "used_representation"));
+        SourceRepresentations selected{ root, root, {} };
+        const auto isBody = [&](std::size_t record)
+        {
+            return IsA(*m_data, record, "ADVANCED_BREP_SHAPE_REPRESENTATION") || IsA(*m_data, record, "MANIFOLD_SURFACE_SHAPE_REPRESENTATION");
+        };
+        const auto unsupported = [&](std::size_t owner, const char* message)
+        {
+            Fail(
+                "UnsupportedRepresentationGraph",
+                "D2",
+                message,
+                Record(owner).span,
+                Status::Unsupported,
+                owner,
+                0,
+                {},
+                {},
+                {},
+                "profile shape/presentation graph guard"
+            );
+        };
+        const auto& relationships = Population("SHAPE_REPRESENTATION_RELATIONSHIP");
+        if (isBody(root))
+        {
+            if (!relationships.empty())
+            {
+                unsupported(relationships[0], "A direct body with additional shape relationships is outside this subset");
+            }
+        }
+        else
+        {
+            if (!IsA(*m_data, root, "SHAPE_REPRESENTATION") || relationships.size() != 1)
+            {
+                unsupported(root, "The source root requires one unambiguous shape relationship to its body");
+            }
+            const auto relationship = relationships[0];
+            Visit(Record(relationship).span);
+            const auto first = Target(FieldValue(relationship, "rep_1")), second = Target(FieldValue(relationship, "rep_2"));
+            if (first == root && second != root)
+            {
+                selected.body = second;
+            }
+            else if (second == root && first != root)
+            {
+                selected.body = first;
+            }
+            else
+            {
+                unsupported(relationship, "The shape relationship does not join the selected root to a distinct body");
+            }
+            if (!isBody(selected.body))
+            {
+                unsupported(relationship, "The linked representation is not an admitted exact BRep body");
+            }
+            // AP214E3_2010.exp, SHAPE_REPRESENTATION_RELATIONSHIP inherits rep_1/rep_2
+            // without a transformation operator. Preserve both directions and identities;
+            // this project subset requires the same context instead of guessing a mapping.
+            if (Target(FieldValue(root, "context_of_items")) != Target(FieldValue(selected.body, "context_of_items")))
+            {
+                unsupported(relationship, "Linked shape representations require the identical source context in this subset");
+            }
+            for (const auto& value : FieldValue(root, "items").children)
+            {
+                Visit(value.span);
+                if (!IsA(*m_data, Target(value), "AXIS2_PLACEMENT_3D"))
+                {
+                    unsupported(root, "The source wrapper may contain only retained placement items");
+                }
+            }
+            selected.relationship = relationship;
+        }
+        for (const auto representation : Population("REPRESENTATION"))
+        {
+            Visit(Record(representation).span);
+            if (representation != selected.definition && representation != selected.body &&
+                !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION"))
+            {
+                unsupported(representation, "Additional representation is outside the selected root/body/presentation graph");
+            }
+        }
+        return selected;
+    }
     void Product()
     {
         const auto ac = One("APPLICATION_CONTEXT"), apd = One("APPLICATION_PROTOCOL_DEFINITION"), pc = One("PRODUCT_CONTEXT");
         const auto pdc = One("PRODUCT_DEFINITION_CONTEXT"), product = One("PRODUCT"), formation = One("PRODUCT_DEFINITION_FORMATION");
         const auto pd = One("PRODUCT_DEFINITION"), pds = One("PRODUCT_DEFINITION_SHAPE"), sdr = One("SHAPE_DEFINITION_REPRESENTATION");
-        m_representation = One("REPRESENTATION");
-        m_context = One("REPRESENTATION_CONTEXT");
+        std::size_t definitionRepresentation = 0;
+        std::optional<std::size_t> shapeRelationship;
+        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        {
+            // Source SDR selects the root; presentation order and representation counts
+            // cannot select the body's geometry or override its unit context.
+            const auto selected = SelectAp214Representations(sdr);
+            definitionRepresentation = selected.definition;
+            m_representation = selected.body;
+            shapeRelationship = selected.relationship;
+            m_context = Target(FieldValue(m_representation, "context_of_items"));
+        }
+        else
+        {
+            m_representation = One("REPRESENTATION");
+            m_context = One("REPRESENTATION_CONTEXT");
+            definitionRepresentation = m_representation;
+        }
         m_data->part.roles = { { "application_context", ac },
                                { "application_protocol", apd },
                                { "product_context", pc },
@@ -926,6 +1033,11 @@ private:
                                { "shape_definition_representation", sdr },
                                { "representation", m_representation },
                                { "unit_context", m_context } };
+        if (shapeRelationship)
+        {
+            m_data->part.roles.push_back({ "definition_representation", definitionRepresentation });
+            m_data->part.roles.push_back({ "shape_representation_relationship", *shapeRelationship });
+        }
         Link(apd, "application", ac);
         Link(pc, "frame_of_reference", ac);
         Link(pdc, "frame_of_reference", ac);
@@ -948,7 +1060,7 @@ private:
         Link(pd, "frame_of_reference", pdc);
         Link(pds, "definition", pd);
         Link(sdr, "definition", pds);
-        Link(sdr, "used_representation", m_representation);
+        Link(sdr, "used_representation", definitionRepresentation);
         Link(m_representation, "context_of_items", m_context);
         m_data->part.apdStatus = FieldValue(apd, "status").text;
         m_data->part.apdSchemaClaim = FieldValue(apd, "application_interpreted_model_schema_name").text;
@@ -1213,6 +1325,61 @@ private:
         }
         return visited;
     }
+    void AttachAp214Presentations()
+    {
+        std::vector<std::size_t> items;
+        for (const auto& value : FieldValue(m_representation, "items").children)
+        {
+            items.push_back(Target(value));
+        }
+        const auto bodyUse = Reach(std::move(items), true);
+        const auto& presentations = Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION");
+        for (std::size_t i = 0; i < presentations.size(); ++i)
+        {
+            const auto presentation = presentations[i];
+            for (const auto& value : FieldValue(presentation, "items").children)
+            {
+                Visit(value.span);
+                const auto styled = Target(value);
+                if (!IsA(*m_data, styled, "STYLED_ITEM"))
+                {
+                    FieldFailure(
+                        "UnsupportedPresentationAttachment",
+                        "D2",
+                        "This presentation subset requires styled items",
+                        value.span,
+                        Status::Unsupported,
+                        presentation,
+                        "items",
+                        FieldDetail::AttributePath
+                    );
+                }
+                const auto& target = FieldValue(styled, "item");
+                // This is a project attachment guard, not MDGPR WHERE evaluation. Prove
+                // the style refers to the body's existing RI closure before granting it
+                // ownership. A style/management path cannot smuggle in another shape.
+                if (!bodyUse[Target(target)])
+                {
+                    FieldFailure(
+                        "UnsupportedPresentationAttachment",
+                        "D2",
+                        "Styled target is not used by the selected body",
+                        target.span,
+                        Status::Unsupported,
+                        styled,
+                        "item",
+                        FieldDetail::AttributePath,
+                        "RI used by selected body",
+                        target.text,
+                        "profile presentation attachment guard"
+                    );
+                }
+            }
+            // Retain the presentation's own context and complete style chain through
+            // source references. Its context never replaces the body's unit context.
+            m_data->part.roles.push_back({ "presentation_" + std::to_string(i), presentation });
+        }
+    }
     void Closure()
     {
         m_outgoing.resize(m_data->types.size());
@@ -1220,6 +1387,10 @@ private:
         for (std::size_t i = 0; i < references.size(); ++i)
         {
             m_outgoing[references[i].recordIndex].push_back(i);
+        }
+        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        {
+            AttachAp214Presentations();
         }
         std::vector<std::size_t> seeds;
         for (const auto& role : m_data->part.roles)
@@ -1268,6 +1439,22 @@ private:
         for (const auto& value : FieldValue(m_representation, "items").children)
         {
             items.push_back(Target(value));
+        }
+        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        {
+            // RI use follows actual representation items and RI references, never the
+            // non-RI style/unit/management dependencies traversed for ownership above.
+            for (const auto representation : Population("REPRESENTATION"))
+            {
+                if (representation == m_representation)
+                {
+                    continue;
+                }
+                for (const auto& value : FieldValue(representation, "items").children)
+                {
+                    items.push_back(Target(value));
+                }
+            }
         }
         m_data->representationUse = Reach(std::move(items), true);
     }

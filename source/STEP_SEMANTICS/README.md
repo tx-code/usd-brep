@@ -50,9 +50,42 @@ Each snapshot owns its `SelectedProfile()` and `SchemaIdentity()`. Type indexes,
 declaration pointers and named field queries use that snapshot's immutable catalog;
 there is no process-wide current-protocol switch. AP203 retains its original 72
 registered declarations and indexes. AP214 has 70 common declarations, excluding
-`MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source.
+`MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source,
+plus 13 presentation/relationship declarations described below (83 total).
 The admitted reference SELECT branches remain a closed project subset. This is
 source field/part/unit checking, not full-schema or modeling qualification.
+
+The AP214-only increment retains `MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION`,
+`STYLED_ITEM`, the fill-area/RGB style chain and its colour ancestors, and
+`REPRESENTATION_RELATIONSHIP` / `SHAPE_REPRESENTATION_RELATIONSHIP`. The admitted
+SELECT branches are the registered source branches for this subset, and
+`SURFACE_SIDE` preserves `POSITIVE` / `NEGATIVE` / `BOTH`. Required fields, transport
+types, reference types, aggregate bounds and source identities are checked with
+the selected artifact; this does not execute the entities' WHERE clauses.
+For example, source field checking alone does not prove `COLOUR_RGB` range
+predicates or the additional MDGPR presentation-style restrictions.
+
+The unique source SDR selects either a direct exact-BRep representation, or a
+placement-only `SHAPE_REPRESENTATION` root joined to that body by one simple shape
+relationship. The linked pair must reference the identical source context in
+this project subset. `part.roles` retains `definition_representation` and
+`shape_representation_relationship` separately from the body's `representation`.
+Both `rep_1` / `rep_2` directions remain source fields; root placement items are
+retained and never applied as transforms. Extra relationships, ambiguous bodies,
+different shape contexts and transformation entities are unsupported.
+
+Presentation representations become `presentation_N` roles only after checking
+that every admitted `STYLED_ITEM` targets an RI in the selected body's use closure.
+Their original contexts, names, references, styles and RGB values remain in the
+owning source snapshot and its field views. A presentation context does not
+replace the body's physical-unit context. Complete ownership still rejects
+detached styles or geometry; RI use follows actual representation items and RI
+references, without following non-RI style/unit/management paths. These attachment
+and ownership restrictions are project guards, not full AP214 rule evaluation.
+
+Generic material/property representations, other presentation branches and new
+curve/surface geometry remain outside this increment. Unsupported content is
+retained in the raw outcome with diagnostics and no partial typed publication.
 
 AP214 `CONVERSION_BASED_UNIT` redeclares `NAMED_UNIT.dimensions` as derived, so
 the original transport value must be `*`. `FieldView` retains the marker, original
@@ -123,14 +156,14 @@ This stage implements:
 | Check | Contract |
 |---|---|
 | Binding | Exact single AP203e2 N2635 or AP214e3 name/OID selects its source artifact/profile; no alias/year inference |
-| Fields | AP203's 36 simple leaves (AP214 excludes the two retired context leaves) and six complete complex signatures; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN, enums, aggregates and protocol-specific derived markers |
+| Fields | Existing AP203 simple leaves and six complete complex signatures; AP214 omits the two retired contexts and adds the source leaves above; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN, enums, aggregates and protocol-specific derived markers |
 | Types | All admitted entity ancestors, including diamonds; explicit constituents and original source identity are retained |
 | Part | Unique AC/APD/PC/PDC/product/formation/PD/PDS/SDR/representation/context and consistent reference identities |
 | Profile guards | Roles, purposes, category, one shape, explicit outer bound, complete ownership; unknown content is not skipped |
 | SI | Context dimension 3, nominal length/plane-angle/optional-solid-angle assignment, the fixed SI prefixes, exact scale to mm/rad/sr |
 | Uses | Complete source inverse index, filtered by owner type and declared role; RI use paths do not pass through arbitrary management/unit edges |
 
-Schema identity is the previously pinned MBx N2635 implementation artifact SHA256
+AP203 schema identity is the previously pinned MBx N2635 implementation artifact SHA256
 `c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088`.
 It is not represented as a certified ISO publication. See the
 [context](../../docs/step-import/ap203e2-planar-context-closure.md) and
@@ -195,7 +228,7 @@ snapshot carries partial unit qualification explicitly; callers must inspect sta
 and optional scale. A rejected/unsupported result retains its raw source outcome
 but does not publish a partial semantic graph.
 
-Not implemented here: 47 global RULEs, other entity WHEREs, named measure predicates,
+Not implemented here: AP203's 47 / AP214's 272 global RULEs, other entity WHEREs, named measure predicates,
 conversion factor/dimensions/cycle interpretation, uncertainty evaluation, geometric
 consistency/region checks and native construction. The two legacy-context predicates
 and context dimension_count positivity are explicitly checked where interpreted;
