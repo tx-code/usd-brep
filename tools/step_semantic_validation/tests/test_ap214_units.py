@@ -172,6 +172,23 @@ class Ap214UnitTests(unittest.TestCase):
         data = unit_source().replace(b"#10,-3.", b"#11,1.E999999999999999999999999")
         self.assertEqual([Fraction(0), Fraction(1)] + [Fraction(0)] * 5, self.dimensions(self.checked(data)))
 
+    def test_reducible_decimal_boundaries_use_the_normalized_rational_capacity(self):
+        maximum = 2**63 - 1
+        for text, expected in (
+            ("922337203685477580.8", Fraction(4611686018427387904, 5)),
+            ("-461168601842738790.35", Fraction(-maximum, 20)),
+            (str(5**62 * maximum) + ".E-62", Fraction(maximum, 2**62)),
+            (str(2**27 * maximum) + ".E-27", Fraction(maximum, 5**27)),
+        ):
+            with self.subTest(exponent=text):
+                data = unit_source().replace(b"#10,-3.", b"#10," + text.encode())
+                self.assertEqual([expected, Fraction(1)] + [Fraction(0)] * 5,
+                                 self.dimensions(self.checked(data)))
+        for text in (str(5**63) + ".E-63", str(2**28) + ".E-28"):
+            with self.subTest(exponent=text):
+                data = unit_source().replace(b"#10,-3.", b"#10," + text.encode())
+                self.failed(data, "UnitDimensionCapacityExceeded", 3)
+
     def test_dependency_budget_and_combined_report_remain_atomic(self):
         data = unit_source()
         run, result = self.invoke(data)
