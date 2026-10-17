@@ -270,7 +270,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 }
                 w.Add("}");
                 w.Add(
-                    ",\"measurement_policy\":{\"native_requested_relative_accuracy\":0.0001,\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\"}"
+                    ",\"measurement_policy\":{\"native_requested_relative_accuracy\":0.0001,\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
                 );
                 w.Add(
                     ",\"qualification\":\"SelectedSourceChecksAndNativeMeasuredPostchecks\",\"full_schema_conformance\":false,\"planar_proofs\":\"NotApplicable\",\"source_sha256\":"
@@ -393,6 +393,61 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                         w.Add("null");
                     }
                     w.Add(",\"source_rewritten\":false}");
+                }
+                w.Add("],\"parameter_mappings\":[");
+                for (std::size_t i = 0; i < report.parameterMappings.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& map = report.parameterMappings[i];
+                    w.Add("{\"kind\":");
+                    w.String(map.kind);
+                    w.Add(",\"source_geometry\":");
+                    w.String(map.sourceGeometryId);
+                    w.Add(",\"source_use\":");
+                    w.String(map.sourceUseId);
+                    w.Add(",\"equation\":");
+                    w.String(map.equation);
+                    w.Add(",\"target_edge_index\":");
+                    if (map.targetEdgeIndex)
+                    {
+                        w.Number(*map.targetEdgeIndex);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
+                    w.Add(",\"target_face_index\":");
+                    if (map.targetFaceIndex)
+                    {
+                        w.Number(*map.targetFaceIndex);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
+                    w.Add(",\"parameters\":{");
+                    for (std::size_t j = 0; j < map.parameters.size(); ++j)
+                    {
+                        if (j)
+                        {
+                            w.Add(",");
+                        }
+                        w.String(map.parameters[j].first);
+                        w.Add(":[");
+                        for (std::size_t k = 0; k < map.parameters[j].second.size(); ++k)
+                        {
+                            if (k)
+                            {
+                                w.Add(",");
+                            }
+                            Number(w, map.parameters[j].second[k]);
+                        }
+                        w.Add("]");
+                    }
+                    w.Add("}}");
                 }
                 w.Add("],\"classified_outer_bounds\":[");
                 for (std::size_t i = 0; i < report.classifiedOuterBounds.size(); ++i)

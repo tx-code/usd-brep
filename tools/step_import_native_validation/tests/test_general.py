@@ -121,6 +121,27 @@ class GeneralTests(unittest.TestCase):
         self.assertEqual(b"", run.stdout)
         self.assertIsNone(result)
 
+    def test_raw_failures_keep_io_resource_and_carrier_categories(self):
+        run, result = self.invoke("S203-P04", "--max-input-bytes", 1)
+        self.assertEqual((3, "ResourceLimit"), (run.returncode, result["status"]))
+        run, result = self.invoke("missing-file")
+        self.assertEqual((4, "SourceFailure"), (run.returncode, result["status"]))
+        run, result = self.invoke_bytes(b"PK\x03\x04not-part21")
+        self.assertEqual((2, "Unsupported"), (run.returncode, result["status"]))
+
+    def test_final_trim_measurements_and_parameter_maps_are_published(self):
+        run, result = self.invoke_bytes(cylinder_source())
+        self.assertEqual(0, run.returncode, run.stderr or result)
+        measurements = [row for row in result["measurements"] if row["stage"] == "FinalInstalledUv"]
+        self.assertEqual(3, len(measurements))
+        self.assertTrue(all(row["value_mm"] < 0.001 for row in measurements))
+        maps = result["parameter_mappings"]
+        self.assertEqual(3, len(maps))
+        self.assertEqual({0, 1, 2}, {row["target_edge_index"] for row in maps})
+        self.assertEqual(2, sum(row["kind"] == "ConicRationalParameter" for row in maps))
+        for row in maps:
+            self.assertIn("native_edge_interval", row["parameters"])
+
     def test_analytic_cylinder_source_seam_is_aligned_without_new_topology(self):
         run, result = self.invoke_bytes(cylinder_source())
         self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))

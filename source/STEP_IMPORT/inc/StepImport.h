@@ -255,12 +255,19 @@ struct RepresentationNormalization
     std::vector<std::string> sourceBoundIds, sourceVertexIds;
     std::optional<std::size_t> targetEdgeIndex; // Index in the private model edge mapping, not a source entity ID.
 };
+struct ParameterMapping
+{
+    std::string kind, sourceGeometryId, sourceUseId, equation;
+    std::optional<std::size_t> targetEdgeIndex, targetFaceIndex;
+    std::vector<std::pair<std::string, std::vector<double>>> parameters;
+};
 struct Report
 {
     bool generalBrep = false;
     std::optional<step_semantics::Outcome> generalSource; // Source diagnostics and original records survive native failure.
     std::vector<std::pair<std::string, std::string>> classifiedOuterBounds; // Derived face/bound IDs, never source relabeling.
     std::vector<RepresentationNormalization> normalizations;
+    std::vector<ParameterMapping> parameterMappings; // Derived native maps; never changes source parameters or entities.
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
     std::optional<step_semantics::SchemaSelection> sourceSchema; // Owning HEADER identity, including unsupported profile selection.
     std::shared_ptr<const step_source::SourceSnapshot> source;

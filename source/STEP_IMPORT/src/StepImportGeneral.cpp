@@ -3,6 +3,7 @@
 #include "StepImportCylinderChart.h"
 #include "StepImportExecution.h"
 #include "StepImportNativeData.h"
+#include "StepImportTrimMeasurement.h"
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
@@ -159,11 +160,11 @@ class GeneralBuilder
 public:
 
     GeneralBuilder(std::shared_ptr<const step_semantics::Snapshot> source, const Options& options, Report& report, Execution& execution)
-        : s(std::move(source)), o(options), r(report), e(execution), m(std::make_shared<ModelData>())
+        : m_source(std::move(source)), m_options(options), m_report(report), m_execution(execution), m_model(std::make_shared<ModelData>())
     {
-        m->source = s;
-        m->queryTolerance = Q(o.quality.queryMm);
-        m->queryBudget = o.quality.queryMm;
+        m_model->source = m_source;
+        m_model->queryTolerance = Q(m_options.quality.queryMm);
+        m_model->queryBudget = m_options.quality.queryMm;
     }
     std::shared_ptr<ModelData> Run()
     {
@@ -173,14 +174,14 @@ public:
         }
         Prepare();
         Step(shape);
-        m->context = std::make_unique<SmContext>();
+        m_model->context = std::make_unique<SmContext>();
         // All native candidates belong to this context and remain private until
         // the caller's existing bounded-report and cancellation commit point.
         SmBrepConstructor c;
         Step(shape);
-        m->brep.reset(c.StartBrep(*m->context));
-        Need(bool(m->brep), "GeneralBrepAllocation", shape);
-        m->brep->SetTolerance(Tol(), FALSE);
+        m_model->brep.reset(c.StartBrep(*m_model->context));
+        Need(bool(m_model->brep), "GeneralBrepAllocation", shape);
+        m_model->brep->SetTolerance(Tol(), FALSE);
         for (auto& curve : curves)
         {
             MakeCurve(curve);
@@ -191,18 +192,18 @@ public:
             auto v = c.StartVertex(P(points[i]));
             Need(v != nullptr, "GeneralVertexAllocation", vertices[i]);
             v->SetTolerance(Tol(), FALSE);
-            m->vertices.push_back(v);
+            m_model->vertices.push_back(v);
             Step(vertices[i]);
             Good(c.EndVertex());
         }
         Step(shape);
-        m->bounded = c.StartRegion(TRUE, nullptr);
-        Need(m->bounded != nullptr, "GeneralRegionAllocation", shape);
-        m->bounded->SetIsVoid(FALSE);
-        m->material = m->bounded;
+        m_model->bounded = c.StartRegion(TRUE, nullptr);
+        Need(m_model->bounded != nullptr, "GeneralRegionAllocation", shape);
+        m_model->bounded->SetIsVoid(FALSE);
+        m_model->material = m_model->bounded;
         Step(shell);
-        Good(c.StartShell(m->outside, m->inside));
-        m->edges.resize(curves.size());
+        Good(c.StartShell(m_model->outside, m_model->inside));
+        m_model->edges.resize(curves.size());
         for (auto& f : faces)
         {
             BuildFace(c, f);
@@ -217,16 +218,16 @@ public:
         Validate();
         ObserveTolerances();
         Measure();
-        return m;
+        return m_model;
     }
 
 private:
 
-    std::shared_ptr<const step_semantics::Snapshot> s;
-    const Options& o;
-    Report& r;
-    Execution& e;
-    std::shared_ptr<ModelData> m;
+    std::shared_ptr<const step_semantics::Snapshot> m_source;
+    const Options& m_options;
+    Report& m_report;
+    Execution& m_execution;
+    std::shared_ptr<ModelData> m_model;
     Index shape = 0, shell = 0;
     double scale = 0;
     std::vector<Index> vertices;
@@ -238,16 +239,16 @@ private:
     std::vector<Index> derivedEdgeFaces;
     double Tol() const
     {
-        return Q(o.quality.initialWorkToleranceMm);
+        return Q(m_options.quality.initialWorkToleranceMm);
     }
     bool Is(Index a, std::string_view type) const
     {
-        const auto& registered = s->RegisteredTypes();
-        return std::find(registered.begin(), registered.end(), type) != registered.end() && s->IsA(a, type);
+        const auto& registered = m_source->RegisteredTypes();
+        return std::find(registered.begin(), registered.end(), type) != registered.end() && m_source->IsA(a, type);
     }
     std::string Id(Index a) const
     {
-        return s->Source().Records().at(a).id;
+        return m_source->Source().Records().at(a).id;
     }
     [[noreturn]] void Fail(const char* key, Index a, Status status = Status::PostcheckFailure) const
     {
@@ -262,24 +263,24 @@ private:
     }
     void Step(Index a)
     {
-        e.Check(Phase::BeforeNativeCall);
-        if (r.nativeCalls >= o.nativeLimits.nativeCalls)
+        m_execution.Check(Phase::BeforeNativeCall);
+        if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
         {
             Fail("NativeCallLimit", a, Status::ResourceLimit);
         }
-        ++r.nativeCalls;
+        ++m_report.nativeCalls;
     }
     const step_source::Value& F(Index a, std::string_view name) const
     {
-        return s->Field(a, name).Value();
+        return m_source->Field(a, name).Value();
     }
     Index Ref(Index a, std::string_view name) const
     {
-        return s->Field(a, name).ReferenceTarget();
+        return m_source->Field(a, name).ReferenceTarget();
     }
     std::vector<Index> Refs(Index a, std::string_view name) const
     {
-        return s->Field(a, name).ReferenceTargets();
+        return m_source->Field(a, name).ReferenceTargets();
     }
     bool B(Index a, std::string_view name) const
     {
@@ -352,7 +353,7 @@ private:
     }
     Index Role(std::string_view name) const
     {
-        for (const auto& role : s->PartDefinition().roles)
+        for (const auto& role : m_source->PartDefinition().roles)
         {
             if (role.name == name)
             {
@@ -381,6 +382,9 @@ private:
         }
         const auto i = curves.size();
         ei.emplace(a, i);
+        // AP214E3_2010.exp EDGE_CURVE.same_sense: orient the private edge
+        // along increasing defining-curve parameter, reversing source endpoints
+        // only in this mapping. Source EDGE_CURVE and vertex records stay intact.
         const bool same = B(a, "same_sense");
         const auto start = Ref(a, "edge_start"), end = Ref(a, "edge_end");
         curves.push_back({ a, Ref(a, "edge_geometry"), Vertex(same ? start : end), Vertex(same ? end : start), same, {}, 0, 0, {} });
@@ -388,11 +392,11 @@ private:
     }
     void Prepare()
     {
-        Need(s->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
+        Need(m_source->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
         shape = Role("shape");
         shell = Role("shell");
         Need(Is(shape, "MANIFOLD_SOLID_BREP") && Is(shell, "CLOSED_SHELL"), "GeneralUnsupportedShape", shape);
-        const auto power = s->UnitContext().lengthPower10Mm;
+        const auto power = m_source->UnitContext().lengthPower10Mm;
         if (!power)
         {
             Fail("GeneralConversionUnitNotImplemented", shape, Status::Unsupported);
@@ -409,6 +413,11 @@ private:
                 const auto loop = Ref(bound, "bound");
                 Loop l{ loop, bound, Is(bound, "FACE_OUTER_BOUND"), B(bound, "orientation"), {} };
                 const auto oriented = Refs(loop, "edge_list");
+                // AP214E3_2010.exp ORIENTED_EDGE.orientation is relative to EC;
+                // FACE_BOUND.orientation reverses the whole source loop, while
+                // ADVANCED_FACE.same_sense relates material face to surface normal.
+                // Native primary loops use the surface-normal sense, so compose
+                // all three with EC.same_sense before constructing ordered uses.
                 const bool forward = l.orientation == f.same;
                 for (Index k = 0; k < oriented.size(); ++k)
                 {
@@ -438,6 +447,9 @@ private:
             );
             faces.push_back(std::move(f));
         }
+        // Incidence is tested in material-boundary sense. Undo the preceding
+        // surface-normal normalization with face.same_sense before comparing
+        // the two uses: every closed-shell EC must occur oppositely twice.
         std::vector<std::vector<std::pair<Index, bool>>> incidence(curves.size());
         for (const auto& f : faces)
         {
@@ -454,9 +466,9 @@ private:
             const auto& uses = incidence[i];
             Need(uses.size() == 2 && uses[0].second != uses[1].second, "GeneralSourceNonManifoldEdge", curves[i].record);
         }
-        r.sourceShape = SourceShapeObservation{ "MaterialSolid", Id(Role("representation")), "SourceRepresentation",
-                                                Id(shape),       "MANIFOLD_SOLID_BREP",      Id(shell),
-                                                "CLOSED_SHELL" };
+        m_report.sourceShape = SourceShapeObservation{ "MaterialSolid", Id(Role("representation")), "SourceRepresentation",
+                                                       Id(shape),       "MANIFOLD_SOLID_BREP",      Id(shell),
+                                                       "CLOSED_SHELL" };
         std::int64_t num = 1, den = 1;
         for (int i = 0; i < std::abs(*power); ++i)
         {
@@ -473,12 +485,16 @@ private:
                 num *= 10;
             }
         }
-        r.units = UnitNormalization{ Id(s->UnitContext().lengthUnit), Fraction(num, den), {} };
+        m_report.units = UnitNormalization{ Id(m_source->UnitContext().lengthUnit), Fraction(num, den), {} };
     }
     void MakeCurve(Curve& c)
     {
         const auto g = c.geometry;
         const auto a = points[c.v0], b = points[c.v1];
+        ParameterMapping mapping;
+        mapping.sourceGeometryId = Id(g);
+        mapping.sourceUseId = Id(c.record);
+        mapping.targetEdgeIndex = ei.at(c.record);
         if (Is(g, "LINE"))
         {
             const auto origin = Position(Ref(g, "pnt"));
@@ -487,9 +503,14 @@ private:
             const auto d = Direction(Ref(vector, "orientation"));
             const auto t0 = Dot(Sub(a, origin), d), t1 = Dot(Sub(b, origin), d);
             Need(t1 > t0, "GeneralLineParameterOrder", c.record);
+            mapping.kind = "LineAffineParameter";
+            mapping.equation = "source_t=lerp(source_parameter_at_native_ends,(native_t-native_begin)/(native_end-native_begin))";
+            mapping.parameters.push_back(
+                { "source_parameter_at_native_ends", { t0 / (N(vector, "magnitude") * scale), t1 / (N(vector, "magnitude") * scale) } }
+            );
             SmLine* line = nullptr;
             Step(g);
-            Good(SmLine::CreateLineSegment(*m->context, 3, P(Add(origin, Mul(d, t0))), P(Add(origin, Mul(d, t1))), line));
+            Good(SmLine::CreateLineSegment(*m_model->context, 3, P(Add(origin, Mul(d, t0))), P(Add(origin, Mul(d, t1))), line));
             c.native.reset(line);
         }
         else if (Is(g, "CIRCLE") || Is(g, "ELLIPSE"))
@@ -522,15 +543,23 @@ private:
                 t0 -= 2 * std::numbers::pi;
                 t1 -= 2 * std::numbers::pi;
             }
+            mapping.kind = "ConicRationalParameter";
+            mapping.equation =
+                "source_angle=atan2(dot(P(native_t)-origin,y)/ry,dot(P(native_t)-origin,x)/rx),unwrapped_to_angle_range_rad; native_t_is_not_angle";
+            mapping.parameters = { { "angle_range_rad", { t0, t1 } },
+                                   { "radii_mm", { rx, ry } },
+                                   { "origin_mm", { frame.o.begin(), frame.o.end() } },
+                                   { "x", { frame.x.begin(), frame.x.end() } },
+                                   { "y", { frame.y.begin(), frame.y.end() } } };
             const SmExtent1d domain(t0 * 180 / std::numbers::pi, t1 * 180 / std::numbers::pi);
             Step(g);
             if (circle)
             {
-                c.native.reset(new (*m->context) SmCircle(P(frame.o), D(frame.x), D(frame.y), domain, rx, 3, m->context.get()));
+                c.native.reset(new (*m_model->context) SmCircle(P(frame.o), D(frame.x), D(frame.y), domain, rx, 3, m_model->context.get()));
             }
             else
             {
-                c.native.reset(new (*m->context) SmEllipse(P(frame.o), D(frame.x), D(frame.y), domain, rx, ry, 3, m->context.get()));
+                c.native.reset(new (*m_model->context) SmEllipse(P(frame.o), D(frame.x), D(frame.y), domain, rx, ry, 3, m_model->context.get()));
             }
         }
         else if (Is(g, "B_SPLINE_CURVE_WITH_KNOTS"))
@@ -546,7 +575,7 @@ private:
             Step(g);
             Good(
                 SmBSplineCurve::CreateCanonical(
-                    *m->context,
+                    *m_model->context,
                     3,
                     Degree(g, "degree"),
                     cp,
@@ -573,10 +602,15 @@ private:
         {
             // Source topology trims the defining spline. Inversion chooses
             // parameters only; the original spline coefficients are unchanged.
+            mapping.kind = "SplineIdentityWithInvertedTrim";
+            mapping.equation = "source_t=native_t; endpoint_inversion_only; defining_coefficients_unchanged";
             c.t0 = CurveParameter(*c.native, a, c.t0, g);
             c.t1 = CurveParameter(*c.native, b, c.t1, g);
             Need(c.t1 > c.t0, "GeneralSplineParameterOrder", c.record);
         }
+        mapping.parameters.push_back({ "native_natural_interval", { domain.GetMin(), domain.GetMax() } });
+        mapping.parameters.push_back({ "native_edge_interval", { c.t0, c.t1 } });
+        m_report.parameterMappings.push_back(std::move(mapping));
         for (const auto& endpoint : { std::pair{ c.t0, a }, std::pair{ c.t1, b } })
         {
             SmPoint3d actual;
@@ -592,7 +626,7 @@ private:
             }
             const auto gap = Norm(Sub(P(actual), endpoint.second));
             consistency = std::max(consistency, gap);
-            Need(std::isfinite(gap) && gap <= Q(o.quality.consistencyMm), "GeneralEdgeVertexGap", c.record);
+            Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralEdgeVertexGap", c.record);
         }
         SmExtent3d box;
         Step(g);
@@ -604,15 +638,15 @@ private:
         SmPoint3d actual;
         Step(record);
         Good(curve.EvaluatePoint(endpoint, actual));
-        if (Norm(Sub(P(actual), point)) <= Q(o.quality.consistencyMm))
+        if (Norm(Sub(P(actual), point)) <= Q(m_options.quality.consistencyMm))
         {
             return endpoint;
         }
         SmBoolean success = FALSE;
         double t = 0, distance = 0;
         Step(record);
-        Good(curve.DropPoint(curve.GetNaturalInterval(), P(point), nullptr, m->queryTolerance, nullptr, success, t, distance));
-        Need(success && distance <= Q(o.quality.consistencyMm), "GeneralSplineEndpointInversion", record);
+        Good(curve.DropPoint(curve.GetNaturalInterval(), P(point), nullptr, m_model->queryTolerance, nullptr, success, t, distance));
+        Need(success && distance <= Q(m_options.quality.consistencyMm), "GeneralSplineEndpointInversion", record);
         return t;
     }
     ULONG Degree(Index a, std::string_view name) const
@@ -670,7 +704,7 @@ private:
         // A target chart cut is an exact isoparametric line on the defining
         // cylinder. It reuses source ring vertices without moving them. Rings
         // with incompatible seam vertices need a separately verified split.
-        if (Norm(Sub(pa, points[a])) > Q(o.quality.consistencyMm) || Norm(Sub(pb, points[b])) > Q(o.quality.consistencyMm))
+        if (Norm(Sub(pa, points[a])) > Q(m_options.quality.consistencyMm) || Norm(Sub(pb, points[b])) > Q(m_options.quality.consistencyMm))
         {
             Fail("GeneralImplicitSeamRequiresRingSplit", f.record, Status::Unsupported);
         }
@@ -751,7 +785,7 @@ private:
             // candidate inside their bounded angular spread. The 3D definitions
             // stay unchanged; UV deviation and the native seam checks still gate
             // publication. This does not weld the distinct source edges.
-            if (maximumRadius > 0 && spread * maximumRadius <= Q(o.quality.derivedUvMm) / 4)
+            if (maximumRadius > 0 && spread * maximumRadius <= Q(m_options.quality.derivedUvMm) / 4)
             {
                 const double start = center > 0 ? center - tau : center;
                 return { start * 180 / std::numbers::pi, (start + tau) * 180 / std::numbers::pi };
@@ -776,7 +810,8 @@ private:
                     // Closed-form angular coverage applies only to coaxial circular
                     // arcs. Other intersections retain a full period and require a
                     // separate seam-normalization proof; sampling is not a proof.
-                    if (std::abs(std::abs(parallel) - 1) > 1e-12 || Norm(Sub(dc, Mul(frame.z, Dot(dc, frame.z)))) > Q(o.quality.consistencyMm))
+                    if (std::abs(std::abs(parallel) - 1) > 1e-12 ||
+                        Norm(Sub(dc, Mul(frame.z, Dot(dc, frame.z)))) > Q(m_options.quality.consistencyMm))
                     {
                         return { 0, 360 };
                     }
@@ -830,7 +865,7 @@ private:
                 }
                 else if (Is(c.geometry, "B_SPLINE_CURVE_WITH_KNOTS"))
                 {
-                    const auto curve = c.native ? c.native.get() : m->edges[use.edge]->GetCurve();
+                    const auto curve = c.native ? c.native.get() : m_model->edges[use.edge]->GetCurve();
                     const auto bsp = dynamic_cast<const SmBSplineCurve*>(curve);
                     Need(bsp != nullptr, "GeneralSplineRepresentation", c.geometry);
                     const auto knots = Numbers(c.geometry, "knots");
@@ -851,7 +886,7 @@ private:
                         {
                             const auto p = Sub(P(polygon[n]), frame.o);
                             const double x = Dot(p, frame.x), y = Dot(p, frame.y);
-                            if (std::hypot(x, y) <= Q(o.quality.definitionMm))
+                            if (std::hypot(x, y) <= Q(m_options.quality.definitionMm))
                             {
                                 return { 0, 360 };
                             }
@@ -974,7 +1009,7 @@ private:
             {
                 continue;
             }
-            const auto native = c.native ? c.native.get() : m->edges[use.edge]->GetCurve();
+            const auto native = c.native ? c.native.get() : m_model->edges[use.edge]->GetCurve();
             const auto bsp = dynamic_cast<const SmBSplineCurve*>(native);
             if (!bsp)
             {
@@ -1020,7 +1055,7 @@ private:
             return (q + left / (left + right)) / 4;
         };
         const auto& guide = curves[longEdge];
-        const auto guideCurve = dynamic_cast<const SmBSplineCurve*>(guide.native ? guide.native.get() : m->edges[longEdge]->GetCurve());
+        const auto guideCurve = dynamic_cast<const SmBSplineCurve*>(guide.native ? guide.native.get() : m_model->edges[longEdge]->GetCurve());
         SmTArray<SmPoint3d> guideCp;
         SmTArray<double> guideWeights;
         Good(guideCurve->GetControlPolygon(guideCp, guideWeights));
@@ -1033,7 +1068,7 @@ private:
         for (const auto& use : f.loops[0].uses)
         {
             const auto& c = curves[use.edge];
-            const auto native = c.native ? c.native.get() : m->edges[use.edge]->GetCurve();
+            const auto native = c.native ? c.native.get() : m_model->edges[use.edge]->GetCurve();
             const auto curve = dynamic_cast<const SmBSplineCurve*>(native);
             if (!curve)
             {
@@ -1092,7 +1127,7 @@ private:
                 // turn even when its actual span covers only a small arc.
                 SmCurve* rawCopy = nullptr;
                 Step(c.geometry);
-                Good(curve->Copy(*m->context, rawCopy));
+                Good(curve->Copy(*m_model->context, rawCopy));
                 std::unique_ptr<SmCurve> copy(rawCopy);
                 Need(bool(copy), "GeneralCurveCopyAllocation", c.geometry);
                 SmExtent1d interval(a, b);
@@ -1209,8 +1244,29 @@ private:
         SmBSplineSurface* raw = nullptr;
         Step(f.surface);
         Good(
-            SmBSplineSurface::CreateCanonical(*m->context, 3, 1, control, SM_SF_UNSPECIFIED, um, vm, uk, vk, SM_KT_UNSPECIFIED, &weights, nullptr, raw)
+            SmBSplineSurface::
+                CreateCanonical(*m_model->context, 3, 1, control, SM_SF_UNSPECIFIED, um, vm, uk, vk, SM_KT_UNSPECIFIED, &weights, nullptr, raw)
         );
+        // Persist enough data to reconstruct the exact gauge and associate it
+        // with its source support and target face. No hidden study parameters.
+        ParameterMapping mapping;
+        mapping.kind = "ExactCylinderHelicalGaugeChart";
+        mapping.sourceGeometryId = Id(f.surface);
+        mapping.sourceUseId = Id(f.record);
+        mapping.targetFaceIndex = m_model->faces.size();
+        mapping.equation =
+            "native_u=(quarter+t)/4; angle=origin_angle+quarter*pi/2+atan2(2*w*t*(1-t)+t*t,(1-t)*(1-t)+2*w*t*(1-t)),w=sqrt(0.5); z=lower+pitch*native_u+lerp(width[quarter],width[quarter+1],t)*native_v";
+        mapping.parameters = { { "origin_angle_rad", { originAngle } },
+                               { "pitch_mm_per_native_u", { pitch } },
+                               { "lower_mm", { lower } },
+                               { "widths_mm", { heights.begin(), heights.end() } },
+                               { "origin_mm", { frame.o.begin(), frame.o.end() } },
+                               { "x", { frame.x.begin(), frame.x.end() } },
+                               { "y", { frame.y.begin(), frame.y.end() } },
+                               { "z", { frame.z.begin(), frame.z.end() } },
+                               { "radius_mm", { N(f.surface, "radius") * scale } },
+                               { "native_domain", { 0, 0, 1.25, 1 } } };
+        m_report.parameterMappings.push_back(std::move(mapping));
         RepresentationNormalization normalization;
         normalization.kind = "ExactCylinderHelicalGaugeChart";
         normalization.sourceFaceId = Id(f.record);
@@ -1218,7 +1274,7 @@ private:
         {
             normalization.sourceBoundIds.push_back(Id(loop.bound));
         }
-        r.normalizations.push_back(std::move(normalization));
+        m_report.normalizations.push_back(std::move(normalization));
         return std::unique_ptr<SmSurface>(raw);
     }
     std::unique_ptr<SmSurface> Surface(const Face& f)
@@ -1232,7 +1288,7 @@ private:
             {
                 for (const auto& ref : row.children)
                 {
-                    cp.Add(P(Position(s->ReferenceTarget(ref))));
+                    cp.Add(P(Position(m_source->ReferenceTarget(ref))));
                 }
             }
             auto um = Multiplicities(g, "u_multiplicities"), vm = Multiplicities(g, "v_multiplicities");
@@ -1241,7 +1297,7 @@ private:
             Step(g);
             Good(
                 SmBSplineSurface::CreateCanonical(
-                    *m->context,
+                    *m_model->context,
                     Degree(g, "u_degree"),
                     Degree(g, "v_degree"),
                     cp,
@@ -1285,7 +1341,10 @@ private:
                 }
             }
         }
-        const auto padding = std::max(Q(o.quality.definitionMm), 64 * std::numeric_limits<double>::epsilon() * (1 + Norm(local[0]) + Norm(local[1])));
+        const auto padding = std::max(
+            Q(m_options.quality.definitionMm),
+            64 * std::numeric_limits<double>::epsilon() * (1 + Norm(local[0]) + Norm(local[1]))
+        );
         for (Index k = 0; k < 3; ++k)
         {
             local[0][k] -= padding;
@@ -1294,13 +1353,13 @@ private:
         if (Is(g, "PLANE"))
         {
             Step(g);
-            return std::unique_ptr<SmSurface>(new (*m->context) SmPlane(
+            return std::unique_ptr<SmSurface>(new (*m_model->context) SmPlane(
                 P(frame.o),
                 D(frame.x),
                 D(frame.y),
                 SmVector2d(1, 1),
                 SmExtent2d(local[0][0], local[0][1], local[1][0], local[1][1]),
-                m->context.get()
+                m_model->context.get()
             ));
         }
         if (Is(g, "CYLINDRICAL_SURFACE"))
@@ -1311,7 +1370,7 @@ private:
             }
             const auto angles = AngularWindow(f, frame);
             Step(g);
-            return std::unique_ptr<SmSurface>(new (*m->context) SmCylinder(
+            return std::unique_ptr<SmSurface>(new (*m_model->context) SmCylinder(
                 P(Add(frame.o, Mul(frame.z, local[0][2]))),
                 D(frame.x),
                 D(frame.y),
@@ -1322,16 +1381,16 @@ private:
                 FALSE,
                 FALSE,
                 FALSE,
-                m->context.get()
+                m_model->context.get()
             ));
         }
         if (Is(g, "CONICAL_SURFACE"))
         {
             int anglePower = 0;
             bool found = false;
-            for (const auto& unit : s->UnitContext().siDefinitions)
+            for (const auto& unit : m_source->UnitContext().siDefinitions)
             {
-                if (unit.recordIndex == s->UnitContext().planeAngleUnit)
+                if (unit.recordIndex == m_source->UnitContext().planeAngleUnit)
                 {
                     found = unit.siName == "RADIAN";
                     anglePower = unit.canonicalPower10;
@@ -1358,7 +1417,7 @@ private:
             SmCone* raw = nullptr;
             Good(
                 SmCone::CreateCanonical(
-                    *m->context,
+                    *m_model->context,
                     shifted.Native(),
                     std::max(0., radius + slope * local[0][2]),
                     std::max(0., radius + slope * local[1][2]),
@@ -1378,14 +1437,14 @@ private:
     void AppendSourceUse(SmBrepConstructor& c, const Use& u, LoopMapping& mapping)
     {
         auto& edge = curves[u.edge];
-        const auto existing = m->edges[u.edge];
+        const auto existing = m_model->edges[u.edge];
         Step(edge.record);
-        auto native = c.StartEdge(u.forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m->vertices[edge.v0], m->vertices[edge.v1]);
+        auto native = c.StartEdge(u.forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m_model->vertices[edge.v0], m_model->vertices[edge.v1]);
         Need(native != nullptr && (!existing || existing == native), "GeneralSharedEdgeIdentity", edge.record);
         if (!existing)
         {
             native->SetTolerance(Tol(), FALSE);
-            m->edges[u.edge] = native;
+            m_model->edges[u.edge] = native;
             Step(edge.record);
             const auto adoptedCurve = c.SetEdgeCurve(edge.native.get(), FALSE);
             const bool curveOwned = edge.native->GetOwner() == native;
@@ -1414,14 +1473,14 @@ private:
     SmEdge* AppendSeamUse(SmBrepConstructor& c, const SeamPlan& seam, Index face, SmEdge* existing, bool forward)
     {
         Step(face);
-        auto edge = c.StartEdge(forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m->vertices[seam.v0], m->vertices[seam.v1]);
+        auto edge = c.StartEdge(forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m_model->vertices[seam.v0], m_model->vertices[seam.v1]);
         Need(edge != nullptr && (!existing || edge == existing), "GeneralTargetSeamIdentity", face);
         if (!existing)
         {
             edge->SetTolerance(Tol(), FALSE);
             SmLine* raw = nullptr;
             Step(face);
-            Good(SmLine::CreateLineSegment(*m->context, 3, P(seam.a), P(seam.b), raw));
+            Good(SmLine::CreateLineSegment(*m_model->context, 3, P(seam.a), P(seam.b), raw));
             std::unique_ptr<SmLine> curve(raw);
             Step(face);
             const auto status = c.SetEdgeCurve(curve.get(), FALSE);
@@ -1434,7 +1493,7 @@ private:
             Need(adopted, "GeneralTargetSeamOwnership", face);
             Step(face);
             Good(c.SetLimits(SmVertexNode(0.), SmVertexNode(1.)));
-            m->edges.push_back(edge);
+            m_model->edges.push_back(edge);
             derivedEdgeFaces.push_back(face);
         }
         Step(face);
@@ -1507,13 +1566,13 @@ private:
             nf.loops.push_back(loop);
             LoopMapping mapping;
             AppendSourceUse(c, f.loops[0].uses[0], mapping);
-            const auto seamIndex = m->edges.size();
+            const auto seamIndex = m_model->edges.size();
             auto edge = AppendSeamUse(c, *seam, f.record, nullptr, true);
             AppendSourceUse(c, f.loops[1].uses[0], mapping);
             AppendSeamUse(c, *seam, f.record, edge, false);
             Step(f.record);
             Good(c.EndLoop());
-            r.normalizations.push_back(
+            m_report.normalizations.push_back(
                 { "PeriodicCutFromTwoSourceRings",
                   Id(f.record),
                   { Id(f.loops[0].bound), Id(f.loops[1].bound) },
@@ -1534,30 +1593,49 @@ private:
                 {
                     AppendSourceUse(c, u, mapping);
                 }
-                r.loops.push_back(std::move(mapping));
+                m_report.loops.push_back(std::move(mapping));
                 Step(l.bound);
                 Good(c.EndLoop());
             }
         }
         Step(f.record);
         Good(c.EndFace());
-        m->faces.push_back(std::move(nf));
+        m_model->faces.push_back(std::move(nf));
     }
     void InstallUv()
     {
         for (Index i = 0; i < faces.size(); ++i)
         {
             const auto& f = faces[i];
-            auto& native = m->faces[i];
+            auto& native = m_model->faces[i];
             double mean = 0, max = 0, meanVertex = 0, maxVertex = 0, meanParam = 0, maxParam = 0;
             Step(f.record);
             Good(native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam));
             // FALSE forbids tolerance adjustment. Report kernel observations as
             // measurements, never as the planar implementation's interval proof.
-            Need(std::isfinite(max) && max >= 0 && max <= Q(o.quality.derivedUvMm), "GeneralDerivedUvGap", f.record);
-            Need(std::isfinite(maxVertex) && maxVertex >= 0 && maxVertex <= Q(o.quality.consistencyMm), "GeneralDerivedVertexGap", f.record);
+            Need(std::isfinite(max) && max >= 0 && max <= Q(m_options.quality.derivedUvMm), "GeneralDerivedUvGap", f.record);
+            Need(std::isfinite(maxVertex) && maxVertex >= 0 && maxVertex <= Q(m_options.quality.consistencyMm), "GeneralDerivedVertexGap", f.record);
             uvGap = std::max(uvGap, max);
-            r.tolerances.push_back({ "UvProjection", "MeasuredCurveSurfaceGap", Id(f.record), max });
+            m_report.tolerances.push_back({ "UvProjection", "MeasuredCurveSurfaceGap", Id(f.record), max });
+            // CreateUVTrimCurves also fixes UV endpoints/reparameterization after
+            // collecting its projection statistic. Measure the final installed
+            // data separately; neither that old statistic nor LEVEL2 covers it.
+            SmTArray<SmEdgeuse*> uses;
+            native.face->GetUpwardEdgeuses(uses);
+            double finalGap = 0;
+            for (ULONG k = 0; k < uses.GetSize(); ++k)
+            {
+                const auto edge = uses[k]->GetEdge();
+                const auto uv = uses[k]->GetUVTrimCurve();
+                Need(edge && edge->GetCurve() && uv, "GeneralFinalTrimMissing", f.record);
+                const auto interval = edge->GetInterval();
+                Step(f.record);
+                const auto measured = MeasureFinalTrim(*edge->GetCurve(), *uv, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
+                Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", f.record);
+                finalGap = std::max(finalGap, measured.maximumMm);
+            }
+            uvGap = std::max(uvGap, finalGap);
+            m_report.tolerances.push_back({ "FinalInstalledUv", "KnotSpanPairedParameterSampleMaximum", Id(f.record), finalGap });
             bool explicitOuter = false;
             for (const auto& l : f.loops)
             {
@@ -1578,7 +1656,7 @@ private:
         {
             Fail("GeneralRegionClassificationPending", f.record, Status::Deferred);
         }
-        SmFaceProps properties(native.face, 0, m->context.get());
+        SmFaceProps properties(native.face, 0, m_model->context.get());
         Step(f.record);
         // The property collector uses a healer-stage enum as a readiness gate.
         // Tolerances and UV/seam prerequisites were established directly above
@@ -1607,7 +1685,7 @@ private:
         const auto it = std::find(native.loops.begin(), native.loops.end(), outer);
         Need(it != native.loops.end(), "GeneralClassifiedLoopIdentity", f.record);
         const auto index = static_cast<Index>(it - native.loops.begin());
-        r.classifiedOuterBounds.push_back({ Id(f.record), Id(f.loops[index].bound) });
+        m_report.classifiedOuterBounds.push_back({ Id(f.record), Id(f.loops[index].bound) });
         if (it != native.loops.begin())
         {
             // Kernel constructor uses first loop as outer. Reorder intact loops
@@ -1629,28 +1707,28 @@ private:
     {
         SmAssertArray pointers;
         Step(shape);
-        const auto status = m->brep->ValidatePointers(&pointers);
-        r.pointerReports = pointers.GetSize();
+        const auto status = m_model->brep->ValidatePointers(&pointers);
+        m_report.pointerReports = pointers.GetSize();
         if (status != SM_SUCCESS || pointers.GetSize() != 0)
         {
             AssertFailure(pointers, "GeneralPointerValidation");
         }
         SmAssertArray deep;
         Step(shape);
-        const bool valid = m->brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) != FALSE;
-        r.deepReports = deep.GetSize();
+        const bool valid = m_model->brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) != FALSE;
+        m_report.deepReports = deep.GetSize();
         if (!valid || deep.GetSize() != 0)
         {
             AssertFailure(deep, "GeneralLevel2Validation");
         }
         for (Index i = 0; i < vertices.size(); ++i)
         {
-            Need(Norm(Sub(P(m->vertices[i]->GetPoint()), points[i])) == 0, "GeneralSourceVertexMoved", vertices[i]);
+            Need(Norm(Sub(P(m_model->vertices[i]->GetPoint()), points[i])) == 0, "GeneralSourceVertexMoved", vertices[i]);
         }
         for (Index i = 0; i < curves.size(); ++i)
         {
             SmTArray<SmEdgeuse*> uses;
-            Good(m->edges[i]->GetEdgeuses(uses));
+            Good(m_model->edges[i]->GetEdgeuses(uses));
             Need(uses.GetSize() == 4, "GeneralNativeEdgeIncidence", curves[i].record);
         }
     }
@@ -1662,14 +1740,14 @@ private:
         for (ULONG i = 0; i < std::min<ULONG>(reports.GetSize(), 128); ++i)
         {
             const auto problem = reports[i];
-            for (const auto& face : m->faces)
+            for (const auto& face : m_model->faces)
             {
                 if (problem->GetOwner() == face.face)
                 {
                     message += "face=" + face.faceId + " ";
                 }
             }
-            for (const auto& face : m->faces)
+            for (const auto& face : m_model->faces)
             {
                 for (const auto loop : face.loops)
                 {
@@ -1700,37 +1778,37 @@ private:
         {
             const double tolerance = SmTol::GetZoneTol3d(object);
             Need(
-                std::isfinite(tolerance) && tolerance > 0 && tolerance <= Q(o.quality.maximumWorkToleranceMm) &&
-                    tolerance <= Tol() + Q(o.quality.toleranceGrowthMm),
+                std::isfinite(tolerance) && tolerance > 0 && tolerance <= Q(m_options.quality.maximumWorkToleranceMm) &&
+                    tolerance <= Tol() + Q(m_options.quality.toleranceGrowthMm),
                 "GeneralUnexpectedToleranceGrowth",
                 shape
             );
-            r.tolerances.push_back({ "Postchecked", kind, id, tolerance });
+            m_report.tolerances.push_back({ "Postchecked", kind, id, tolerance });
         };
-        observe("BrepWorkTolerance", Id(shape), m->brep.get());
-        for (const auto& f : m->faces)
+        observe("BrepWorkTolerance", Id(shape), m_model->brep.get());
+        for (const auto& f : m_model->faces)
         {
             observe("FaceWorkTolerance", f.faceId, f.face);
         }
-        for (Index i = 0; i < m->edges.size(); ++i)
+        for (Index i = 0; i < m_model->edges.size(); ++i)
         {
-            observe("EdgeWorkTolerance", i < curves.size() ? Id(curves[i].record) : "derived-seam", m->edges[i]);
+            observe("EdgeWorkTolerance", i < curves.size() ? Id(curves[i].record) : "derived-seam", m_model->edges[i]);
         }
-        for (Index i = 0; i < m->vertices.size(); ++i)
+        for (Index i = 0; i < m_model->vertices.size(); ++i)
         {
-            observe("VertexWorkTolerance", Id(vertices[i]), m->vertices[i]);
+            observe("VertexWorkTolerance", Id(vertices[i]), m_model->vertices[i]);
         }
     }
     void Measure()
     {
         Statistics info;
         info.faces = faces.size();
-        info.edges = m->edges.size();
+        info.edges = m_model->edges.size();
         info.vertices = vertices.size();
         info.shapeRole = "MaterialSolid";
         SmPoint3d mn, mx;
         Step(shape);
-        Good(SmApiBrepBoundingBox(m->brep.get(), TRUE, mn, mx));
+        Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, mn, mx));
         info.boundsMm = { P(mn), P(mx) };
         for (Index a = 0; a < 3; ++a)
         {
@@ -1744,7 +1822,7 @@ private:
         SmPoint3d centroid;
         SmVector3d moments, products;
         Step(shape);
-        Good(SmApiBrepComputeMassProperties(m->brep.get(), 1e-4, 1., mn, info.areaMm2, volume, mass, centroid, moments, products));
+        Good(SmApiBrepComputeMassProperties(m_model->brep.get(), 1e-4, 1., mn, info.areaMm2, volume, mass, centroid, moments, products));
         Need(std::isfinite(volume) && volume > 0 && std::isfinite(info.areaMm2) && info.areaMm2 > 0, "GeneralSolidMeasures", shape);
         info.materialVolumeMm3 = volume;
         info.centroidMm = P(centroid);
@@ -1752,11 +1830,11 @@ private:
         {
             Need(std::isfinite(value), "GeneralFiniteCentroid", shape);
         }
-        for (Index i = 0; i < m->edges.size(); ++i)
+        for (Index i = 0; i < m_model->edges.size(); ++i)
         {
             double length = 0;
             Step(i < curves.size() ? curves[i].record : derivedEdgeFaces.at(i - curves.size()));
-            Good(SmApiEdgeComputeLength(m->edges[i], m->queryTolerance, length));
+            Good(SmApiEdgeComputeLength(m_model->edges[i], m_model->queryTolerance, length));
             Need(
                 std::isfinite(length) && length > 0,
                 "GeneralEdgeLength",
@@ -1764,9 +1842,9 @@ private:
             );
             info.boundaryMm += length;
         }
-        for (Index i = 0; i < m->faces.size(); ++i)
+        for (Index i = 0; i < m_model->faces.size(); ++i)
         {
-            auto& f = m->faces[i];
+            auto& f = m_model->faces[i];
             f.info.faces = 1;
             f.info.shapeRole = "MaterialSolidBoundary";
             Step(faces[i].record);
@@ -1788,16 +1866,16 @@ private:
             Step(faces[i].record);
             Good(SmApiFaceBoundingBox(f.face, TRUE, mn, mx));
             f.info.boundsMm = { P(mn), P(mx) };
-            r.faces.push_back({ f.faceId, Id(faces[i].surface), faces[i].same, f.info });
+            m_report.faces.push_back({ f.faceId, Id(faces[i].surface), faces[i].same, f.info });
         }
-        m->info = info;
-        r.native = info;
-        r.solidRegions = 1;
-        r.voidCavities = 0;
+        m_model->info = info;
+        m_report.native = info;
+        m_report.solidRegions = 1;
+        m_report.voidCavities = 0;
         // Measurements are intentionally not written into *_bound_mm fields,
         // which are reserved for the existing planar conservative proof.
-        r.tolerances.push_back({ "Postcheck", "MeasuredEdgeVertexGap", "", consistency });
-        r.tolerances.push_back({ "Postcheck", "MeasuredDerivedUvGap", "", uvGap });
+        m_report.tolerances.push_back({ "Postcheck", "MeasuredEdgeVertexGap", "", consistency });
+        m_report.tolerances.push_back({ "Postcheck", "MeasuredDerivedUvGap", "", uvGap });
     }
 };
 } // namespace

@@ -144,9 +144,14 @@ Outcome Import(const Options& options, Capture capture)
             report.diagnostics = checked.diagnostics;
             if (!checked.snapshot)
             {
-                const auto status = checked.status == step_semantics::Status::ResourceLimit ? Status::ResourceLimit :
-                                    checked.status == step_semantics::Status::Unsupported   ? Status::Unsupported :
-                                                                                              Status::Rejected;
+                // Raw capture failures precede semantic classification. Preserve
+                // I/O, carrier and resource categories, as on the planar path.
+                const auto status = raw.status == step_source::Status::IoFailure ? Status::SourceFailure :
+                                    (raw.status == step_source::Status::ResourceLimit || checked.status == step_semantics::Status::ResourceLimit) ?
+                                                                                   Status::ResourceLimit :
+                                    (raw.status == step_source::Status::Unsupported || checked.status == step_semantics::Status::Unsupported) ?
+                                                                                   Status::Unsupported :
+                                                                                   Status::Rejected;
                 throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
             }
             execution.Check(Phase::SemanticsChecked);

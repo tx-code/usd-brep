@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImport.h"
 #include "StepImportCylinderChart.h"
+#include "StepImportTrimMeasurement.h"
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
@@ -9,6 +10,8 @@
 #include <SmBrep.h>
 #include <SmBrepData.h>
 #include <SmContext.h>
+#include <SmLine.h>
+#include <SmPlane.h>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -85,6 +88,19 @@ void GaugeContract()
             }
         }
     }
+}
+void FinalTrimContract()
+{
+    SmContext context;
+    SmPlane plane(SmPoint3d(0, 0, 0), SmVector3d(1, 0, 0), SmVector3d(0, 1, 0), SmVector2d(1, 1), SmExtent2d(-1, -1, 2, 2), &context);
+    SmLine *edgeRaw = nullptr, *uvRaw = nullptr;
+    Require(SmLine::CreateLineSegment(context, 3, SmPoint3d(0, 0, 0), SmPoint3d(1, 0, 0), edgeRaw) == SM_SUCCESS, "trim control edge");
+    std::unique_ptr<SmLine> edge(edgeRaw);
+    Require(SmLine::CreateLineSegment(context, 2, SmPoint3d(0, .02, 0), SmPoint3d(1, .02, 0), uvRaw) == SM_SUCCESS, "displaced final UV");
+    std::unique_ptr<SmLine> uv(uvRaw);
+    const auto observed = step_import::detail::MeasureFinalTrim(*edge, *uv, plane, 0, 1);
+    Near(observed.maximumMm, .02, 1e-12, "remeasure final UV after endpoint movement");
+    Require(observed.samples == 9 && observed.maximumMm > .001, "final trim exceeds independent budget");
 }
 struct ReloadedNative
 {
@@ -236,6 +252,7 @@ int main(int argc, char** argv)
         }
         Require(argc == 3, "fixture and local output directory required");
         GaugeContract();
+        FinalTrimContract();
         LifecycleContract(argv[1], argv[2]);
     }
     catch (const std::exception& error)

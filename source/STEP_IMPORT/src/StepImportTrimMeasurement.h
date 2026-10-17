@@ -1,0 +1,18 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+#pragma once
+#include <cstddef>
+class SmCurve;
+class SmSurface;
+namespace step_import::detail
+{
+struct TrimMeasurement
+{
+    double maximumMm = 0;
+    std::size_t samples = 0;
+};
+// Read-only paired-parameter measurement of the FINAL installed trim. Samples
+// include both curves' knots and eight subintervals per union span. This is a
+// numerical development observation, not a continuous error certificate.
+TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const SmSurface& surface, double begin, double end);
+} // namespace step_import::detail
