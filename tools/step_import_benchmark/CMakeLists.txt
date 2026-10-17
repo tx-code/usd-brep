@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+cmake_minimum_required(VERSION 3.22)
+project(STEP_IMPORT_BENCHMARK LANGUAGES CXX)
+set(STEP_SOURCE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(STEP_SEMANTICS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(STEP_PLANAR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(STEP_IMPORT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(../../source/STEP_IMPORT source-import)
+execute_process(COMMAND git rev-parse HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE STEP_BENCH_BUILD_ID OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+add_executable(step_source_probe native/SourceProbe.cpp)
+target_link_libraries(step_source_probe PRIVATE STEP_SOURCE)
+add_executable(step_import_probe native/SourceProbe.cpp)
+target_compile_definitions(step_import_probe PRIVATE STEP_BENCH_NATIVE)
+target_link_libraries(step_import_probe PRIVATE STEP_IMPORT)
+set(STEP_BENCH_OCCT_BUILD "" CACHE PATH "Existing local OCCT build tree, kept external to the product")
+if(STEP_BENCH_OCCT_BUILD)
+    add_executable(step_occt_probe native/OcctProbe.cpp)
+    target_include_directories(step_occt_probe SYSTEM PRIVATE "${STEP_BENCH_OCCT_BUILD}/inc")
+    foreach(lib TKDESTEP TKDE TKXSBase TKTopAlgo TKGeomAlgo TKBRep TKGeomBase TKG3d TKG2d TKMath TKernel)
+        target_link_libraries(step_occt_probe PRIVATE "${STEP_BENCH_OCCT_BUILD}/win64/vc14/lib/${lib}.lib")
+    endforeach()
+endif()
+foreach(target step_source_probe step_import_probe step_occt_probe)
+    if(TARGET ${target})
+        target_compile_features(${target} PRIVATE cxx_std_20)
+        target_compile_definitions(${target} PRIVATE NOMINMAX STEP_BENCH_BUILD_ID="${STEP_BENCH_BUILD_ID}")
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /W4 /WX /permissive- /utf-8)
+            target_link_libraries(${target} PRIVATE Psapi)
+        endif()
+    endif()
+endforeach()
+if(WIN32)
+    add_custom_command(TARGET step_import_probe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${STEP_IMPORT_NATIVE_DIR}/$<IF:$<CONFIG:Debug>,debug,release>/SMLib.dll" "$<TARGET_FILE_DIR:step_import_probe>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${STEP_IMPORT_NATIVE_DIR}/$<IF:$<CONFIG:Debug>,debug,release>/SM_API.dll" "$<TARGET_FILE_DIR:step_import_probe>")
+endif()

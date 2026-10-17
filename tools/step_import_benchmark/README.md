@@ -1,0 +1,84 @@
+# STEP 模型库画像与测量工具
+
+独立 C++20 probes 和 Python 批测入口，复用公共 `InspectFile` / `ImportFile`，
+并通过本机 OCCT `STEPControl_Reader` 读取同一原始文件。产品代码和读取规则不因测量而改变。
+模型库、绝对路径、日志、原始结果和 HTML 报告全部保留本地；仓库只存可复用工具和公共合同测试。
+
+## 构建
+
+当前本机入口为 Windows / MSVC，使用匹配的 SMLib SDK 和现有 OCCT build tree。
+OCCT 工具只链接外部对照进程；不通过 `.brep` 或 USD 中转。
+
+```powershell
+cmake -S tools/step_import_benchmark -B <build> `
+  -DSTEP_IMPORT_NATIVE_DIR=<smlib-sdk> -DSTEP_BENCH_OCCT_BUILD=<occt-build>
+cmake --build <build> --config Release --target step_source_probe step_import_probe step_occt_probe
+$env:PATH = '<occt-build>/win64/vc14/bin;' + $env:PATH
+```
+
+探针接受 `--mode`、`--input`、`--output`、`--repeat`、`--warmup` 和 `--max-input-bytes`。
+结果写入指定 JSON，stdout/stderr 独立保存 OCCT 消息。完成一次测量返回0，
+具体 Inspected / Accepted / Unsupported / Rejected / ResourceLimit / PartialTransfer 等在结果中区分；
+进程异常或无法发布结果返回非0。超出工具输入预算为 `NotRunInputBudget`，不是源文件非法或引擎失败。
+
+## 画像与批测
+
+```powershell
+python -m tools.step_import_benchmark census --root <model-root> --output <local>/census.json
+python -m tools.step_import_benchmark run --census <local>/census.json --cohorts <local>/cohorts.json `
+  --source-probe <build>/Release/step_source_probe.exe --native-probe <build>/Release/step_import_probe.exe `
+  --occt-probe <build>/Release/step_occt_probe.exe --occt-bin <occt-build>/win64/vc14/bin `
+  --scope paired --repeat 3 --warmup 1 --output <local>/paired
+python -m tools.step_import_benchmark report --census <local>/census.json --cohorts <local>/cohorts.json `
+  --run <local>/paired --output <local>/report.html
+```
+
+画像排除字符串和注释中的伪实体，统计简单记录和复合记录的外部组件，
+HEADER schema 从受限前缀提取；保存输入 SHA256、大小、mtime 和目录分层。
+这些是词法画像，不是解析、schema 符合性或几何验收。
+同内容文件由 SHA256 去重选择60开发、20保留盲测、8大型；盲测内容及其重复路径都不进入批测。
+`source-scan` 读取除盲测外的每个路径，`paired` 运行开发集的四种模式，`large` 单独记录大型样本。
+不足以填满分组时保留实际数量，不补重复文件。
+
+每个文件/模式启动新进程，warmup 和各次实测分别保留；文件先校验 SHA256，因此输入缓存被预热。
+重复先取每文件中位数，汇总再取文件间中位数/P95；失败和 Unsupported 不进入成功耗时统计。
+批次顺序执行，`--timeout` 和 `--maximum-private-bytes` 显式指定。
+内存监管是20ms采样后的结束操作，可超调，不是操作系统分配硬上限。
+进程失败、超时、内存/日志停止、输出不完整、输入变化分别保存；部分数据不计为成功。
+批次中断后可用 `--resume`：只有输入、参数、二进制和运行库身份匹配才保留完成结果；
+未完成尝试留在自己的目录，新尝试另存。
+
+## 测量含义
+
+| 模式 | 计时范围 | 模型 |
+|---|---|---|
+| self-source / source | `InspectFile`：读取、捕获/SHA、词法、记录与引用索引；不输出完整源图 JSON | 无 |
+| self-native / import | 公共 `ImportFile`：严格检查、构建、后验、必需报告与发布；另记公开阶段时间里程碑 | 仅 Accepted |
+| OCCT / read | Reader 初始化＋`ReadFile`；读取诊断提取单独计时 | 无 |
+| OCCT / transfer | Reader 初始化＋`ReadFile`＋`NbRootsForTransfer/TransferRoots/OneShape` | 另记根数、部分转换和检查失败 |
+
+OCCT 使用默认 FixShape 路径，系统长度单位设为毫米，实际精度、surface-curve、assembly 等设置写入结果。
+读取/转换失败和警告数另存；完整转根也不代替源完整性或独立几何验收。
+`BRepCheck_Analyzer` 与面积/体积/包围盒量测单独计时，不计入 OCCT `operation_ms`。
+两边的工作与修复/精度契约不同，工具始终不给加速比；只并列相同文件的阶段结果和实测。
+公开合成盒体和带孔面用于确认量测器的拓扑、面积、体积与孔行为，不能替代真实库覆盖。
+
+`operation_ms` 排除探针的小 JSON 输出和清理；`process_wall_ms` 还包含进程/DLL启动、检查量测、
+清理及输出。自研内部只记录公共 progress 的时间里程碑，不将其冒充未暴露的细分构建/后验耗时。
+内存是进程绝对提交量和已观测的生命周期峰值，含运行库、warmup、缓存及多次测量，不能当单模型净分配。
+当前自研源层64MiB安全上限保持，大型组 OCCT 上限512MiB；这些不同预算的结果单列。
+
+本地 OCCT 可为开发版本，必须以结果中的完整版本号、实际加载 DLL 与其 SHA256 为准。
+`build_id` 是 configure 时的仓库提交；源码与二进制的构建绑定仍需本机构建日志及源身份记录。
+
+## 公共入口检查
+
+设置 `STEP_BENCH_SOURCE`、`STEP_BENCH_NATIVE`、`STEP_BENCH_OCCT` 为三个 Release 程序，
+`STEP_BENCH_OCCT_BIN` 为 OCCT DLL 目录，再运行：
+
+```powershell
+python -m unittest discover -s tools/step_import_benchmark/tests -v
+```
+
+测试调用真实程序，核对解析图、独立盒体/孔面积、Unicode路径、warmup/实测分离、
+输入预算不执行、盲测排除、匹配续跑、输入变更拒绝、超时和异常进程结果。
