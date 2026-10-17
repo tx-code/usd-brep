@@ -4,6 +4,12 @@ Internal source validation above STEP_SEMANTICS. No SMLib, OCCT, USD, STEPcode r
 The transport and closed AP203e2 N2635 profile remain those of tickets 02/03. This layer checks supported source rules
 and directed LINE/PLANE boundary regions; `Checked` is not complete AP validity or an imported model.
 
+AP214e3's source-only semantic profile is refused at `UnsupportedRuleProfile/D3`
+before creating this validator. A checked/deferred AP214 source snapshot does not
+authorize the N2635 local/global rule implementation. Those checks, geometry and
+conversion evaluation remain `NotRun`, no rule evidence is fabricated, and native
+import publishes no model or native calls from that source profile.
+
 `Check(semanticOutcome, explicitQuality, limits)` returns owning diagnostic evidence sharing the immutable semantic/source
 snapshot. Source IDs, attributes and raw bytes retain their original meanings. Partial evidence can accompany failure;
 `qualified_source_evidence` is true only after all current checks complete. The JSON report embeds the preceding report

@@ -147,6 +147,12 @@ SchemaSelection SelectSchema(const step_source::SourceSnapshot& source)
     {
         selection.qualified = QualifiedSchemaProfile{ "ap203e2-n2635", Profile, SchemaSha256 };
     }
+    else if (selection.identifiers.size() == 1 && selection.identifiers.front().registryId == "ap214-edition-3")
+    {
+        // This artifact-backed profile implements source declarations only. Planar validation must
+        // still refuse it until AP214-specific local/global rules have their own implementation.
+        selection.qualified = QualifiedSchemaProfile{ "ap214-edition-3", Ap214SourceProfile, Ap214SchemaSha256, ProfileKind::Ap214e3Source };
+    }
     return selection;
 }
 } // namespace step_semantics

@@ -292,6 +292,22 @@ Outcome Check(const step_semantics::Outcome& semantics, Quality quality, Limits 
             throw std::invalid_argument("Only the complete typed conversion-unit handoff can be resumed");
         }
     }
+    // Source declarations passing does not establish AP214 WHERE/RULE validity. Refuse before
+    // constructing the AP203 validator, keeping its rule evidence, geometry and native work unrun.
+    if (semantics.snapshot->SelectedProfile().kind != step_semantics::ProfileKind::Ap203e2Planar)
+    {
+        step_semantics::Diagnostic diagnostic;
+        diagnostic.source.key = "UnsupportedRuleProfile";
+        diagnostic.source.stage = "D3";
+        diagnostic.source.primary = semantics.snapshot->SchemaIdentity().span;
+        diagnostic.source.message = "Source declarations were checked; this schema's local/global rules and geometry are not implemented";
+        diagnostic.classification = "ProfileUnsupported";
+        diagnostic.actual = semantics.snapshot->SelectedProfile().profile;
+        diagnostic.responsibility = "Protocol-specific rule implementation required before geometric validation";
+        result.diagnostics.push_back(std::move(diagnostic));
+        result.status = Status::Unsupported;
+        return result;
+    }
     std::unique_ptr<Validator> validator;
     try
     {

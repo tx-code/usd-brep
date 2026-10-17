@@ -101,21 +101,23 @@ class SemanticTests(unittest.TestCase):
         self.assertTrue(observed["snapshot"]["part"]["apd_schema_claim"].endswith("_mim_lf"))
         self.assertEqual("NotRun", observed["snapshot"]["part"]["apd_global_rule"])
 
-    def test_ap214_version_recognition_does_not_select_ap203_rules(self):
+    def test_ap214_source_profile_does_not_claim_ap203_rule_qualification(self):
         old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"
                b" {1 0 10303 403 2 1 2}")
         literal = b"AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}"
         data = self.changed(old, literal)
-        observed = self.failed(data, "UnsupportedSchemaBinding", 2)
+        observed = self.checked(data)
         selection = observed["schema_selection"]
-        self.assertIsNone(selection["qualified_profile"])
+        self.assertEqual("214e3-P0-Source-0.1", selection["qualified_profile"]["profile"])
+        self.assertEqual("SourceDeclarationsPartUnitsOnly", selection["qualified_profile"]["scope"])
         identity, = selection["identifiers"]
         self.assertEqual("AP214", identity["protocol"])
         self.assertEqual("ap214-edition-3", identity["registry_id"])
         self.assertEqual("RegisteredVersion", identity["match"])
         self.assertEqual(literal.decode(), identity["literal"])
         self.assertEqual(["1", "0", "10303", "214", "3", "1", "1"], identity["oid"])
-        self.assertEqual("NotRun", observed["checks"]["type_fields"])
+        self.assertEqual("Passed", observed["checks"]["type_fields"])
+        self.assertEqual("NotRun", observed["checks"]["global_rules_47"])
 
     def test_known_schema_families_and_versions_have_no_implicit_profile(self):
         old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"

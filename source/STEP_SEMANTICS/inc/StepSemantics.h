@@ -16,6 +16,14 @@ namespace step_semantics
 inline constexpr const char* Profile = "203e2-P0-Planar-0.1";
 inline constexpr const char* SchemaName = "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF";
 inline constexpr const char* SchemaSha256 = "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088";
+inline constexpr const char* Ap214SourceProfile = "214e3-P0-Source-0.1";
+inline constexpr const char* Ap214SchemaSha256 = "71ab140fe7f774321beee6a31e6fee2afc3973fd60350ae2018c74c211fb4295";
+
+enum class ProfileKind
+{
+    Ap203e2Planar,
+    Ap214e3Source
+};
 
 struct Limits
 {
@@ -50,7 +58,9 @@ struct SchemaIdentifier
 };
 struct QualifiedSchemaProfile
 {
+    // This selects a source-check implementation; downstream rule/geometry capability is separate.
     std::string registryId, profile, expressSha256;
+    ProfileKind kind = ProfileKind::Ap203e2Planar;
 };
 struct SchemaSelection
 {
@@ -155,6 +165,9 @@ public:
 
     explicit Snapshot(std::shared_ptr<const SemanticData> data);
     const step_source::SourceSnapshot& Source() const;
+    // Borrowed identity views remain valid while this owning snapshot lives.
+    const QualifiedSchemaProfile& SelectedProfile() const;
+    const SchemaIdentifier& SchemaIdentity() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
     const std::vector<std::string>& RegisteredTypes() const;

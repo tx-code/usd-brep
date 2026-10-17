@@ -18,14 +18,15 @@ Schema declaration parsing and version recognition live in `StepSchemaSelection.
 `Outcome::schemaSelection` owns every decoded HEADER identifier, name spelling,
 numeric OID arc string, source span and recognition result, including after failed
 binding. Null means selection did not run (for example, raw source failure).
-Recognition never grants a type/rule implementation: `qualified` is populated only
-for the existing exact, single N2635 AP203e2 declaration. Existing diagnostics,
+Recognition alone never grants an implementation: `qualified` selects an exact,
+single implemented source profile, with its validation scope explicit. Existing AP203 diagnostics,
 phase order and dependency-visit counts retain their contracts.
 
 The registry recognizes the AP203e1 `CONFIG_CONTROL_DESIGN`, AP203e2 long MIM_LF
 name, AP214 `AUTOMOTIVE_DESIGN`, legacy `AUTOMOTIVE_DESIGN_CC2`, and AP242 long
 MIM_LF name. AP214 edition 1/2/3 numeric OIDs have stable identity entries;
-none selects an implemented profile yet. A bare name identifies a family only.
+edition 3 now selects the source-only profile below. Other AP214 versions/aliases
+have identity observations but no implemented source profile. A bare name identifies a family only.
 Other OIDs remain unregistered; AP242 edition is not inferred from an unchecked
 OID convention. Multiple schemas remain unsupported while all declarations,
 including unknown additional schemas, are preserved in source order.
@@ -36,6 +37,38 @@ become a registry match. No identity is inferred from APD text/year or DATA enti
 names. Recognized versions have not thereby passed EXPRESS, geometry or native
 validation. Additional profiles need audited declarations, checks and their own
 dispatch before they can be admitted to the existing pipeline.
+
+The AP214e3 source profile `214e3-P0-Source-0.1` binds exact
+`AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}` to STEPcode commit
+`24783b448511b8f6bce2829286a3f00015430236`,
+[`data/ap214e3/AP214E3_2010.exp`](https://github.com/stepcode/stepcode/blob/24783b448511b8f6bce2829286a3f00015430236/data/ap214e3/AP214E3_2010.exp),
+SHA256 `71ab140fe7f774321beee6a31e6fee2afc3973fd60350ae2018c74c211fb4295`.
+Its header describes a draft-derived implementation artifact; the filename is
+not treated as proof of a certified final ISO publication.
+
+Each snapshot owns its `SelectedProfile()` and `SchemaIdentity()`. Type indexes,
+declaration pointers and named field queries use that snapshot's immutable catalog;
+there is no process-wide current-protocol switch. AP203 retains its original 72
+registered declarations and indexes. AP214 has 70 common declarations, excluding
+`MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source.
+The admitted reference SELECT branches remain a closed project subset. This is
+source field/part/unit checking, not full-schema or modeling qualification.
+
+AP214 `CONVERSION_BASED_UNIT` redeclares `NAMED_UNIT.dimensions` as derived, so
+the original transport value must be `*`. `FieldView` retains the marker, original
+slot and declaring/redeclaring types; `ReferenceTarget()` rejects it as a
+non-reference. AP203 conversion dimensions retain their explicit reference.
+Neither binding rewrites source data or defining 3D curves. Physical conversion
+interpretation remains deferred in this layer, with AP214 reason
+`Ap214ConversionUnitEvaluationNotRun` and no invented canonical length scale.
+
+The shared single-part, mechanical/design role, complete closure and nominal-unit
+restrictions are project guards. Entity WHERE/UNIQUE and AP214's 272 global RULEs
+have not been evaluated. `STEP_PLANAR::Check` rejects AP214 at `UnsupportedRuleProfile/D3`
+before constructing the AP203 validator; local/global/geometry/conversion checks
+stay `NotRun`, and native import makes zero native calls and publishes no model.
+The legacy JSON `global_rules_47` key is retained as a compatibility field and
+does not describe AP214's rule set.
 
 JSON exposes `schema_selection` separately from the qualified snapshot. Decoded
 literals use UTF-8, OID arcs stay strings, and the shared report-byte limit remains
@@ -89,8 +122,8 @@ This stage implements:
 
 | Check | Contract |
 |---|---|
-| Binding | Exact AP203e2 name and numeric OID `{1 0 10303 403 2 1 2}` bind the pinned N2635 artifact; no alias/year inference |
-| Fields | The approved 36 simple leaves and six complete complex signatures; local/inherited slot counts, optional/required values, transport types, SELECT branches, BOOLEAN, enums, aggregates and derived-slot markers |
+| Binding | Exact single AP203e2 N2635 or AP214e3 name/OID selects its source artifact/profile; no alias/year inference |
+| Fields | AP203's 36 simple leaves (AP214 excludes the two retired context leaves) and six complete complex signatures; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN, enums, aggregates and protocol-specific derived markers |
 | Types | All admitted entity ancestors, including diamonds; explicit constituents and original source identity are retained |
 | Part | Unique AC/APD/PC/PDC/product/formation/PD/PDS/SDR/representation/context and consistent reference identities |
 | Profile guards | Roles, purposes, category, one shape, explicit outer bound, complete ownership; unknown content is not skipped |

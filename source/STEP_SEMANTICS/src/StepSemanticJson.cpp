@@ -125,6 +125,10 @@ void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelecti
         out.String(selection->qualified->profile);
         out.Add(",\"express_sha256\":");
         out.String(selection->qualified->expressSha256);
+        if (selection->qualified->kind == ProfileKind::Ap214e3Source)
+        {
+            out.Add(",\"scope\":\"SourceDeclarationsPartUnitsOnly\"");
+        }
         out.Add("}");
     }
     else
@@ -141,7 +145,10 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.Add(",\"deferred_reason\":");
     if (result.status == Status::Deferred)
     {
-        out.String("ConversionLengthInterpretationPendingTicket09");
+        out.String(
+            result.snapshot && result.snapshot->SelectedProfile().kind == ProfileKind::Ap214e3Source ? "Ap214ConversionUnitEvaluationNotRun" :
+                                                                                                       "ConversionLengthInterpretationPendingTicket09"
+        );
     }
     else
     {
@@ -178,11 +185,21 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     {
         const auto& data = *result.snapshot;
         out.Add("{\"schema\":{\"name\":");
-        out.String(SchemaName);
-        out.Add(",\"oid\":[1,0,10303,403,2,1,2],\"express_sha256\":");
-        out.String(SchemaSha256);
+        out.String(data.SchemaIdentity().name);
+        out.Add(",\"oid\":[");
+        for (std::size_t i = 0; i < data.SchemaIdentity().oid.size(); ++i)
+        {
+            if (i)
+            {
+                out.Add(",");
+            }
+            // A qualified profile has matched an exact compiled numeric OID, never an arbitrary raw token.
+            out.Add(data.SchemaIdentity().oid[i]);
+        }
+        out.Add("],\"express_sha256\":");
+        out.String(data.SelectedProfile().expressSha256);
         out.Add(",\"profile\":");
-        out.String(Profile);
+        out.String(data.SelectedProfile().profile);
         out.Add("}");
         out.Add(",\"type_index_complete\":true,\"type_catalog_scope\":\"ProfileAncestorClosureAndRegisteredGuards\",\"type_populations\":{");
         bool first = true;

@@ -61,15 +61,9 @@ constexpr std::string_view SourceNames[] = { "MADE", "BOUGHT", "NOT_KNOWN" };
 constexpr NamedBranches Enumerations[] = { { "SI_UNIT_NAME", SiNames }, { "SOURCE", SourceNames } };
 constexpr std::string_view MeasureBranches[] = { "LENGTH_MEASURE", "NON_NEGATIVE_LENGTH_MEASURE", "POSITIVE_LENGTH_MEASURE" };
 
-struct DerivedSlot
-{
-    std::string_view recordType;
-    std::string_view declaredIn;
-    std::string_view field;
-};
-constexpr DerivedSlot DerivedSlots[] = { { "ORIENTED_EDGE", "EDGE", "edge_start" },
-                                         { "ORIENTED_EDGE", "EDGE", "edge_end" },
-                                         { "SI_UNIT", "NAMED_UNIT", "dimensions" } };
+constexpr DerivedSlot CommonDerivedSlots[] = { { "ORIENTED_EDGE", "EDGE", "edge_start" },
+                                               { "ORIENTED_EDGE", "EDGE", "edge_end" },
+                                               { "SI_UNIT", "NAMED_UNIT", "dimensions" } };
 
 bool Contains(Names names, std::string_view value)
 {
@@ -127,7 +121,7 @@ void ValidateProfile(const Catalog& catalog)
             typeId(name);
         }
     }
-    for (const auto& slot : DerivedSlots)
+    for (const auto& slot : catalog.derivedSlots)
     {
         const auto owner = typeId(slot.recordType), origin = typeId(slot.declaredIn);
         const auto& fields = catalog.declarations[origin].fields;
@@ -213,8 +207,12 @@ Field Set(const char* name, const char* type)
 }
 } // namespace
 
-Catalog::Catalog()
+Catalog::Catalog(ProfileKind profile)
 {
+    // Share the admitted common transport fields/parents; remove the AP203-only legacy contexts below.
+    // Registered guard entries are not serialized leaves of this closed profile.
+    // Apply protocol-specific removals and DERIVE overrides before creating indexes or field pointers;
+    // equal transport layouts do not establish equal WHERE/UNIQUE rules.
     // N2635 entity declarations, audited context/geometry tables. WHERE/UNIQUE/INVERSE evaluation is not implied.
     declarations = {
         { "REPRESENTATION_ITEM", {}, { Text("name") } },
@@ -316,6 +314,25 @@ Catalog::Catalog()
         { "DERIVED_UNIT", {}, {} },
         { "DERIVED_UNIT_ELEMENT", {}, {} },
     };
+    derivedSlots.assign(std::begin(CommonDerivedSlots), std::end(CommonDerivedSlots));
+    if (profile == ProfileKind::Ap214e3Source)
+    {
+        // These two deprecated AP203 types do not occur in the pinned AP214e3 artifact.
+        declarations.erase(
+            std::remove_if(
+                declarations.begin(),
+                declarations.end(),
+                [](const Declaration& declaration)
+                {
+                    return declaration.name == "MECHANICAL_CONTEXT" || declaration.name == "DESIGN_CONTEXT";
+                }
+            ),
+            declarations.end()
+        );
+        // AP214E3_2010.exp, CONVERSION_BASED_UNIT DERIVE: dimensions is transmitted as '*'.
+        // The source value stays a marker; this descriptor must not invent the factor unit's dimensions reference.
+        derivedSlots.push_back({ "CONVERSION_BASED_UNIT", "NAMED_UNIT", "dimensions" });
+    }
     if (declarations.size() > 128)
     {
         throw std::logic_error("Catalog exceeds compact type capacity");
@@ -471,7 +488,7 @@ int Catalog::PrefixPower10(std::string_view prefix) const
 }
 std::string_view Catalog::RedeclaredBy(const std::bitset<128>& types, const FieldBinding& binding) const
 {
-    for (const auto& slot : DerivedSlots)
+    for (const auto& slot : derivedSlots)
     {
         if (binding.origin == slot.declaredIn && binding.field->name == slot.field && types.test(ids.at(std::string(slot.recordType))))
         {
@@ -480,15 +497,36 @@ std::string_view Catalog::RedeclaredBy(const std::bitset<128>& types, const Fiel
     }
     return {};
 }
-const Catalog& Schema()
+const Catalog& Schema(ProfileKind profile)
 {
-    static const Catalog catalog;
-    return catalog;
+    // Each snapshot keeps its own immutable catalog identity, so interleaved imports cannot change
+    // existing type indexes or the lifetime of declaration pointers stored in field bindings.
+    switch (profile)
+    {
+        case ProfileKind::Ap203e2Planar:
+        {
+            static const Catalog catalog(ProfileKind::Ap203e2Planar);
+            return catalog;
+        }
+        case ProfileKind::Ap214e3Source:
+        {
+            static const Catalog catalog(ProfileKind::Ap214e3Source);
+            return catalog;
+        }
+    }
+    throw std::logic_error("Unimplemented source declaration catalog");
+}
+const Catalog& Schema(const SemanticData& data)
+{
+    // Failed binding never publishes a typed snapshot or enters field interpretation.
+    // A missing catalog here is a programmer phase-order error, not a malformed STEP value.
+    Expects(data.catalog.has_value());
+    return **data.catalog;
 }
 
 AttributeView AttributeAt(const SemanticData& data, std::size_t r, std::size_t c, std::size_t p)
 {
-    const auto& catalog = Schema();
+    const auto& catalog = Schema(data);
     const auto& record = data.source->Records().at(r);
     const auto& component = record.components.at(c);
     const auto type = catalog.ids.at(component.name);

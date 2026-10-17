@@ -23,7 +23,7 @@ struct Failure
 };
 bool IsA(const SemanticData& data, std::size_t record, std::string_view name)
 {
-    const auto type = Schema().Find(name);
+    const auto type = Schema(data).Find(name);
     return type && data.types.at(record).test(*type);
 }
 std::size_t IndexOf(const SemanticData& data, std::string_view id)
@@ -361,7 +361,7 @@ private:
                 "profile registry"
             );
         }
-        // Only the registered qualified profile may enter the existing N2635 catalog.
+        // Header recognition alone cannot select an arbitrary type/rule implementation.
         const auto& literal = identifiers[0].text;
         if (!m_outcome.schemaSelection->qualified)
         {
@@ -379,11 +379,15 @@ private:
                 "profile registry; no APD/year inference"
             );
         }
+        m_data->profile = *m_outcome.schemaSelection->qualified;
+        m_data->schemaIdentity = m_outcome.schemaSelection->identifiers.front();
+        // Fix declaration identity before any membership bits, reference types or derived slots are bound.
+        m_data->catalog.emplace(&Schema(m_data->profile.kind));
     }
 
     void Mapping()
     {
-        const auto& catalog = Schema();
+        const auto& catalog = Schema(*m_data);
         const auto& records = m_data->source->Records();
         m_data->types.resize(records.size());
         m_data->populations.resize(catalog.names.size());
@@ -589,7 +593,7 @@ private:
                 {
                     mismatch();
                 }
-                if (!Schema().ContainsEnumeration(field.type, value.text))
+                if (!Schema(*m_data).ContainsEnumeration(field.type, value.text))
                 {
                     Fail(
                         "EnumerationValueInvalid",
@@ -612,7 +616,7 @@ private:
                 {
                     mismatch();
                 }
-                if (!Schema().MatchesReference(m_data->types.at(UnboundTarget(value)), field.type))
+                if (!Schema(*m_data).MatchesReference(m_data->types.at(UnboundTarget(value)), field.type))
                 {
                     try
                     {
@@ -644,7 +648,7 @@ private:
                 {
                     mismatch();
                 }
-                if (!Schema().AdmitsMeasure(value.text))
+                if (!Schema(*m_data).AdmitsMeasure(value.text))
                 {
                     Fail(
                         "UnsupportedMeasureBranch",
@@ -672,7 +676,7 @@ private:
 
     void Fields()
     {
-        const auto& catalog = Schema();
+        const auto& catalog = Schema(*m_data);
         m_data->fields.resize(m_data->source->Records().size());
         for (std::size_t r = 0; r < m_data->source->Records().size(); ++r)
         {
@@ -827,7 +831,7 @@ private:
 
     const std::vector<std::size_t>& Population(std::string_view name) const
     {
-        return m_data->populations[Schema().ids.at(std::string(name))];
+        return m_data->populations[Schema(*m_data).ids.at(std::string(name))];
     }
     std::size_t One(std::string_view type)
     {
@@ -1355,7 +1359,7 @@ private:
                     "profile nominal SI-unit guard"
                 );
             }
-            definition.canonicalPower10 = Schema().PrefixPower10(definition.prefix) + (length ? 3 : 0);
+            definition.canonicalPower10 = Schema(*m_data).PrefixPower10(definition.prefix) + (length ? 3 : 0);
             if (length)
             {
                 definition.dimensions[0] = 1;
@@ -1386,22 +1390,30 @@ const Part& Snapshot::PartDefinition() const
 {
     return m_data->part;
 }
+const QualifiedSchemaProfile& Snapshot::SelectedProfile() const
+{
+    return m_data->profile;
+}
+const SchemaIdentifier& Snapshot::SchemaIdentity() const
+{
+    return m_data->schemaIdentity;
+}
 const Units& Snapshot::UnitContext() const
 {
     return m_data->units;
 }
 const std::vector<std::string>& Snapshot::RegisteredTypes() const
 {
-    return Schema().names;
+    return Schema(*m_data).names;
 }
 const std::vector<std::size_t>* Snapshot::Instances(std::string_view type) const
 {
-    const auto id = Schema().Find(type);
+    const auto id = Schema(*m_data).Find(type);
     return id ? &m_data->populations[*id] : nullptr;
 }
 bool Snapshot::IsA(std::size_t record, std::string_view type) const
 {
-    const auto id = Schema().Find(type);
+    const auto id = Schema(*m_data).Find(type);
     if (!id)
     {
         throw std::invalid_argument("Unregistered source type query");
@@ -1411,11 +1423,11 @@ bool Snapshot::IsA(std::size_t record, std::string_view type) const
 std::vector<std::string> Snapshot::TypesOf(std::size_t record) const
 {
     std::vector<std::string> names;
-    for (std::size_t t = 0; t < Schema().names.size(); ++t)
+    for (std::size_t t = 0; t < Schema(*m_data).names.size(); ++t)
     {
         if (m_data->types.at(record).test(t))
         {
-            names.push_back(Schema().names[t]);
+            names.push_back(Schema(*m_data).names[t]);
         }
     }
     return names;
@@ -1476,8 +1488,8 @@ std::vector<std::size_t> FieldView::ReferenceTargets() const
 }
 std::vector<std::size_t> Snapshot::UsedIn(std::string_view target, std::string_view type, std::string_view field) const
 {
-    const auto typeId = Schema().Find(type);
-    if (!typeId || !Schema().HasField(*typeId, field))
+    const auto typeId = Schema(*m_data).Find(type);
+    if (!typeId || !Schema(*m_data).HasField(*typeId, field))
     {
         throw std::invalid_argument("Unregistered USEDIN type/attribute role");
     }

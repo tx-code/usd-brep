@@ -57,6 +57,48 @@ int main(int argc, char** argv)
         Require(view.value->text == "110" && snapshot->Source().Find("203"), "owning semantic snapshot lifetime");
         ++groups;
 
+        // Keep both catalogs alive: AP214's DERIVE override must not change an existing AP203 field view.
+        auto conversion203 = Check(step_source::InspectBytes(Read(corpus / "S203-P11/input.step"), step_source::Limits::PlanarFixtures()), Limits{});
+        auto conversionText = Read(corpus / "S203-P11/input.step");
+        const std::string originalSchema = "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}";
+        conversionText.replace(conversionText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        conversionText.replace(conversionText.find("NAMED_UNIT(#17)"), std::string("NAMED_UNIT(#17)").size(), "NAMED_UNIT(*)");
+        const auto orphanBegin = conversionText.find("#17=DIMENSIONAL_EXPONENTS");
+        conversionText.erase(orphanBegin, conversionText.find('\n', orphanBegin) - orphanBegin + 1);
+        auto conversion214 = Check(step_source::InspectBytes(conversionText, step_source::Limits::PlanarFixtures()), Limits{});
+        Require(conversion203.snapshot && conversion214.snapshot, "Both source profiles must publish complete deferred snapshots");
+        auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
+        auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
+        Require(
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 70,
+            "Catalog identity leaked across source profiles"
+        );
+        Require(
+            !explicitDimensions.Declaration().derivedSlot &&
+                conversion203.snapshot->Source().Records()[explicitDimensions.ReferenceTarget()].id == "17",
+            "AP203 explicit conversion dimensions changed after AP214 selection"
+        );
+        Require(
+            derivedDimensions.Declaration().redeclaredBy == "CONVERSION_BASED_UNIT" &&
+                derivedDimensions.Value().kind == step_source::ValueKind::Derived,
+            "AP214 conversion dimensions lost the source-derived marker"
+        );
+        conversion214 = {};
+        bool derivedReferenceRefused = false;
+        try
+        {
+            derivedDimensions.ReferenceTarget();
+        }
+        catch (const std::invalid_argument&)
+        {
+            derivedReferenceRefused = true;
+        }
+        Require(
+            derivedReferenceRefused && derivedDimensions.Value().kind == step_source::ValueKind::Derived,
+            "Owning derived field must survive outcome release without inventing a reference"
+        );
+        ++groups;
+
         auto bound = snapshot->Field(Index(*snapshot, "203"), "EDGE", "edge_start");
         Require(bound.Declaration().declaredIn == "EDGE" && &bound.Value() == view.value, "Named query must reuse the inherited source value");
         const auto site = bound.Location();

@@ -51,6 +51,10 @@ struct FieldBinding
     gsl::not_null<const Field*> field;
     std::string_view origin;
 };
+struct DerivedSlot
+{
+    std::string_view recordType, declaredIn, field;
+};
 struct Catalog
 {
     std::vector<Declaration> declarations;
@@ -58,7 +62,8 @@ struct Catalog
     std::unordered_map<std::string, std::size_t> ids;
     std::vector<std::bitset<128>> ancestors;
     std::vector<std::vector<FieldBinding>> flattened;
-    Catalog();
+    std::vector<DerivedSlot> derivedSlots;
+    explicit Catalog(ProfileKind profile);
     std::optional<std::size_t> Find(std::string_view name) const;
     bool HasField(std::size_t type, std::string_view field) const;
     bool AdmitsComplex(std::span<const std::string> facets) const;
@@ -69,7 +74,7 @@ struct Catalog
     int PrefixPower10(std::string_view prefix) const;
     std::string_view RedeclaredBy(const std::bitset<128>& types, const FieldBinding& binding) const;
 };
-const Catalog& Schema();
+const Catalog& Schema(ProfileKind profile);
 
 struct BoundAttribute
 {
@@ -86,6 +91,9 @@ struct BoundRecord
 struct SemanticData
 {
     std::shared_ptr<const step_source::SourceSnapshot> source;
+    std::optional<gsl::not_null<const Catalog*>> catalog; // Selected by binding, before type/field interpretation.
+    QualifiedSchemaProfile profile;
+    SchemaIdentifier schemaIdentity;
     std::vector<std::bitset<128>> types; // Compact membership only; no second value/entity object graph.
     std::vector<std::vector<std::size_t>> populations;
     std::vector<unsigned char> representationUse;
@@ -95,6 +103,8 @@ struct SemanticData
     Part part;
     Units units;
 };
+
+const Catalog& Schema(const SemanticData& data);
 
 AttributeView AttributeAt(const SemanticData& data, std::size_t record, std::size_t component, std::size_t parameter);
 } // namespace step_semantics
