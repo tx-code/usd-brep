@@ -109,7 +109,8 @@ class Ap214EntityTests(unittest.TestCase):
         data = linked_source()
         context = data[data.index(b"#12="):data.index(b";", data.index(b"#12=")) + 1]
         display_context = context.replace(b"#12=", b"#912=").replace(b"(#10,#11)", b"(#915,#11)")
-        data = append_records(data, display_context + b"\n#915=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.));\n")
+        data = append_records(data, display_context +
+                              b"\n#915=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.));\n")
         data = data.replace(b"'display',(#901),#12", b"'display',(#901),#912")
         run, result = self.invoke(data)
         self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
@@ -167,6 +168,10 @@ class Ap214EntityTests(unittest.TestCase):
              "SetDuplicateMember", "906", "fill_styles", b"#907"),
             (b"'source side',(#905)", b"'source side',()", "AggregateCardinalityViolation", "904", "styles", b"()"),
             (b"'source link',$,#910,#20", b"'source link',$,#910,#21", "ReferenceTypeMismatch", "911", "rep_2", b"#21"),
+            (b"COLOUR_RGB('RGB',0.25,0.5,0.75)", b"COLOUR_RGB('RGB',0.25,0.5)",
+             "AttributeCountMismatch", "908", "", b"COLOUR_RGB('RGB',0.25,0.5)"),
+            (b"COLOUR_RGB('RGB',0.25,0.5,0.75)", b"COLOUR_RGB('RGB',0.25,0.5,0.75,1.)",
+             "AttributeCountMismatch", "908", "", b"COLOUR_RGB('RGB',0.25,0.5,0.75,1.)"),
         )
         for before, after, key, record, field, token in mutations:
             with self.subTest(key=key, record=record):
