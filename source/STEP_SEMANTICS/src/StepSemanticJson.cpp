@@ -33,6 +33,107 @@ void RecordIds(Writer& out, const Snapshot& data, const std::vector<std::size_t>
 }
 } // namespace
 
+void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelection>& selection)
+{
+    if (!selection)
+    {
+        out.Add("null");
+        return;
+    }
+    out.Add("{\"identifiers\":[");
+    bool comma = false;
+    for (const auto& identity : selection->identifiers)
+    {
+        if (comma)
+        {
+            out.Add(",");
+        }
+        comma = true;
+        out.Add("{\"literal\":");
+        out.Utf8String(identity.literal);
+        out.Add(",\"name\":");
+        out.Utf8String(identity.name);
+        out.Add(",\"span\":");
+        out.Range(identity.span);
+        out.Add(",\"oid\":[");
+        for (std::size_t i = 0; i < identity.oid.size(); ++i)
+        {
+            if (i)
+            {
+                out.Add(",");
+            }
+            out.Utf8String(identity.oid[i]);
+        }
+        out.Add("],\"protocol\":");
+        switch (identity.protocol)
+        {
+            case Protocol::Unknown:
+                out.String("Unknown");
+                break;
+            case Protocol::Ap203e1:
+                out.String("AP203e1");
+                break;
+            case Protocol::Ap203e2:
+                out.String("AP203e2");
+                break;
+            case Protocol::Ap214:
+                out.String("AP214");
+                break;
+            case Protocol::Ap242:
+                out.String("AP242");
+                break;
+        }
+        out.Add(",\"match\":");
+        switch (identity.match)
+        {
+            case SchemaMatch::Malformed:
+                out.String("Malformed");
+                break;
+            case SchemaMatch::UnknownName:
+                out.String("UnknownName");
+                break;
+            case SchemaMatch::NameOnly:
+                out.String("NameOnly");
+                break;
+            case SchemaMatch::LegacyAlias:
+                out.String("LegacyAlias");
+                break;
+            case SchemaMatch::UnregisteredVersion:
+                out.String("UnregisteredVersion");
+                break;
+            case SchemaMatch::RegisteredVersion:
+                out.String("RegisteredVersion");
+                break;
+        }
+        out.Add(",\"registry_id\":");
+        if (identity.registryId.empty())
+        {
+            out.Add("null");
+        }
+        else
+        {
+            out.String(identity.registryId);
+        }
+        out.Add("}");
+    }
+    out.Add("],\"qualified_profile\":");
+    if (selection->qualified)
+    {
+        out.Add("{\"registry_id\":");
+        out.String(selection->qualified->registryId);
+        out.Add(",\"profile\":");
+        out.String(selection->qualified->profile);
+        out.Add(",\"express_sha256\":");
+        out.String(selection->qualified->expressSha256);
+        out.Add("}");
+    }
+    else
+    {
+        out.Add("null");
+    }
+    out.Add("}");
+}
+
 void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, const Outcome& result)
 {
     out.Add("{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":");
@@ -48,6 +149,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     }
     out.Add(",\"source\":");
     step_source::report::WriteJson(out, source);
+    out.Add(",\"schema_selection\":");
+    WriteSchemaSelection(out, result.schemaSelection);
     out.Add(",\"checks\":{\"schema_binding\":");
     out.String(result.binding);
     out.Add(",\"type_fields\":");

@@ -9,4 +9,5 @@
 namespace step_semantics::report
 {
 void WriteJson(step_source::report::Writer& writer, const step_source::InspectOutcome& source, const Outcome& outcome);
+void WriteSchemaSelection(step_source::report::Writer& writer, const std::optional<SchemaSelection>& selection);
 } // namespace step_semantics::report

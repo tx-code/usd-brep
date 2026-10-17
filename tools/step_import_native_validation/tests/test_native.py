@@ -57,6 +57,23 @@ class NativeTests(unittest.TestCase):
         self.assertEqual(1, count)
         return result
 
+    def test_source_schema_selection_survives_unsupported_native_import(self):
+        old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"
+               b" {1 0 10303 403 2 1 2}")
+        data = self.p01.replace(old, b"AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}")
+        process, observed = self.invoke(data)
+        self.assertEqual(2, process.returncode)
+        self.assertEqual("UnsupportedSchemaBinding", observed["diagnostics"][0]["key"])
+        self.assertEqual(0, observed["native_calls"])
+        self.assertIsNone(observed["model"])
+        selection = observed["source_schema"]
+        self.assertIsNone(selection["qualified_profile"])
+        self.assertEqual("ap214-edition-3", selection["identifiers"][0]["registry_id"])
+        self.assertEqual("AP214", selection["identifiers"][0]["protocol"])
+        process, observed = self.invoke(self.p01)
+        self.assertEqual(0, process.returncode)
+        self.assertEqual("203e2-P0-Planar-0.1", observed["source_schema"]["qualified_profile"]["profile"])
+
     def test_49_frozen_cases_no_silent_partial_native_import(self):
         counts = Counter()
         for case in self.cases:

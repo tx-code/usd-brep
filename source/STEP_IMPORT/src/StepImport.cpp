@@ -111,6 +111,7 @@ Outcome Import(const Options& options, Capture capture)
             execution.Check(Phase::Captured);
         }
         auto semantics = step_semantics::Check(raw, options.semanticLimits);
+        report.sourceSchema = semantics.schemaSelection;
         report.semanticStatus = step_semantics::StatusName(semantics.status);
         if (semantics.status == step_semantics::Status::Checked || semantics.status == step_semantics::Status::Deferred)
         {

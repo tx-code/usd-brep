@@ -246,6 +246,7 @@ struct SourceDeclarations
 struct Report
 {
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
+    std::optional<step_semantics::SchemaSelection> sourceSchema; // Owning HEADER identity, including unsupported profile selection.
     std::shared_ptr<const step_source::SourceSnapshot> source;
     std::shared_ptr<const std::string> captured;
     std::vector<step_semantics::Diagnostic> diagnostics;

@@ -295,6 +295,13 @@ int main(int argc, char** argv)
         Require(partFailure.types == "Passed" && partFailure.part == "Unsupported" && partFailure.siUnits == "NotRun", "Part failure gate");
         ++groups;
 
+        // phaseCheck's temporary raw outcome is gone; failed binding still owns its observations.
+        Require(bindingFailure.schemaSelection && !bindingFailure.schemaSelection->qualified, "Failed binding must not select a profile");
+        const auto& claims = bindingFailure.schemaSelection->identifiers;
+        Require(claims.size() == 1 && !claims[0].literal.empty(), "Failed binding lost its owning HEADER observation");
+        Require(!rejected.schemaSelection, "Source failure must not invent a schema-selection observation");
+        ++groups;
+
         auto report = Check(p01, Limits{});
         auto reportingInput = p01;
         reportingInput.limits.reportBytes = 1;

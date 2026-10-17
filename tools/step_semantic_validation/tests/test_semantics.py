@@ -101,6 +101,87 @@ class SemanticTests(unittest.TestCase):
         self.assertTrue(observed["snapshot"]["part"]["apd_schema_claim"].endswith("_mim_lf"))
         self.assertEqual("NotRun", observed["snapshot"]["part"]["apd_global_rule"])
 
+    def test_ap214_version_recognition_does_not_select_ap203_rules(self):
+        old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"
+               b" {1 0 10303 403 2 1 2}")
+        literal = b"AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}"
+        data = self.changed(old, literal)
+        observed = self.failed(data, "UnsupportedSchemaBinding", 2)
+        selection = observed["schema_selection"]
+        self.assertIsNone(selection["qualified_profile"])
+        identity, = selection["identifiers"]
+        self.assertEqual("AP214", identity["protocol"])
+        self.assertEqual("ap214-edition-3", identity["registry_id"])
+        self.assertEqual("RegisteredVersion", identity["match"])
+        self.assertEqual(literal.decode(), identity["literal"])
+        self.assertEqual(["1", "0", "10303", "214", "3", "1", "1"], identity["oid"])
+        self.assertEqual("NotRun", observed["checks"]["type_fields"])
+
+    def test_known_schema_families_and_versions_have_no_implicit_profile(self):
+        old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"
+               b" {1 0 10303 403 2 1 2}")
+        examples = [
+            ("CONFIG_CONTROL_DESIGN", "AP203e1", "NameOnly", None),
+            (old.decode().split(" {")[0], "AP203e2", "NameOnly", None),
+            ("AUTOMOTIVE_DESIGN", "AP214", "NameOnly", None),
+            ("AUTOMOTIVE_DESIGN_CC2", "AP214", "LegacyAlias", "ap214-legacy-cc2"),
+            ("AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1}", "AP214", "RegisteredVersion", "ap214-edition-1"),
+            ("AUTOMOTIVE_DESIGN {1 0 10303 214 2 1 1}", "AP214", "RegisteredVersion", "ap214-edition-2"),
+            ("AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1 1}", "AP214", "UnregisteredVersion", None),
+            ("AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF", "AP242", "NameOnly", None),
+            ("AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF {1 0 10303 442 1 1 4}",
+             "AP242", "UnregisteredVersion", None),
+            ("MY_VENDOR_SCHEMA {1 0 10303 214 3 1 1}", "Unknown", "UnknownName", None),
+        ]
+        for literal, family, match, registry in examples:
+            with self.subTest(literal=literal):
+                observed = self.failed(self.changed(old, literal.encode()), "UnsupportedSchemaBinding", 2)
+                self.assertIsNone(observed["schema_selection"]["qualified_profile"])
+                identity, = observed["schema_selection"]["identifiers"]
+                self.assertEqual((family, match, registry),
+                                 (identity["protocol"], identity["match"], identity["registry_id"]))
+
+    def test_schema_selection_preserves_order_spans_and_unregistered_numeric_arcs(self):
+        old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"
+               b" {1 0 10303 403 2 1 2}")
+        observed = self.checked(self.p01)
+        qualified = observed["schema_selection"]["qualified_profile"]
+        self.assertEqual("ap203e2-n2635", qualified["registry_id"])
+        self.assertEqual(observed["snapshot"]["schema"]["profile"], qualified["profile"])
+        self.assertEqual("c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088", qualified["express_sha256"])
+        # Multiple declarations are preserved even when one has an implemented profile.
+        data = self.changed(old, old + b"','AUTOMOTIVE_DESIGN','MY_VENDOR_SCHEMA")
+        observed = self.failed(data, "UnsupportedSchemaBinding", 2)
+        selection = observed["schema_selection"]
+        self.assertIsNone(selection["qualified_profile"])
+        self.assertEqual([old.decode(), "AUTOMOTIVE_DESIGN", "MY_VENDOR_SCHEMA"],
+                         [v["literal"] for v in selection["identifiers"]])
+        for identity in selection["identifiers"]:
+            begin, end = identity["span"]
+            self.assertEqual("'" + identity["literal"] + "'", data[begin:end].decode("ascii"))
+        large = "9" * 160
+        literal = "AUTOMOTIVE_DESIGN {01 0 " + large + " 214 3 1 1}"
+        identity, = self.failed(self.changed(old, literal.encode()), "UnsupportedSchemaBinding", 2)["schema_selection"]["identifiers"]
+        self.assertEqual(["01", "0", large, "214", "3", "1", "1"], identity["oid"])
+        self.assertEqual("UnregisteredVersion", identity["match"])
+        self.assertIsNone(identity["registry_id"])
+
+    def test_bad_schema_syntax_stays_unqualified_and_source_failure_does_not_run_selection(self):
+        old = (b"AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF"
+               b" {1 0 10303 403 2 1 2}")
+        for literal in (b"", b"TWO NAMES", b"A-B", b"A {}", b"A {1 2", b"A }", b"A {{1}}",
+                        b"A {1} suffix", b"A {1.0}", b"A {+1}", b"A {-1}", b"A {1\\X2\\4E2D\\X0\\}"):
+            with self.subTest(literal=literal):
+                observed = self.failed(self.changed(old, literal), "UnsupportedSchemaBinding", 2)
+                identity, = observed["schema_selection"]["identifiers"]
+                self.assertEqual("Malformed", identity["match"])
+                self.assertIsNone(observed["schema_selection"]["qualified_profile"])
+                self.assertIsNone(identity["registry_id"])
+                if b"4E2D" in literal:
+                    self.assertEqual(["1中"], identity["oid"])
+        observed = self.failed(b"bad source", "UnexpectedCharacter")
+        self.assertIsNone(observed["schema_selection"])
+
     def test_diamond_ancestors_and_context_facets_are_not_duplicate_instances(self):
         snapshot = self.checked(self.p01)["snapshot"]
         populations = snapshot["type_populations"]

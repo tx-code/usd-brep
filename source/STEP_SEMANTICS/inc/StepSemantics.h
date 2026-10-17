@@ -22,6 +22,42 @@ struct Limits
     std::size_t dependencyVisits = 1000000; // Explicit source-test preset; no production precision policy.
 };
 
+enum class Protocol
+{
+    Unknown,
+    Ap203e1,
+    Ap203e2,
+    Ap214,
+    Ap242
+};
+enum class SchemaMatch
+{
+    Malformed,
+    UnknownName,
+    NameOnly,
+    LegacyAlias,
+    UnregisteredVersion,
+    RegisteredVersion
+};
+struct SchemaIdentifier
+{
+    std::string literal, name;
+    std::vector<std::string> oid; // Original numeric arc strings; no integer conversion or leading-zero normalization.
+    step_source::Span span;
+    Protocol protocol = Protocol::Unknown;
+    SchemaMatch match = SchemaMatch::Malformed;
+    std::string registryId; // Identity recognition only, not permission to run a type/rule implementation.
+};
+struct QualifiedSchemaProfile
+{
+    std::string registryId, profile, expressSha256;
+};
+struct SchemaSelection
+{
+    std::vector<SchemaIdentifier> identifiers; // Complete HEADER order; owning observations survive failed binding.
+    std::optional<QualifiedSchemaProfile> qualified; // Absent for known versions without an implemented profile.
+};
+
 struct AttributeView
 {
     std::string_view name;
@@ -153,6 +189,7 @@ struct Outcome
 {
     Status status = Status::SourceFailure;
     std::shared_ptr<const Snapshot> snapshot;
+    std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
     std::string types = "NotRun";
     std::string part = "NotRun";

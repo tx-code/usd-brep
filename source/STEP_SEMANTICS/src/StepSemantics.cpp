@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepCatalog.h"
+#include "StepSchemaSelection.h"
 
 #include <algorithm>
 #include <iterator>
-#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -343,6 +343,7 @@ private:
 
     void Binding()
     {
+        m_outcome.schemaSelection = SelectSchema(*m_data->source);
         const auto& identifiers = m_data->source->Header()[2].parameters[0].children;
         if (identifiers.size() != 1)
         {
@@ -360,31 +361,9 @@ private:
                 "profile registry"
             );
         }
-        // Recognize whitespace between the exact name and numeric OID components; do not normalize name/edition aliases.
+        // Only the registered qualified profile may enter the existing N2635 catalog.
         const auto& literal = identifiers[0].text;
-        const auto opening = literal.find('{'), closing = literal.find('}');
-        std::vector<std::string> names, oid, tail;
-        std::string token;
-        if (opening != std::string::npos && closing != std::string::npos && opening < closing)
-        {
-            std::istringstream before(literal.substr(0, opening)), inside(literal.substr(opening + 1, closing - opening - 1)),
-                after(literal.substr(closing + 1));
-            while (before >> token)
-            {
-                names.push_back(token);
-            }
-            while (inside >> token)
-            {
-                oid.push_back(token);
-            }
-            while (after >> token)
-            {
-                tail.push_back(token);
-            }
-        }
-        const std::vector<std::string> required{ "1", "0", "10303", "403", "2", "1", "2" };
-        if (names != std::vector<std::string>{ SchemaName } || oid != required || !tail.empty() ||
-            std::count(literal.begin(), literal.end(), '{') != 1 || std::count(literal.begin(), literal.end(), '}') != 1)
+        if (!m_outcome.schemaSelection->qualified)
         {
             Fail(
                 "UnsupportedSchemaBinding",

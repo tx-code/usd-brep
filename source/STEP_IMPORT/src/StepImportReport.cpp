@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportPlan.h"
+#include "StepSemanticReport.h"
 #include "StepSourceReport.h"
 
 #include <charconv>
@@ -272,6 +273,8 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add(",\"planar\":");
             w.String(report.planarStatus);
             w.Add("}");
+            w.Add(",\"source_schema\":");
+            step_semantics::report::WriteSchemaSelection(w, report.sourceSchema);
             w.Add(",\"execution\":{\"last_boundary\":");
             w.String(PhaseName(report.lastBoundary));
             w.Add(",\"checkpoints\":");

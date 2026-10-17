@@ -14,6 +14,40 @@ The checker tracks binding, types/fields, part/closure and units with private ty
 The existing Outcome strings are written when Check returns; failure preserves completed phases and leaves later
 phases NotRun. Conversion-based units still yield Deferred only after the preceding semantic checks complete.
 
+Schema declaration parsing and version recognition live in `StepSchemaSelection.cpp`.
+`Outcome::schemaSelection` owns every decoded HEADER identifier, name spelling,
+numeric OID arc string, source span and recognition result, including after failed
+binding. Null means selection did not run (for example, raw source failure).
+Recognition never grants a type/rule implementation: `qualified` is populated only
+for the existing exact, single N2635 AP203e2 declaration. Existing diagnostics,
+phase order and dependency-visit counts retain their contracts.
+
+The registry recognizes the AP203e1 `CONFIG_CONTROL_DESIGN`, AP203e2 long MIM_LF
+name, AP214 `AUTOMOTIVE_DESIGN`, legacy `AUTOMOTIVE_DESIGN_CC2`, and AP242 long
+MIM_LF name. AP214 edition 1/2/3 numeric OIDs have stable identity entries;
+none selects an implemented profile yet. A bare name identifies a family only.
+Other OIDs remain unregistered; AP242 edition is not inferred from an unchecked
+OID convention. Multiple schemas remain unsupported while all declarations,
+including unknown additional schemas, are preserved in source order.
+
+Names are not case-folded for admission, OID arcs are never converted to machine
+integers or stripped of leading zeroes, and trailing text/malformed braces do not
+become a registry match. No identity is inferred from APD text/year or DATA entity
+names. Recognized versions have not thereby passed EXPRESS, geometry or native
+validation. Additional profiles need audited declarations, checks and their own
+dispatch before they can be admitted to the existing pipeline.
+
+JSON exposes `schema_selection` separately from the qualified snapshot. Decoded
+literals use UTF-8, OID arcs stay strings, and the shared report-byte limit remains
+atomic. Native import reports carry the same owning observation as `source_schema`.
+The native report's existing `profile`/`schema_sha256` fields describe its requested
+implementation; `source_schema.qualified_profile` identifies whether that source
+declaration actually selected it.
+
+Identity references: [AP203 naming](https://downloads.steptools.com/docs/stp_aim/notes_ap203.html),
+[AP214 editions and legacy alias](https://downloads.steptools.com/docs/stp_aim/notes_ap214.html),
+and [Part21 HEADER, clause 8.2.4](https://www.steptools.com/stds/step/IS_final_p21e3.html).
+
 `Snapshot::Field(record, name)` and `Field(record, declaringType, name)` read shared bindings created during the existing
 field-validation visits. The returned FieldView owns the immutable snapshot; Value/Declaration references borrow that
 lifetime. Location returns independent source facts with owning strings/path. Qualified lookup uses the original
