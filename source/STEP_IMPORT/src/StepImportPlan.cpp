@@ -223,9 +223,19 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
     for (std::size_t f = 0; f < plan.faces.size(); ++f)
     {
         const auto& face = plan.faces[f];
-        need(face.loops.size() == 1 && face.loops[0].outer && face.vertices.size() >= 3 && face.edges.size() == face.vertices.size());
+        need(!face.loops.empty() && face.loops[0].outer && face.vertices.size() >= 3 && face.edges.size() == face.vertices.size());
         const auto& uses = face.loops[0].selectedUses;
-        need(uses.size() == face.vertices.size());
+        need(uses.size() >= 3);
+        need(
+            std::any_of(
+                uses.begin(),
+                uses.end(),
+                [&](const auto& use)
+                {
+                    return use.edge == proof.sharedEdge;
+                }
+            )
+        );
         std::vector<ExactPoint> points(uses.size());
         normals[f] = Cross(face.x, face.y);
         for (std::size_t i = 0; i < uses.size(); ++i)
@@ -234,13 +244,27 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
             points[i] = plan.vertices[uses[i].forward ? edge.minimumVertex : edge.maximumVertex].pointMm;
             need(Dot(normals[f], Subtract(points[i], face.originMm)) == Fraction());
         }
+        if (face.loops.size() > 1)
+        {
+            // Source Checked proves simple holes strictly inside the outer loop,
+            // with no mutual intersection, contact or nesting. Removing them
+            // cannot enlarge the outer region or change its shared boundary.
+            // Still require exact support for every inner vertex, not just Q.
+            for (const auto vertex : face.vertices)
+            {
+                need(Dot(normals[f], Subtract(plan.vertices[vertex].pointMm, face.originMm)) == Fraction());
+            }
+        }
         const auto a = Subtract(points[1], points[0]), b = Subtract(points.back(), points[0]);
         if (points.size() == 4 && Dot(a, b) == Fraction() && points[2] == Add(Add(points[0], a), b))
         {
             // Retain the established rectangle arithmetic and capacity path.
             need(Dot(a, a) > Fraction() && Dot(b, b) > Fraction());
-            need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b));
-            need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
+            if (face.loops.size() == 1)
+            {
+                need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b));
+                need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
+            }
         }
         else
         {

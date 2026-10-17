@@ -24,6 +24,7 @@ TRIANGULAR_SHEET = SHEET.with_name("triangular_shared_sheet.step")
 PENTAGONAL_SHEET = SHEET.with_name("pentagonal_shared_sheet.step")
 CONCAVE_SHEET = SHEET.with_name("concave_shared_sheet.step")
 COLLINEAR_SHEET = SHEET.with_name("collinear_shared_sheet.step")
+PERFORATED_SHEET = SHEET.with_name("perforated_shared_sheet.step")
 # P0 S1 analytic truth: face areas 12 and 6; unique edge lengths total 21.
 # Area moments: (48, 27, 6); no CAD-generated expectations.
 TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 7, "vertices": 6},
@@ -70,9 +71,25 @@ CONCAVE_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges"
 # The same area-7 trapezoid, with G retained on E-F as a distinct source vertex.
 COLLINEAR_TRUTH = deepcopy(CONVEX_TRUTH)
 COLLINEAR_TRUTH["source_topology"] = {"faces": 2, "edges": 8, "vertices": 7}
+# Subtract two unit squares, with moments (3/2,1,0) and (4,1,1), from S1.
+PERFORATED_TRUTH = {"role": "SurfaceModel", "source_topology": {"faces": 2, "edges": 15, "vertices": 14},
+                    "measures": {"area": exact(16), "perimeter": exact(29)},
+                    "centroid": [exact(F(85, 32)), exact(F(25, 16)), exact(F(5, 16))],
+                    "bounds": deepcopy(TRUTH["bounds"])}
 
 
 class SheetTests(unittest.TestCase):
+    def test_two_faces_retain_both_holes_and_their_source_boundaries(self):
+        data = PERFORATED_SHEET.read_bytes()
+        actual, observed = self.invoke(data)
+        self.assertEqual(0, actual.returncode, observed.get("diagnostics"))
+        self.polygon_checked(observed, data, PERFORATED_TRUTH)
+        self.assertEqual((4, 2, 16), (len(observed["loop_mappings"]),
+                                    sum(not r["outer"] for r in observed["loop_mappings"]),
+                                    sum(len(r["uses"]) for r in observed["loop_mappings"])))
+        self.assertEqual((14, 160), (observed["native_measurements"]["free_boundary_edges"],
+                                    len(observed["tolerances"])))
+
     def polygon_checked(self, observed, data, truth):
         accepted(observed, data, truth)
         if "perimeter_bounds" in truth:

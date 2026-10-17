@@ -39,7 +39,21 @@ SheetTruth Expected(std::string_view mode)
         { "triangular", 4, 5, 4, 6, 60, 9, 14 + std::sqrt(13.0), 6, 3, 2, { 28.0 / 9, 1, 2.0 / 9 }, { 4, 1.5, 1 } },
         { "pentagonal", 7, 8, 7, 9, 90, 21, 16 + 3 * std::sqrt(5.0), 12, 9, 3, { 20.0 / 7, 103.0 / 63, 4.0 / 7 }, { 4, 1.5, 1 } },
         { "concave", 7, 8, 7, 9, 90, 17, 16 + 3 * std::sqrt(5.0), 12, 5, 2, { 44.0 / 17, 79.0 / 51, 4.0 / 17 }, { 4, 1.5, 1 } },
-        { "collinear", 7, 8, 7, 9, 90, 19, 20 + std::sqrt(5.0), 12, 7, 2, { 52.0 / 19, 91.0 / 57, 22.0 / 57 }, { 4, 1.5, 1 } }
+        { "collinear", 7, 8, 7, 9, 90, 19, 20 + std::sqrt(5.0), 12, 7, 2, { 52.0 / 19, 91.0 / 57, 22.0 / 57 }, { 4, 1.5, 1 } },
+        { "perforated", 14, 15, 14, 16, 160, 16, 29, 11, 5, 2, { 85.0 / 32, 25.0 / 16, 5.0 / 16 }, { 4, 1.5, 1 } },
+        { "multi_hole",
+          19,
+          20,
+          19,
+          21,
+          210,
+          61.0 / 4,
+          25 + 3 * std::sqrt(5.0),
+          43.0 / 4,
+          9.0 / 2,
+          2,
+          { 637.0 / 244, 1165.0 / 732, 15.0 / 61 },
+          { 4, 1.5, 1 } }
     };
     const auto found = std::find_if(
         std::begin(cases),
@@ -114,6 +128,25 @@ int main(int argc, char** argv)
         Require(logicalUses == truth.uses && sharedUses == 2, "Every logical source occurrence and both shared uses retained");
         auto views = imported.model->Faces();
         Require(views.size() == 2, "Both independent owning face views");
+        const bool holes = truth.mode == "perforated" || truth.mode == "multi_hole";
+        if (holes)
+        {
+            Require(imported.report.loops.size() == (truth.mode == "perforated" ? 4 : 5), "Every outer and inner source loop survives");
+            for (const auto& face : views)
+            {
+                const bool first = face.SourceId() == "704";
+                const double left = first ? 1 : (truth.mode == "perforated" ? 0.5 : 0.25);
+                const double inside = first ? 1.25 : (truth.mode == "perforated" ? 1 : 0.5);
+                Require(face.ClassifyUV(inside, first ? 0.9 : 0.75) == step_import::PointClass::Outside, "Hole is excluded");
+                Require(face.ClassifyUV(left, first ? 0.9 : 0.75) == step_import::PointClass::Edge, "Hole boundary remains an edge");
+                Require(face.ClassifyUV(left, 0.5) == step_import::PointClass::Vertex, "Hole corner retains vertex classification");
+            }
+            const auto aboveHole = imported.model->Closest({ 1.25, 0.9, 1 });
+            Near(aboveHole.distanceMm, std::sqrt(17.0) / 4, "Whole-sheet closest cannot fill a hole");
+            Near(aboveHole.pointMm[0], 1, "Hole closest x");
+            Near(aboveHole.pointMm[1], 0.9, "Hole closest y");
+            Near(aboveHole.pointMm[2], 0, "Hole closest z");
+        }
         const auto bytes = imported.model->Source()->Source().Bytes();
         const auto stableReport = imported.report;
         const auto calls = imported.report.nativeCalls;
@@ -155,13 +188,23 @@ int main(int argc, char** argv)
         auto copy = imported.model->CopyForModeling();
         Require(copy.status == step_import::Status::Accepted && copy.model, "Open shared sheet has an independent editable copy");
         copy.model->Edit(
-            [&truth](SmBrep& brep)
+            [&truth, holes](SmBrep& brep)
             {
                 Require(SmApiTranslate(&brep, { 100, -20, 3 }) == SM_SUCCESS, "Translate independent open sheet copy");
                 SmPoint3d minimum, maximum;
                 Require(SmApiBrepBoundingBox(&brep, TRUE, minimum, maximum) == SM_SUCCESS, "Measure translated copy");
                 Near(minimum.x, 100, "Copy minimum x");
                 Near(maximum.z, truth.maxZ + 3, "Copy maximum z");
+                if (holes)
+                {
+                    SmPoint3d closest;
+                    double distance = 0;
+                    Require(SmApiBrepClosestPoint(&brep, { 101.25, -19.1, 4 }, closest, distance) == SM_SUCCESS, "Query translated copy hole");
+                    Near(closest.x, 101, "Copied hole closest x");
+                    Near(closest.y, -19.1, "Copied hole closest y");
+                    Near(closest.z, 3, "Copied hole closest z");
+                    Near(distance, std::sqrt(17.0) / 4, "Editable copy preserves excluded hole");
+                }
                 long materials = 0, boundedVoids = 0;
                 Require(
                     SmApiBrepMaterialCensus(&brep, materials, boundedVoids) == SM_SUCCESS && materials == 0 && boundedVoids == 0,
