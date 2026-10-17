@@ -19,9 +19,9 @@
 
 ### 票据状态
 
-- **Status：01—09为closed，其余ready-for-agent**。ready-for-agent不表示已开工。
-- **Execution：01—09为completed，10—12为on-hold**。
-- **Assignee：01—09为codex，其余None**。09单位重述与conversion已实现并验收；10—12仍保持on-hold。
+- **Status：01—09为closed，10为in-progress，其余ready-for-agent**。ready-for-agent不表示已开工。
+- **Execution：01—09为completed，10为in-progress，11—12为on-hold**。
+- **Assignee：01—10为codex，其余None**。10已按2026-10-17明确指令开始可选来源声明实现；11—12仍保持on-hold。
 - Blocked by只列直接技术前置。前置票实际完成验收并关闭后才解除相应阻塞；未执行的验收框保持未勾选。
 - 后续明确开工后，先按授权范围更新Execution与负责人再执行；没有新指令时不自动领取frontier。
 

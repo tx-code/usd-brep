@@ -165,6 +165,20 @@ struct NativeRoleObservation
     std::size_t regions = 0, shells = 0, materialRegions = 0, boundedVoidRegions = 0;
     bool manifoldSolidPredicate = false; // Native topology predicate does not test IsVoid or grant material qualification.
 };
+struct SourceUncertainty
+{
+    std::size_t record = 0, unit = 0; // Indices in SourceDeclarations::semantic, not native model pointers.
+    std::string valueType;
+    Fraction value;
+    std::optional<Fraction> unitScaleMm, valueMm;
+    std::string consistencyComparison; // Within / Exceeds / Unestablished; advisory only.
+};
+struct SourceDeclarations
+{
+    std::shared_ptr<const step_semantics::Snapshot> semantic; // Full owning typed source; never retains native objects.
+    std::vector<std::size_t> records; // Declaration roots and their complete outbound dependency closure, in source order.
+    std::vector<SourceUncertainty> uncertainties;
+};
 struct Report
 {
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
@@ -179,6 +193,7 @@ struct Report
     std::optional<SourceShapeObservation> sourceShape;
     std::optional<NativeRoleObservation> nativeRole;
     std::optional<UnitNormalization> units;
+    std::optional<SourceDeclarations> declarations;
     std::optional<double> volumeBoundMm3, volumeJunctionBoundMm;
     std::optional<double> volumeGapFluxBoundMm3, volumeSkippedFluxBoundMm3;
     std::optional<std::size_t> solidRegions, voidCavities;

@@ -8,10 +8,10 @@ import math
 
 from tools.step_import_validation.corpus import quality_contract
 from tools.step_import_validation.oracle import decode
-from tools.step_import_validation.records import inventory, by_id, ref, aggregate, vector as source_vector
+from tools.step_import_validation.records import inventory, by_id, ref, aggregate, SIMPLE, vector as source_vector
 from tools.step_inspect_validation.oracle import position
-from tools.step_semantic_validation.oracle import UNSUPPORTED
-from tools.step_planar_validation.oracle import source_units, primary_length, scale_for
+from tools.step_semantic_validation.oracle import UNSUPPORTED, reference, ancestors
+from tools.step_planar_validation.oracle import source_units, primary_length, scale_for, facets
 
 
 def require(value, message):
@@ -45,6 +45,7 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
             ("Deferred" if any(d["source_unit"] == str(unit) for d in conversions) else "Checked") and
             observed["source"]["planar"] == "Checked" and not observed["diagnostics"], "source qualification")
     unit_observation(observed, unit, scale, conversions)
+    declaration_observation(observed, data)
     require(observed["repair"] == "None", "repair contract")
     source_role(observed, data, role)
     fields = {"definition_mm": "definition_error_mm", "consistency_mm": "consistency_error_mm",
@@ -130,6 +131,69 @@ def accepted(observed, data, truth, normal=(F(0), F(0), F(1)), uv_bounds=(0, 0, 
     loop_provenance(observed, data)
     edge_parameters(observed, data)
     face_observations(observed, data)
+
+
+def declaration_observation(observed, data):
+    declarations = observed["source_declarations"]
+    require(declarations["uncertainty_policy"] == "RecordAndWarnOnly", "source precision policy")
+    records = inventory(data)
+    index = by_id(records)
+    schema = reference()["entities"]
+    types = {r.entity_id: set().union(*(ancestors(name, schema) for name in facets(r))) for r in records}
+    roots = {"APPLICATION_CONTEXT", "APPLICATION_PROTOCOL_DEFINITION", "PRODUCT_CONTEXT", "PRODUCT_DEFINITION_CONTEXT",
+             "PRODUCT", "PRODUCT_DEFINITION_FORMATION", "PRODUCT_DEFINITION", "PRODUCT_RELATED_PRODUCT_CATEGORY",
+             "REPRESENTATION_CONTEXT", "NAMED_UNIT", "UNCERTAINTY_MEASURE_WITH_UNIT"}
+    closure = {r.entity_id for r in records if types[r.entity_id] & roots}
+    while True:
+        expanded = closure | {target for identity in closure for target in index[identity].references}
+        if expanded == closure:
+            break
+        closure = expanded
+    expected = [r for r in records if r.entity_id in closure]
+    actual = declarations["records"]
+    require([r["id"] for r in actual] == [str(r.entity_id) for r in expected], "complete ordered declaration closure")
+    for observation, record in zip(actual, expected):
+        span = [record.start, record.end - 1]
+        require(observation["span"] == span and observation["raw"].encode() == data[slice(*span)],
+                "exact source declaration bytes and position")
+        require(set(observation["types"]) == types[record.entity_id] and
+                len(observation["types"]) == len(types[record.entity_id]), "declared and inherited source identities")
+    context, = [r for r in records if "GLOBAL_UNIT_ASSIGNED_CONTEXT" in facets(r)]
+    assigned = [ref(v) for v in aggregate(facets(context)["GLOBAL_UNIT_ASSIGNED_CONTEXT"][0])]
+    for quantity, field in (("LENGTH_UNIT", "length_unit"), ("PLANE_ANGLE_UNIT", "plane_angle_unit"),
+                            ("SOLID_ANGLE_UNIT", "solid_angle_unit")):
+        units = [str(unit) for unit in assigned if quantity in types[unit]]
+        require(declarations["units"][field] == (units[0] if units else None), "distinct nominal unit assignment")
+    uncertainties = [r for r in records if "UNCERTAINTY_MEASURE_WITH_UNIT" in types[r.entity_id]]
+    require([u["id"] for u in declarations["uncertainties"]] == [str(r.entity_id) for r in uncertainties],
+            "all source uncertainties retained")
+    bound = 2**63 - 1
+    fits = lambda n: abs(n.numerator) <= bound and n.denominator <= bound
+    for observation, record in zip(declarations["uncertainties"], uncertainties):
+        value = SIMPLE.fullmatch(record.args[0])
+        unit = ref(record.args[1])
+        scale = scale_for(index, unit)
+        source_value = F(value[2])
+        require(observation["unit"] == str(unit) and observation["value_type"] == value[1] and
+                decode(observation["value"]) == source_value, "uncertainty typed value and own unit")
+        if observation["unit_scale_mm"] is None:
+            require(not fits(scale) and observation["value_mm"] is None, "explicit scale capacity limit")
+        else:
+            require(decode(observation["unit_scale_mm"]) == scale, "uncertainty own-unit scale")
+            if observation["value_mm"] is None:
+                require(not fits(source_value * scale), "explicit value capacity limit")
+            else:
+                require(decode(observation["value_mm"]) == source_value * scale, "physical source uncertainty")
+        expected_comparison = "Exceeds" if source_value * scale > F(1, 10**7) else "Within"
+        if observation["consistency_comparison"] == "Unestablished":
+            require(observation["value_mm"] is None or
+                    max(abs((source_value * scale).numerator) * 10**7,
+                        (source_value * scale).denominator) > bound, "advisory comparison capacity limit")
+            expected_warning = "SourceUncertaintyComparisonUnestablished"
+        else:
+            require(observation["consistency_comparison"] == expected_comparison, "advisory comparison with explicit Q")
+            expected_warning = "SourceUncertaintyExceedsConsistencyBudget" if expected_comparison == "Exceeds" else None
+        require(observation["warning"] == expected_warning, "separate source precision warning")
 
 
 def unit_observation(observed, unit, scale, definitions):
@@ -324,9 +388,9 @@ def face_observations(observed, data):
 
 def corpus_case(case, observed, exit_code, data):
     key = case["case_id"]
-    if key in {"S203-P01", "S203-P02", "S203-P03", "S203-P04", "S203-P05", "S203-P06", "S203-P07", "S203-P11"}:
+    if "-P" in key:
         require(exit_code == 0, "qualified native success exit")
-        if key in {"S203-P04", "S203-P05", "S203-P11"}:
+        if key in {"S203-P04", "S203-P05", "S203-P11", "S203-P13"}:
             accepted(observed, data, case["truth"])
             return
         window = case["truth"]["source_definition"]["source_uv_window"]
@@ -337,7 +401,8 @@ def corpus_case(case, observed, exit_code, data):
     require(observed["status"] == status and exit_code == {"Deferred": 7, "Unsupported": 2, "Rejected": 1}[status],
             "frozen source/target scope outcome " + key)
     require(observed["model"] is None and observed["native_measurements"] is None and
-            observed["native_calls"] == 0 and not observed["candidate_discarded"], "blocked before native construction")
+            observed["native_calls"] == 0 and not observed["candidate_discarded"] and
+            observed["source_declarations"] is None, "blocked before native construction")
     require(observed["validations"] == {"pointer_reports": None, "level2_reports": None} and
             not observed["tolerances"] and not observed["edge_mappings"] and not observed["loop_mappings"],
             "unexecuted native checks")

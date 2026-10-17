@@ -127,6 +127,7 @@ Outcome Import(step_source::InspectOutcome raw, const Options& options)
     {
         try
         {
+            report.declarations = detail::DescribeSource(planar, options.quality);
             const auto plan = detail::MakePlan(planar);
             candidate = detail::Build(plan, options, report);
             result.status = Status::Accepted;

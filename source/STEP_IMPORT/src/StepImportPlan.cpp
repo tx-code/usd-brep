@@ -3,8 +3,10 @@
 #include "StepImportPlan.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 #include <set>
+#include <stdexcept>
 
 namespace step_import::detail
 {
@@ -177,6 +179,114 @@ BoxProof ProveBox(const Plan& plan)
     return proof;
 }
 } // namespace
+SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality)
+{
+    if (checked.status != step_planar::Status::Checked || !checked.evidence.source)
+    {
+        throw std::logic_error("Source declarations require complete source qualification");
+    }
+    SourceDeclarations result;
+    result.semantic = checked.evidence.source;
+    const auto& source = *result.semantic;
+    const auto& raw = source.Source();
+    std::vector<bool> selected(raw.Records().size());
+    std::vector<std::size_t> pending;
+    const auto add = [&](std::size_t r)
+    {
+        if (!selected.at(r))
+        {
+            selected[r] = true;
+            pending.push_back(r);
+        }
+    };
+    for (const auto type : { "APPLICATION_CONTEXT",
+                             "APPLICATION_PROTOCOL_DEFINITION",
+                             "PRODUCT_CONTEXT",
+                             "PRODUCT_DEFINITION_CONTEXT",
+                             "PRODUCT",
+                             "PRODUCT_DEFINITION_FORMATION",
+                             "PRODUCT_DEFINITION",
+                             "PRODUCT_RELATED_PRODUCT_CATEGORY",
+                             "REPRESENTATION_CONTEXT",
+                             "NAMED_UNIT",
+                             "UNCERTAINTY_MEASURE_WITH_UNIT" })
+    {
+        const auto* population = source.Instances(type);
+        if (!population)
+        {
+            throw std::logic_error("Unregistered source declaration population");
+        }
+        for (const auto r : *population)
+        {
+            add(r);
+        }
+    }
+    std::vector<std::vector<std::size_t>> dependencies(raw.Records().size());
+    for (const auto& reference : raw.References())
+    {
+        dependencies[reference.recordIndex].push_back(reference.targetRecordIndex);
+    }
+    for (std::size_t i = 0; i < pending.size(); ++i)
+    {
+        for (const auto dependency : dependencies[pending[i]])
+        {
+            add(dependency);
+        }
+    }
+    for (std::size_t r = 0; r < selected.size(); ++r)
+    {
+        if (selected[r])
+        {
+            result.records.push_back(r);
+        }
+    }
+    const auto scale = [&](std::size_t unit)
+    {
+        for (const auto& conversion : checked.evidence.conversions)
+        {
+            if (conversion.unit == unit)
+            {
+                return conversion.scaleMm;
+            }
+        }
+        for (const auto& si : source.UnitContext().siDefinitions)
+        {
+            if (si.recordIndex == unit && si.quantity == "Length")
+            {
+                Fraction value(1);
+                for (int i = 0; i < std::abs(si.canonicalPower10); ++i)
+                {
+                    value = si.canonicalPower10 < 0 ? value / Fraction(10) : value * Fraction(10);
+                }
+                return value;
+            }
+        }
+        throw std::logic_error("Qualified uncertainty requires a checked length unit");
+    };
+    for (const auto r : *source.Instances("UNCERTAINTY_MEASURE_WITH_UNIT"))
+    {
+        const auto& value = source.Field(r, "value_component").Value();
+        SourceUncertainty uncertainty;
+        uncertainty.record = r;
+        uncertainty.unit = source.Field(r, "unit_component").ReferenceTarget();
+        uncertainty.valueType = value.text;
+        uncertainty.value = Fraction::Decimal(value.children.at(0).text);
+        uncertainty.consistencyComparison = "Unestablished";
+        try
+        {
+            uncertainty.unitScaleMm = scale(uncertainty.unit);
+            uncertainty.valueMm = uncertainty.value * *uncertainty.unitScaleMm;
+            uncertainty.consistencyComparison = *uncertainty.valueMm <= quality.consistencyMm ? "Within" : "Exceeds";
+        }
+        catch (const std::overflow_error&)
+        {
+            // Optional source precision cannot enlarge Q or fail otherwise qualified geometry.
+            // Exact source values and units remain available even when this advisory comparison is unestablished.
+        }
+        result.uncertainties.push_back(std::move(uncertainty));
+    }
+    return result;
+}
 Plan MakePlan(const step_planar::Outcome& checked)
 {
     const auto& evidence = checked.evidence;
@@ -185,29 +295,6 @@ Plan MakePlan(const step_planar::Outcome& checked)
         throw std::logic_error("Native plan requires complete source qualification");
     }
     const auto& source = *evidence.source;
-    // Preserve these declarations in the source graph, but do not grant their target qualification before ticket 10.
-    for (const auto type : { "UNCERTAINTY_MEASURE_WITH_UNIT",
-                             "PRODUCT_RELATED_PRODUCT_CATEGORY",
-                             "MECHANICAL_CONTEXT",
-                             "DESIGN_CONTEXT",
-                             "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE" })
-    {
-        const auto* population = source.Instances(type);
-        if (!population || !population->empty())
-        {
-            throw Failure{ Status::Unsupported,
-                           "UnsupportedNativeOptionalDeclarationScope",
-                           "Optional target declarations require ticket 10 qualification",
-                           {} };
-        }
-    }
-    if (source.UnitContext().solidAngleUnit)
-    {
-        throw Failure{ Status::Unsupported,
-                       "UnsupportedNativeOptionalDeclarationScope",
-                       "Optional solid-angle declarations require ticket 10 qualification",
-                       {} };
-    }
     const auto role = source.PartDefinition().shapeRole;
     if (role != "MaterialSolid" && role != "ClosedSurfaceModel" && (role != "OpenSurfaceModel" || evidence.faces.size() != 1))
     {

@@ -65,6 +65,7 @@ struct Plan
     std::optional<BoxProof> box;
 };
 Plan MakePlan(const step_planar::Outcome& checked);
+SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality);
 std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report);
 struct Access
 {

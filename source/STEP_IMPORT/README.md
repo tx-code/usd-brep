@@ -1,6 +1,6 @@
 # STEP_IMPORT（内部 C++20）
 
-05—09 的 STEP→SMLib 闭环：单零件、canonical 毫米；源长度可SI前缀或已验证conversion链，
+05—10 的 STEP→SMLib 闭环：单零件、canonical 毫米；源长度可SI前缀或已验证conversion链，
 几何为开放 LINE/PLANE 平面及孔，或经过独立证明的矩形盒体边界，
 基于 02—04 自研读取和源检查。没有 OCCT 读取依赖。
 
@@ -65,7 +65,15 @@ P04材料路径继续计算材料属性；P05全部材料分类返回空值/NotA
 源PLANE UV通过单独长度比例映射到目标UV。unit_normalization记录原单位、精确尺度、typed factor和共享定义链。
 03的conversion类型快照仍Deferred，04补齐源量纲及正尺度/无环解释，完整Checked后才准入native。
 名字不决定factor；零负尺度、环、量纲反证各归正确D3/D4，容差与误差预算继续是canonical单位。
-可选声明的目标资格仍留10；
+10 保留可选来源声明。`Report::declarations` 拥有完整typed源快照，和按源顺序排列的声明记录及引用依赖闭包；
+JSON `source_declarations` 保留原始记录、位置、实际/继承类型和名义单位分配。
+uncertainty按自己的unit_component解释，记录原值、单位和可得的精确毫米值；
+与显式一致性预算比较后仅产生独立告警，不覆盖Q、工作tol或Repair=None。
+附加声明数值超出有理数容量时明确比较Unestablished，源记录完整保留，不伪造数值。
+part分类、旧MECHANICAL_CONTEXT/DESIGN_CONTEXT、指定SOURCE枚举及rad/sr身份不会转成基类或按维数合并。
+03/04仍先检查源约束；未知关系明确拒绝，不能丢弃后继续发布。
+声明与报告不持有native对象，模型或面视图释放后仍能读取声明。
+组合P13可沿通用路径执行，完整组合与首profile资格仍留12；
 一般多面体、开放共享片、截面/切割及一般修复没有因材料盒体通过而自动获得资格。
 原始来源仍保留；不支持时返回明确诊断，不静默少件。`Repair=None`。
 

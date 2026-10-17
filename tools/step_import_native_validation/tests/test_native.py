@@ -65,11 +65,150 @@ class NativeTests(unittest.TestCase):
                 actual, observed = self.invoke(data)
                 corpus_case(case, observed, actual.returncode, data)
                 counts[observed["status"]] += 1
-        self.assertEqual(Counter(Accepted=8, Rejected=29, Unsupported=12), counts)
+        self.assertEqual(Counter(Accepted=13, Rejected=29, Unsupported=7), counts)
 
     def box(self):
         return (CORPUS / "cases/S203-P04/input.step").read_bytes(), next(
             c["truth"] for c in self.cases if c["case_id"] == "S203-P04")
+
+    def test_optional_branches_deliver_the_same_f1_queries(self):
+        for key in ("P08", "P09", "P10", "P12"):
+            with self.subTest(case=key):
+                data = (CORPUS / f"cases/S203-{key}/input.step").read_bytes()
+                actual, observed = self.invoke(data, "--query", 4.2, 9.6, 8)
+                self.assertEqual(0, actual.returncode, actual.stderr or actual.stdout)
+                truth = next(c["truth"] for c in self.cases if c["case_id"] == f"S203-{key}")
+                accepted(observed["import"], data, truth)
+                vector(observed["query"]["closest_point_mm"], (F(21, 5), F(48, 5), F(5)),
+                       F(1, 10**7), "optional declaration geometry")
+
+    def test_optional_declarations_retain_source_values_types_and_warnings(self):
+        for key in ("P01", "P08", "P09", "P10", "P12"):
+            with self.subTest(case=key):
+                data = (CORPUS / f"cases/S203-{key}/input.step").read_bytes()
+                actual, observed = self.invoke(data)
+                self.assertEqual(0, actual.returncode)
+                declarations = observed["source_declarations"]
+                self.assertEqual("RecordAndWarnOnly", declarations["uncertainty_policy"])
+                records = {r["id"]: r for r in declarations["records"]}
+                for identity in ("3", "5", "6", "10", "11", "12"):
+                    self.assertIn(identity, records)
+                if key == "P08":
+                    self.assertEqual([F(1, 10000), F(1, 5000)],
+                                     [decode(u["value_mm"]) for u in declarations["uncertainties"]])
+                    self.assertTrue(all(u["consistency_comparison"] == "Exceeds" and
+                                        u["warning"] == "SourceUncertaintyExceedsConsistencyBudget"
+                                        for u in declarations["uncertainties"]))
+                else:
+                    self.assertEqual([], declarations["uncertainties"])
+                if key == "P10":
+                    self.assertIn("MECHANICAL_CONTEXT", records["3"]["types"])
+                    self.assertIn("DESIGN_CONTEXT", records["6"]["types"])
+                    self.assertIn("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE", records["5"]["types"])
+                    self.assertIn(".NOT_KNOWN.", records["5"]["raw"])
+                if key == "P12":
+                    self.assertEqual("16", declarations["units"]["solid_angle_unit"])
+                    self.assertIn("PLANE_ANGLE_UNIT", records["11"]["types"])
+                    self.assertNotIn("SOLID_ANGLE_UNIT", records["11"]["types"])
+                    self.assertIn("SOLID_ANGLE_UNIT", records["16"]["types"])
+
+    def test_uncertainty_uses_its_own_unit_and_only_warns(self):
+        original = (CORPUS / "cases/S203-P08/input.step").read_bytes()
+        for prefix, value, expected in (("CENTI", "0.00001", F(1, 10000)),
+                                         ("MILLI", "0.00000001", F(1, 10**8)), ("EXA", "1.", None)):
+            with self.subTest(prefix=prefix):
+                data = original.replace(b"ENDSEC;\nEND-ISO", (
+                    f"#90=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.{prefix}.,.METRE.));\nENDSEC;\nEND-ISO").encode())
+                data = self.record(data, 13, f"UNCERTAINTY_MEASURE_WITH_UNIT("
+                                   f"LENGTH_MEASURE({value}),#90,'distance_accuracy_A',$)")
+                observed = self.good(data)
+                uncertainty = observed["source_declarations"]["uncertainties"][0]
+                self.assertEqual("90", uncertainty["unit"])
+                if expected is None:
+                    self.assertIsNone(uncertainty["value_mm"])
+                    self.assertEqual("Unestablished", uncertainty["consistency_comparison"])
+                else:
+                    self.assertEqual(expected, decode(uncertainty["value_mm"]))
+                self.assertTrue(all(t["value_mm"] == 1e-5 for t in observed["tolerances"]))
+                self.assertEqual([], observed["diagnostics"])
+        displaced = self.record(original, 101, "CARTESIAN_POINT('',(10.2,7.6,5.00001))")
+        actual, observed = self.invoke(displaced)
+        self.assertEqual(1, actual.returncode)
+        self.assertEqual("Rejected", observed["source"]["planar"])
+        self.assertEqual("D4", observed["diagnostics"][0]["stage"])
+        self.assertEqual(0, observed["native_calls"])
+        self.assertIsNone(observed["model"])
+
+    def test_legacy_subtypes_keep_constraints_and_source_enumerations(self):
+        original = (CORPUS / "cases/S203-P10/input.step").read_bytes()
+        for source in ("MADE", "BOUGHT", "NOT_KNOWN"):
+            observed = self.good(original.replace(b".NOT_KNOWN.", f".{source}.".encode()))
+            record = next(r for r in observed["source_declarations"]["records"] if r["id"] == "5")
+            self.assertIn(f".{source}.", record["raw"])
+        for data, key, stage in (
+            (self.record(original, 3, "MECHANICAL_CONTEXT('',#1,'electrical')"),
+             "SourceRuleViolation:MECHANICAL_CONTEXT.WR1", "D3"),
+            (self.record(original, 6, "DESIGN_CONTEXT('part definition',#1,'analysis')"),
+             "SourceRuleViolation:DESIGN_CONTEXT.WR1", "D3"),
+            (original.replace(b".NOT_KNOWN.", b".UNKNOWN."), "EnumerationValueInvalid", "D1"),
+        ):
+            actual, observed = self.invoke(data)
+            self.assertEqual(1, actual.returncode)
+            self.assertEqual((key, stage), (observed["diagnostics"][0]["key"], observed["diagnostics"][0]["stage"]))
+            self.assertIsNone(observed["model"])
+            self.assertEqual(0, observed["native_calls"])
+
+    def test_new_metadata_relationship_is_not_silently_dropped(self):
+        original = (CORPUS / "cases/S203-P09/input.step").read_bytes()
+        data = original.replace(b"ENDSEC;\nEND-ISO", (
+            "#91=PRODUCT_CATEGORY_RELATIONSHIP('new relationship',$,#15,#15);\nENDSEC;\nEND-ISO").encode())
+        actual, observed = self.invoke(data)
+        self.assertEqual(2, actual.returncode)
+        self.assertEqual(("UnsupportedEntityType", "D2"),
+                         (observed["diagnostics"][0]["key"], observed["diagnostics"][0]["stage"]))
+        self.assertIsNone(observed["model"])
+        self.assertEqual(0, observed["native_calls"])
+
+    def test_optional_declarations_survive_record_order_and_sparse_ids(self):
+        for case in ("P08", "P09", "P10", "P12"):
+            original = (CORPUS / f"cases/S203-{case}/input.step").read_bytes()
+            header, body = original.split(b"\nDATA;\n")
+            body, end = body.split(b"ENDSEC;\nEND-ISO")
+            data = (header + b"\nDATA;\n" + b"".join(reversed(body.splitlines(keepends=True))) +
+                    b"ENDSEC;\nEND-ISO" + end)
+            data = re.sub(rb"#([0-9]+)", lambda m: b"#" + str(int(m[1]) * 37 + 9000).encode(), data)
+            self.good(data)
+
+    def test_declaration_checker_rejects_loss_or_reinterpretation(self):
+        for case in ("P08", "P10", "P12"):
+            data = (CORPUS / f"cases/S203-{case}/input.step").read_bytes()
+            good = self.good(data)
+            corruptions = []
+            bad = deepcopy(good)
+            bad["source_declarations"]["records"].pop()
+            corruptions.append(bad)
+            bad = deepcopy(good)
+            bad["source_declarations"]["records"][0]["raw"] += " "
+            corruptions.append(bad)
+            bad = deepcopy(good)
+            bad["source_declarations"]["records"][0]["types"] = []
+            corruptions.append(bad)
+            if case == "P08":
+                for field, value in (("value_mm", exact(F(1, 1000))), ("unit", "11"),
+                                     ("consistency_comparison", "Within"), ("warning", None)):
+                    bad = deepcopy(good)
+                    bad["source_declarations"]["uncertainties"][0][field] = value
+                    corruptions.append(bad)
+                bad = deepcopy(good)
+                bad["source_declarations"]["uncertainties"].pop()
+                corruptions.append(bad)
+            if case == "P12":
+                bad = deepcopy(good)
+                bad["source_declarations"]["units"]["solid_angle_unit"] = "11"
+                corruptions.append(bad)
+            for bad in corruptions:
+                with self.assertRaises(AssertionError):
+                    accepted(bad, data, self.truth)
 
     def test_unit_scale_and_parameter_maps_are_explicit(self):
         for case, scale, unit in (("P06", F(10), "10"), ("P07", F(10), "10"), ("P11", F(127, 5), "19")):

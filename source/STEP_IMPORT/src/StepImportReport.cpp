@@ -128,6 +128,108 @@ void StatisticsJson(Writer& w, const Statistics& n)
     w.Number(n.freeBoundaryEdges);
     w.Add("}");
 }
+void DeclarationsJson(Writer& w, const SourceDeclarations& declarations)
+{
+    const auto& source = *declarations.semantic;
+    const auto& raw = source.Source();
+    const auto id = [&](std::size_t r) -> const std::string&
+    {
+        return raw.Records().at(r).id;
+    };
+    const auto& units = source.UnitContext();
+    w.Add("{\"uncertainty_policy\":\"RecordAndWarnOnly\",\"units\":{\"length_unit\":");
+    w.String(id(units.lengthUnit));
+    w.Add(",\"plane_angle_unit\":");
+    w.String(id(units.planeAngleUnit));
+    w.Add(",\"solid_angle_unit\":");
+    if (units.solidAngleUnit)
+    {
+        w.String(id(*units.solidAngleUnit));
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add("},\"records\":[");
+    bool comma = false;
+    for (const auto r : declarations.records)
+    {
+        if (comma)
+        {
+            w.Add(",");
+        }
+        comma = true;
+        const auto& record = raw.Records().at(r);
+        w.Add("{\"id\":");
+        w.String(record.id);
+        w.Add(",\"span\":");
+        w.Range(record.span);
+        w.Add(",\"raw\":");
+        w.String(raw.Raw(record.span));
+        w.Add(",\"types\":[");
+        bool typeComma = false;
+        for (const auto& type : source.TypesOf(r))
+        {
+            if (typeComma)
+            {
+                w.Add(",");
+            }
+            typeComma = true;
+            w.String(type);
+        }
+        w.Add("]}");
+    }
+    w.Add("],\"uncertainties\":[");
+    comma = false;
+    for (const auto& uncertainty : declarations.uncertainties)
+    {
+        if (comma)
+        {
+            w.Add(",");
+        }
+        comma = true;
+        w.Add("{\"id\":");
+        w.String(id(uncertainty.record));
+        w.Add(",\"unit\":");
+        w.String(id(uncertainty.unit));
+        w.Add(",\"value_type\":");
+        w.String(uncertainty.valueType);
+        w.Add(",\"value\":");
+        FractionJson(w, uncertainty.value);
+        const auto optional = [&](const char* name, const std::optional<Fraction>& value)
+        {
+            w.Add(",");
+            w.String(name);
+            w.Add(":");
+            if (value)
+            {
+                FractionJson(w, *value);
+            }
+            else
+            {
+                w.Add("null");
+            }
+        };
+        optional("unit_scale_mm", uncertainty.unitScaleMm);
+        optional("value_mm", uncertainty.valueMm);
+        w.Add(",\"consistency_comparison\":");
+        w.String(uncertainty.consistencyComparison);
+        w.Add(",\"warning\":");
+        if (uncertainty.consistencyComparison == "Within")
+        {
+            w.Add("null");
+        }
+        else
+        {
+            w.String(
+                uncertainty.consistencyComparison == "Exceeds" ? "SourceUncertaintyExceedsConsistencyBudget" :
+                                                                 "SourceUncertaintyComparisonUnestablished"
+            );
+        }
+        w.Add("}");
+    }
+    w.Add("]}");
+}
 } // namespace
 void Serialize(const Outcome& outcome, const Quality& quality, const step_source::InspectOutcome& source, std::size_t limit, std::string& output)
 {
@@ -170,6 +272,15 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
             w.Add(",\"planar\":");
             w.String(report.planarStatus);
             w.Add("}");
+            w.Add(",\"source_declarations\":");
+            if (report.declarations)
+            {
+                DeclarationsJson(w, *report.declarations);
+            }
+            else
+            {
+                w.Add("null");
+            }
             w.Add(",\"source_shape\":");
             if (report.sourceShape)
             {
