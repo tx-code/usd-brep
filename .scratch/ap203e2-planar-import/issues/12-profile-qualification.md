@@ -4,11 +4,11 @@
 
 **Blocked by:** [06：带孔面与负UV原点保持源区域](06-holes-and-uv-origin.md)；[08：同形闭合表面保留surface-model角色](08-closed-surface-role.md)；[09：单位重述与conversion链保持物理几何](09-unit-conversion-fidelity.md)；[10：可选来源声明与旧AP203类型完整保留](10-optional-source-declarations.md)；[11：生命周期、取消与限额不留下部分结果](11-lifecycle-cancellation-limits.md)。
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-**Assignee:** None
+**Assignee:** codex
 
-**Execution:** on-hold。用户于2026-10-15明确要求暂不编码；本票仅已建档，获得后续明确开工指令前不得开始实现、生成样件或运行实施验收。
+**Execution:** in-progress。2026-10-17用户在11完成后要求继续，开始首profile组合与端到端资格验收；冻结01材料和Q，不扩展profile、不改测试包协议。运行记录保留本地。
 
 **Context:** 遵守[票组约束与来源](../README.md)；用户已确认12票拆分及依赖关系。
 

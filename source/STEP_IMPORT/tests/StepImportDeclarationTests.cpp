@@ -22,24 +22,49 @@ int main(int argc, char** argv)
     {
         Require(argc == 2, "Pass frozen case directory");
         const auto options = step_import::Options::PlanarFixture();
-        for (const auto name : { "S203-P08", "S203-P09", "S203-P10", "S203-P12" })
+        for (const auto name : { "S203-P08", "S203-P09", "S203-P10", "S203-P12", "S203-P13" })
         {
+            const bool combination = std::string_view(name) == "S203-P13";
             auto outcome = step_import::ImportFile(std::filesystem::path(argv[1]) / name / "input.step", options);
             Require(
                 outcome.status == step_import::Status::Accepted && outcome.model && outcome.report.declarations,
                 "Optional declarations deliver a complete model and report"
             );
             Require(outcome.report.declarations->semantic == outcome.model->Source(), "Report and model retain the same immutable typed source");
-            Require(std::abs(outcome.model->Info().areaMm2 - 96) < 1e-6, "Optional declarations do not rewrite F1 geometry");
+            Require(
+                std::abs(outcome.model->Info().areaMm2 - (combination ? 14193.52 : 96)) < 1e-6,
+                "Declarations preserve independently known physical area"
+            );
+            if (combination)
+            {
+                Require(
+                    outcome.report.units && outcome.report.units->lengthToMm == step_import::Fraction(127, 5) && outcome.model->MaterialVolumeMm3() &&
+                        std::abs(*outcome.model->MaterialVolumeMm3() - 98322.384) < 1e-5 &&
+                        outcome.model->ClassifyMaterial({ 12.7, 25.4, 38.1 }) == step_import::MaterialPointClass::Inside,
+                    "P13 combines explicit inch conversion with the independently known material box"
+                );
+                const auto& uncertainty = outcome.report.declarations->uncertainties.at(0);
+                Require(
+                    outcome.report.declarations->uncertainties.size() == 1 && uncertainty.valueMm == step_import::Fraction(1, 10000) &&
+                        uncertainty.unitScaleMm == step_import::Fraction(1) && outcome.report.source->Records()[uncertainty.unit].id == "10" &&
+                        uncertainty.consistencyComparison == "Exceeds",
+                    "P13 uncertainty retains its own millimetre anchor, without multiplying by 25.4"
+                );
+            }
             for (const auto& tolerance : outcome.report.tolerances)
             {
                 Require(tolerance.valueMm == 1e-5, "Source uncertainty never sets working tolerance");
             }
             auto view = outcome.model->Face();
+            const auto viewArea = view.Info().areaMm2;
             auto report = outcome.report;
             const auto bytes = report.source->Bytes();
             outcome = {};
-            Require(std::abs(view.Closest({ 4.2, 9.6, 8 }).distanceMm - 3) < 1e-7, "Owning view survives the original result");
+            Require(view.Info().areaMm2 == viewArea, "Owning view survives the original result");
+            if (!combination)
+            {
+                Require(std::abs(view.Closest({ 4.2, 9.6, 8 }).distanceMm - 3) < 1e-7, "Owning view remains queryable after result release");
+            }
             const auto& source = *report.declarations->semantic;
             if (std::string_view(name) == "S203-P10")
             {
@@ -80,6 +105,12 @@ int main(int argc, char** argv)
                 "Source declarations remain usable independently of the original result"
             );
         }
+        const auto cycle = step_import::ImportFile(std::filesystem::path(argv[1]) / "S203-N34/input.step", options);
+        Require(
+            cycle.status == step_import::Status::Rejected && !cycle.model && cycle.report.nativeCalls == 0 && cycle.report.diagnostics.size() == 1 &&
+                cycle.report.diagnostics[0].source.key == "CyclicUnitDefinition" && cycle.report.diagnostics[0].source.stage == "D4",
+            "N34 retains the causal unit-cycle diagnosis and publishes no native candidate"
+        );
         auto imported = step_import::ImportFile(std::filesystem::path(argv[1]) / "S203-P08/input.step", options);
         auto declarations = std::move(*imported.report.declarations);
         imported = {};

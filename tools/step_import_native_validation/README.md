@@ -9,6 +9,28 @@ $env:STEP_NATIVE_BINARY = '<build>/Release/step_native_import.exe'
 python -m unittest tools.step_import_native_validation.tests.test_native -v
 ```
 
+完整首profile复核使用同一配置的四个真实CLI，输出到新的本地目录：
+
+```powershell
+python -m tools.step_import_native_validation `
+  --source <step_inspect.exe> --semantic <step_semantic_inspect.exe> `
+  --planar <step_planar_inspect.exe> --native <step_native_import.exe> `
+  --output .local/step-import/qualification-release
+```
+
+命令重新执行全部49项的四层检查，不读取旧运行结果。各层独立比较器保持原样，
+额外核对相同源图、P13/N34组合、以及真值明确列出的CLI查询。
+仅全项匹配且源码/检查器/303项冻结材料/二进制与已观测runtime身份在运行期间不变，
+才写入`qualification.json`的Matched；失败时保留已执行输出并非完整通过收据。
+已有输出目录明确拒绝，不能混入上一轮结果。原始stdout/stderr/exit、命令、hash及逐项诊断留本地。
+这里的源码身份是检出目录观测，不证明给定二进制由它构建；构建日志、匹配SDK身份和依赖检查另行保存。
+本机Windows收据另绑定相邻SMLib/SM_API DLL与实际kernel路径；不据此推导其他平台依赖闭包。
+
+CLI只暴露边界closest与材料分类，未暴露的面内UV分类明确不计本命令通过项。
+owning模型/view/报告的真实寿命、独立副本、取消/预算以及进程内释放仍由C++合同和资源程序检查，
+不能用CLI进程退出替代。组合P13也纳入C++声明owner与报告N/N−1检查。
+总体P0—P7映射和剩余范围见[模块资格边界](../../source/STEP_IMPORT/README.md#首profile的资格边界)。
+
 ## 可观察契约
 
 当前49项合同为13 Accepted、29源Rejected、7源范围Unsupported。

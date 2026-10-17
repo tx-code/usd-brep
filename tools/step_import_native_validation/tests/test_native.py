@@ -71,6 +71,28 @@ class NativeTests(unittest.TestCase):
         return (CORPUS / "cases/S203-P04/input.step").read_bytes(), next(
             c["truth"] for c in self.cases if c["case_id"] == "S203-P04")
 
+    def test_combined_conversion_and_own_unit_uncertainty_cannot_be_conflated(self):
+        case = next(c for c in self.cases if c["case_id"] == "S203-P13")
+        data = (CORPUS / "cases/S203-P13/input.step").read_bytes()
+        actual, observed = self.invoke(data)
+        corpus_case(case, observed, actual.returncode, data)
+        uncertainty, = observed["source_declarations"]["uncertainties"]
+        self.assertEqual(("10", F(1, 10000)), (uncertainty["unit"], decode(uncertainty["value_mm"])))
+        for defect in ("double_scale", "wrong_anchor", "relaxed_quality", "partial_model", "missing_use"):
+            bad = deepcopy(observed)
+            if defect == "double_scale":
+                bad["source_declarations"]["uncertainties"][0]["value_mm"] = exact(F(127, 50000))
+            elif defect == "wrong_anchor":
+                bad["source_declarations"]["uncertainties"][0]["unit"] = "19"
+            elif defect == "relaxed_quality":
+                bad["quality"]["consistency_mm"] = exact(F(1, 10000))
+            elif defect == "partial_model":
+                bad["model"] = None
+            else:
+                bad["loop_mappings"][0]["uses"].pop()
+            with self.subTest(defect=defect), self.assertRaises(AssertionError):
+                corpus_case(case, bad, 0, data)
+
     def test_execution_limits_have_separate_diagnostics_and_real_memory(self):
         for flag, expected, code in (("--hard-memory-bytes", "UnsupportedHardMemoryContract", 2),
                                       ("--max-process-private-bytes", "ProcessMemoryLimit", 3),
