@@ -15,6 +15,10 @@ import time
 from .profile import write_json
 
 
+class InputIdentityFailure(ValueError):
+    pass
+
+
 def digest(path):
     value = hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -60,19 +64,25 @@ def execute(binary, mode, path, identity, directory, *, repeat=1, warmup=0, maxi
             timeout=90, maximum_private=2147483648, env=None):
     directory.mkdir(parents=True, exist_ok=False)
     output = directory/"probe.json"
-    before = digest(path)
-    if before != identity:
-        raise ValueError("Input no longer matches census SHA256")
     command = [str(binary), "--mode", mode, "--input", str(path), "--output", str(output), "--repeat", str(repeat),
                "--warmup", str(warmup), "--max-input-bytes", str(maximum_input)]
     observation = dict(format="step-probe-observation.v1", command=command, input_sha256=identity, result=None,
                        supervisor=dict(timeout_seconds=timeout, maximum_private_bytes=maximum_private,
-                                       memory_policy="20ms sampled private-byte kill; overshoot possible, not a hard cap",
+                                       memory_policy=("20ms sampled private-byte stop; "
+                                                      "not a hard cap, overshoot possible"),
                                        filesystem_cache="SHA256 before launch; warm input, not cold IO"))
     process = None
     samples = []
     start = time.perf_counter()
     try:
+        try:
+            before = digest(path)
+        except OSError as error:
+            raise InputIdentityFailure("Input unavailable for identity verification") from error
+        if before != identity:
+            raise InputIdentityFailure("Input no longer matches census SHA256")
+        observation["input_verification_ms"] = (time.perf_counter()-start)*1000
+        start = time.perf_counter()
         with (directory/"stdout.log").open("wb") as stdout, (directory/"stderr.log").open("wb") as stderr:
             process = subprocess.Popen(command, stdout=stdout, stderr=stderr, env=env)
             monitor = ProcessMemory(process)
@@ -108,10 +118,12 @@ def execute(binary, mode, path, identity, directory, *, repeat=1, warmup=0, maxi
                 raise ValueError("Incomplete warmup/repeat contract")
             for trial in trials:
                 if trial.get("source_sha256") and trial["source_sha256"] != identity:
-                    raise ValueError("Captured input SHA256 mismatch")
+                    raise InputIdentityFailure("Captured input SHA256 mismatch")
             if digest(path) != identity:
-                raise ValueError("Input changed during benchmark")
+                raise InputIdentityFailure("Input changed during benchmark")
             observation["result"] = result
+    except InputIdentityFailure as error:
+        observation.update(status="InputIdentityFailure", error=str(error))
     except Exception as error:
         if process and process.poll() is None:
             process.kill()

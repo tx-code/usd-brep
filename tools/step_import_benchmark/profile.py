@@ -15,8 +15,41 @@ _HEAD = re.compile(_COMMENT + rb"|(?P<string>" + _LITERAL + rb")|#\s*[0-9]+\s*=\
                    rb"(?P<simple>[A-Z_][A-Z0-9_]*)\s*\(|(?P<complex>\())", re.S | re.I)
 _END = re.compile(_COMMENT + rb"|" + _LITERAL + rb"|(?P<end>;)", re.S)
 _FACET = re.compile(_COMMENT + rb"|" + _LITERAL + rb"|(?P<name>[A-Z_][A-Z0-9_]*)\s*\(|(?P<bracket>[()])", re.S | re.I)
-_SCHEMA = re.compile(rb"\bFILE_SCHEMA\s*\(\s*\((.*?)\)\s*\)\s*;", re.S | re.I)
+_HEADER = re.compile(rb"(?P<comment>/\*.*?(?:\*/|\Z))|(?P<string>" + _LITERAL +
+                     rb")|(?P<cutstring>'(?:''|[^'])*\Z)|(?P<word>[A-Z_][A-Z0-9_]*)|(?P<symbol>[(),;])", re.S | re.I)
 SIZE_EDGES = (65536, 262144, 1048576, 4194304, 16777216, 67108864)
+
+
+def header_schemas(prefix):
+    tokens = []
+    for token in _HEADER.finditer(prefix):
+        if token.group("cutstring"):
+            break
+        if token.group("word") and token.group("word").upper() == b"DATA":
+            break
+        if not token.group("comment"):
+            tokens.append((token.lastgroup, token.group().upper() if token.lastgroup == "word" else token.group()))
+    inside = False
+    for i, (kind, value) in enumerate(tokens):
+        if kind == "word" and value == b"HEADER":
+            inside = True
+        elif kind == "word" and value == b"ENDSEC":
+            inside = False
+        elif inside and (kind, value) == ("word", b"FILE_SCHEMA"):
+            rest = tokens[i+1:]
+            if rest[:2] != [("symbol", b"("), ("symbol", b"(")]:
+                return []
+            names = []
+            position = 2
+            while position < len(rest) and rest[position][0] == "string":
+                names.append(rest[position][1][1:-1].replace(b"''", b"'").decode("latin-1"))
+                position += 1
+                if position < len(rest) and rest[position] == ("symbol", b","):
+                    position += 1
+                else:
+                    break
+            return names if rest[position:position+3] == [("symbol", b")"), ("symbol", b")"), ("symbol", b";")] else []
+    return []
 
 
 def write_json(path, value):
@@ -55,9 +88,7 @@ def inspect_file(path, root):
             with mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
                 sha = hashlib.sha256(data).hexdigest()
                 header = data[:131072]
-                schema = _SCHEMA.search(header)
-                schemas = [m[1:-1].replace(b"''", b"'").decode("latin-1")
-                           for m in re.findall(_LITERAL, schema[1])] if schema else []
+                schemas = header_schemas(header)
                 for token in _HEAD.finditer(data):
                     if token.group("simple"):
                         records += 1

@@ -10,7 +10,8 @@ import unittest
 
 class CensusTests(unittest.TestCase):
     def test_public_census_excludes_strings_comments_and_keeps_all_complex_facets(self):
-        text = ("ISO-10303-21;HEADER;FILE_SCHEMA(('AP_TEST'));ENDSEC;DATA;\n"
+        text = ("ISO-10303-21;HEADER;/* FILE_SCHEMA(('FAKE')); */\n"
+                "FILE_NAME('FILE_SCHEMA((''ALSO_FAKE''));');\nFILE_SCHEMA(('AP_TEST'));ENDSEC;DATA;\n"
                 "#1=PLANE('',#2);\n#2=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));\n"
                 "#3=CARTESIAN_POINT('Fake #999=CYLINDRICAL_SURFACE();',(0.,0.,0.));\n"
                 "/* #400=SPHERE(); */\nENDSEC;END-ISO-10303-21;\n")

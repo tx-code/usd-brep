@@ -61,3 +61,17 @@ class RunnerTests(unittest.TestCase):
             failure = execute(binary, "not-a-mode", BOX, sha, root/"failure")
             self.assertEqual("ProbeFailure", failure["status"])
             self.assertIsNone(failure["result"])
+
+    def test_changed_input_is_recorded_without_running_the_probe(self):
+        from tools.step_import_benchmark.runner import execute
+        with tempfile.TemporaryDirectory(prefix="step-changed-input-") as directory:
+            root = Path(directory)
+            path = root/"part.step"
+            path.write_bytes(BOX.read_bytes())
+            expected = hashlib.sha256(path.read_bytes()).hexdigest()
+            path.write_bytes(path.read_bytes()+b"\n/* changed */")
+            output = root/"observation"
+            result = execute(Path(os.environ["STEP_BENCH_SOURCE"]), "source", path, expected, output)
+            self.assertEqual("InputIdentityFailure", result["status"])
+            self.assertIsNone(result["result"])
+            self.assertEqual(result, json.loads((output/"observation.json").read_bytes()))

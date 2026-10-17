@@ -4,6 +4,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -70,3 +71,25 @@ class ProbeTests(unittest.TestCase):
                     trial, = self.invoke(engine, mode, path)["trials"]
                     self.assertTrue(trial["has_model"])
                     self.assertAlmostEqual(6000, trial["model"]["volume_mm3"], delta=1e-5)
+
+    def test_occt_mixed_root_volume_excludes_the_open_face(self):
+        from tools.step_import_validation.records import inventory, vector
+        plane = BOX.parents[1]/"S203-P01/input.step"
+        data = BOX.read_bytes().split(b"ENDSEC;\nEND-ISO-10303-21;")[0]
+        for record in inventory(plane.read_bytes()):
+            raw = record.raw
+            if record.kind == "CARTESIAN_POINT":
+                args = list(record.args)
+                x, y, z = vector(args[1])
+                args[1] = f"({float(x)},{float(y)},{float(z+100)})"
+                raw = record.kind+"("+",".join(args)+")"
+            raw = re.sub(r"#(\d+)", lambda m: "#"+str(int(m[1])+10000), raw)
+            data += f"\n#{record.entity_id+10000}={raw};".encode("ascii")
+        data += b"\nENDSEC;\nEND-ISO-10303-21;\n"
+        with tempfile.TemporaryDirectory(prefix="step-mixed-volume-") as directory:
+            path = Path(directory)/"mixed.step"
+            path.write_bytes(data)
+            trial, = self.invoke("occt", "transfer", path)["trials"]
+            self.assertTrue(trial["has_model"])
+            self.assertEqual((1, 7), (trial["model"]["solids"], trial["model"]["faces"]))
+            self.assertAlmostEqual(6000, trial["model"]["volume_mm3"], delta=1e-5)

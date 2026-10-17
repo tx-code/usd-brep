@@ -110,12 +110,22 @@ bench::Trial Run(const bench::Args& args)
                 }
                 row.timings["brep_check"] = bench::Ms(start);
                 start = bench::Clock::now();
-                const auto solids = Count(shape, TopAbs_SOLID);
-                GProp_GProps area, volume;
+                NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> solidShapes;
+                TopExp::MapShapes(shape, TopAbs_SOLID, solidShapes);
+                const auto solids = solidShapes.Extent();
+                GProp_GProps area;
+                double volume = 0;
                 BRepGProp::SurfaceProperties(shape, area);
-                if (solids)
+                if (solids && valid)
                 {
-                    BRepGProp::VolumeProperties(shape, volume);
+                    // A compound can also contain free faces or open shells.
+                    // Integrate only its unique located solids, never the mixed root.
+                    for (int i = 1; i <= solids; ++i)
+                    {
+                        GProp_GProps properties;
+                        BRepGProp::VolumeProperties(solidShapes.FindKey(i), properties, true);
+                        volume += properties.Mass();
+                    }
                 }
                 Bnd_Box box;
                 BRepBndLib::AddOptimal(shape, box, false, false);
@@ -130,8 +140,9 @@ bench::Trial Run(const bench::Args& args)
                 std::ostringstream model;
                 model << "{\"faces\":" << Count(shape, TopAbs_FACE) << ",\"edges\":" << Count(shape, TopAbs_EDGE)
                       << ",\"vertices\":" << Count(shape, TopAbs_VERTEX) << ",\"solids\":" << solids << ",\"area_mm2\":" << bench::N(area.Mass())
-                      << ",\"volume_mm3\":" << (solids ? bench::N(volume.Mass()) : "null") << ",\"brep_check_valid\":" << (valid ? "true" : "false")
-                      << ",\"bounds_mm\":" << bounds << '}';
+                      << ",\"volume_mm3\":" << (solids && valid ? bench::N(volume) : "null")
+                      << ",\"volume_scope\":\"unique located closed solids only; free surfaces excluded; null if invalid or no solids\""
+                      << ",\"brep_check_valid\":" << (valid ? "true" : "false") << ",\"bounds_mm\":" << bounds << '}';
                 row.model = model.str();
                 row.timings["measurements"] = bench::Ms(start);
             }
