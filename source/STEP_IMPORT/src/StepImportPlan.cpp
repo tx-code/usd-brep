@@ -186,7 +186,7 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
         {
             throw Failure{ Status::Unsupported,
                            "UnsupportedNativeOpenSheetScope",
-                           "Shared open-sheet qualification requires two exact noncoplanar rectangles sharing one complete edge",
+                           "Shared open-sheet qualification requires two exact rectangles whose trimmed intersection is one complete shared edge",
                            plan.record };
         }
     };
@@ -235,11 +235,25 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
         need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
     }
     const auto axis = Cross(normals[0], normals[1]);
-    need(Dot(axis, axis) > Fraction());
-    // The two distinct planes intersect along the shared side's line. Each
-    // convex rectangle meets that line only on its complete shared side.
-    // Their trimmed intersection is therefore precisely that edge, not an
-    // untested shell intersection accepted on validator success alone.
+    if (Dot(axis, axis) == Fraction())
+    {
+        need(Dot(normals[0], Subtract(plan.faces[1].originMm, plan.faces[0].originMm)) == Fraction());
+        const auto& common = plan.edges[proof.sharedEdge];
+        const auto direction = Subtract(common.maximumMm, common.minimumMm);
+        const auto side = [&](const FacePlan& face)
+        {
+            return Dot(normals[0], Cross(direction, Subtract(face.sourceCentroid, common.minimumMm)));
+        };
+        const auto a = side(plan.faces[0]), b = side(plan.faces[1]);
+        need((a > Fraction() && b < Fraction()) || (a < Fraction() && b > Fraction()));
+        // Each convex rectangle lies in the closed half-plane selected by its
+        // interior centroid. Strictly opposite signs exclude positive-area
+        // overlap; their common boundary is the complete shared side.
+    }
+    // For distinct planes their intersection line contains the shared side.
+    // Each convex rectangle meets it only on that complete side. Thus either
+    // admitted case has exactly the declared finite intersection, independently
+    // of native validator success.
     proof.minimum = proof.maximum = plan.vertices.front().pointMm;
     for (const auto& vertex : plan.vertices)
     {

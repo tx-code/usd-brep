@@ -86,7 +86,9 @@ if(STEP_IMPORT_BUILD_TESTS)
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
     add_test(NAME step_import_sheet_contracts COMMAND step_import_sheet_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step")
-    set_tests_properties(step_import_sheet_contracts PROPERTIES TIMEOUT 60)
+    add_test(NAME step_import_coplanar_sheet_contracts COMMAND step_import_sheet_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/coplanar_shared_sheet.step" coplanar)
+    set_tests_properties(step_import_sheet_contracts step_import_coplanar_sheet_contracts PROPERTIES TIMEOUT 60)
     if(WIN32)
         add_executable(step_import_resources tests/StepImportResources.cpp)
         target_compile_definitions(step_import_resources PRIVATE NOMINMAX)
@@ -109,6 +111,10 @@ if(STEP_IMPORT_BUILD_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step")
         add_test(NAME step_import_sheet_lifecycle_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/open_shared_sheet.step" lifecycle)
+        add_test(NAME step_import_coplanar_sheet_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/coplanar_shared_sheet.step")
+        add_test(NAME step_import_coplanar_sheet_lifecycle_resources COMMAND step_import_resources
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/coplanar_shared_sheet.step" lifecycle)
     endif()
 endif()
 if(TARGET step_import_lifecycle_tests)

@@ -60,8 +60,8 @@ CLI子进程退出本身不证明native对象释放，普通安全边界清理�
 
 ## 开放共享面片增量
 
-原49项与303材料保持冻结；新增独立S1输入在`source/STEP_IMPORT/tests/fixtures/open_shared_sheet.step`，
-解析真值来自P0设计中的两个明确矩形，不使用CAD输出生成期望。单独运行：
+原49项与303材料保持冻结；独立S1输入在`source/STEP_IMPORT/tests/fixtures/open_shared_sheet.step`，
+共面相邻输入为同目录的`coplanar_shared_sheet.step`。真值来自明确矩形坐标，不使用CAD输出生成期望。单独运行：
 
 ```powershell
 python -m unittest tools.step_import_native_validation.tests.test_sheet -v
@@ -69,7 +69,9 @@ python -m unittest tools.step_import_native_validation.tests.test_sheet -v
 
 核对6V/7E/2F、8逻辑use/16native EU、每边2/4 EU及自己的UV、6自由边、
 整体面积/形心/唯一边长度和两个面的查询；比较器反控必须拒绝第一面属性冒充整体、共享边重复计长、
-丢失第二面UV或错误材料资格。64组方向/面集合顺序/稀疏ID变换及SI重述单独检查。
-复制共享边、错误方向、伪闭壳仍按原源诊断拒绝；源合法的共面矩形和梯形明确为目标Unsupported。
-新增C++公开接口合同及S1普通失败/取消副本资源检查沿用现有机制，不建立新的材料打包或发布协议。
+丢失第二面UV或错误材料资格。折角与共面各64组方向/面集合顺序/稀疏ID变换及SI重述单独检查。
+共面情况还检查相异的UV原点/坐标轴、斜放世界平面、部分重叠/内嵌/完全重合的反控；
+源检查通过的重叠矩形在native前以目标范围拒绝，不修改源规则或自动合并面。
+复制共享边、错误方向、伪闭壳仍按原源诊断拒绝；梯形明确为目标Unsupported。
+C++公开接口合同及两类面片的普通失败/取消副本资源检查沿用现有机制，不建立新的材料打包或发布协议。
 这项增量不改变Frozen49Contracts的计数，也不授予一般开放片或完整P2资格。

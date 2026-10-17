@@ -27,7 +27,8 @@ int main(int argc, char** argv)
 {
     try
     {
-        Require(argc == 2, "Pass independent S1 STEP fixture");
+        Require(argc == 2 || (argc == 3 && std::string_view(argv[2]) == "coplanar"), "Pass sheet fixture and optional coplanar mode");
+        const bool coplanar = argc == 3;
         const auto options = step_import::Options::PlanarFixture();
         auto imported = step_import::ImportFile(argv[1], options);
         Require(imported.status == step_import::Status::Accepted && imported.model, "S1 yields an owning open sheet");
@@ -35,9 +36,9 @@ int main(int argc, char** argv)
         Require(original.faces == 2 && original.edges == 7 && original.vertices == 6 && original.freeBoundaryEdges == 6, "Independent S1 census");
         Near(original.areaMm2, 18, "Both face areas contribute");
         Near(original.boundaryMm, 21, "Shared edge counted once in unique edge length");
-        Near(original.centroidMm[0], 8.0 / 3, "Area-weighted sheet centroid x");
+        Near(original.centroidMm[0], coplanar ? 3 : 8.0 / 3, "Area-weighted sheet centroid x");
         Near(original.centroidMm[1], 1.5, "Area-weighted sheet centroid y");
-        Near(original.centroidMm[2], 1.0 / 3, "Area-weighted sheet centroid z");
+        Near(original.centroidMm[2], coplanar ? 0 : 1.0 / 3, "Area-weighted sheet centroid z");
         Require(!original.normal && !original.windowMm && !imported.model->MaterialVolumeMm3(), "No shape-wide plane or material volume");
         Require(!imported.model->ClassifyMaterial({ 2, 1, 0 }), "An open sheet never acquires material classification");
         Require(
@@ -116,13 +117,13 @@ int main(int argc, char** argv)
         auto copy = imported.model->CopyForModeling();
         Require(copy.status == step_import::Status::Accepted && copy.model, "Open shared sheet has an independent editable copy");
         copy.model->Edit(
-            [](SmBrep& brep)
+            [coplanar](SmBrep& brep)
             {
                 Require(SmApiTranslate(&brep, { 100, -20, 3 }) == SM_SUCCESS, "Translate independent open sheet copy");
                 SmPoint3d minimum, maximum;
                 Require(SmApiBrepBoundingBox(&brep, TRUE, minimum, maximum) == SM_SUCCESS, "Measure translated copy");
                 Near(minimum.x, 100, "Copy minimum x");
-                Near(maximum.z, 5, "Copy maximum z");
+                Near(maximum.z, coplanar ? 3 : 5, "Copy maximum z");
                 long materials = 0, boundedVoids = 0;
                 Require(
                     SmApiBrepMaterialCensus(&brep, materials, boundedVoids) == SM_SUCCESS && materials == 0 && boundedVoids == 0,
@@ -136,7 +137,8 @@ int main(int argc, char** argv)
         );
         const auto nearSecondFace = imported.model->Closest({ 5, 1.5, 1 });
         Near(nearSecondFace.distanceMm, 1, "Whole-sheet closest point reaches the second face");
-        Near(nearSecondFace.pointMm[0], 4, "Second face closest x");
+        Near(nearSecondFace.pointMm[0], coplanar ? 5 : 4, "Second face closest x");
+        Near(nearSecondFace.pointMm[2], coplanar ? 0 : 1, "Second face closest z");
         imported = {};
         for (const auto& view : views)
         {
