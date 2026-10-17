@@ -23,6 +23,7 @@ constexpr std::string_view SiSolidAngle[] = { "NAMED_UNIT", "SI_UNIT", "SOLID_AN
 constexpr std::string_view ConversionLength[] = { "CONVERSION_BASED_UNIT", "LENGTH_UNIT", "NAMED_UNIT" };
 constexpr std::string_view SiMass[] = { "MASS_UNIT", "NAMED_UNIT", "SI_UNIT" };
 constexpr std::string_view ConversionMass[] = { "CONVERSION_BASED_UNIT", "MASS_UNIT", "NAMED_UNIT" };
+constexpr std::string_view MeasureRepresentation[] = { "MEASURE_REPRESENTATION_ITEM", "MEASURE_WITH_UNIT", "REPRESENTATION_ITEM" };
 constexpr Names ComplexSignatures[] = { Context, ContextWithUncertainty, SiLength, SiPlaneAngle, SiSolidAngle, ConversionLength };
 static_assert(std::size(ComplexSignatures) == 6);
 
@@ -373,6 +374,8 @@ Catalog::Catalog(ProfileKind profile)
         complexSignatures.push_back(SiMass);
         complexSignatures.push_back(ConversionMass);
         measureBranches.push_back("MASS_MEASURE");
+        measureBranches.push_back("RATIO_MEASURE");
+        measureBranches.push_back("POSITIVE_RATIO_MEASURE");
         declarations.push_back({ "MASS_MEASURE_WITH_UNIT", { "MEASURE_WITH_UNIT" }, {}, true });
         // These two deprecated AP203 types do not occur in the pinned AP214e3 artifact.
         declarations.erase(
@@ -483,6 +486,12 @@ Catalog::Catalog(ProfileKind profile)
         enumerations.push_back({ "B_SPLINE_CURVE_FORM", CurveForms });
         enumerations.push_back({ "B_SPLINE_SURFACE_FORM", SurfaceForms });
         enumerations.push_back({ "KNOT_TYPE", KnotTypes });
+        // AP214E3_2010.exp: MRI inherits RI before MWU, so simple mapping is
+        // name/value_component/unit_component. Keep both source parent roles.
+        declarations.push_back({ "MEASURE_REPRESENTATION_ITEM", { "REPRESENTATION_ITEM", "MEASURE_WITH_UNIT" }, {}, true });
+        // External mapping transmits each parent's local fields in its own facet;
+        // the empty MRI facet does not duplicate or reorder those source values.
+        complexSignatures.push_back(MeasureRepresentation);
     }
     if (declarations.size() > 128)
     {

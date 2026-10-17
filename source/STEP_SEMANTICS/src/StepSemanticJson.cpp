@@ -180,7 +180,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.Add(",\"global_rules_47\":\"NotRun\",\"other_entity_where\":");
     out.String(ap214 && (result.geometryDependencyChecks.entityPredicates || result.unitDependencyChecks.total) ? "Partial" : "NotRun");
     out.Add(",\"named_measure_predicates\":");
-    out.String(ap214 && result.geometryDependencyChecks.typePredicates ? "Partial" : "NotRun");
+    out.String(ap214 && (result.geometryDependencyChecks.typePredicates || result.unitDependencyChecks.typePredicates) ? "Partial" : "NotRun");
     out.Add(
         ","
         "\"geometry_consistency\":\"NotRun\",\"conversion_units\":\"NotRun\","
@@ -202,6 +202,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Number(result.unitDependencyChecks.total);
         out.Add(",\"unit_dimension_definitions\":");
         out.Number(result.unitDependencyChecks.unitDefinitions);
+        out.Add(",\"unit_type_predicate_checks\":");
+        out.Number(result.unitDependencyChecks.typePredicates);
     }
     out.Add("}");
     out.Add(",\"snapshot\":");

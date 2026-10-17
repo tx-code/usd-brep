@@ -54,7 +54,7 @@ declaration pointers and named field queries use that snapshot's immutable catal
 there is no process-wide current-protocol switch. AP203 retains its original 72
 registered declarations and indexes. AP214 has 70 common declarations, excluding
 `MECHANICAL_CONTEXT` and `DESIGN_CONTEXT`, which are absent in the pinned source,
-plus 13 presentation/relationship, 11 geometry and one mass-measure declaration (95 total).
+plus 13 presentation/relationship, 11 geometry, one mass-measure and one measure-item declaration (96 total).
 The AP214 unit increment also replaces its existing derived-unit guard entries with exact source fields.
 The admitted reference SELECT branches remain a closed project subset. This is
 source field/part/unit checking, not full-schema or modeling qualification.
@@ -138,7 +138,7 @@ interpretation remains deferred in this layer, with AP214 reason
 AP214 `DERIVED_UNIT` retains `elements : SET[1:?] OF DERIVED_UNIT_ELEMENT`;
 its derived `name` is not a serialized slot. Each element retains its original
 named-unit reference and REAL exponent. The profile admits SI mass and conversion
-mass signatures (eight signatures total), `MASS_MEASURE_WITH_UNIT` and its typed
+mass signatures, `MASS_MEASURE_WITH_UNIT` and its typed
 `MASS_MEASURE` branch. AP203 retains its original six signatures and length-only
 measure branches. A plain `NAMED_UNIT` can retain explicit seven-component REAL
 dimensions without acquiring an inferred nominal type or physical scale.
@@ -168,6 +168,25 @@ strings. Source field views still return original values/references. SI mass
 metadata uses canonical kg, alongside mm/rad/sr; no derived scale or conversion
 factor is evaluated, and geometry values are not rescaled. Later part/context
 failure withholds the typed snapshot even if unit prerequisites passed.
+
+AP214 `MEASURE_REPRESENTATION_ITEM` retains both parent roles: simple mapping
+transmits RI `name`, then MWU `value_component` and `unit_component`. Its complete
+external mapping has the empty MRI facet plus the two parent facets (nine admitted
+signatures in total). Fields retain original source values, REAL lexemes, typed
+measure branches and unit references; names never infer or replace a quantity.
+The added `RATIO_MEASURE` and `POSITIVE_RATIO_MEASURE` SELECT branches remain REAL
+transport. The positive branch checks its exact `> 0` predicate, including signed
+zero and extreme exponents, and inherits ratio's dimensionless `valid_units` check.
+A density-named positive ratio paired with M/L^3 fails `MEASURE_WITH_UNIT.WR1`
+without changing its source branch, value or unit. Unknown branches stay unsupported.
+`unit_type_predicate_checks` and `named_measure_predicates` report actual attempts;
+they do not grant complete type or entity validation.
+
+Admitting this source entity does not attach a material/property representation,
+make an orphan owned, or allow non-shape items in the selected body's representation.
+Generic material/property links remain a separate increment. MRI-as-conversion-factor
+tests isolate the existing MWU reference/field contract; they do not claim full RI.WR1
+or AP214 global-rule validation, physical conversion evaluation or native construction.
 
 The shared single-part, mechanical/design role, complete closure and nominal-unit
 restrictions are project guards. Apart from the selected dependencies above,
@@ -231,7 +250,7 @@ This stage implements:
 | Check | Contract |
 |---|---|
 | Binding | Exact single AP203e2 N2635 or AP214e3 name/OID selects its source artifact/profile; no alias/year inference |
-| Fields | Existing AP203 simple leaves and six complete complex signatures; AP214 omits the two retired contexts, uses eight signatures and adds the source leaves above; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN/LOGICAL, enums, aggregates and protocol-specific derived markers |
+| Fields | Existing AP203 simple leaves and six complete complex signatures; AP214 omits the two retired contexts, uses nine signatures and adds the source leaves above; local/inherited slots, optional/required values, transport types, closed SELECT branches, BOOLEAN/LOGICAL, enums, aggregates and protocol-specific derived markers |
 | Types | All admitted entity ancestors, including diamonds; explicit constituents and original source identity are retained |
 | Part | Unique AC/APD/PC/PDC/product/formation/PD/PDS/SDR/representation/context and consistent reference identities |
 | Profile guards | Roles, purposes, category, one shape, explicit outer bound, complete ownership; unknown content is not skipped |

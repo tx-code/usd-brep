@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 95,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 96,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -209,6 +209,37 @@ int main(int argc, char** argv)
         Require(
             grid.Value().children[2].children[0].text == "100" && knots.Value().children[0].text == "-2.",
             "Owning spline field views must keep original grid and knot parameters after snapshot release"
+        );
+        ++groups;
+
+        // MRI is an MWU and can occupy the existing conversion-factor reference.
+        // This isolates source declarations/ownership, not full RI.WR1 qualification.
+        auto measureText = conversionText;
+        const std::string oldFactor = "LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10)";
+        measureText
+            .replace(measureText.find(oldFactor), oldFactor.size(), "MEASURE_REPRESENTATION_ITEM('source scale',LENGTH_MEASURE(+25.400E+0),#10)");
+        auto measureRaw = step_source::InspectBytes(measureText, step_source::Limits::PlanarFixtures());
+        auto measureResult = Check(measureRaw, Limits{});
+        Require(measureResult.snapshot && measureResult.unitDependencies == "Passed", "MRI source dependencies");
+        auto measure = measureResult.snapshot;
+        const auto measureIndex = Index(*measure, "18");
+        auto measureValue = measure->Field(measureIndex, "MEASURE_WITH_UNIT", "value_component");
+        auto measureUnit = measure->Field(measureIndex, "MEASURE_WITH_UNIT", "unit_component");
+        auto measureName = measure->Field(measureIndex, "REPRESENTATION_ITEM", "name");
+        Require(
+            measure->IsA(measureIndex, "MEASURE_WITH_UNIT") && measure->IsA(measureIndex, "REPRESENTATION_ITEM") &&
+                &measureValue.Value() == &measureRaw.source->Find("18")->components[0].parameters[1] &&
+                measureUnit.ReferenceTarget() == Index(*measure, "10"),
+            "MRI parent roles and fields must borrow the original source values and references"
+        );
+        measureRaw = {};
+        measureResult = {};
+        measure.reset();
+        Require(
+            measureName.Value().text == "source scale" && measureValue.Value().text == "LENGTH_MEASURE" &&
+                measureValue.Value().children.front().text == "+25.400E+0" && measureUnit.Value().text == "10" &&
+                measureUnit.Location().parameterPath == std::vector<std::size_t>{ 3 },
+            "Owning MRI fields must retain the original tag, REAL lexeme, unit identity and slot after caller release"
         );
         ++groups;
 

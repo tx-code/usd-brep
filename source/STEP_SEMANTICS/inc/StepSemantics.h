@@ -224,6 +224,7 @@ struct UnitDependencyCounts
 {
     std::size_t total = 0;
     std::size_t unitDefinitions = 0;
+    std::size_t typePredicates = 0;
 };
 struct GeometryDependencyCounts
 {

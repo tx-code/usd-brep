@@ -734,14 +734,14 @@ private:
                         "UnsupportedMeasureBranch",
                         "D2",
                         m_data->profile.kind == ProfileKind::Ap214e3Source ?
-                            "This source profile consumes the registered length/mass measure families" :
+                            "This source profile consumes the registered length/mass/ratio measure families" :
                             "This profile consumes only the registered length measure family",
                         value.span,
                         Status::Unsupported,
                         r,
                         c,
                         path,
-                        m_data->profile.kind == ProfileKind::Ap214e3Source ? "registered typed length/mass measure" : "typed length measure",
+                        m_data->profile.kind == ProfileKind::Ap214e3Source ? "registered typed length/mass/ratio measure" : "typed length measure",
                         value.text,
                         "profile measure SELECT guard"
                     );

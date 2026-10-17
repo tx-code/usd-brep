@@ -435,6 +435,18 @@ private:
             const auto target = Target(*unit.declaration.value);
             const auto& value = Field(r, "value_component");
             const auto& tag = value.declaration.value->text;
+            if (tag == "POSITIVE_RATIO_MEASURE")
+            {
+                // AP214E3_2010.exp POSITIVE_RATIO_MEASURE.WR1: compare the exact
+                // source REAL, including signed zero/huge exponents, without
+                // changing its typed branch or guessing a quantity from RI.name.
+                Count(value.declaration.value->span);
+                ++m_counts.typePredicates;
+                if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
+                {
+                    Rule(r, value, "POSITIVE_RATIO_MEASURE.WR1");
+                }
+            }
             Dimensions required;
             if (tag == "MASS_MEASURE")
             {
@@ -444,6 +456,14 @@ private:
             {
                 required = Basis(0);
             }
+            else if (tag == "RATIO_MEASURE" || tag == "POSITIVE_RATIO_MEASURE")
+            {
+                // valid_units tests TYPEOF: positive_ratio_measure inherits ratio,
+                // so its unit must also be dimensionless. Preserve a density-named
+                // ratio paired with M/L^3 as source data and diagnose the conflict;
+                // the name is not authority to relabel the measure or its unit.
+                required = {};
+            }
             else
             {
                 Fail(
@@ -451,12 +471,12 @@ private:
                     r,
                     value,
                     "UnsupportedMeasureDimensionBranch",
-                    "interpreted length/mass measure family",
+                    "interpreted length/mass/ratio measure family",
                     tag,
                     "profile dimensional interpretation subset; no guessed dimension"
                 );
             }
-            // The admitted measure branches are explicit length aliases and mass.
+            // The admitted measure branches are explicit length aliases, mass and ratios.
             // Remaining measure families are rejected by typed admission, never guessed.
             Count(unit.declaration.value->span);
             if (m_nodes[Index(target)].dimensions != required)
