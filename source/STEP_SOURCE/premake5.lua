@@ -6,7 +6,7 @@ project "STEP_SOURCE"
     cppdialect "C++20"
     location (workspace_dir.."/%{prj.name}")
     files { "src/*.cpp", "inc/*.h" }
-    includedirs { root.."/source/STEP_SOURCE/inc" }
+    includedirs { root.."/source/STEP_SOURCE/inc", root.."/third_party/microsoft-gsl/include" }
     vpaths { [''] = "*.cpp" }
 
 project "step_inspect"

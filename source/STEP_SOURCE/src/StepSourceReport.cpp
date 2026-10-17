@@ -2,15 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepSourceReport.h"
 
+#include <gsl/assert>
+
 namespace step_source::report
 {
 void Writer::Add(std::string_view text)
 {
+    Expects(m_text.size() <= m_maximum);
     if (text.size() > m_maximum - m_text.size())
     {
         throw std::length_error("ReportByteLimit");
     }
     m_text.append(text);
+    Ensures(m_text.size() <= m_maximum);
 }
 void Writer::String(std::string_view text)
 {

@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <fstream>
+#include <gsl/pointers>
 #include <limits>
 #include <stdexcept>
 #include <unordered_map>
@@ -245,7 +246,7 @@ public:
 
 private:
 
-    std::shared_ptr<SourceData> m_data;
+    gsl::not_null<std::shared_ptr<SourceData>> m_data;
     InspectOutcome& m_result;
     std::size_t m_pos = 0;
     bool m_haveToken = false;

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <gsl/assert>
 
 namespace step_semantics
 {
@@ -135,6 +136,8 @@ SchemaIdentifier Identify(const step_source::Value& value)
 
 SchemaSelection SelectSchema(const step_source::SourceSnapshot& source)
 {
+    // An owning SourceSnapshot is published only after the raw HEADER shape checks.
+    Expects(source.Header().size() == 3);
     SchemaSelection selection;
     for (const auto& value : source.Header()[2].parameters[0].children)
     {

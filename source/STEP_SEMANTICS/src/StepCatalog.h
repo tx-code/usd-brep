@@ -5,6 +5,7 @@
 #include "StepSemantics.h"
 
 #include <bitset>
+#include <gsl/pointers>
 #include <span>
 #include <unordered_map>
 
@@ -47,7 +48,7 @@ struct Declaration
 };
 struct FieldBinding
 {
-    const Field* field;
+    gsl::not_null<const Field*> field;
     std::string_view origin;
 };
 struct Catalog

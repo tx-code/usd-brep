@@ -1,0 +1,26 @@
+{
+  "name": "Microsoft Guidelines Support Library",
+  "version": "5.0.1",
+  "license": "MIT",
+  "source": "https://github.com/microsoft/GSL",
+  "tag": "v5.0.1",
+  "commit": "fbd20b8e8c52cba04dbc869cc9068a7800a5665d",
+  "archive_url": "https://codeload.github.com/microsoft/GSL/zip/refs/tags/v5.0.1",
+  "archive_sha256": "90957b95687427754c973b2e176f598e79456ac53740592e7fa8f2b5cb5de764",
+  "scope": "Unmodified include/gsl headers, LICENSE and ThirdPartyNotices.txt; no runtime or upstream tests",
+  "files_sha256": {
+    "include/gsl/algorithm": "82449c00250b88f24c867050af67aa21a14178a064a5420aae6b7a820d729d1a",
+    "include/gsl/assert": "feedac3b49ac61bb04abb75d330ba87ca32001215993824f272da350dfae04f1",
+    "include/gsl/byte": "26ca1b782104db86fc9d3e0a214809928e818abd983c620fa3d7b75986c0ffe8",
+    "include/gsl/dyn_array": "7be1055fe7b58fc1cbb30268b8d20bbdaf243d2fd19d512989723d936ce102f0",
+    "include/gsl/gsl": "ae1e15422773408c6ae48d44b5b3ed0ba72f9a9bfb053d5c9dec3e26cb3a2b49",
+    "include/gsl/narrow": "32c0c10e78060072b30aa3942409c57e3f8ff8f06e14150ae8c0ec145f160c19",
+    "include/gsl/pointers": "04a9b7b3cfa4b9970fc78882eb8f0ef7f39c9ade65c2c00068b27ada94c3f087",
+    "include/gsl/span": "a53f7d95d2a312d36bd139d7e2d80c940b82bb69568805fc8670b98d1cd0a5ff",
+    "include/gsl/span_ext": "a3cf89eb41a515b4af683805677cafa6323e7d7c5bb3dd0c85b11d2bdd0ea4d6",
+    "include/gsl/util": "a55a7598da879cefb5f6ae37c40473fdd648389e1c1848bbb1ec23950dbe98ec",
+    "include/gsl/zstring": "bb5ffc12aae975786c1ce599fcdaa669f5e4551aba17259a32b5cbcb45663bf9",
+    "LICENSE": "4c21dc82a1c7186ea754fd59d504c00947953a3401fe8e24eaa44109ef8e2555",
+    "ThirdPartyNotices.txt": "691d94413053d5bda219c05f57739192b30c171db0925f3722604fe06f865d3b"
+  }
+}
