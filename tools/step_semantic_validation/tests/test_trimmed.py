@@ -51,8 +51,9 @@ class TrimmedSourceTests(unittest.TestCase):
                 self.assertEqual(0, run.returncode, run.stderr or result)
                 self.assertEqual(source.decode("ascii"), result["source"]["input"]["raw"])
                 record = next(r for r in result["snapshot"]["records"] if r["id"] == "202")
-                self.assertEqual(["name", "basis_curve", "trim_1", "trim_2", "sense_agreement", "master_representation"],
-                                 [a["name"] for a in record["attributes"]])
+                self.assertEqual(
+                    ["name", "basis_curve", "trim_1", "trim_2", "sense_agreement", "master_representation"],
+                    [a["name"] for a in record["attributes"]])
         for members in [(b"#100", b"#101"), (b"#100,PARAMETER_VALUE(0.0)", b"PARAMETER_VALUE(1.25),#101")]:
             source = trimmed_source(*members)
             run, result = self.invoke(source)
@@ -77,7 +78,8 @@ class TrimmedSourceTests(unittest.TestCase):
     def test_basis_reference_is_a_curve_and_dependency_cycles_are_rejected(self):
         source = trimmed_source()
         self.rejected(source.replace(b"TRIMMED_CURVE('',#950", b"TRIMMED_CURVE('',#133"), "ReferenceTypeMismatch")
-        self.rejected(source.replace(b"TRIMMED_CURVE('',#950", b"TRIMMED_CURVE('',#202"), "SourceGeometryDependencyViolation")
+        self.rejected(source.replace(b"TRIMMED_CURVE('',#950", b"TRIMMED_CURVE('',#202"),
+                      "SourceGeometryDependencyViolation")
         nested = (b"#950=TRIMMED_CURVE('',#202,(PARAMETER_VALUE(0.)),(PARAMETER_VALUE(1.)),.T.,.PARAMETER.);")
         self.rejected(source.replace(b"#950=ELLIPSE('source ellipse',#133,1.25,2.50);", nested),
                       "SourceGeometryDependencyViolation")

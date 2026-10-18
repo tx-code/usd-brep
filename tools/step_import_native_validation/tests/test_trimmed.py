@@ -56,12 +56,15 @@ class TrimmedNativeTests(unittest.TestCase):
                 data = trimmed_cylinder_source(sense)
                 run, result = self.invoke_bytes(data)
                 self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
-                self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=63 * math.pi * 2e-4)
+                self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"],
+                                       delta=63 * math.pi * 2e-4)
                 self.assertEqual((3, 3, 2), tuple(result["model"][k] for k in ["faces", "edges", "vertices"]))
                 self.assertEqual(data.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
                 traces = [x for x in result["parameter_mappings"] if x["kind"] == "TrimmedConicSourceDomain"]
                 self.assertEqual(1, len(traces))
-                self.assertEqual(("110", "114", "130"), (traces[0]["source_geometry"], traces[0]["source_basis_geometry"], traces[0]["source_use"]))
+                self.assertEqual(
+                    ("110", "114", "130"),
+                    (traces[0]["source_geometry"], traces[0]["source_basis_geometry"], traces[0]["source_use"]))
 
     def test_dual_representations_are_checked_even_when_parameter_is_master(self):
         source = trimmed_cylinder_source().replace(b"(PARAMETER_VALUE(0.0))", b"(PARAMETER_VALUE(0.0),#102)")
@@ -85,7 +88,8 @@ class TrimmedNativeTests(unittest.TestCase):
                 self.assertEqual({"pointer_reports": 0, "level2_reports": 0}, result["validations"])
 
     def test_source_trim_restriction_is_not_discarded_in_favour_of_edge_vertices(self):
-        source = trimmed_cylinder_source().replace(b"PARAMETER_VALUE(6.283185307179586)", b"PARAMETER_VALUE(3.141592653589793)")
+        source = trimmed_cylinder_source().replace(b"PARAMETER_VALUE(6.283185307179586)",
+                                                    b"PARAMETER_VALUE(3.141592653589793)")
         run, result = self.invoke_bytes(source)
         self.assertNotEqual(0, run.returncode)
         self.assertEqual("GeneralTrimmedClosedEdgeRequiresFullConic", result["diagnostics"][-1]["key"])
@@ -161,8 +165,9 @@ class TrimmedNativeTests(unittest.TestCase):
                 self.assertTrue(all(-2 * math.pi <= t <= 2 * math.pi for t in mapping["parameters"]["angle_range_rad"]))
                 trace = next(m for m in result["parameter_mappings"] if m["kind"] == "TrimmedConicSourceDomain")
                 parameters = trace["parameters"]
-                self.assertAlmostEqual(parameters["edge_basis_angle_branch_rad"][0] - parameters["native_chart_period_shift_rad"][0],
-                                       parameters["native_chart_angle_range_rad"][0], places=14)
+                self.assertAlmostEqual(
+                    parameters["edge_basis_angle_branch_rad"][0] - parameters["native_chart_period_shift_rad"][0],
+                    parameters["native_chart_angle_range_rad"][0], places=14)
                 self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"],
                                        delta=63 * math.pi * 2e-4)
 
