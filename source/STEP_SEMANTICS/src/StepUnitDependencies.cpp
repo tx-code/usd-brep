@@ -417,6 +417,37 @@ private:
             // AP214 DERIVE follows the factor unit's dimensions, not its numeric
             // magnitude and not an invented NAMED_UNIT.dimensions reference.
             node.dimensions = m_nodes[node.edges[0].target].dimensions;
+            if (m_data.profile.kind == ProfileKind::Ap214e3Source)
+            {
+                const auto& dimensions = Field(r, "dimensions");
+                if (dimensions.declaration.value->kind == step_source::ValueKind::Reference)
+                {
+                    // The checker bound this nonconforming reference only for
+                    // the explicit property-only mass exception. It is NOT an
+                    // AP214 transport value. Before retaining its marker error,
+                    // require its seven source exponents to agree with the
+                    // factor-derived vector; never hide contradictory metadata.
+                    const auto sourceDimensions = Target(*dimensions.declaration.value);
+                    Dimensions explicitDimensions;
+                    for (std::size_t i = 0; i < 7; ++i)
+                    {
+                        explicitDimensions[i] = Decimal(sourceDimensions, Field(sourceDimensions, DimensionFields[i]));
+                    }
+                    Count(dimensions.declaration.value->span);
+                    if (explicitDimensions != node.dimensions)
+                    {
+                        Fail(
+                            Status::Rejected,
+                            r,
+                            dimensions,
+                            "MetadataMassUnitDimensionsConflict",
+                            "factor-derived dimensional vector",
+                            "contradictory explicit source vector",
+                            "property-only compatibility guard; no contradictory unit dimensions retained"
+                        );
+                    }
+                }
+            }
             if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource)
             {
                 // N2635 keeps explicit NAMED_UNIT.dimensions, unlike AP214's

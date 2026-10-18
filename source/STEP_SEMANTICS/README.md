@@ -27,6 +27,9 @@ These are nonconforming source metadata, not clean units or repaired quantities.
 Unit cycles, wrong reference types, nonmass marker errors and dimensional
 contradictions remain fatal. Existing MRI value/unit errors keep their own
 original diagnostics and independent ownership checks.
+The retained explicit mass dimensions must equal the factor-derived vector;
+`MetadataMassUnitDimensionsConflict` is a project compatibility guard, not an
+invented AP214 WHERE clause.
 
 An explicit `GeometryScope::GeneralBrep` request also selects the separate
 `203e2-G0-Source-0.1` subset for the exact N2635 name/OID. The default P0 catalog,

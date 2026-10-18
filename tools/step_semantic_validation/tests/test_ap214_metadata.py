@@ -226,3 +226,13 @@ class Ap214MetadataTests(unittest.TestCase):
         self.assertEqual(1, run.returncode)
         self.assertEqual("ReferenceTypeMismatch", result["diagnostics"][0]["key"])
         self.assertIsNone(result["snapshot"])
+
+    def test_explicit_mass_dimensions_must_match_the_factor_before_quarantine(self):
+        data = property_mass_source(conversion=True).replace(
+            b"#960=DIMENSIONAL_EXPONENTS(0.,1.,0.,0.,0.,0.,0.)",
+            b"#960=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.)")
+        run, result = self.invoke(data, "--interop-nongeometric")
+        self.assertEqual(1, run.returncode)
+        self.assertEqual("MetadataMassUnitDimensionsConflict", result["diagnostics"][0]["key"])
+        self.assertIsNone(result["snapshot"])
+        self.assertEqual([], result["preserved_diagnostics"])
