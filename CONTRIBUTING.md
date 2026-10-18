@@ -86,6 +86,10 @@ layering notes, and binding conventions.
 
 ## Documentation
 
+Use [the documentation index and placement rules](docs/README.md). Keep durable
+contracts and usage guidance in the repository; put investigation notes, session
+tickets, execution receipts, and raw measurements under ignored `.local/` paths.
+
 Keep docs in sync with behavior. When adding or changing an operation, update
 the relevant operation guide and any public documentation that describes its
 arguments, defaults, mutation semantics, or safety constraints.

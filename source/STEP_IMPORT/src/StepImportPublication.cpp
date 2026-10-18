@@ -28,8 +28,8 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
     // their budget/failure points, then arbitrate against late cancellation.
     WriteReport();
     m_execution.Commit();
-    // docs/wayfinder/step-import/tickets/09-public-result.md requires one final
-    // arbitration: no allocation, callback or native operation after success.
+    // Publication contract: docs/design/step-import.md. After successful
+    // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
     m_outcome.model = std::move(m_prepared);
 }

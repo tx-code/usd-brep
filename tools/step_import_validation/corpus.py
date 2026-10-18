@@ -10,20 +10,19 @@ from pathlib import Path
 
 from . import FORMAT
 from .common import (
-    InvalidEvidence, checked_bytes, digest, file_ref, inside, load_json, parse_json, tool_identity, write_json,
+    DESIGN_DIRECTORY, InvalidEvidence, checked_bytes, digest, file_ref, inside, load_json, parse_json, tool_identity,
+    write_json,
 )
 from .fixtures import PROFILE, Q_ID, all_cases
 from .oracle import decode, exact, reference_truth, verify_input_definition
 from .records import inventory, ledger, nesting_depth
 from .reference import anchors
 
-SOURCE_DOCUMENTS = [
-    "docs/step-import-repair-spec.md", "docs/step-import/ap203e2-planar-profile.md",
-    "docs/step-import/ap203e2-planar-global-rules.md", "docs/step-import/ap203e2-planar-context-closure.md",
-    "docs/step-import/ap203e2-planar-geometry-closure.md", "docs/step-import/ap203e2-sample-design.md",
-    "docs/step-import/ap203e2-sample-plane.md", "docs/step-import/ap203e2-sample-box.md",
-    "docs/step-import/ap203e2-sample-cases.md", "docs/step-import/p0-planar-cases.md",
-]
+SOURCE_DOCUMENTS = [f"{DESIGN_DIRECTORY}/{name}" for name in (
+    "step-import-repair-spec.md", "ap203e2-planar-profile.md", "ap203e2-planar-global-rules.md",
+    "ap203e2-planar-context-closure.md", "ap203e2-planar-geometry-closure.md", "ap203e2-sample-design.md",
+    "ap203e2-sample-plane.md", "ap203e2-sample-box.md", "ap203e2-sample-cases.md", "p0-planar-cases.md",
+)]
 CASE_MATERIALS = {"input", "definition", "inventory", "truth", "assertions"}
 
 

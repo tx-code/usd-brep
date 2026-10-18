@@ -441,8 +441,8 @@ This stage implements:
 AP203 schema identity is the previously pinned MBx N2635 implementation artifact SHA256
 `c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088`.
 It is not represented as a certified ISO publication. See the
-[context](../../docs/step-import/ap203e2-planar-context-closure.md) and
-[geometry](../../docs/step-import/ap203e2-planar-geometry-closure.md) audit tables.
+[context](../../tools/step_import_validation/contracts/design/v1/ap203e2-planar-context-closure.md) and
+[geometry](../../tools/step_import_validation/contracts/design/v1/ap203e2-planar-geometry-closure.md) frozen audit tables.
 Serialization facts (REAL transport, BOOLEAN, SELECT, external facet ordering and
 explicit-to-derived markers) were checked against the editor-hosted
 [Part21 mapping clauses](https://www.steptools.com/stds/step/IS_final_p21e3.html#clause-12).

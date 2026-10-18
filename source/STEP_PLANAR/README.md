@@ -97,5 +97,6 @@ Exit codes: 0 checked source evidence; 1 source rejection; 2 upstream profile/tr
 4 input I/O; 5 report limit (no partial stdout); 6 infrastructure; 7 conversion deferred; 8 unestablished numeric/derived
 evidence; 64 invalid configuration. `UpstreamFailure` retains the preceding layer's precise diagnostic and exit code.
 
-Formal results and limitations: [ticket 04 acceptance](../../docs/step-import/ticket04-acceptance.md).
-Conversion dimensions, scale interpretation and unchanged SI regressions: [ticket 09 acceptance](../../docs/step-import/ticket09-acceptance.md).
+Reusable checks and their scope: [planar validation](../../tools/step_planar_validation/README.md).
+Source units and conversion contracts are documented here and in
+[STEP_SEMANTICS](../STEP_SEMANTICS/README.md); execution receipts stay local.

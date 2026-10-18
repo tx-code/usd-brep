@@ -1,7 +1,7 @@
-# AP203e2 ticket 01: synthetic inputs and independent evidence
+# AP203e2 synthetic inputs and independent evidence
 
-Standalone, standard-library Python 3.10+ tooling for the
-[01 implementation plan](../../.scratch/ap203e2-planar-import/plans/01-fixture-evidence-plan.md).
+Standalone, standard-library Python 3.10+ tooling using
+[versioned design inputs](contracts/README.md), separate from live documentation.
 It materializes 13 positive and 36 single-mutation negative fixtures, checks their
 actual bytes and independent rational definitions, and writes readable evidence.
 It does not invoke a product STEP reader, SMLib, OCCT, USD, or the external model library.

@@ -13,6 +13,8 @@ from fractions import Fraction
 from pathlib import Path
 import re
 
+from .common import DESIGN_DIRECTORY
+
 
 def rat(num: str | int, den: str | int = 1) -> dict:
     # Literal anchors are reviewed in this form; normalization is checked by oracle.
@@ -160,7 +162,7 @@ def anchors(repo: Path | None = None) -> dict:
 
 def author_literals(repo: Path, key: str) -> tuple[str, dict]:
     """Read author text, never the generator's constructed output or constants."""
-    text = (repo / "docs/step-import/ap203e2-sample-design.md").read_text(encoding="utf-8")
+    text = (repo / DESIGN_DIRECTORY / "ap203e2-sample-design.md").read_text(encoding="utf-8")
     fence = chr(96) * 3
     blocks = re.findall(fence + r"text\n(.*?)" + fence, text, re.S)
     header = next(block for block in blocks if block.startswith("ISO-10303-21;"))

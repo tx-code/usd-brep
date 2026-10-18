@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .common import InvalidEvidence
+from .common import DESIGN_DIRECTORY, InvalidEvidence
 
 PROFILE = "203e2-P0-Planar-0.1"
 Q_ID = "Q-P0-mm-01"
@@ -114,7 +114,7 @@ def box_records() -> list[str]:
 
 
 def positives(repo: Path) -> tuple[dict[str, bytes], dict[str, dict]]:
-    plane_path = repo / "docs/step-import/ap203e2-sample-plane.md"
+    plane_path = repo / DESIGN_DIRECTORY / "ap203e2-sample-plane.md"
     f1 = _document_records(plane_path, "#100=CARTESIAN_POINT")
     f2 = _document_records(plane_path, "#104=CARTESIAN_POINT")
     if len(f1) != 39 or len(f2) != 31:

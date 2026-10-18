@@ -69,11 +69,10 @@ development path. Each layer owns distinct evidence; consult its README for the 
   Acceptance evidence belongs to the owning read-only snapshot; modeling copies need their own validation.
   Separate contexts alone do not establish kernel thread safety.
 
-For STEP design changes, consult the relevant section of the
-[confirmed design baseline](docs/step-import-repair-spec.md). For implementation and validation claims, use current
-component contracts, code, and the applicable `docs/step-import/ticket*-acceptance.md` evidence; dated plans and
-proposals describe their recorded stage. Use [local tracker conventions](docs/wayfinder/README.md) when working on
-decision tickets and [benchmark guidance](tools/step_import_benchmark/README.md) for import profiling.
+For STEP design changes, consult the [design contract](docs/design/step-import.md). For implementation and validation
+claims, use current component contracts, code, and reusable contract tests; per-run receipts stay local.
+Use [benchmark guidance](tools/step_import_benchmark/README.md) for import profiling and the
+[catalog design](docs/design/step-catalog.md) for the selected compile-time migration.
 
 ## Python Quick Start and ownership
 
@@ -118,6 +117,7 @@ a focused local pass establishes its stated scope, not a full CI or production q
   Distinguish source requirements, project restrictions, derived evidence, and checks still unimplemented.
 - Agent guidance lives in `AGENTS.md` and `.agents/`. Keep this file focused on shared constraints and task pointers;
   place operation details in the matching guide and link new guides from `.agents/operations/INDEX.md`.
+  Follow [documentation placement](docs/README.md) for durable docs, frozen test inputs, and local work records.
   Remove a `KNOWN_ISSUES.md` entry when the change fixes it. For upstream merges or release work, use
   [FORK_MAINTENANCE.md](FORK_MAINTENANCE.md).
 - Include a [changeset](.changeset/README.md) with caller-visible fixes, features, or compatibility changes;

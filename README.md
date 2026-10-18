@@ -115,7 +115,7 @@ library search path when consuming an installed SDK.
 
 ## Maintenance and license
 
-See [fork maintenance](FORK_MAINTENANCE.md), [planar regions](docs/planar-regions.md),
+See [documentation](docs/README.md), [fork maintenance](FORK_MAINTENANCE.md), [planar regions](docs/planar-regions.md),
 and [agent guidance](AGENTS.md). Upstream copyright/license notices remain intact.
 SMLib is Apache-2.0; see [LICENSE](LICENSE) and
 [third-party notices](THIRD_PARTY_NOTICES.md).

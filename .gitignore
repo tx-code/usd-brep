@@ -7,6 +7,12 @@
 # Per-machine plans, handoffs and execution records.
 /.local/
 /.learning/
+/.scratch/
+
+# Session planning and raw evidence belong under .local/, not published docs.
+/docs/wayfinder/
+/docs/**/tickets/
+/docs/**/evidence/
 
 # Python environments, bytecode and tool caches.
 .venv/

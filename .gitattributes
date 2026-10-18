@@ -12,9 +12,7 @@
 /build.sh text eol=lf
 /prebuild.sh text eol=lf
 /tests.sh text eol=lf
-/.scratch/ap203e2-planar-import/** text eol=lf
 /docs/step-import/** text eol=lf
-/docs/step-import-repair-*.md text eol=lf
 /source/STEP_*/** text eol=lf
 /cmake/** text eol=lf
 /third_party/README.md text eol=lf
@@ -24,5 +22,6 @@
 /tools/step_evidence/** text eol=lf
 # Frozen evidence and schema witnesses are content-addressed byte artifacts.
 /tools/step_import_validation/corpus/** -text
+/tools/step_import_validation/contracts/design/** -text
 /tools/step_semantic_validation/contracts/** -text
 /tools/step_planar_validation/contracts/** -text

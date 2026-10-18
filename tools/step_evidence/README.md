@@ -51,6 +51,9 @@ $env:STEP_LEGACY_EVIDENCE='{"02":"<old-run02>","03":"<old-run03>","04":"<old-run
 python -m unittest tools.step_evidence.tests.test_packages -v
 ```
 
-Protocol changes and explicit acceptance scope: [refactor contract](../../docs/step-import/evidence-runner-refactor.md).
-The native report writer has its own [bounded-report contract](../../docs/step-import/report-mechanics-refactor.md).
-Worker cancellation, process hard limits and native model lifetime remain outside this refactor.
+The native report byte budget and source-position contract belong to
+[STEP_SOURCE](../../source/STEP_SOURCE/README.md). Report composition counts the
+complete serialized output; budget failure clears output rather than publishing
+partial JSON. Source positions use captured bytes, one-based lines and byte
+columns, with CRLF treated as one newline. Uncaptured source positions remain null.
+Worker cancellation, process hard limits and native model lifetime are separate contracts.

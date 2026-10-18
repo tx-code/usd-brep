@@ -10,6 +10,11 @@ import math
 from pathlib import Path
 
 
+# These historical documents are immutable generator inputs, separate from live
+# documentation. Keep canonical repo-relative paths in newly captured provenance.
+DESIGN_DIRECTORY = "tools/step_import_validation/contracts/design/v1"
+
+
 class InvalidEvidence(ValueError):
     def __init__(self, code: str, detail: object):
         self.code = code
