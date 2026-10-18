@@ -124,6 +124,7 @@ public:
             [&]
             {
                 Mapping();
+                CheckLegacyContextMapping();
                 Fields();
             }
         );
@@ -208,11 +209,15 @@ public:
         for (const auto& diagnostic : m_data->preservedDiagnostics)
         {
             const auto& key = diagnostic.source.key;
-            if (key == "RequiredAttributeMissing" || key == "ReferenceTypeMismatch" || key == "DerivedSlotMarkerRequired")
+            if (key == "RequiredAttributeMissing" || key == "ReferenceTypeMismatch" || key == "DerivedSlotMarkerRequired" ||
+                key == "UnsupportedEntityType")
             {
                 m_outcome.types = "CheckedWithDiagnostics";
             }
-            else if (key == "UnsupportedProductCategory" || key == "UnsupportedDefinitionContextRole" || key == "UnownedOrOrphanProfileContent")
+            else if (
+                key == "UnsupportedProductCategory" || key == "UnsupportedDefinitionContextRole" || key == "UnownedOrOrphanProfileContent" ||
+                key == "UnsupportedSinglePartGraph"
+            )
             {
                 m_outcome.part = "CheckedWithDiagnostics";
             }
@@ -268,6 +273,7 @@ private:
             case ProfileKind::Ap203e2GeneralSource:
                 return "N2635";
             case ProfileKind::Ap214e3Source:
+            case ProfileKind::Ap214MbxSource:
                 return "AP214E3_2010.exp";
         }
         throw std::logic_error("Unknown source profile authority");
@@ -330,6 +336,7 @@ private:
     std::vector<std::vector<std::size_t>> m_outgoing;
     std::vector<unsigned char> m_administrativeAttachments;
     std::vector<std::size_t> m_presentationRoots;
+    std::unordered_set<std::size_t> m_preservedStyleOverrides; // Proven style-only invalid references into the selected body.
     std::size_t m_context = 0;
     std::size_t m_representation = 0;
 
@@ -407,11 +414,11 @@ private:
             }
         );
     }
-    void Preserve(Failure failure)
+    void Preserve(Failure failure, SemanticData::PreservationProof proof = SemanticData::PreservationProof::ExistingMetadata)
     {
         // Capture the original strict diagnostic, not a replacement verdict. It
         // remains provisional until attachment and physical-dependency checks pass.
-        m_data->pendingIssues.push_back({ failure.status, std::move(failure.diagnostic) });
+        m_data->pendingIssues.push_back({ failure.status, std::move(failure.diagnostic), proof });
         // Fail marked the phase terminal. Restore it only for this provisional
         // issue; the final proof still precedes every typed snapshot publication.
         State(*m_phase) = Progress::Running;
@@ -534,6 +541,47 @@ private:
         m_data->catalog.emplace(&Schema(m_data->profile.kind));
     }
 
+    void CheckLegacyContextMapping()
+    {
+        if (m_data->profile.kind != ProfileKind::Ap214MbxSource)
+        {
+            return;
+        }
+        for (const auto name : { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT" })
+        {
+            for (const auto record : Population(name))
+            {
+                Visit(Record(record).span);
+                try
+                {
+                    // These nominal types are absent from the selected AP214
+                    // artifact. Keep that source error even when the separately
+                    // pinned N2635 transport layout lets us inspect their values.
+                    Fail(
+                        "UnsupportedEntityType",
+                        "D2",
+                        "Legacy context is outside the selected AP214 declarations",
+                        Record(record).span,
+                        Status::Unsupported,
+                        record,
+                        0,
+                        {},
+                        "AP214E3_2010.exp declaration",
+                        name,
+                        "AP214 source type membership"
+                    );
+                }
+                catch (Failure& failure)
+                {
+                    if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep)
+                    {
+                        throw;
+                    }
+                    Preserve(std::move(failure));
+                }
+            }
+        }
+    }
     void Mapping()
     {
         const auto& catalog = Schema(*m_data);
@@ -660,16 +708,15 @@ private:
                         "D2",
                         m_data->profile.kind == ProfileKind::Ap203e2GeneralSource ?
                             "Complete complex mapping is outside the selected N2635 general source signatures" :
-                        m_data->profile.kind == ProfileKind::Ap214e3Source ?
-                            "Complete complex mapping is outside the selected AP214 source signatures" :
-                            "Complete complex mapping is outside the six admitted signatures",
+                        IsAp214SourceProfile(m_data->profile.kind) ? "Complete complex mapping is outside the selected AP214 source signatures" :
+                                                                     "Complete complex mapping is outside the six admitted signatures",
                         records[r].span,
                         Status::Unsupported,
                         r,
                         0,
                         {},
                         m_data->profile.kind == ProfileKind::Ap203e2GeneralSource ? "registered N2635 general source signature" :
-                        m_data->profile.kind == ProfileKind::Ap214e3Source        ? "registered AP214 source signature" :
+                        IsAp214SourceProfile(m_data->profile.kind)                ? "registered AP214 source signature" :
                                                                                     "one of six signatures",
                         "other signature",
                         "profile mapping"
@@ -811,15 +858,19 @@ private:
                     {
                         failure.diagnostic.source.targetId = value.text;
                         failure.diagnostic.source.related.push_back(Record(UnboundTarget(value)).idSpan);
-                        // N2635 APPROVED_ITEM excludes PD/formation, although legacy
-                        // CC exports use those targets. Preserve the exact mismatch
-                        // provisionally ONLY for these administrative uses; selected
-                        // part identity and absence from physical dependencies must
-                        // be proved before the snapshot is allowed to publish.
+                        // N2635 APPROVED_ITEM excludes PD/formation; MBx exports
+                        // can also put a CLOSED_SHELL in a style-only override slot.
+                        // Both mismatches remain provisional source errors. Their
+                        // separate attachment and physical-exclusion proofs must
+                        // finish before any typed snapshot can publish.
                         const auto target = UnboundTarget(value);
-                        if (!Interoperability() || m_data->profile.kind != ProfileKind::Ap203e2GeneralSource || field.type != "APPROVED_ITEM" ||
-                            !IsA(*m_data, r, "CC_DESIGN_APPROVAL") ||
-                            (!IsA(*m_data, target, "PRODUCT_DEFINITION") && !IsA(*m_data, target, "PRODUCT_DEFINITION_FORMATION")))
+                        const bool approval = m_data->profile.kind == ProfileKind::Ap203e2GeneralSource && field.type == "APPROVED_ITEM" &&
+                                              IsA(*m_data, r, "CC_DESIGN_APPROVAL") &&
+                                              (IsA(*m_data, target, "PRODUCT_DEFINITION") || IsA(*m_data, target, "PRODUCT_DEFINITION_FORMATION"));
+                        const bool styleOverride = m_data->profile.kind == ProfileKind::Ap214MbxSource &&
+                                                   m_data->geometryScope == GeometryScope::GeneralBrep && field.name == "over_ridden_style" &&
+                                                   IsA(*m_data, r, "OVER_RIDING_STYLED_ITEM") && IsA(*m_data, target, "CLOSED_SHELL");
+                        if (!Interoperability() || (!approval && !styleOverride))
                         {
                             throw;
                         }
@@ -838,7 +889,7 @@ private:
                     Fail(
                         "UnsupportedMeasureBranch",
                         "D2",
-                        m_data->profile.kind == ProfileKind::Ap214e3Source ?
+                        IsAp214SourceProfile(m_data->profile.kind) ?
                             "This source profile consumes the registered length/mass/ratio measure families" :
                             "This profile consumes only the registered length measure family",
                         value.span,
@@ -846,7 +897,7 @@ private:
                         r,
                         c,
                         path,
-                        m_data->profile.kind == ProfileKind::Ap214e3Source ? "registered typed length/mass/ratio measure" : "typed length measure",
+                        IsAp214SourceProfile(m_data->profile.kind) ? "registered typed length/mass/ratio measure" : "typed length measure",
                         value.text,
                         "profile measure SELECT guard"
                     );
@@ -1029,7 +1080,7 @@ private:
                                 // final approval must prove property ownership and
                                 // absence from every physical dependency. Never
                                 // rewrite it to '*' or use it as a derived value.
-                                if (!Interoperability() || m_data->profile.kind != ProfileKind::Ap214e3Source || field.name != "dimensions" ||
+                                if (!Interoperability() || !IsAp214SourceProfile(m_data->profile.kind) || field.name != "dimensions" ||
                                     value.kind != ValueKind::Reference || !IsA(*m_data, r, "CONVERSION_BASED_UNIT") || !IsA(*m_data, r, "MASS_UNIT"))
                                 {
                                     throw;
@@ -1255,7 +1306,27 @@ private:
     }
     void Product()
     {
-        const auto ac = One("APPLICATION_CONTEXT"), apd = One("APPLICATION_PROTOCOL_DEFINITION"), pc = One("PRODUCT_CONTEXT");
+        const auto ac = One("APPLICATION_CONTEXT");
+        std::optional<std::size_t> apd;
+        try
+        {
+            apd = One("APPLICATION_PROTOCOL_DEFINITION");
+        }
+        catch (Failure& failure)
+        {
+            // The precise HEADER already selected this source subset. An
+            // absent administrative APD is not a replacement geometry root.
+            // Keep the exact strict guard diagnostic; do not invent its year,
+            // status or schema claim from HEADER/application text.
+            if (m_data->profile.kind != ProfileKind::Ap214MbxSource || !Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                !Population("APPLICATION_PROTOCOL_DEFINITION").empty())
+            {
+                throw;
+            }
+            m_data->part.applicationProtocolPresent = false;
+            Preserve(std::move(failure), SemanticData::PreservationProof::MissingApplicationProtocol);
+        }
+        const auto pc = One("PRODUCT_CONTEXT");
         const auto pdc = One("PRODUCT_DEFINITION_CONTEXT"), product = One("PRODUCT"), formation = One("PRODUCT_DEFINITION_FORMATION");
         const auto pd = One("PRODUCT_DEFINITION"), pds = One("PRODUCT_DEFINITION_SHAPE"), sdr = One("SHAPE_DEFINITION_REPRESENTATION");
         std::size_t definitionRepresentation = 0;
@@ -1276,8 +1347,8 @@ private:
             m_context = One("REPRESENTATION_CONTEXT");
             definitionRepresentation = m_representation;
         }
+        m_data->part.roles.reserve(11);
         m_data->part.roles = { { "application_context", ac },
-                               { "application_protocol", apd },
                                { "product_context", pc },
                                { "definition_context", pdc },
                                { "product", product },
@@ -1287,12 +1358,19 @@ private:
                                { "shape_definition_representation", sdr },
                                { "representation", m_representation },
                                { "unit_context", m_context } };
+        if (apd)
+        {
+            m_data->part.roles.insert(m_data->part.roles.begin() + 1, { "application_protocol", *apd });
+        }
         if (shapeRelationship)
         {
             m_data->part.roles.push_back({ "definition_representation", definitionRepresentation });
             m_data->part.roles.push_back({ "shape_representation_relationship", *shapeRelationship });
         }
-        Link(apd, "application", ac);
+        if (apd)
+        {
+            Link(*apd, "application", ac);
+        }
         Link(pc, "frame_of_reference", ac);
         Link(pdc, "frame_of_reference", ac);
         if (FieldValue(product, "frame_of_reference").children.size() != 1)
@@ -1316,9 +1394,12 @@ private:
         Link(sdr, "definition", pds);
         Link(sdr, "used_representation", definitionRepresentation);
         Link(m_representation, "context_of_items", m_context);
-        m_data->part.apdStatus = FieldValue(apd, "status").text;
-        m_data->part.apdSchemaClaim = FieldValue(apd, "application_interpreted_model_schema_name").text;
-        m_data->part.apdYear = FieldValue(apd, "application_protocol_year").text; // APD global RULE is ticket 04; never substitute HEADER text here.
+        if (apd)
+        {
+            m_data->part.apdStatus = FieldValue(*apd, "status").text;
+            m_data->part.apdSchemaClaim = FieldValue(*apd, "application_interpreted_model_schema_name").text;
+            m_data->part.apdYear = FieldValue(*apd, "application_protocol_year").text;
+        }
         if (IsA(*m_data, pc, "MECHANICAL_CONTEXT") && FieldValue(pc, "discipline_type").text != "mechanical")
         {
             FieldFailure(
@@ -1719,6 +1800,145 @@ private:
         }
         m_data->part.propertyAttachments = std::move(attached);
     }
+    void AttachGeneralPropertyAssociations()
+    {
+        if (m_data->profile.kind != ProfileKind::Ap214MbxSource)
+        {
+            return;
+        }
+        const auto& associations = Population("GENERAL_PROPERTY_ASSOCIATION");
+        if (associations.empty())
+        {
+            return;
+        }
+        std::vector<std::size_t> roots;
+        for (const auto& role : m_data->part.roles)
+        {
+            roots.push_back(role.recordIndex);
+        }
+        const auto owned = Reach(std::move(roots), false);
+        std::unordered_set<std::size_t> attachedProperties;
+        for (const auto& attachment : m_data->part.propertyAttachments)
+        {
+            Visit(Record(attachment.propertyDefinition).span);
+            attachedProperties.insert(attachment.propertyDefinition);
+        }
+        std::unordered_map<std::size_t, std::size_t> counts;
+        for (const auto record : associations)
+        {
+            Visit(Record(record).span);
+            ++counts[Target(FieldValue(record, "derived_definition"))];
+        }
+        for (const auto record : associations)
+        {
+            const auto& derived = FieldValue(record, "derived_definition");
+            const auto target = Target(derived);
+            const auto base = Target(FieldValue(record, "base_definition"));
+            Visit(derived.span);
+            // Evaluate the two actual source WHERE predicates independently of
+            // attachment. A duplicate target is not repaired by keeping one link.
+            if (counts.at(target) != 1)
+            {
+                FieldFailure(
+                    "SourceRuleViolation:GENERAL_PROPERTY_ASSOCIATION.WR1",
+                    "D3",
+                    "Derived property must have one general-property association",
+                    derived.span,
+                    Status::Rejected,
+                    record,
+                    "derived_definition",
+                    FieldDetail::AttributePath,
+                    "one association",
+                    std::to_string(counts.at(target)),
+                    "AP214E3_2010.exp GENERAL_PROPERTY_ASSOCIATION.WR1"
+                );
+            }
+            if (FieldValue(base, "name").text != FieldValue(target, "name").text)
+            {
+                FieldFailure(
+                    "SourceRuleViolation:GENERAL_PROPERTY_ASSOCIATION.WR2",
+                    "D3",
+                    "General and derived property names differ",
+                    derived.span,
+                    Status::Rejected,
+                    record,
+                    "derived_definition",
+                    FieldDetail::AttributePath,
+                    FieldValue(base, "name").text,
+                    FieldValue(target, "name").text,
+                    "AP214E3_2010.exp GENERAL_PROPERTY_ASSOCIATION.WR2"
+                );
+            }
+            // The association is inverse metadata. Only a property already
+            // attached by a proven PDR may receive it; do not make an orphan
+            // PROPERTY_DEFINITION a part root through this link.
+            if (!owned[target] || !attachedProperties.contains(target))
+            {
+                FieldFailure(
+                    "UnsupportedGeneralPropertyAttachment",
+                    "D2",
+                    "General property target is not an attached selected-part property",
+                    derived.span,
+                    Status::Unsupported,
+                    record,
+                    "derived_definition",
+                    FieldDetail::AttributePath
+                );
+            }
+        }
+        // Grant roots only after every source rule and ownership check passes.
+        for (const auto record : associations)
+        {
+            m_data->part.roles.push_back({ "general_property_association_" + std::to_string(record), record });
+        }
+    }
+    void CheckStyleOverrideCycles()
+    {
+        if (m_data->profile.kind != ProfileKind::Ap214MbxSource)
+        {
+            return;
+        }
+        const auto& overrides = Population("OVER_RIDING_STYLED_ITEM");
+        if (overrides.empty())
+        {
+            return;
+        }
+        // Check the complete admitted population, including detached metadata.
+        // A presentation root is an ownership fact, not permission to ignore a
+        // cycle elsewhere. Iterative colours keep long shared chains linear.
+        std::vector<unsigned char> colour(m_data->types.size());
+        for (const auto start : overrides)
+        {
+            std::vector<std::size_t> path;
+            auto current = start;
+            while (IsA(*m_data, current, "OVER_RIDING_STYLED_ITEM") && colour[current] != 2)
+            {
+                colour[current] = 1;
+                path.push_back(current);
+                const auto& link = FieldValue(current, "over_ridden_style");
+                Visit(link.span);
+                const auto next = Target(link);
+                if (colour[next] == 1)
+                {
+                    FieldFailure(
+                        "UnsupportedPresentationOverrideCycle",
+                        "D2",
+                        "Cyclic style override is outside the presentation subset",
+                        link.span,
+                        Status::Unsupported,
+                        current,
+                        "over_ridden_style",
+                        FieldDetail::SpanOnly
+                    );
+                }
+                current = next;
+            }
+            for (const auto record : path)
+            {
+                colour[record] = 2;
+            }
+        }
+    }
     void AttachAp214Presentations()
     {
         std::vector<std::size_t> items;
@@ -1768,6 +1988,58 @@ private:
                         "profile presentation attachment guard"
                     );
                 }
+                if (IsA(*m_data, styled, "OVER_RIDING_STYLED_ITEM"))
+                {
+                    // Every ancestor style must target the same selected body
+                    // closure. Following the override reference without this
+                    // proof could otherwise grant ownership to foreign geometry.
+                    auto current = styled;
+                    while (IsA(*m_data, current, "OVER_RIDING_STYLED_ITEM"))
+                    {
+                        const auto owner = current;
+                        const auto& ancestor = FieldValue(current, "over_ridden_style");
+                        Visit(ancestor.span);
+                        current = Target(ancestor);
+                        if (!IsA(*m_data, current, "STYLED_ITEM"))
+                        {
+                            // Some source files put the selected CLOSED_SHELL in
+                            // the style-only override slot. Keep the original type
+                            // error; do not reinterpret the shell as an ancestor
+                            // style or change either geometric reference.
+                            if (m_data->profile.kind == ProfileKind::Ap214MbxSource && Interoperability() && IsA(*m_data, current, "CLOSED_SHELL") &&
+                                bodyUse[current])
+                            {
+                                m_preservedStyleOverrides.insert(owner);
+                                break;
+                            }
+                            FieldFailure(
+                                "UnsupportedPresentationAttachment",
+                                "D2",
+                                "Invalid override target is outside the selected body",
+                                ancestor.span,
+                                Status::Unsupported,
+                                owner,
+                                "over_ridden_style",
+                                FieldDetail::AttributePath
+                            );
+                        }
+                        const auto& ancestorItem = FieldValue(current, "item");
+                        Visit(ancestorItem.span);
+                        if (!bodyUse[Target(ancestorItem)])
+                        {
+                            FieldFailure(
+                                "UnsupportedPresentationAttachment",
+                                "D2",
+                                "Overridden style targets geometry outside the selected body",
+                                ancestorItem.span,
+                                Status::Unsupported,
+                                current,
+                                "item",
+                                FieldDetail::AttributePath
+                            );
+                        }
+                    }
+                }
             }
             // Retain the presentation's own context and complete style chain through
             // source references. Its context never replaces the body's unit context.
@@ -1801,7 +2073,7 @@ private:
                 candidates.push_back(r);
             }
         }
-        if (m_data->profile.kind == ProfileKind::Ap214e3Source && candidates.empty())
+        if (IsAp214SourceProfile(m_data->profile.kind) && candidates.empty())
         {
             return; // Existing AP214 files pay no visits for an absent new feature.
         }
@@ -1930,13 +2202,15 @@ private:
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             AttachAp214Properties();
+            AttachGeneralPropertyAssociations();
+            CheckStyleOverrideCycles();
             AttachAp214Presentations();
         }
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             AttachAdministrativeMetadata();
         }
-        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        if (IsAp214SourceProfile(m_data->profile.kind))
         {
             CheckAp214RenderingValues();
         }
@@ -2099,8 +2373,41 @@ private:
         for (auto& issue : m_data->pendingIssues)
         {
             Visit(issue.diagnostic.source.primary);
+            if (issue.proof == SemanticData::PreservationProof::MissingApplicationProtocol)
+            {
+                // Part/closure and physical units completed without an APD
+                // dependency. No such record or role is manufactured. This
+                // preserves a failed profile guard, not AP214 global-rule conformance.
+                if (m_data->profile.kind != ProfileKind::Ap214MbxSource || m_data->part.applicationProtocolPresent ||
+                    !Population("APPLICATION_PROTOCOL_DEFINITION").empty() || State(Phase::Part) != Progress::Passed)
+                {
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (key == "UnsupportedEntityType")
+            {
+                // A foreign context descriptor is never a new root. Product()
+                // must have proved this very PC/PDC is the selected part's
+                // unique context, and it must be absent from physical closure.
+                const bool selected = std::any_of(
+                    m_data->part.roles.begin(),
+                    m_data->part.roles.end(),
+                    [&](const auto& role)
+                    {
+                        return role.recordIndex == record && ((role.name == "product_context" && IsA(*m_data, record, "MECHANICAL_CONTEXT")) ||
+                                                              (role.name == "definition_context" && IsA(*m_data, record, "DESIGN_CONTEXT")));
+                    }
+                );
+                if (m_data->profile.kind != ProfileKind::Ap214MbxSource || !selected || physical[record])
+                {
+                    State(Phase::Types) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+            }
             if (key == "DerivedSlotMarkerRequired" || key == "SourceRuleViolation:SI_UNIT.WR1")
             {
                 // Only proven property-item dependencies can retain these two
@@ -2137,6 +2444,21 @@ private:
             }
             if (key == "ReferenceTypeMismatch")
             {
+                if (issue.diagnostic.field == "over_ridden_style")
+                {
+                    if (!presentationUse)
+                    {
+                        presentationUse = Reach(m_presentationRoots, false);
+                    }
+                    if (m_data->profile.kind != ProfileKind::Ap214MbxSource || !m_preservedStyleOverrides.contains(record) ||
+                        !(*presentationUse)[record] || physical[record])
+                    {
+                        State(Phase::Types) = FailureProgress(issue.status);
+                        State(Phase::Interoperability) = FailureProgress(issue.status);
+                        throw Failure{ issue.status, std::move(issue.diagnostic) };
+                    }
+                    continue;
+                }
                 const auto target = IndexOf(*m_data, issue.diagnostic.source.targetId);
                 const bool selected = std::any_of(
                     m_data->part.roles.begin(),

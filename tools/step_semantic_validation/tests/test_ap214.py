@@ -58,6 +58,85 @@ class Ap214Tests(unittest.TestCase):
         self.assertEqual("NotRun", result["checks"]["global_rules_47"])
         self.assertEqual("NotRun", result["checks"]["native_build"])
 
+    def test_mbx_published_identifier_has_its_own_artifact_binding(self):
+        # MBx-IF's AP214 Ed.3 download table publishes this eight-arc spelling,
+        # while its linked EXPRESS header identifies version(3). Preserve the
+        # literal and distinguish this binding from an inferred edition alias.
+        literal = b"AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }"
+        data = ap214_source((CORPUS / "S203-P01/input.step").read_bytes()).replace(AP214, literal)
+        run, result = self.invoke(data)
+        self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+        self.assertEqual("Checked", result["status"])
+        self.assertEqual(data.decode("ascii"), result["source"]["input"]["raw"])
+        identity, = result["schema_selection"]["identifiers"]
+        self.assertEqual(literal.decode(), identity["literal"])
+        self.assertEqual(["1", "0", "10303", "214", "1", "1", "1", "1"], identity["oid"])
+        self.assertEqual("ap214-mbx-2010", identity["registry_id"])
+        begin, end = identity["span"]
+        self.assertEqual(b"'" + literal + b"'", data[begin:end])
+        qualified = result["schema_selection"]["qualified_profile"]
+        self.assertEqual("ap214-mbx-2010", qualified["registry_id"])
+        self.assertEqual("214-MBx2010-Source-0.1", qualified["profile"])
+        self.assertEqual(AP214_SHA, qualified["express_sha256"])
+        self.assertEqual([1, 0, 10303, 214, 1, 1, 1, 1], result["snapshot"]["schema"]["oid"])
+        self.assertEqual("NotRun", result["checks"]["global_rules_47"])
+        self.assertEqual("NotRun", result["checks"]["native_build"])
+        old_run, old = self.invoke(data.replace(literal, AP214))
+        self.assertEqual(0, old_run.returncode)
+        for field in ("part", "units"):
+            self.assertEqual(old["snapshot"][field], result["snapshot"][field])
+        populations = result["snapshot"]["type_populations"].copy()
+        self.assertEqual([], populations.pop("MECHANICAL_CONTEXT"))
+        self.assertEqual([], populations.pop("DESIGN_CONTEXT"))
+        for name in ("GENERAL_PROPERTY", "GENERAL_PROPERTY_ASSOCIATION", "OVER_RIDING_STYLED_ITEM", "PRESENTATION_LAYER_ASSIGNMENT"):
+            self.assertEqual([], populations.pop(name))
+        self.assertEqual(old["snapshot"]["type_populations"], populations)
+        self.assertEqual(old["statistics"]["dependency_visits"], result["statistics"]["dependency_visits"])
+
+    def test_foreign_legacy_contexts_require_explicit_scope_and_ownership(self):
+        data = ap214_source((CORPUS / "S203-P10/input.step").read_bytes()).replace(
+            AP214, b"AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1}")
+        for options in ((), ("--general-brep-source",), ("--interop-nongeometric",)):
+            with self.subTest(options=options):
+                run, result = self.invoke(data, *options)
+                self.assertEqual(2, run.returncode)
+                self.assertEqual("UnsupportedEntityType", result["diagnostics"][0]["key"])
+                self.assertIsNone(result["snapshot"])
+        run, result = self.invoke(data, "--general-brep-source", "--interop-nongeometric")
+        self.assertEqual(0, run.returncode, result.get("diagnostics"))
+        self.assertEqual(data.decode("ascii"), result["source"]["input"]["raw"])
+        issues = [x for x in result["preserved_diagnostics"] if x["key"] == "UnsupportedEntityType"]
+        self.assertEqual({"MECHANICAL_CONTEXT", "DESIGN_CONTEXT"}, {x["actual"] for x in issues})
+        self.assertEqual("CheckedWithDiagnostics", result["checks"]["type_fields"])
+        bad = data.replace(b"MECHANICAL_CONTEXT('',#1,'mechanical')", b"MECHANICAL_CONTEXT('',#1,'electrical')")
+        self.assertNotEqual(data, bad)
+        run, rejected = self.invoke(bad, "--general-brep-source", "--interop-nongeometric")
+        self.assertEqual(1, run.returncode)
+        self.assertEqual("SourceRuleViolation:MECHANICAL_CONTEXT.WR1", rejected["diagnostics"][0]["key"])
+        self.assertIsNone(rejected["snapshot"])
+        # The original artifact-backed seven-arc profile must stay closed.
+        run, result = self.invoke(data.replace(b"AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1}", AP214),
+                                  "--general-brep-source", "--interop-nongeometric")
+        self.assertEqual(2, run.returncode)
+        self.assertEqual("UnsupportedEntityType", result["diagnostics"][0]["key"])
+
+    def test_published_binding_does_not_accept_oid_prefixes_or_change_type_checks(self):
+        original = ap214_source((CORPUS / "S203-P01/input.step").read_bytes())
+        for literal in (b"AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 01}",
+                        b"AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1 1}",
+                        b"automotive_design {1 0 10303 214 1 1 1 1}"):
+            with self.subTest(literal=literal):
+                run, result = self.invoke(original.replace(AP214, literal))
+                self.assertEqual(2, run.returncode)
+                self.assertEqual("UnsupportedSchemaBinding", result["diagnostics"][0]["key"])
+                self.assertIsNone(result["schema_selection"]["qualified_profile"])
+        data = original.replace(AP214, b"AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1}")
+        run, result = self.invoke(data.replace(b".METRE.", b".UNKNOWN."))
+        self.assertEqual(1, run.returncode)
+        self.assertIsNone(result["snapshot"])
+        self.assertEqual("EnumerationValueInvalid", result["diagnostics"][0]["key"])
+        self.assertEqual("fixed AP214E3_2010.exp enumeration", result["diagnostics"][0]["responsibility"])
+
     def test_conversion_dimensions_remain_a_derived_source_marker(self):
         data = converted_ap214_source()
         run, result = self.invoke(data)

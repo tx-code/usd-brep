@@ -212,7 +212,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         else
         {
             out.String(
-                result.snapshot && result.snapshot->SelectedProfile().kind == ProfileKind::Ap214e3Source ?
+                result.snapshot && (result.snapshot->SelectedProfile().kind == ProfileKind::Ap214e3Source ||
+                                    result.snapshot->SelectedProfile().kind == ProfileKind::Ap214MbxSource) ?
                     "Ap214ConversionUnitEvaluationNotRun" :
                     "ConversionLengthInterpretationPendingTicket09"
             );
@@ -483,11 +484,32 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             out.Add("]");
         }
         out.Add(",\"shape_geometry_verified\":false,\"apd_status\":");
-        out.String(data.PartDefinition().apdStatus);
+        if (data.PartDefinition().applicationProtocolPresent)
+        {
+            out.String(data.PartDefinition().apdStatus);
+        }
+        else
+        {
+            out.Add("null");
+        }
         out.Add(",\"apd_schema_claim\":");
-        out.String(data.PartDefinition().apdSchemaClaim);
+        if (data.PartDefinition().applicationProtocolPresent)
+        {
+            out.String(data.PartDefinition().apdSchemaClaim);
+        }
+        else
+        {
+            out.Add("null");
+        }
         out.Add(",\"apd_year_lexeme\":");
-        out.String(data.PartDefinition().apdYear);
+        if (data.PartDefinition().applicationProtocolPresent)
+        {
+            out.String(data.PartDefinition().apdYear);
+        }
+        else
+        {
+            out.Add("null");
+        }
         out.Add(",\"apd_global_rule\":\"NotRun\",\"inverse_roles\":{\"ac_context_elements\":");
         std::vector<std::size_t> owners;
         const auto findRole = [&](std::string_view name)

@@ -49,7 +49,12 @@ struct Version
 constexpr std::array versions{ Version{ SchemaName, "1 0 10303 403 2 1 2", "ap203e2-n2635" },
                                Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 1 1 1", "ap214-edition-1" },
                                Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 2 1 1", "ap214-edition-2" },
-                               Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 3 1 1", "ap214-edition-3" } };
+                               Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 3 1 1", "ap214-edition-3" },
+                               // MBx-IF's EXPRESS Schemas table binds this exact eight-arc identifier
+                               // to AP214E3_2010.zip. The linked file's own header instead declares
+                               // version(3), so give the published binding a distinct identity. Never
+                               // drop an arc, infer an edition, or rewrite the captured HEADER.
+                               Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 1 1 1 1", "ap214-mbx-2010" } };
 
 SchemaIdentifier Identify(const step_source::Value& value)
 {
@@ -152,6 +157,12 @@ SchemaSelection SelectSchema(const step_source::SourceSnapshot& source)
         // This artifact-backed profile implements source declarations only. Planar validation must
         // still refuse it until AP214-specific local/global rules have their own implementation.
         selection.qualified = QualifiedSchemaProfile{ "ap214-edition-3", Ap214SourceProfile, Ap214SchemaSha256, ProfileKind::Ap214e3Source };
+    }
+    else if (selection.identifiers.size() == 1 && selection.identifiers.front().registryId == "ap214-mbx-2010")
+    {
+        // Only the same audited declaration subset is selected. This publisher-backed
+        // binding does not certify an ISO edition or enable the AP203 planar rules.
+        selection.qualified = QualifiedSchemaProfile{ "ap214-mbx-2010", Ap214MbxSourceProfile, Ap214SchemaSha256, ProfileKind::Ap214MbxSource };
     }
     return selection;
 }

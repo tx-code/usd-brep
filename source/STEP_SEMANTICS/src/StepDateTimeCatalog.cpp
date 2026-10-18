@@ -23,7 +23,7 @@ constexpr std::string_view Ap214DateItems[] = { "PRODUCT",
 void AddDateTimeDeclarations(Catalog& catalog, ProfileKind profile)
 {
     const bool ap203 = profile == ProfileKind::Ap203e2GeneralSource;
-    if (!ap203 && profile != ProfileKind::Ap214e3Source)
+    if (!ap203 && !IsAp214SourceProfile(profile))
     {
         throw std::logic_error("Date transport requires an explicit general source profile");
     }

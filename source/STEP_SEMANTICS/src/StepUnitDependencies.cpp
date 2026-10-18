@@ -401,8 +401,7 @@ private:
                             // Its dimensions are already known (mass), so retain
                             // the original prefix/error provisionally for a
                             // nonphysical property; never change GRAM to KILO.
-                            if (m_data.profile.kind != ProfileKind::Ap214e3Source || m_data.policy != SourcePolicy::PreserveNonGeometric ||
-                                text != "GRAM")
+                            if (!IsAp214SourceProfile(m_data.profile.kind) || m_data.policy != SourcePolicy::PreserveNonGeometric || text != "GRAM")
                             {
                                 throw;
                             }
@@ -417,7 +416,7 @@ private:
             // AP214 DERIVE follows the factor unit's dimensions, not its numeric
             // magnitude and not an invented NAMED_UNIT.dimensions reference.
             node.dimensions = m_nodes[node.edges[0].target].dimensions;
-            if (m_data.profile.kind == ProfileKind::Ap214e3Source)
+            if (IsAp214SourceProfile(m_data.profile.kind))
             {
                 const auto& dimensions = Field(r, "dimensions");
                 if (dimensions.declaration.value->kind == step_source::ValueKind::Reference)

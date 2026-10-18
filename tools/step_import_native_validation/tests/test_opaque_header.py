@@ -66,8 +66,10 @@ class OpaqueHeaderNativeTests(unittest.TestCase):
         self.assertEqual(2, run.returncode)
         self.assertIsNone(report)
 
-    def test_unknown_old_oid_is_not_relabelled_as_supported_ap214(self):
-        data = legacy_header().replace(b"1 0 10303 214 3 1 1", b"1 0 10303 214 1 1 1 1")
+    def test_unregistered_eight_arc_oid_is_not_relabelled_as_supported_ap214(self):
+        # MBx's exact eight-arc version(1) now has its own published binding.
+        # Adding an arc to version(3) must still not inherit either catalog.
+        data = legacy_header().replace(b"1 0 10303 214 3 1 1", b"1 0 10303 214 3 1 1 1")
         run, report = self.invoke(data, FLAG, "--interop-nongeometric")
         self.assertEqual(2, run.returncode)
         self.assertEqual("Inspected", report["source_inspection"]["source"]["status"])
@@ -75,6 +77,14 @@ class OpaqueHeaderNativeTests(unittest.TestCase):
         self.assertIsNone(report["model"])
         selection = report["source_inspection"]["schema_selection"]
         self.assertIsNone(selection["qualified_profile"])
+
+    def test_exact_mbx_binding_and_opaque_header_are_independent_selections(self):
+        data = legacy_header().replace(b"1 0 10303 214 3 1 1", b"1 0 10303 214 1 1 1 1")
+        run, report = self.invoke(data, FLAG, "--interop-nongeometric")
+        self.assertEqual(0, run.returncode, run.stderr or report)
+        self.assertIsNotNone(report["source_inspection"]["schema_selection"]["qualified_profile"])
+        self.assertEqual(data, report["source_inspection"]["source"]["input"]["raw"].encode("latin1"))
+        self.assertAlmostEqual(6000, report["model"]["material_volume"]["value_mm3"], places=5)
 
     def test_raw_data_bytes_and_bad_references_still_block_before_native(self):
         for data in [

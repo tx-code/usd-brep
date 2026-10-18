@@ -3,6 +3,7 @@
 #include "StepCatalog.h"
 
 #include "StepAp203GeneralCatalog.h"
+#include "StepAp214MbxCatalog.h"
 #include "StepAp214PresentationCatalog.h"
 #include "StepDateTimeCatalog.h"
 #include "StepRationalSplineCatalog.h"
@@ -355,7 +356,7 @@ Catalog::Catalog(ProfileKind profile)
         { "DERIVED_UNIT_ELEMENT", {}, {} },
     };
     derivedSlots.assign(std::begin(CommonDerivedSlots), std::end(CommonDerivedSlots));
-    if (profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap203e2GeneralSource)
+    if (profile != ProfileKind::Ap203e2Planar)
     {
         // Compared transport declarations in pinned AP214E3_2010.exp and N2635:
         // DERIVED_UNIT/ELEMENT replace guard-only entries before pointers bind.
@@ -391,20 +392,26 @@ Catalog::Catalog(ProfileKind profile)
         measureBranches.push_back("RATIO_MEASURE");
         measureBranches.push_back("POSITIVE_RATIO_MEASURE");
         declarations.push_back({ "MASS_MEASURE_WITH_UNIT", { "MEASURE_WITH_UNIT" }, {}, true });
-        if (profile == ProfileKind::Ap214e3Source)
+        if (IsAp214SourceProfile(profile))
         {
             // These two deprecated AP203 types do not occur in the pinned AP214e3 artifact.
-            declarations.erase(
-                std::remove_if(
-                    declarations.begin(),
-                    declarations.end(),
-                    [](const Declaration& declaration)
-                    {
-                        return declaration.name == "MECHANICAL_CONTEXT" || declaration.name == "DESIGN_CONTEXT";
-                    }
-                ),
-                declarations.end()
-            );
+            // The separately identified MBx subset retains their N2635 transport
+            // descriptors only for a later explicit interoperability proof. Strict
+            // checks still reject every such record before binding its fields.
+            if (profile != ProfileKind::Ap214MbxSource)
+            {
+                declarations.erase(
+                    std::remove_if(
+                        declarations.begin(),
+                        declarations.end(),
+                        [](const Declaration& declaration)
+                        {
+                            return declaration.name == "MECHANICAL_CONTEXT" || declaration.name == "DESIGN_CONTEXT";
+                        }
+                    ),
+                    declarations.end()
+                );
+            }
             // AP214E3_2010.exp, CONVERSION_BASED_UNIT DERIVE: dimensions is transmitted as '*'.
             // The source value stays a marker; this descriptor must not invent the factor unit's dimensions reference.
             derivedSlots.push_back({ "CONVERSION_BASED_UNIT", "NAMED_UNIT", "dimensions" });
@@ -517,10 +524,14 @@ Catalog::Catalog(ProfileKind profile)
     {
         AddAp203GeneralDeclarations(*this);
     }
-    if (profile == ProfileKind::Ap214e3Source)
+    if (IsAp214SourceProfile(profile))
     {
         AddDateTimeDeclarations(*this, profile);
         AddAp214RenderingDeclarations(*this);
+    }
+    if (profile == ProfileKind::Ap214MbxSource)
+    {
+        AddAp214MbxDeclarations(*this);
     }
     if (profile != ProfileKind::Ap203e2Planar)
     {
@@ -709,6 +720,11 @@ const Catalog& Schema(ProfileKind profile)
         case ProfileKind::Ap214e3Source:
         {
             static const Catalog catalog(ProfileKind::Ap214e3Source);
+            return catalog;
+        }
+        case ProfileKind::Ap214MbxSource:
+        {
+            static const Catalog catalog(ProfileKind::Ap214MbxSource);
             return catalog;
         }
     }

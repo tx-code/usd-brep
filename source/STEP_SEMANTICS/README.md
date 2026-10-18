@@ -1,5 +1,38 @@
 # STEP source semantics: ticket 03
 
+The exact `AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1}` identifier selects
+`214-MBx2010-Source-0.1`, with registry identity `ap214-mbx-2010`. The
+[MBx-IF EXPRESS download table](https://www.mbx-if.org/home/mbx/resources/express-schemas/)
+lists this spelling for its AP214E3_2010 archive. Its pinned EXPRESS header instead
+states version(3), so this binding deliberately retains a separate identity and
+the original eight arcs, rather than inferring an ISO edition or removing an arc.
+It uses the same audited source declarations/hash as the existing seven-arc
+AP214e3 subset. Neighboring OIDs, name-only declarations and other editions do not
+inherit this binding; global rules and native qualification remain separate.
+
+Only this separate MBx subset has compatibility transport for legacy
+`MECHANICAL_CONTEXT` / `DESIGN_CONTEXT` fields from pinned N2635. Strict checking
+rejects those foreign types. Explicit general-BRep interoperability may preserve
+the original type errors after validating their fields and proving that each is
+the selected product/definition context, outside physical dependencies. They are
+not relabelled as current AP214 types. The existing seven-arc subset stays closed.
+
+The MBx subset also registers general-property associations, overriding styled
+items and RI presentation layers from the pinned AP214 artifact. Associations
+check their actual WR1/WR2 and attach only to an already proven selected-part
+property; inverse links never grant property ownership. Every overridden style
+must target the body's existing RI closure; cycles are explicitly unsupported.
+An invalid override reference to the selected `CLOSED_SHELL` may be retained only
+under explicit general-BRep interoperability, after proving both the style's
+presentation attachment and its exclusion from physical inputs. The original
+`ReferenceTypeMismatch`, raw reference and shell remain unchanged; the shell is
+never interpreted as an ancestor style. Strict mode still rejects it.
+The same explicit MBx interoperability scope may retain the original failed
+single-APD guard when no APD record exists. The remaining unique product chain
+and physical-unit checks must still complete. No APD role is created; status,
+schema claim and year are null/unavailable in JSON. The AP214 APD-required global
+rule is not thereby satisfied or qualified, and multiple APDs remain unsupported.
+
 The explicit general N2635/AP214 subsets admit rational B-spline curves and
 surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and

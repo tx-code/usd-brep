@@ -11,6 +11,10 @@
 
 namespace step_semantics
 {
+constexpr bool IsAp214SourceProfile(ProfileKind profile) noexcept
+{
+    return profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap214MbxSource;
+}
 using TypeMembership = std::bitset<256>;
 enum class FieldKind
 {
@@ -102,10 +106,16 @@ struct BoundRecord
 };
 struct SemanticData
 {
+    enum class PreservationProof
+    {
+        ExistingMetadata,
+        MissingApplicationProtocol
+    };
     struct PendingIssue
     {
         Status status;
         Diagnostic diagnostic;
+        PreservationProof proof = PreservationProof::ExistingMetadata;
     };
     SourcePolicy policy = SourcePolicy::Strict;
     GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
