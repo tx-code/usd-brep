@@ -120,3 +120,6 @@ a focused local pass establishes its stated scope, not a full CI or production q
   place operation details in the matching guide and link new guides from `.agents/operations/INDEX.md`.
   Remove a `KNOWN_ISSUES.md` entry when the change fixes it. For upstream merges or release work, use
   [FORK_MAINTENANCE.md](FORK_MAINTENANCE.md).
+- Include a [changeset](.changeset/README.md) with caller-visible fixes, features, or compatibility changes;
+  internal refactors and documentation-only edits need none. Use the
+  [release process](docs/release/RELEASE_PROCESS.md) when preparing release records or a version update.

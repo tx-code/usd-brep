@@ -130,6 +130,16 @@ if(SMLIB_BUILD_VALIDATION)
     target_link_libraries(SM_API_test_app PRIVATE SM_API)
     add_test(NAME sm_api COMMAND SM_API_test_app)
     set_tests_properties(sm_api PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tests/SM_API_test")
+    # Release-note checks use only the host interpreter, including native-only
+    # validation builds. The production SDK keeps its existing dependencies.
+    if(NOT SMLIB_BUILD_PYTHON)
+        find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+    endif()
+    add_test(NAME changesets COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tools/agent/changesets.py" check)
+    add_test(NAME changesets_contracts COMMAND "${Python3_EXECUTABLE}"
+        -m unittest tools.agent.tests.test_changesets -v)
+    set_tests_properties(changesets changesets_contracts PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
     if(SMLIB_BUILD_PYTHON)
         add_test(NAME python_geometry COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_SOURCE_DIR}/tools/agent/run_geometry_tests.py" --runtime "$<TARGET_FILE_DIR:_omni_solid>")

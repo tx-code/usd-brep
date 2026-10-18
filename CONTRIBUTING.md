@@ -49,6 +49,22 @@ If you change Python bindings, include tests under `source/SmPyLib/tests/`.
 If you change C++ kernel, SM_API, or USD bridge behavior, include focused
 coverage near the affected layer where practical.
 
+## Pending Release Notes
+
+Include a [changeset](.changeset/README.md) with each caller-visible fix, feature,
+or compatibility change, together with the code and affected API/usage docs.
+Internal refactors and documentation-only edits need no note. Validate pending
+notes without building the SDK:
+
+```shell
+python tools/agent/changesets.py check
+```
+
+Validation-enabled CTest also runs this check and its contract tests. Keep daily
+changes in pending notes; the [release process](docs/release/RELEASE_PROCESS.md)
+describes reviewing and consuming them into release records. Note categories do
+not select or bump versions.
+
 ## Code Style
 
 - C++ uses the repository `.clang-format` configuration.
