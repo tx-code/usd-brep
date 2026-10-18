@@ -248,8 +248,10 @@ class Ap214GeometryTests(unittest.TestCase):
     def test_other_profiles_and_rational_forms_do_not_gain_implicit_support(self):
         self.failed(geometry_source().replace(AP214, AP203), "UnsupportedEntityType", 2)
         data = geometry_source("B_SPLINE_SURFACE_WITH_KNOTS")
+        # The rational declaration is known, but only its explicit-knot complex
+        # mapping is admitted. A renamed simple record cannot inherit support.
         self.failed(data.replace(b"B_SPLINE_SURFACE_WITH_KNOTS(", b"RATIONAL_B_SPLINE_SURFACE("),
-                    "UnsupportedEntityType", 2)
+                    "UnsupportedEntityMapping", 2)
 
     def test_new_geometry_field_declarations_match_literal_source_contract(self):
         run, result = self.invoke(geometry_source("B_SPLINE_SURFACE_WITH_KNOTS"))
