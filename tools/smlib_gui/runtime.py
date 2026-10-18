@@ -15,15 +15,10 @@ SCRIPT_DIR = os.path.join(REPO, "tools", "scripts")
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-import view_usd  # noqa: E402
+import smlib_runtime  # noqa: E402
 
-view_usd._ensure_usd_runtime_env()
-
-_CONFIG = view_usd._pick_config(REPO)
-_PLATFORM = view_usd._pick_platform()
-_BUILD_BIN = os.path.join(REPO, "_build", _PLATFORM, _CONFIG)
-if os.path.isdir(_BUILD_BIN) and _BUILD_BIN not in sys.path:
-    sys.path.insert(0, _BUILD_BIN)
+smlib_runtime.ensure_runtime_env(REPO)
+_BUILD_BIN = smlib_runtime.runtime_directory(REPO)
 
 try:
     import _omni_solid as sm  # noqa: E402

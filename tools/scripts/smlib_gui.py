@@ -4,10 +4,10 @@
 
 """Launch the SMLib Python GUI.
 
-When run as a script, this defaults to debug SMLib and USD binaries so kernel
+When run as a script, this defaults to debug SMLib binaries so kernel
 ``Dump()`` text and C++ breakpoints work. Pass ``--release`` to use the release
 build instead. Importing this module (smoke tests, re-exports) still auto-picks
-an existing build via ``view_usd._pick_config``.
+an existing build via ``smlib_runtime._pick_config``.
 """
 
 from __future__ import annotations
@@ -44,30 +44,25 @@ def _prepend_env_path(name: str, paths: list[str]) -> None:
 
 def _apply_build_env(config: str) -> str:
     plat = _pick_platform()
-    build_bin = os.path.join(REPO, "_build", plat, config)
-    usd_lib = os.path.join(REPO, "_build", "target-deps", "usd", config, "lib")
-    usd_bin = os.path.join(REPO, "_build", "target-deps", "usd", config, "bin")
+    build_bin = os.environ.get("SMLIB_RUNTIME_DIR") or os.path.join(REPO, "_build", plat, config)
     python_lib = os.path.join(REPO, "_build", "target-deps", "python", "lib")
     python_root = os.path.join(REPO, "_build", "target-deps", "python")
-    plugin = os.path.join(REPO, "_build", "schema", "omniSolid", "resources")
 
     _prepend_env_path("PYTHONPATH", [build_bin, REPO])
     if sys.platform == "win32":
-        _prepend_env_path("PATH", [build_bin, usd_lib, usd_bin, python_root])
+        _prepend_env_path("PATH", [build_bin, python_root])
         if hasattr(os, "add_dll_directory"):
-            for directory in (build_bin, usd_lib, usd_bin, python_root):
+            for directory in (build_bin, python_root):
                 if os.path.isdir(directory):
                     try:
                         os.add_dll_directory(directory)
                     except (OSError, FileNotFoundError):
                         pass
     elif sys.platform == "darwin":
-        _prepend_env_path("DYLD_LIBRARY_PATH", [build_bin, usd_lib, python_lib])
+        _prepend_env_path("DYLD_LIBRARY_PATH", [build_bin, python_lib])
     else:
-        _prepend_env_path("LD_LIBRARY_PATH", [build_bin, usd_lib, python_lib])
+        _prepend_env_path("LD_LIBRARY_PATH", [build_bin, python_lib])
 
-    if os.path.isdir(plugin):
-        os.environ.setdefault("OMNISOLID_PLUGIN_PATH", plugin)
 
     os.environ["SMLIB_BUILD_CONFIG"] = config
     return build_bin
@@ -75,12 +70,12 @@ def _apply_build_env(config: str) -> str:
 
 def _parse_launch_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
-        description="Launch the SMLib Python GUI (debug SMLib/USD binaries by default)."
+        description="Launch the SMLib Python GUI (debug SMLib binaries by default)."
     )
     parser.add_argument(
         "--release",
         action="store_true",
-        help="use release SMLib/USD binaries instead of the default debug build",
+        help="use release SMLib binaries instead of the default debug build",
     )
     parser.add_argument(
         "--wait-for-lldb",
@@ -226,18 +221,12 @@ else:
         LOAD_FILE_FILTER,
         SAVE_FILE_FILTER,
         SUPPORTED_LOAD_EXTENSIONS,
-        occt_brep_io_available,
-        brep_usd_io_available,
         ensure_extension_for_filter,
         export_native_brep,
-        export_occt_brep,
-        export_usd_objects,
         extension_for_filter,
         file_kind_for_path,
         import_file_objects,
         import_native_brep_object,
-        import_occt_brep_objects,
-        import_usd_objects,
         native_brep_file_is_ascii,
         native_brep_load_unavailable_reason,
     )
@@ -363,7 +352,6 @@ else:
         "_split_args",
         "apply_boolean_operation",
         "apply_modify_operation",
-        "brep_usd_io_available",
         "boolean_source_line",
         "brep_edge_highlight_from_edge",
         "brep_edgeuse_highlight",
@@ -376,14 +364,10 @@ else:
         "brep_loopuse_highlight",
         "brep_vertex_highlight",
         "export_native_brep",
-        "export_occt_brep",
-        "export_usd_objects",
         "execute_script",
         "discover_model_files",
         "import_native_brep_object",
         "import_file_objects",
-        "import_occt_brep_objects",
-        "import_usd_objects",
         "LineOverlay",
         "LOAD_FILE_FILTER",
         "main",
@@ -393,7 +377,6 @@ else:
         "native_brep_load_unavailable_reason",
         "native_brep_file_is_ascii",
         "np",
-        "occt_brep_io_available",
         "object_summary_text",
         "objects_to_pyvista",
         "objects_to_pyvista_batches",

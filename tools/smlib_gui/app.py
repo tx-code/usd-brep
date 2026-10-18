@@ -23,12 +23,8 @@ from .operations.file_io import (
     SAVE_FILE_FILTER,
     ensure_extension_for_filter,
     export_native_brep,
-    export_occt_brep,
-    export_usd_objects,
     file_kind_for_path,
     import_native_brep_object,
-    import_occt_brep_objects,
-    import_usd_objects,
 )
 from .operations.modify import apply_modify_operation
 from .operations.overlays import (
@@ -1306,41 +1302,19 @@ class MainWindow(QtWidgets.QMainWindow):
     def _load_file(self, filename: str, selected_filter: str = "") -> list[ActiveObject]:
         filename = ensure_extension_for_filter(filename, selected_filter)
         kind = file_kind_for_path(filename)
-        if kind == "usd":
-            return self._import_usd_file(filename)
         if kind in ("smb", "smp"):
             return self._import_native_brep_file(filename)
-        if kind == "occt_brep":
-            return self._import_occt_brep_file(filename)
         self._status_bar.setText(f"Load error: unsupported file type for {filename}.")
         return []
 
     def _save_file(self, filename: str, selected_filter: str = "") -> bool:
         filename = ensure_extension_for_filter(filename, selected_filter)
         kind = file_kind_for_path(filename)
-        if kind == "usd":
-            return self._export_usd_file(filename) > 0
         if kind == "smb":
             return self._save_selected_native_brep(filename)
-        if kind == "occt_brep":
-            return self._save_selected_occt_brep(filename)
         self._status_bar.setText(f"Save error: unsupported file type for {filename}.")
         return False
 
-    def _import_usd_file(self, filename: str) -> list[ActiveObject]:
-        try:
-            objects = import_usd_objects(filename)
-        except Exception as exc:
-            self._status_bar.setText(f"Import error: {exc}")
-            return []
-        self._objects = objects
-        self._current_source = ""
-        self._selected_object_id = objects[0].object_id if objects else None
-        self._clear_topology_selection()
-        self._retessellate_and_display(reset_camera=True)
-        self._rebuild_object_list(self._selected_object_id)
-        self._status_bar.setText(f"Imported {len(objects)} object(s) from {filename}.")
-        return objects
 
     def _import_native_brep_file(self, filename: str) -> list[ActiveObject]:
         try:
@@ -1357,29 +1331,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status_bar.setText(f"Loaded {len(objects)} native BRep object(s) from {filename}.")
         return objects
 
-    def _import_occt_brep_file(self, filename: str) -> list[ActiveObject]:
-        try:
-            objects = import_occt_brep_objects(filename)
-        except Exception as exc:
-            self._status_bar.setText(f"Load error: {exc}")
-            return []
-        self._objects = objects
-        self._current_source = ""
-        self._selected_object_id = objects[0].object_id if objects else None
-        self._clear_topology_selection()
-        self._retessellate_and_display(reset_camera=True)
-        self._rebuild_object_list(self._selected_object_id)
-        self._status_bar.setText(f"Loaded {len(objects)} OpenCASCADE BRep object(s) from {filename}.")
-        return objects
 
-    def _export_usd_file(self, filename: str) -> int:
-        try:
-            count = export_usd_objects(self._objects, filename)
-        except Exception as exc:
-            self._status_bar.setText(f"Export error: {exc}")
-            return 0
-        self._status_bar.setText(f"Exported {count} object(s) to {filename}.")
-        return count
 
     def _save_selected_native_brep(self, filename: str) -> bool:
         obj = self._selected_object()
@@ -1394,18 +1346,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status_bar.setText(f"Saved {obj.name} to {filename}.")
         return True
 
-    def _save_selected_occt_brep(self, filename: str) -> bool:
-        obj = self._selected_object()
-        if obj is None:
-            self._status_bar.setText("Select a BRep before saving.")
-            return False
-        try:
-            export_occt_brep(obj, filename)
-        except Exception as exc:
-            self._status_bar.setText(f"Save error: {exc}")
-            return False
-        self._status_bar.setText(f"Saved {obj.name} to OpenCASCADE BRep {filename}.")
-        return True
 
     def _apply_boolean_operation(self, operation: str) -> ActiveObject | None:
         selected_ids = self._selected_object_ids_from_list()

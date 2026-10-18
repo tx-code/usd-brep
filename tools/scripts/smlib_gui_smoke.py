@@ -597,30 +597,6 @@ def _assert_no_active_topology_overlays(window, topology_kinds: set[str]) -> Non
         raise SmokeFailure(f"unexpected active transient topology overlays: {active}")
 
 
-def _run_usd_schema_discovery_smoke() -> None:
-    previous_plugin_path = os.environ.get("OMNISOLID_PLUGIN_PATH")
-    try:
-        with tempfile.TemporaryDirectory(prefix="smlib_gui_schema_") as tmpdir:
-            invalid_resource_dir = os.path.join(tmpdir, "omniSolid", "resources")
-            os.makedirs(invalid_resource_dir, exist_ok=True)
-            with open(os.path.join(invalid_resource_dir, "generatedSchema.usda"), "w", encoding="utf-8") as file:
-                file.write("version https://git-lfs.github.com/spec/v1\n")
-
-            os.environ["OMNISOLID_PLUGIN_PATH"] = invalid_resource_dir
-            resolved = gui_file_io.omnisolid_plugin_path()
-            if not resolved:
-                raise SmokeFailure("OmniSolid schema discovery did not recover from an invalid env path")
-            if os.path.abspath(resolved) == os.path.abspath(invalid_resource_dir):
-                raise SmokeFailure("OmniSolid schema discovery accepted an invalid generatedSchema.usda")
-            if not gui_file_io._valid_omnisolid_resource_dir(resolved):
-                raise SmokeFailure(f"OmniSolid schema discovery returned an invalid path: {resolved}")
-            if os.environ.get("OMNISOLID_PLUGIN_PATH") != resolved:
-                raise SmokeFailure("OmniSolid schema discovery did not update OMNISOLID_PLUGIN_PATH")
-    finally:
-        if previous_plugin_path is None:
-            os.environ.pop("OMNISOLID_PLUGIN_PATH", None)
-        else:
-            os.environ["OMNISOLID_PLUGIN_PATH"] = previous_plugin_path
 
 
 def _run_in_process_test_smoke(window, app) -> None:
@@ -952,7 +928,6 @@ def run_smoke(show: bool, timeout_ms: int) -> None:
         raise
 
     smlib_gui.pv.global_theme.allow_empty_mesh = True
-    _run_usd_schema_discovery_smoke()
     _run_split_args_smoke()
     _run_user_test_catalog_smoke()
     _run_mesh_batch_smoke()
@@ -1157,43 +1132,6 @@ def run_smoke(show: bool, timeout_ms: int) -> None:
                 file.write("//Brep Starts\n")
             if not smlib_gui.native_brep_file_is_ascii(legacy_header_file):
                 raise SmokeFailure("legacy native BRep header was not detected as ASCII")
-
-            usd_path = os.path.join(tmpdir, "part")
-            usd_file = usd_path + ".usda"
-            usd_roundtrip = smlib_gui.brep_usd_io_available()
-            if usd_roundtrip:
-                if not window._save_file(usd_path, "USD ASCII (*.usda)"):
-                    raise SmokeFailure(f"USD export failed; status={window._status_bar.text()!r}")
-                if not os.path.isfile(usd_file) or os.path.getsize(usd_file) <= 0:
-                    raise SmokeFailure("USD export did not create a non-empty file")
-
-                imported = window._load_file(usd_file)
-                app.processEvents()
-                if not imported or not window._objects:
-                    raise SmokeFailure(f"USD import produced no active objects; status={window._status_bar.text()!r}")
-                if window._object_list.count() != len(window._objects):
-                    raise SmokeFailure("object list mismatch after USD import")
-
-                if not smlib_gui.occt_brep_io_available():
-                    raise SmokeFailure("OCCT BRep converters are unavailable after a full GUI/USD setup")
-                corpus_occt_file = os.path.join(smlib_gui.REPO, "TestFiles", "occt_breps", "box.brep")
-                loaded_occt = window._load_file(corpus_occt_file)
-                app.processEvents()
-                if len(loaded_occt) != 1 or loaded_occt[0].kind != "Brep":
-                    raise SmokeFailure(f"OCCT BRep load failed; status={window._status_bar.text()!r}")
-
-                occt_path = os.path.join(tmpdir, "part_occt")
-                occt_file = occt_path + ".brep"
-                if not window._save_file(occt_path, "OpenCASCADE BRep (*.brep)"):
-                    raise SmokeFailure(f"OCCT BRep save failed; status={window._status_bar.text()!r}")
-                if not os.path.isfile(occt_file) or os.path.getsize(occt_file) <= 0:
-                    raise SmokeFailure("OCCT BRep save did not create a non-empty file")
-                reloaded_occt = window._load_file(occt_file)
-                app.processEvents()
-                if len(reloaded_occt) != 1 or reloaded_occt[0].kind != "Brep":
-                    raise SmokeFailure(f"OCCT BRep reload failed; status={window._status_bar.text()!r}")
-            elif window._save_file(usd_path, "USD ASCII (*.usda)"):
-                raise SmokeFailure("USD export unexpectedly succeeded without OmniSolid schema resources")
 
             nested_dir = Path(tmpdir) / "nested"
             nested_dir.mkdir()
