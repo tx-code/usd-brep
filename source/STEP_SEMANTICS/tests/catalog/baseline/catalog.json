@@ -3590,7 +3590,8 @@
         "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
-        "TOROIDAL_SURFACE"
+        "TOROIDAL_SURFACE",
+        "TRIMMED_CURVE"
       ],
       "name_index": [
         {
@@ -4104,6 +4105,10 @@
         {
           "name": "TOROIDAL_SURFACE",
           "id": 132
+        },
+        {
+          "name": "TRIMMED_CURVE",
+          "id": 133
         },
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
@@ -10028,6 +10033,110 @@
               "local_field_index": 1
             }
           ]
+        },
+        {
+          "id": 133,
+          "name": "TRIMMED_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "basis_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_1",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_2",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sense_agreement",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "master_representation",
+              "type": "TRIMMING_PREFERENCE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            133
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 4
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -10140,6 +10249,12 @@
           "branches": [
             "REPRESENTATION_ITEM"
           ]
+        },
+        {
+          "name": "TRIMMING_SELECT",
+          "branches": [
+            "CARTESIAN_POINT"
+          ]
         }
       ],
       "enumerations": [
@@ -10234,6 +10349,14 @@
             "AHEAD",
             "EXACT",
             "BEHIND"
+          ]
+        },
+        {
+          "name": "TRIMMING_PREFERENCE",
+          "branches": [
+            "CARTESIAN",
+            "PARAMETER",
+            "UNSPECIFIED"
           ]
         }
       ],
@@ -10549,7 +10672,8 @@
         "CURVE_STYLE",
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
-        "TOROIDAL_SURFACE"
+        "TOROIDAL_SURFACE",
+        "TRIMMED_CURVE"
       ],
       "name_index": [
         {
@@ -10995,6 +11119,10 @@
         {
           "name": "TOROIDAL_SURFACE",
           "id": 114
+        },
+        {
+          "name": "TRIMMED_CURVE",
+          "id": 115
         },
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
@@ -16161,6 +16289,110 @@
               "local_field_index": 1
             }
           ]
+        },
+        {
+          "id": 115,
+          "name": "TRIMMED_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "basis_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_1",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_2",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sense_agreement",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "master_representation",
+              "type": "TRIMMING_PREFERENCE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            89,
+            115
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 115,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 115,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 115,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 115,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 115,
+              "local_field_index": 4
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16245,6 +16477,12 @@
           "name": "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT",
           "branches": [
             "PRE_DEFINED_CURVE_FONT"
+          ]
+        },
+        {
+          "name": "TRIMMING_SELECT",
+          "branches": [
+            "CARTESIAN_POINT"
           ]
         }
       ],
@@ -16349,6 +16587,14 @@
             "COLOUR_SHADING",
             "DOT_SHADING",
             "NORMAL_SHADING"
+          ]
+        },
+        {
+          "name": "TRIMMING_PREFERENCE",
+          "branches": [
+            "CARTESIAN",
+            "PARAMETER",
+            "UNSPECIFIED"
           ]
         }
       ],
@@ -16661,7 +16907,8 @@
         "PRESENTATION_LAYER_ASSIGNMENT",
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
-        "TOROIDAL_SURFACE"
+        "TOROIDAL_SURFACE",
+        "TRIMMED_CURVE"
       ],
       "name_index": [
         {
@@ -17131,6 +17378,10 @@
         {
           "name": "TOROIDAL_SURFACE",
           "id": 120
+        },
+        {
+          "name": "TRIMMED_CURVE",
+          "id": 121
         },
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
@@ -22606,6 +22857,110 @@
               "local_field_index": 1
             }
           ]
+        },
+        {
+          "id": 121,
+          "name": "TRIMMED_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "basis_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_1",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_2",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sense_agreement",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "master_representation",
+              "type": "TRIMMING_PREFERENCE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            121
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 121,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 121,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 121,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 121,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 121,
+              "local_field_index": 4
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -22702,6 +23057,12 @@
           "name": "LAYERED_ITEM",
           "branches": [
             "REPRESENTATION_ITEM"
+          ]
+        },
+        {
+          "name": "TRIMMING_SELECT",
+          "branches": [
+            "CARTESIAN_POINT"
           ]
         }
       ],
@@ -22806,6 +23167,14 @@
             "COLOUR_SHADING",
             "DOT_SHADING",
             "NORMAL_SHADING"
+          ]
+        },
+        {
+          "name": "TRIMMING_PREFERENCE",
+          "branches": [
+            "CARTESIAN",
+            "PARAMETER",
+            "UNSPECIFIED"
           ]
         }
       ],

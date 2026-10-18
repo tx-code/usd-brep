@@ -65,6 +65,8 @@ std::string_view Kind(FieldKind kind)
             return "Measure";
         case FieldKind::SizeSelect:
             return "SizeSelect";
+        case FieldKind::TrimmingSelect:
+            return "TrimmingSelect";
     }
     throw std::logic_error("Unserialized FieldKind");
 }

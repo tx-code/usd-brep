@@ -43,6 +43,7 @@ public:
     void Run()
     {
         Expects(m_data.bindingsComplete);
+        std::vector<std::size_t> trimmed;
         for (std::size_t r = 0; r < m_data.fields.size(); ++r)
         {
             const auto& record = m_data.source->Records()[r];
@@ -113,7 +114,32 @@ public:
             {
                 Weights(r, true);
             }
+            if (IsA(r, "TRIMMED_CURVE"))
+            {
+                trimmed.push_back(r);
+                for (const auto name : { "trim_1", "trim_2" })
+                {
+                    const auto& bound = Field(r, name);
+                    const auto& value = *bound.declaration.value;
+                    Count(value.span);
+                    // The closed profiles admit only CARTESIAN_POINT and typed
+                    // PARAMETER_VALUE, so their different ValueKinds represent
+                    // exactly the two possible TYPEOF sets in WR1/WR2.
+                    if (value.children.size() == 2 && value.children[0].kind == value.children[1].kind)
+                    {
+                        Fail(
+                            r,
+                            bound,
+                            value,
+                            name == std::string_view("trim_1") ? "TRIMMED_CURVE.WR1" : "TRIMMED_CURVE.WR2",
+                            "different SELECT member types",
+                            "same SELECT member type"
+                        );
+                    }
+                }
+            }
         }
+        TrimmedClosure(trimmed);
     }
 
 private:
@@ -127,6 +153,54 @@ private:
         Entity,
         Type
     };
+    void TrimmedClosure(std::span<const std::size_t> roots)
+    {
+        if (roots.empty())
+        {
+            return;
+        }
+        // Entity-reference nesting has no lexical depth limit. Iterative
+        // three-colour traversal proves finite basis dependencies without
+        // recursing on an attacker-controlled chain or repeatedly walking it.
+        std::vector<unsigned char> state(m_data.types.size(), 0);
+        std::vector<std::size_t> path;
+        for (const auto root : roots)
+        {
+            if (state[root] == 2)
+            {
+                continue;
+            }
+            path.clear();
+            auto current = root;
+            while (IsA(current, "TRIMMED_CURVE") && state[current] != 2)
+            {
+                const auto& bound = Field(current, "basis_curve");
+                const auto& value = *bound.declaration.value;
+                Count(value.span);
+                if (state[current] == 1)
+                {
+                    Fail(
+                        current,
+                        bound,
+                        value,
+                        "TRIMMED_CURVE.basis_curve",
+                        "finite basis dependency chain",
+                        "cycle",
+                        {},
+                        true,
+                        "project necessary geometry dependency closure"
+                    );
+                }
+                state[current] = 1;
+                path.push_back(current);
+                current = m_data.referenceTargets.at(&value);
+            }
+            for (const auto record : path)
+            {
+                state[record] = 2;
+            }
+        }
+    }
     bool IsA(std::size_t r, std::string_view type) const
     {
         const auto index = Schema(m_data).Find(type);
@@ -162,7 +236,8 @@ private:
         std::string expected,
         std::string actual,
         std::vector<std::size_t> suffix = {},
-        bool dependency = false
+        bool dependency = false,
+        std::string_view authorityOverride = {}
     )
     {
         const auto& record = m_data.source->Records()[r];
@@ -186,6 +261,10 @@ private:
         issue.actual = std::move(actual);
         issue.responsibility = std::string(m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ? "N2635 " : "AP214E3_2010.exp ") +
                                std::string(clause);
+        if (!authorityOverride.empty())
+        {
+            issue.responsibility = authorityOverride;
+        }
         throw Stop{ std::move(issue) };
     }
     void Weights(std::size_t r, bool surface)

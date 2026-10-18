@@ -59,6 +59,8 @@ constexpr std::string_view SurfaceForms[] = { "PLANE_SURF",    "CYLINDRICAL_SURF
                                               "TOROIDAL_SURF", "SURF_OF_REVOLUTION",       "RULED_SURF",   "GENERALISED_CONE",
                                               "QUADRIC_SURF",  "SURF_OF_LINEAR_EXTRUSION", "UNSPECIFIED" };
 constexpr std::string_view KnotTypes[] = { "UNIFORM_KNOTS", "QUASI_UNIFORM_KNOTS", "PIECEWISE_BEZIER_KNOTS", "UNSPECIFIED" };
+constexpr std::string_view TrimmingPreferences[] = { "CARTESIAN", "PARAMETER", "UNSPECIFIED" };
+constexpr std::string_view TrimmingPoints[] = { "CARTESIAN_POINT" };
 
 // Empty is the explicit absent-prefix interpretation, never a guessed source unit.
 constexpr SiPrefix Prefixes[] = { { "", 0 },       { "EXA", 18 },  { "PETA", 15 },  { "TERA", 12 },   { "GIGA", 9 },   { "MEGA", 6 },
@@ -457,6 +459,20 @@ constexpr Recipe Describe(ProfileKind profile)
               { Real("major_radius", "POSITIVE_LENGTH_MEASURE"), Real("minor_radius", "POSITIVE_LENGTH_MEASURE") },
               true }
         );
+        // N2635 / AP214E3_2010.exp TRIMMED_CURVE has a mixed SELECT: the
+        // reference table records its entity branch; TrimmingSelect validates
+        // the typed PARAMETER_VALUE REAL branch without treating it as a measure.
+        auto trim = Aggregate("trim_1", "TRIMMING_SELECT", 1, 2, Unique::Set, FieldKind::TrimmingSelect);
+        auto trim2 = trim;
+        trim2.name = "trim_2";
+        declarations.push_back(
+            { "TRIMMED_CURVE",
+              { "BOUNDED_CURVE" },
+              { Ref("basis_curve", "CURVE"), trim, trim2, Bool("sense_agreement"), Enum("master_representation", "TRIMMING_PREFERENCE") },
+              true }
+        );
+        referenceSelects.push_back({ "TRIMMING_SELECT", TrimmingPoints });
+        enumerations.push_back({ "TRIMMING_PREFERENCE", TrimmingPreferences });
     }
     return recipe;
 }

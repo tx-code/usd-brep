@@ -1,5 +1,15 @@
 # STEP source semantics: ticket 03
 
+The three explicit general profiles also retain `TRIMMED_CURVE`, its original
+`basis_curve`, both `SET[1:2]` cuts, sense and master preference. The pinned
+N2635 / AP214E3_2010 declarations admit only `CARTESIAN_POINT` references or
+typed `PARAMETER_VALUE` REALs in each cut. Exact SET duplicates and the distinct
+WR1/WR2 same-SELECT-type restrictions are checked separately. Iterative cycle
+rejection establishes a finite trimmed-basis dependency chain as a project
+prerequisite, not an additional EXPRESS WHERE rule. Source checking alone does
+not establish that a point lies on the basis or that dual representations agree;
+those require the selected numerical/native checks. P0 remains closed.
+
 The three explicit general source profiles admit `TOROIDAL_SURFACE` with its
 inherited elementary-surface placement and two original positive length radii.
 Pinned N2635 and AP214E3_2010.exp impose no entity WHERE ordering those radii;
@@ -45,7 +55,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 133/115 declarations respectively;
+transport slot. The general catalogs contain 134/116 declarations respectively;
+the separate MBx general catalog contains 122 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 

@@ -406,6 +406,11 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                     w.String(map.kind);
                     w.Add(",\"source_geometry\":");
                     w.String(map.sourceGeometryId);
+                    if (map.sourceBasisGeometryId)
+                    {
+                        w.Add(",\"source_basis_geometry\":");
+                        w.String(*map.sourceBasisGeometryId);
+                    }
                     w.Add(",\"source_use\":");
                     w.String(map.sourceUseId);
                     w.Add(",\"equation\":");

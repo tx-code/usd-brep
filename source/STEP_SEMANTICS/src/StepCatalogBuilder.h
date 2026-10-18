@@ -342,7 +342,8 @@ constexpr Layout ComputeLayout(const Recipe& recipe)
         {
             const auto& field = recipe.declarations[id].fields[f];
             const auto kind = field.kind == FieldKind::Aggregate ? field.elementKind : field.kind;
-            if (kind == FieldKind::Reference && !typeId(field.type) && !HasName(recipe.referenceSelects, field.type))
+            if ((kind == FieldKind::Reference || kind == FieldKind::TrimmingSelect) && !typeId(field.type) &&
+                !HasName(recipe.referenceSelects, field.type))
             {
                 Fail(report, Error::MissingReference, id, f);
                 return layout;

@@ -79,7 +79,8 @@ enum class FieldKind
     Reference,
     Aggregate,
     Measure,
-    SizeSelect
+    SizeSelect,
+    TrimmingSelect
 };
 enum class Unique
 {

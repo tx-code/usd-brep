@@ -387,9 +387,14 @@ private:
         // AP214E3_2010.exp EDGE_CURVE.same_sense: orient the private edge
         // along increasing defining-curve parameter, reversing source endpoints
         // only in this mapping. Source EDGE_CURVE and vertex records stay intact.
-        const bool same = B(a, "same_sense");
+        const auto geometry = Ref(a, "edge_geometry");
+        // ISO 10303-42:2003 4.4.40: a trimmed curve's parameter increases
+        // from trim_1, opposing its basis when sense_agreement is FALSE.
+        // Native conics increase along the BASIS, so compose this extra sense
+        // with EC and subsequently OE; never change the immutable source flags.
+        const bool same = Is(geometry, "TRIMMED_CURVE") ? B(a, "same_sense") == B(geometry, "sense_agreement") : B(a, "same_sense");
         const auto start = Ref(a, "edge_start"), end = Ref(a, "edge_end");
-        curves.push_back({ a, Ref(a, "edge_geometry"), Vertex(same ? start : end), Vertex(same ? end : start), same, {}, 0, 0, {} });
+        curves.push_back({ a, geometry, Vertex(same ? start : end), Vertex(same ? end : start), same, {}, 0, 0, {} });
         return i;
     }
     void Prepare()
@@ -489,9 +494,109 @@ private:
         }
         m_report.units = UnitNormalization{ Id(m_source->UnitContext().lengthUnit), Fraction(num, den), {} };
     }
+    struct ConicTrim
+    {
+        double first, last, low, high;
+        bool full;
+        std::optional<double> angleScale;
+    };
+    ConicTrim TrimmedConic(Index wrapper, const Frame& frame, double rx, double ry)
+    {
+        constexpr double tau = 2 * std::numbers::pi;
+        const auto evaluate = [&](double t)
+        {
+            return Add(frame.o, Add(Mul(frame.x, rx * std::cos(t)), Mul(frame.y, ry * std::sin(t))));
+        };
+        const auto angle = [&](V p)
+        {
+            const auto d = Sub(p, frame.o);
+            return std::atan2(Dot(d, frame.y) / ry, Dot(d, frame.x) / rx);
+        };
+        std::optional<double> angleScale;
+        const auto preferred = F(wrapper, "master_representation").text;
+        const auto cut = [&](std::string_view field)
+        {
+            std::optional<double> parameter, pointAngle;
+            std::optional<V> point;
+            for (const auto& value : F(wrapper, field).children)
+            {
+                if (value.kind == step_source::ValueKind::Reference)
+                {
+                    point = Position(m_source->ReferenceTarget(value));
+                    pointAngle = angle(*point);
+                    const auto gap = Norm(Sub(evaluate(*pointAngle), *point));
+                    consistency = std::max(consistency, gap);
+                    Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedPointOffBasis", wrapper);
+                }
+                else
+                {
+                    if (!angleScale)
+                    {
+                        for (const auto& unit : m_source->UnitContext().siDefinitions)
+                        {
+                            if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
+                            {
+                                angleScale = std::pow(10., unit.canonicalPower10);
+                            }
+                        }
+                        if (!angleScale || !std::isfinite(*angleScale) || !(*angleScale > 0))
+                        {
+                            Fail("GeneralTrimmedAngleUnitUnestablished", wrapper, Status::Unsupported);
+                        }
+                    }
+                    parameter = Number(value.children.at(0)) * *angleScale;
+                    // Limit argument reduction to a small, explicit native
+                    // development range. This is not an EXPRESS restriction.
+                    if (!std::isfinite(*parameter) || std::abs(*parameter) > 2 * tau)
+                    {
+                        Fail("GeneralTrimmedAngleRangeUnestablished", wrapper, Status::Unsupported);
+                    }
+                }
+            }
+            if (parameter && point)
+            {
+                // Master preference chooses the defining cut but does not
+                // excuse a conflicting second representation (4.4.40 IP1/IP2).
+                const auto gap = Norm(Sub(evaluate(*parameter), *point));
+                consistency = std::max(consistency, gap);
+                Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedRepresentationsConflict", wrapper);
+            }
+            // With UNSPECIFIED and two consistent forms, deterministically
+            // retain the supplied parameter. With one form, use that form.
+            return preferred == "CARTESIAN" && pointAngle ? *pointAngle : parameter ? *parameter : pointAngle.value();
+        };
+        double first = cut("trim_1"), last = cut("trim_2");
+        const bool same = B(wrapper, "sense_agreement");
+        double extent = same ? last - first : first - last;
+        if (extent < 0 && extent > -tau)
+        {
+            if (same)
+            {
+                last += tau;
+            }
+            else
+            {
+                first += tau;
+            }
+            extent += tau;
+        }
+        // Only binary64 conversion roundoff can identify one period here;
+        // consistencyMm is never used to turn a short arc into a closed circle.
+        const double roundoff = 32 * std::numeric_limits<double>::epsilon() * tau;
+        if (!(extent > 0) || extent > tau + roundoff)
+        {
+            Fail("GeneralTrimmedConicExtentUnestablished", wrapper, Status::Unsupported);
+        }
+        return { first, last, std::min(first, last), std::max(first, last), std::abs(extent - tau) <= roundoff, angleScale };
+    }
     void MakeCurve(Curve& c)
     {
-        const auto g = c.geometry;
+        const bool trimmed = Is(c.geometry, "TRIMMED_CURVE");
+        const auto g = trimmed ? Ref(c.geometry, "basis_curve") : c.geometry;
+        if (trimmed && !Is(g, "CIRCLE") && !Is(g, "ELLIPSE"))
+        {
+            Fail("GeneralTrimmedBasisUnsupported", c.geometry, Status::Unsupported);
+        }
         const auto a = points[c.v0], b = points[c.v1];
         ParameterMapping mapping;
         mapping.sourceGeometryId = Id(g);
@@ -521,6 +626,10 @@ private:
             const bool circle = Is(g, "CIRCLE");
             const auto rx = N(g, circle ? "radius" : "semi_axis_1") * scale;
             const auto ry = circle ? rx : N(g, "semi_axis_2") * scale;
+            if (trimmed && (!(rx > SM_EFF_ZERO) || !(ry > SM_EFF_ZERO) || !std::isfinite(rx) || !std::isfinite(ry)))
+            {
+                Fail("GeneralTrimmedConicRadiusRange", g, Status::Unsupported);
+            }
             const auto angle = [&](V p)
             {
                 const auto delta = Sub(p, frame.o);
@@ -537,6 +646,47 @@ private:
                 {
                     t1 += 2 * std::numbers::pi;
                 }
+            }
+            if (trimmed)
+            {
+                constexpr double tau = 2 * std::numbers::pi;
+                const auto trim = TrimmedConic(c.geometry, frame, rx, ry);
+                if (c.v0 == c.v1)
+                {
+                    Need(trim.full, "GeneralTrimmedClosedEdgeRequiresFullConic", c.record);
+                }
+                else if (!trim.full)
+                {
+                    // Resolve each EC endpoint inside the source trim's
+                    // increasing BASIS interval. The topological edge may use
+                    // a subset; it cannot extend or ignore the wrapper limits.
+                    const auto inside = [&](double t)
+                    {
+                        return t + tau * std::ceil((trim.low - t) / tau);
+                    };
+                    t0 = inside(angle(a));
+                    t1 = inside(angle(b));
+                    Need(t0 >= trim.low && t1 <= trim.high && t1 > t0, "GeneralTrimmedEdgeOutsideSourceDomain", c.record);
+                }
+                ParameterMapping trace;
+                trace.kind = "TrimmedConicSourceDomain";
+                trace.sourceGeometryId = Id(c.geometry);
+                trace.sourceBasisGeometryId = Id(g);
+                trace.sourceUseId = Id(c.record);
+                trace.targetEdgeIndex = ei.at(c.record);
+                trace.equation =
+                    "canonical_trim_s_rad=sign*(basis_angle_rad-trim_1_rad); periodic_branch_when_full; "
+                    "source_s=canonical_trim_s_rad/angle_parameter_to_rad_when_established; native_t_is_rational_not_angle; preferred=" +
+                    F(c.geometry, "master_representation").text;
+                trace.parameters = { { "basis_trim_rad", { trim.first, trim.last } },
+                                     { "canonical_trim_parameter_range_rad", { 0, trim.high - trim.low } },
+                                     { "source_sense", { B(c.geometry, "sense_agreement") ? 1. : -1. } },
+                                     { "edge_basis_angle_branch_rad", { t0, t1 } } };
+                if (trim.angleScale)
+                {
+                    trace.parameters.push_back({ "angle_parameter_to_rad", { *trim.angleScale } });
+                }
+                m_report.parameterMappings.push_back(std::move(trace));
             }
             // A whole-period shift preserves the curve; kernel analytic angles
             // are degrees in [-360,360], while evaluators use a NURBS parameter.
@@ -555,7 +705,26 @@ private:
                                    { "y", { frame.y.begin(), frame.y.end() } } };
             const SmExtent1d domain(t0 * 180 / std::numbers::pi, t1 * 180 / std::numbers::pi);
             Step(g);
-            if (circle)
+            if (trimmed)
+            {
+                // Checked factories keep invalid analytic ranges out of direct
+                // constructors. Own any result before propagating its status.
+                SmStatus status;
+                if (circle)
+                {
+                    SmCircle* curve = nullptr;
+                    status = SmCircle::CreateCanonical(*m_model->context, frame.Native(), rx, curve, &domain);
+                    c.native.reset(curve);
+                }
+                else
+                {
+                    SmEllipse* curve = nullptr;
+                    status = SmEllipse::CreateCanonical(*m_model->context, frame.Native(), rx, ry, curve, &domain);
+                    c.native.reset(curve);
+                }
+                Good(status);
+            }
+            else if (circle)
             {
                 c.native.reset(new (*m_model->context) SmCircle(P(frame.o), D(frame.x), D(frame.y), domain, rx, 3, m_model->context.get()));
             }

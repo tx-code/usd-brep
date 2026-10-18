@@ -11,6 +11,18 @@ DATA、其他文件头字段、协议绑定、类型、单位和几何检查均�
 `MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、显式节点 B 样条边，
 PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE、标准环形 TOROIDAL_SURFACE 和显式节点 B 样条曲面。
 样条包括已登记的有理复合实体映射；控制点采用欧氏坐标，权重为独立的无量纲参数。
+单层 `TRIMMED_CURVE` 可使用 CIRCLE／ELLIPSE 基础曲线，保留 wrapper 与 basis 的不同身份，
+并按 ISO 10303-42:2003 §4.4.40 组合裁剪 sense、EDGE_CURVE.same_sense 和有向使用。
+参数裁剪使用已建立的 SI radian／前缀比例；坐标裁剪按源解析位置架反求角度。
+两种表示同时存在时都检查物理一致性，master 选择主表示；UNSPECIFIED 且两者存在时选参数。
+原数值、单位和源裁剪始终保留，不以拓扑端点替代源裁剪范围。
+边可使用源裁剪的一段；封闭边须证明源裁剪为完整一周，完整周期可在源顶点处等价换缝。
+`TrimmedConicSourceDomain` 记录 `source_geometry`、`source_basis_geometry`、原角域、方向、
+canonical 裁剪参数域和边角度分支；原参数到 radian 的已建立比例单独记录，原生 NURBS 参数不冒充角度。
+当前开发范围只解释绝对值不超过 4π rad 的参数及至多一周的非零有向范围；
+仅以 binary64 转换舍入量识别整周，不以一致性容差补成整圆。
+嵌套／其他基础曲线、未建立的参数单位、歧义或多周范围明确不支持。
+已有 UV／缝检查仍适用，不因裁剪曲线可构建就授予任意周期曲面裁剪资格。
 源权重原词形始终保留，转入内核前检查数值可表示性，构建后读回齐次控制网验证。
 仅当源权重词形全部相同、可证明共同因子精确消去时，允许内核改存单位权重，
 并记录 `ExactUniformWeightCancellation`；非均匀权重被内核近似简化时拒绝。

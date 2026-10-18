@@ -261,6 +261,7 @@ struct ParameterMapping
     std::string kind, sourceGeometryId, sourceUseId, equation;
     std::optional<std::size_t> targetEdgeIndex, targetFaceIndex;
     std::vector<std::pair<std::string, std::vector<double>>> parameters;
+    std::optional<std::string> sourceBasisGeometryId; // Trim wrapper and defining basis keep distinct source identities.
 };
 struct Report
 {

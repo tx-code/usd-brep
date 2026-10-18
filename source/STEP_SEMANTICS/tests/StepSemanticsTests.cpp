@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 115,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 116,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -808,7 +808,7 @@ int main(int argc, char** argv)
             auto weightedInput = step_source::InspectBytes(weightedText, step_source::Limits::PlanarFixtures());
             auto weighted = Check(weightedInput, Limits{}, SourcePolicy::Strict, GeometryScope::GeneralBrep);
             Require(weighted.status == Status::Checked && weighted.snapshot, "N2635 rational source");
-            Require(weighted.snapshot->RegisteredTypes().size() == 133, "N2635 rational catalog scope");
+            Require(weighted.snapshot->RegisteredTypes().size() == 134, "N2635 general catalog scope");
             auto weights = weighted.snapshot->Field(Index(*weighted.snapshot, "202"), "weights_data");
             Require(
                 &weights.Value() == &weightedInput.source->Find("202")->components[5].parameters[0],

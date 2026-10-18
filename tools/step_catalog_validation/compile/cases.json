@@ -386,6 +386,16 @@
       "expect": "fail",
       "marker": "STEP_CATALOG_INVALID_InvalidProfile",
       "positive_control": "catalog_real_profiles"
+    },
+    {
+      "name": "catalog_missing_trim_select",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=34"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingReference",
+      "positive_control": "catalog_valid"
     }
   ]
 }

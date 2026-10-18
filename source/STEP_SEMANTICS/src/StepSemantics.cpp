@@ -933,6 +933,21 @@ private:
                     mismatch();
                 }
                 break;
+            case FieldKind::TrimmingSelect:
+                if (value.kind == ValueKind::Reference)
+                {
+                    auto reference = field;
+                    reference.kind = FieldKind::Reference;
+                    Scalar(value, FieldKind::Reference, reference, r, c, path);
+                }
+                else if (
+                    value.kind != ValueKind::Typed || value.text != "PARAMETER_VALUE" || value.children.size() != 1 ||
+                    value.children[0].kind != ValueKind::Real
+                )
+                {
+                    mismatch();
+                }
+                break;
             case FieldKind::Aggregate:
                 throw std::logic_error("Nested aggregate descriptor not expected");
         }
@@ -1003,7 +1018,31 @@ private:
             {
                 Scalar(child, field.elementKind, field, r, c, childPath);
             }
-            if (unique && !members.emplace(child.text, child.span).second)
+            std::optional<Span> duplicate;
+            if (unique && field.elementKind == FieldKind::TrimmingSelect)
+            {
+                // Mixed SELECT SET identity is not the typed wrapper's name.
+                // PARAMETER_VALUE(0.0) equals PARAMETER_VALUE(0.E0), whereas
+                // two distinct parameters must reach the separate WR1/WR2 check.
+                for (std::size_t previous = 0; previous < i; ++previous)
+                {
+                    const auto& other = value.children[previous];
+                    Visit(other.span);
+                    const bool equal = child.kind == other.kind &&
+                                       (child.kind == ValueKind::Reference ? UnboundTarget(child) == UnboundTarget(other) :
+                                                                             CompareSourceReals(child.children[0].text, other.children[0].text) == 0);
+                    if (equal)
+                    {
+                        duplicate = other.span;
+                        break;
+                    }
+                }
+            }
+            else if (unique && !members.emplace(child.text, child.span).second)
+            {
+                duplicate = members.at(child.text);
+            }
+            if (duplicate)
             {
                 try
                 {
@@ -1023,7 +1062,7 @@ private:
                 }
                 catch (Failure& failure)
                 {
-                    failure.diagnostic.source.related.push_back(members.at(child.text));
+                    failure.diagnostic.source.related.push_back(*duplicate);
                     throw;
                 }
             }

@@ -109,6 +109,8 @@ constexpr Recipe MakeCase()
     recipe.complexSignatures.push_back(Missing);
 #elif STEP_CATALOG_CASE == 32
     recipe.complexSignatures.push_back({});
+#elif STEP_CATALOG_CASE == 34
+    recipe.declarations[0].fields[0] = { "x", "ABSENT", FieldKind::TrimmingSelect };
 #endif
     return recipe;
 }
