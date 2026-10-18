@@ -121,7 +121,7 @@ workspace "usd-brep"
     exceptionhandling "On"
     rtti "On"
     staticruntime "Off"
-    cppdialect "C++17"
+    cppdialect "C++20"
 
     -- Treat compiler warnings as errors on every platform (MSVC /WX, GCC/Clang -Werror).
     -- NOTE: this premake build emits externalincludedirs as plain -I (no -isystem) and has no

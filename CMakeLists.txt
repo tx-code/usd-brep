@@ -8,7 +8,7 @@ option(SMLIB_BUILD_DEV "Build debugger extensions for the optional GUI" OFF)
 option(SMLIB_BUILD_VALIDATION "Build native and Python validation tools" OFF)
 option(SMLIB_BUILD_EXAMPLES "Build SDK examples" OFF)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
@@ -21,6 +21,8 @@ set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
 
 add_library(smlib_build_options INTERFACE)
+# Keep SDK consumers and standalone validation targets on the same language baseline.
+target_compile_features(smlib_build_options INTERFACE cxx_std_20)
 # These macros affect kernel headers and must match in every native consumer.
 target_compile_definitions(smlib_build_options INTERFACE NOMINMAX SM_GRAPHICS_CALLBACKS=1
     $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>

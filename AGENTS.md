@@ -22,7 +22,7 @@ build has no USD or TBB dependency; the Python package retains its historical na
 
 ## Code Style
 
-- **C++:** clang-format enforced (`.clang-format`); C++ standard set per `premake5.lua`
+- **C++:** C++20 across all repository-owned targets, including tests and tools; keep CMake, Premake, and explicit compiler flags consistent. clang-format enforced (`.clang-format`).
 - **Python:** PEP 8, 120 column limit (`.editorconfig`)
 - **Indent:** 4 spaces, LF line endings, UTF-8, trailing whitespace trimmed (`.editorconfig`)
 - **Batch files:** CRLF; **Shell scripts:** LF (`.gitattributes`)

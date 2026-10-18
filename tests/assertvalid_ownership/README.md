@@ -17,7 +17,7 @@ Windows, `SMLIB_RUNTIME_DIR` is prepended to the test process PATH and must cont
 the matching DLLs. The executable prints the loaded SMLib DLL path. Separate
 runtime directories can compare baseline and candidate DLLs without replacing
 an existing build. The regression was validated on Windows x64, MSVC v145,
-C++17, Release /MD.
+C++20, Release /MD.
 
 - `seam-classification-aliases` checks that each returned UV alias belongs to the
   returned owned seam curve, after the function's temporary FaceProps is gone.

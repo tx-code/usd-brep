@@ -106,7 +106,8 @@ SmBoolean SmPolarConversion::operator==
                   || ( m_cpCurve            == crOther.m_cpCurve)
                   || ( m_cpCurve == NULL && crOther.m_cpCurve == NULL)
                   || (    m_cpCurve != NULL && crOther.m_cpCurve != NULL
-                      && *m_cpCurve == *crOther.m_cpCurve))) ;
+                      // Preserve left-hand virtual dispatch; avoid C++20 reversed candidates.
+                      && m_cpCurve->operator==(*crOther.m_cpCurve)))) ;
       
       // check real array values
       if(bRtn)

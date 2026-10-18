@@ -297,7 +297,8 @@ SmBoolean SmSurfOfExtrusion::operator==
       bRtn =  (   (   ( m_pGenCurve == rOther.m_pGenCurve)
                    || ( m_pGenCurve == NULL && rOther.m_pGenCurve == NULL)
                    || (   m_pGenCurve != NULL && rOther.m_pGenCurve != NULL
-                       && *m_pGenCurve == *rOther.m_pGenCurve))
+                      // Preserve left-hand virtual dispatch; avoid C++20 reversed candidates.
+                       && m_pGenCurve->operator==(*rOther.m_pGenCurve)))
                && m_vOrigin       == rOther.m_vOrigin
                && m_vExtrusionVec == rOther.m_vExtrusionVec
                && m_vAnalUVDomain == rOther.m_vAnalUVDomain

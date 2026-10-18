@@ -269,7 +269,8 @@ template<class TYPE> class SM_EXPORT SmPointItem
                                                                              return *this ;
                                                                            }
    // equality operator              
-   SmBoolean operator==(const SmPointItem<TYPE> &crOther) { SmBoolean bRtn = TRUE ;
+   // Const comparison gives C++20 symmetric overload resolution.
+   SmBoolean operator==(const SmPointItem<TYPE> &crOther) const { SmBoolean bRtn = TRUE ;
                                                             if(this == &crOther) { return TRUE ; }
                                                             bRtn &= m_sTgtItem == crOther.m_sTgtItem ;
                                                             bRtn &= SM_ARE_SAME(m_sTgtZoneTol3d, crOther.m_sTgtZoneTol3d) ;

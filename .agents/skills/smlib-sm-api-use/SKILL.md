@@ -43,7 +43,7 @@ not authorization to change an evaluator or add a wrapper.
 - A source checkout or matching SMLib SDK headers and libraries. Source headers
   are in `source/SM_API/inc` and `source/SMLib/inc`; packaged headers are in
   `include/SM_API` and `include/SMLib`.
-- A C++17 toolchain for the example. Link `SM_API` and `SMLib`, and configure
+- A C++20 toolchain for the example. Link `SM_API` and `SMLib`, and configure
   their runtime dependencies. The repository build handles this; independent
   builds and other platforms are covered by the
   [example README](../../../Examples/SM_API/README.md#build-and-run-from-a-source-checkout).

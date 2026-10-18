@@ -702,9 +702,11 @@ SmPolygonSLPOutput::SmPolygonSLPOutput
       return;
     }
 
+  // SLP is byte-oriented text. Convert TCHAR explicitly; C++20 rejects
+  // wide-string insertion into a narrow stream (older modes printed an address).
   TCHAR sBuff[SM_TBLOCK_SIZE];
   smos_sprintf(sBuff,_T("solid data__%06ld\n"),m_lSolidCounter);
-  sFout << sBuff;
+  sFout << smos_FromTChar(sBuff);
 
 } // end SmPolygonSLPOutput::SmPolygonSLPOutput constructor
 
@@ -718,7 +720,7 @@ SmStatus SmPolygonSLPOutput::CompletedPolygonOutput()
     std::ofstream & sFout = *m_pFout;
     TCHAR sBuff[SM_TBLOCK_SIZE];
     smos_sprintf(sBuff,_T("endsolid data__%06ld\n"),m_lSolidCounter);
-    sFout << sBuff;
+    sFout << smos_FromTChar(sBuff);
 
     return SM_SUCCESS;
 
@@ -750,11 +752,11 @@ SmStatus SmPolygonSLPOutput::OutputPolygon
             if (m_pLastSurface != NULL) 
               { // Close out last solid
                 smos_sprintf(sBuff,_T("endsolid data__%06ld\n"),m_lSolidCounter);
-                sFout << sBuff;
+                sFout << smos_FromTChar(sBuff);
               }
             m_lSolidCounter ++;
             smos_sprintf(sBuff,_T("solid data__%06ld\n"),m_lSolidCounter);
-            sFout << sBuff;
+            sFout << smos_FromTChar(sBuff);
             lCount ++;
             SmVector3d sColor(0.8,0.8,0.8);
             if (lCount % 6 == 0) sColor.Set(1.0,0.3,0.3);

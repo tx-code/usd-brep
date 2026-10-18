@@ -2082,7 +2082,8 @@ public:
                              return *this;
                            }
 
-  SmBoolean    operator==(const SmSurfaceEval &crOther )
+  // Equality only reads evaluations; const also supports C++20 reversed candidates.
+  SmBoolean    operator==(const SmSurfaceEval &crOther ) const
                          { SmBoolean bRtn = TRUE ;
                            bRtn &= m_bNonZeroTangents == crOther.m_bNonZeroTangents ;
                            bRtn &= m_sUV              == crOther.m_sUV ;

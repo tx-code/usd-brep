@@ -22,7 +22,7 @@ project "prog_test"
         buildoptions {"/W4 /bigobj"}
 	links { }
     filter { "system:linux" }
-        buildoptions {"-ansi -Wall -std=c++17"}
+        buildoptions {"-ansi -Wall -std=c++20"}
     filter { "system:macosx" }
         buildoptions (macos_common_buildoptions())
 	linkoptions (macos_common_linkoptions())
@@ -47,7 +47,7 @@ project "prog_test_app"
         defines { "_CRT_SECURE_NO_WARNINGS", "SM_CLASSIFY_UPDATE", "SM_TOLERANT_WATCH" }
         buildoptions {"/W4 /bigobj"}
     filter { "system:linux" }
-        buildoptions {"-ansi -Wall -std=c++17"}
+        buildoptions {"-ansi -Wall -std=c++20"}
     filter { "system:macosx" }
         buildoptions (macos_common_buildoptions())
         linkoptions (macos_common_linkoptions())

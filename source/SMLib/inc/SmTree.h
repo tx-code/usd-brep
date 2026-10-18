@@ -564,8 +564,8 @@ class SM_EXPORT SmTreeVertex // : public SmObject - GWC: don't inherit from SmOb
     return *this;
   }
 
-  // operator ==
-  SmBoolean operator==( const SmTreeVertex &crOther )
+  // Read-only on both operands; avoids ambiguous reversed candidates in C++20.
+  SmBoolean operator==( const SmTreeVertex &crOther ) const
   {
     if(&crOther == this) return TRUE;
     if(m_vUVPoint != crOther.m_vUVPoint)      return FALSE;

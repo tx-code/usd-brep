@@ -32,7 +32,7 @@ USD dependency `release\bin` directory on `PATH`. Use the matching platform
 directory for other supported platforms.
 
 The package contains the source under `Examples/SMLib` and the executable in
-`bin`. To compile independently, build `step_derivatives.cpp` as C++17 with
+`bin`. To compile independently, build `step_derivatives.cpp` as C++20 with
 `SM_STEP_DERIVATIVES_EXAMPLE_STANDALONE` defined, include the `SMLib` headers,
 and link `SMLib` with its normal runtime dependencies.
 

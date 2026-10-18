@@ -10,6 +10,9 @@ Python package names remain `usd-brep` / `usd_brep` for compatibility.
 
 ## Build it
 
+All repository-owned libraries, bindings, examples, and validation tools use C++20. Use a C++20-capable compiler.
+
+
 Use CMake 3.24 or newer, a C++20 compiler, and Python 3.12 with development
 headers plus pybind11 2.11.1. On Windows, install the Visual Studio C++ workload
 and Windows SDK. No scene-format SDK or TBB runtime is required by this build.

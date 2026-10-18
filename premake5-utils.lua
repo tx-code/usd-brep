@@ -134,7 +134,7 @@ end
 
 function macos_common_buildoptions()
     return concat_arrays({
-        "-ansi", "-Wall", "-Wno-missing-braces", "-std=c++17",
+        "-ansi", "-Wall", "-Wno-missing-braces", "-std=c++20",
         macos_arch_flags(),
     }, macos_warning_suppressions())
 end

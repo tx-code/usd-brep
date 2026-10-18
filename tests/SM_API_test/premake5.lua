@@ -24,7 +24,7 @@ local function configure_sm_api_test_common()
         removeflags{ "NoPCH" }
     filter { "system:linux" }
         linkoptions { "-Wl,-rpath,'$$ORIGIN/../../lib'" }
-        buildoptions {"-ansi -Wall -Wno-write-strings -std=c++17"}
+        buildoptions {"-ansi -Wall -Wno-write-strings -std=c++20"}
     filter { "system:macosx" }
         buildoptions (macos_common_buildoptions())
         linkoptions (macos_common_linkoptions())

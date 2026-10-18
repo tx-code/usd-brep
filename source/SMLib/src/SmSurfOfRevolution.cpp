@@ -70,7 +70,8 @@ SmBoolean SmSurfOfRevolution::operator==
       bRtn =  (   (   ( m_pGenCurve == rOther.m_pGenCurve)
                    || ( m_pGenCurve == NULL && rOther.m_pGenCurve == NULL)
                    || (   m_pGenCurve != NULL && rOther.m_pGenCurve != NULL
-                       && *m_pGenCurve == *rOther.m_pGenCurve))
+                      // Preserve left-hand virtual dispatch; avoid C++20 reversed candidates.
+                       && m_pGenCurve->operator==(*rOther.m_pGenCurve)))
                && m_bPlanarGenerator == rOther.m_bPlanarGenerator
                && m_vPosition        == rOther.m_vPosition
                && m_vAnalUVDomain    == rOther.m_vAnalUVDomain

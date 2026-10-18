@@ -219,7 +219,8 @@ Windows 资源检查包含成功、各调用预算边界、后验预算不足、
 两者都保留总堆/PrivateUsage 观察及 64 模型正控。原全进程判据的无模型误报与修正依据见 08 验收，
 该分配域的覆盖不能推广到其他 SDK 分配器。
 
-本机已验证的 C++20 适配器配套原生内核仍为 C++17；不代表全仓升级或一般 ABI/跨平台资格。
+早期验收使用 C++20 适配器配套 C++17 原生内核；该历史记录不代表一般 ABI/跨平台资格。
+当前全仓构建基线为 C++20，旧验收记录不替代新基线验证。
 `SmIterationValue::operator==` 仅补 `const` 以使头文件能在 C++20 equality rewriting 下编译，
 函数原有恒 FALSE 主体与求解算法不变。对应头文件见
 [SmLocalSolve1d.h](../SMLib/inc/SmLocalSolve1d.h)。

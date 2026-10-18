@@ -359,7 +359,8 @@ SmBoolean SmVolume::operator==
                     && (   ( m_pOrientMap == crOther.m_pOrientMap)
                         || ( m_pOrientMap == NULL && crOther.m_pOrientMap == NULL)
                         || (   m_pOrientMap != NULL && crOther.m_pOrientMap != NULL
-                            && *m_pOrientMap == *crOther.m_pOrientMap))        
+                      // Preserve left-hand virtual dispatch; avoid C++20 reversed candidates.
+                            && m_pOrientMap->operator==(*crOther.m_pOrientMap)))
                    ) ;
 
   // all done

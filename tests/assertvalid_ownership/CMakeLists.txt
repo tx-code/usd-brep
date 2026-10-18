@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(AssertValidOwnershipRegression LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
 get_filename_component(SMLIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(SMLIB_LIBRARY_DIR "" CACHE PATH "Directory containing SMLib and SM_API libraries")

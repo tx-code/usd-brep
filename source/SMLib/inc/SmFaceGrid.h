@@ -40,7 +40,8 @@ class SM_EXPORT SmFaceEval
                                                         m_bInFace = crOther.m_bInFace;
                                                         return *this ;
                                                       }
-  SmBoolean    operator==(const SmFaceEval &crOther ) { if(&crOther == this) return TRUE ;
+  // Both operands are read-only; C++20 also considers reversed equality.
+  SmBoolean    operator==(const SmFaceEval &crOther ) const { if(&crOther == this) return TRUE ;
                                                         SmBoolean bRtn = m_sSurfaceEval == crOther.m_sSurfaceEval ;
                                                         bRtn &= m_bInFace == crOther.m_bInFace ;
                                                         return(bRtn) ;

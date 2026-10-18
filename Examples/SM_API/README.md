@@ -38,7 +38,7 @@ dependency `release\bin` directory on `PATH`.
 
 The package also includes the example sources under `Examples/SM_API` and the
 executable under `bin`. Run it with the package's normal shared-library setup.
-To compile independently, build `boolean_bounds.cpp` as C++17 with
+To compile independently, build `boolean_bounds.cpp` as C++20 with
 `SM_BOOLEAN_BOUNDS_EXAMPLE_STANDALONE` defined, include the `SM_API` and `SMLib`
 headers, and link `SM_API` and `SMLib` plus their normal runtime dependencies.
 
