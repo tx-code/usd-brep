@@ -38,9 +38,28 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 132/110 declarations respectively;
+transport slot. The general catalogs contain 132/114 declarations respectively;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
+
+Both AP214 bindings also admit the pinned `CURVE_STYLE` declaration and the
+predefined draughting-font inheritance chain. All four style fields are required;
+font names satisfy their exact five-name WR1. `SIZE_SELECT` retains a typed
+positive length, typed descriptive string, or generic `MEASURE_WITH_UNIT`
+reference with its original nominal unit. Referenced positive/nonnegative length
+measures satisfy their own TYPE predicates. The admitted font branch excludes
+custom, external and font-scaling extensions. Curve-style RGB dependencies,
+same-type curve-style duplicates in `PRESENTATION_STYLE_ASSIGNMENT.WR1`, and
+`styled_curve.WR1` assignment counts are checked; this is not full AP214 global
+validation or a promise that a viewer renders these styles.
+
+Only explicit general-BRep nongeometric interoperability may retain an invalid
+STRING width with its original `AttributeTypeMismatch`. It remains a STRING;
+its content is not parsed into a measure or replaced by a default. An internal
+typed pending proof requires selected-part presentation attachment and complete
+physical-dependency exclusion before publication. Detached/foreign styles or
+ambiguous reference errors cannot use that exception. Strict mode keeps its
+original rejection. Neither admission nor isolation creates geometry ownership.
 
 The AP214e3 source subset also retains applied date/time assignments and the
 rendering/transparency style chain from fixed `AP214E3_2010.exp` (71ab140f...).

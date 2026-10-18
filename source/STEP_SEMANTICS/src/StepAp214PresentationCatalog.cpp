@@ -12,6 +12,27 @@ namespace
 constexpr std::string_view Elements[] = { "SURFACE_STYLE_FILL_AREA", "SURFACE_STYLE_RENDERING" };
 constexpr std::string_view Properties[] = { "SURFACE_STYLE_TRANSPARENT" };
 constexpr std::string_view Methods[] = { "CONSTANT_SHADING", "COLOUR_SHADING", "DOT_SHADING", "NORMAL_SHADING" };
+constexpr std::string_view CurveFonts[] = { "PRE_DEFINED_CURVE_FONT" };
+constexpr std::string_view PresentationStyles[] = { "SURFACE_STYLE_USAGE", "FILL_AREA_STYLE", "CURVE_STYLE" };
+
+void ReplaceSelect(Catalog& catalog, std::string_view name, std::span<const std::string_view> branches)
+{
+    const auto select = std::find_if(
+        catalog.referenceSelects.begin(),
+        catalog.referenceSelects.end(),
+        [&](const auto& entry)
+        {
+            return entry.name == name;
+        }
+    );
+    if (select == catalog.referenceSelects.end())
+    {
+        throw std::logic_error("Presentation requires an existing SELECT: " + std::string(name));
+    }
+    // Change only this catalog's span. The generic declarations are also used
+    // by N2635; changing their shared branch array would leak AP214-only types.
+    select->branches = branches;
+}
 } // namespace
 
 void AddAp214RenderingDeclarations(Catalog& catalog)
@@ -34,22 +55,36 @@ void AddAp214RenderingDeclarations(Catalog& catalog)
             { "SURFACE_STYLE_TRANSPARENT", {}, { { "transparency", "REAL", FieldKind::Real } }, true },
         }
     );
-    const auto select = std::find_if(
-        catalog.referenceSelects.begin(),
-        catalog.referenceSelects.end(),
-        [](const auto& entry)
-        {
-            return entry.name == "SURFACE_STYLE_ELEMENT_SELECT";
-        }
-    );
-    if (select == catalog.referenceSelects.end())
-    {
-        throw std::logic_error("Rendering requires the presentation element SELECT");
-    }
-    // Replace only this catalog's admitted SELECT span. N2635 and P0 catalogs
-    // remain independent; neither acquires these rendering types accidentally.
-    select->branches = Elements;
+    ReplaceSelect(catalog, "SURFACE_STYLE_ELEMENT_SELECT", Elements);
     catalog.referenceSelects.push_back({ "RENDERING_PROPERTIES_SELECT", Properties });
     catalog.enumerations.push_back({ "SHADING_SURFACE_METHOD", Methods });
+}
+
+void AddAp214CurveStyleDeclarations(Catalog& catalog)
+{
+    // Pinned AP214E3_2010.exp, not the merged AP schema: all four style
+    // attributes are REQUIRED. The outer font SELECT has no scaling branch.
+    // This profile admits its predefined branch; custom/external fonts still
+    // fail the closed type guard. Parents retain their field provenance but
+    // only the draughting leaf is an admitted simple font mapping.
+    catalog.declarations.insert(
+        catalog.declarations.end(),
+        {
+            { "PRE_DEFINED_ITEM", {}, { { "name", "LABEL", FieldKind::String } } },
+            { "PRE_DEFINED_CURVE_FONT", { "PRE_DEFINED_ITEM" }, {} },
+            { "DRAUGHTING_PRE_DEFINED_CURVE_FONT", { "PRE_DEFINED_CURVE_FONT" }, {}, true },
+            { "CURVE_STYLE",
+              { "FOUNDED_ITEM" },
+              { { "name", "LABEL", FieldKind::String },
+                { "curve_font", "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT", FieldKind::Reference },
+                { "curve_width", "SIZE_SELECT", FieldKind::SizeSelect },
+                { "curve_colour", "COLOUR", FieldKind::Reference } },
+              true },
+        }
+    );
+    // Flatten only the admitted leaf of the nested font SELECT for matching;
+    // the explicit attribute above retains the original outer declared type.
+    catalog.referenceSelects.push_back({ "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT", CurveFonts });
+    ReplaceSelect(catalog, "PRESENTATION_STYLE_SELECT", PresentationStyles);
 }
 } // namespace step_semantics

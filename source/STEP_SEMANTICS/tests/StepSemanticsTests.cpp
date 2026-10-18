@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 110,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 114,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -121,6 +121,35 @@ int main(int argc, char** argv)
         auto presentationResult = Check(presentationRaw, Limits{});
         Require(presentationResult.status == Status::Checked && presentationResult.snapshot, "AP214 presentation source graph");
         auto presentation = presentationResult.snapshot;
+        {
+            auto curveStyleText = presentationText;
+            const std::string assignment = "PRESENTATION_STYLE_ASSIGNMENT((#903))";
+            curveStyleText.replace(curveStyleText.find(assignment), assignment.size(), "PRESENTATION_STYLE_ASSIGNMENT((#903,#960))");
+            curveStyleText.insert(curveStyleText.find("ENDSEC;", curveStyleText.find("DATA;")), R"STEP(
+#960=CURVE_STYLE('outline',#961,#962,#908);
+#961=DRAUGHTING_PRE_DEFINED_CURVE_FONT('dashed');
+#962=MEASURE_WITH_UNIT(POSITIVE_LENGTH_MEASURE(+0.250E0),#10);
+)STEP");
+            auto source = step_source::InspectBytes(curveStyleText, step_source::Limits::PlanarFixtures());
+            auto outcome = Check(source, Limits{});
+            Require(outcome.snapshot && outcome.status == Status::Checked, "AP214 size-select reference checks");
+            auto width = outcome.snapshot->Field(Index(*outcome.snapshot, "960"), "curve_width");
+            Require(
+                width.Declaration().declaredType == "SIZE_SELECT" && &width.Value() == &source.source->Find("960")->components[0].parameters[2] &&
+                    outcome.snapshot->Source().Records()[width.ReferenceTarget()].id == "962",
+                "SIZE_SELECT keeps source field identity and its actual nominal measure reference"
+            );
+            const auto uses = outcome.snapshot->UsedIn("962", "CURVE_STYLE", "curve_width");
+            Require(
+                uses.size() == 1 && outcome.snapshot->Source().References()[uses[0]].recordIndex == Index(*outcome.snapshot, "960"),
+                "SELECT references participate in typed inverse queries"
+            );
+            outcome = {};
+            source = {};
+            Require(width.Value().text == "962" && width.Location().recordId == "960", "Owning size-select field outlives source and outcome");
+            width.ReferenceTarget();
+            ++groups;
+        }
         const auto style = Index(*presentation, "901"), relationship = Index(*presentation, "911");
         auto styles = presentation->Field(style, "styles");
         auto firstEndpoint = presentation->Field(relationship, "REPRESENTATION_RELATIONSHIP", "rep_1");

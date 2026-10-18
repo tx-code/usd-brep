@@ -26,7 +26,8 @@ enum class FieldKind
     Enumeration,
     Reference,
     Aggregate,
-    Measure
+    Measure,
+    SizeSelect
 };
 enum class Unique
 {
@@ -109,7 +110,8 @@ struct SemanticData
     enum class PreservationProof
     {
         ExistingMetadata,
-        MissingApplicationProtocol
+        MissingApplicationProtocol,
+        CurveStyleWidth
     };
     struct PendingIssue
     {

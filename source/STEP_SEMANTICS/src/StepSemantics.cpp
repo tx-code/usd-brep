@@ -209,8 +209,8 @@ public:
         for (const auto& diagnostic : m_data->preservedDiagnostics)
         {
             const auto& key = diagnostic.source.key;
-            if (key == "RequiredAttributeMissing" || key == "ReferenceTypeMismatch" || key == "DerivedSlotMarkerRequired" ||
-                key == "UnsupportedEntityType")
+            if (key == "RequiredAttributeMissing" || key == "AttributeTypeMismatch" || key == "ReferenceTypeMismatch" ||
+                key == "DerivedSlotMarkerRequired" || key == "UnsupportedEntityType")
             {
                 m_outcome.types = "CheckedWithDiagnostics";
             }
@@ -402,8 +402,9 @@ private:
         // STYLED_ITEM is deliberately absent: it references a geometric RI and
         // must still pass the existing selected-body attachment proof.
         constexpr std::string_view names[] = {
-            "PRESENTATION_STYLE_ASSIGNMENT", "SURFACE_STYLE_USAGE", "SURFACE_SIDE_STYLE",      "SURFACE_STYLE_FILL_AREA",  "FILL_AREA_STYLE",
-            "FILL_AREA_STYLE_COLOUR",        "COLOUR_RGB",          "SURFACE_STYLE_RENDERING", "SURFACE_STYLE_TRANSPARENT"
+            "PRESENTATION_STYLE_ASSIGNMENT", "SURFACE_STYLE_USAGE", "SURFACE_SIDE_STYLE",      "SURFACE_STYLE_FILL_AREA",   "FILL_AREA_STYLE",
+            "FILL_AREA_STYLE_COLOUR",        "COLOUR_RGB",          "SURFACE_STYLE_RENDERING", "SURFACE_STYLE_TRANSPARENT", "CURVE_STYLE",
+            "PRE_DEFINED_CURVE_FONT"
         };
         return std::any_of(
             std::begin(names),
@@ -911,6 +912,27 @@ private:
                     mismatch();
                 }
                 break;
+            case FieldKind::SizeSelect:
+                // SIZE_SELECT is not MEASURE_VALUE: preserve its typed positive
+                // scalar, typed descriptive string or generic MWU reference.
+                // The referenced measure keeps its own nominal unit/type; it
+                // must not be recast as LENGTH_MEASURE_WITH_UNIT by its use here.
+                if (value.kind == ValueKind::Reference)
+                {
+                    auto reference = field;
+                    reference.kind = FieldKind::Reference;
+                    reference.type = "MEASURE_WITH_UNIT";
+                    Scalar(value, FieldKind::Reference, reference, r, c, path);
+                }
+                else if (
+                    value.kind != ValueKind::Typed || value.children.size() != 1 ||
+                    !((value.text == "POSITIVE_LENGTH_MEASURE" && value.children[0].kind == ValueKind::Real) ||
+                      (value.text == "DESCRIPTIVE_MEASURE" && value.children[0].kind == ValueKind::String))
+                )
+                {
+                    mismatch();
+                }
+                break;
             case FieldKind::Aggregate:
                 throw std::logic_error("Nested aggregate descriptor not expected");
         }
@@ -1116,7 +1138,8 @@ private:
                         catch (Failure& failure)
                         {
                             const bool label = field.name == "name" && field.kind == FieldKind::String &&
-                                               (IsA(*m_data, r, "REPRESENTATION_ITEM") || IsA(*m_data, r, "REPRESENTATION") || NonGeometricStyle(r));
+                                               (IsA(*m_data, r, "REPRESENTATION_ITEM") || IsA(*m_data, r, "REPRESENTATION") ||
+                                                (NonGeometricStyle(r) && !IsA(*m_data, r, "PRE_DEFINED_ITEM")));
                             const bool rendering = field.name == "rendering_method" && field.kind == FieldKind::Enumeration &&
                                                    IsA(*m_data, r, "SURFACE_STYLE_RENDERING");
                             // Preserve only the original missing label or rendering
@@ -1133,7 +1156,25 @@ private:
                     }
                     if (field.kind != FieldKind::Aggregate)
                     {
-                        Scalar(value, field.kind, field, r, c, path);
+                        try
+                        {
+                            Scalar(value, field.kind, field, r, c, path);
+                        }
+                        catch (Failure& failure)
+                        {
+                            // A malformed display width can be retained as an
+                            // uninterpreted STRING, never parsed into a measure.
+                            // This is provisional: selected-presentation and
+                            // complete physical-exclusion proofs must finish.
+                            if (!Interoperability() || !IsAp214SourceProfile(m_data->profile.kind) ||
+                                m_data->geometryScope != GeometryScope::GeneralBrep || !IsA(*m_data, r, "CURVE_STYLE") ||
+                                field.name != "curve_width" || field.kind != FieldKind::SizeSelect || value.kind != ValueKind::String ||
+                                failure.diagnostic.source.key != "AttributeTypeMismatch")
+                            {
+                                throw;
+                            }
+                            Preserve(std::move(failure), SemanticData::PreservationProof::CurveStyleWidth);
+                        }
                         continue;
                     }
                     AggregateValue(value, field, r, c, path, view.declaredIn);
@@ -2139,6 +2180,158 @@ private:
         }
     }
 
+    void CheckAp214CurveStyleValues()
+    {
+        // These source checks never turn an appearance dependency into a body
+        // root. Names are case-sensitive STRING values, not enum spellings.
+        constexpr std::string_view names[] = { "continuous", "chain", "chain double dash", "dashed", "dotted" };
+        for (const auto font : Population("DRAUGHTING_PRE_DEFINED_CURVE_FONT"))
+        {
+            const auto& name = FieldValue(font, "name");
+            Visit(name.span);
+            if (std::find(std::begin(names), std::end(names), name.text) == std::end(names))
+            {
+                FieldFailure(
+                    "SourceRuleViolation:DRAUGHTING_PRE_DEFINED_CURVE_FONT.WR1",
+                    "D3",
+                    "Unknown predefined curve-font name",
+                    name.span,
+                    Status::Rejected,
+                    font,
+                    "name",
+                    FieldDetail::AttributePath,
+                    "five exact draughting font names",
+                    name.text,
+                    "AP214E3_2010.exp DRAUGHTING_PRE_DEFINED_CURVE_FONT.WR1"
+                );
+            }
+        }
+        const auto& styles = Population("CURVE_STYLE");
+        for (const auto style : styles)
+        {
+            const auto& width = FieldValue(style, "curve_width");
+            Visit(width.span);
+            if (width.kind == ValueKind::Typed && width.text == "POSITIVE_LENGTH_MEASURE" && CompareSourceReals(width.children[0].text, "0.") <= 0)
+            {
+                FieldFailure(
+                    "SourceRuleViolation:POSITIVE_LENGTH_MEASURE.WR1",
+                    "D3",
+                    "Source width is not strictly positive",
+                    width.span,
+                    Status::Rejected,
+                    style,
+                    "curve_width",
+                    FieldDetail::AttributePath,
+                    "value > 0",
+                    width.children[0].text,
+                    "AP214E3_2010.exp POSITIVE_LENGTH_MEASURE.WR1"
+                );
+            }
+            // A provisional invalid STRING width remains uninterpreted here.
+            // Its typed pending proof is checked only after closure/attachment.
+            const auto colour = Target(FieldValue(style, "curve_colour"));
+            if (IsA(*m_data, colour, "COLOUR_RGB"))
+            {
+                constexpr std::pair<std::string_view, std::string_view> channels[] = { { "red", "COLOUR_RGB.WR1" },
+                                                                                       { "green", "COLOUR_RGB.WR2" },
+                                                                                       { "blue", "COLOUR_RGB.WR3" } };
+                for (const auto& [field, clause] : channels)
+                {
+                    const auto& value = FieldValue(colour, field);
+                    Visit(value.span);
+                    if (CompareSourceReals(value.text, "0.") < 0 || CompareSourceReals(value.text, "1.") > 0)
+                    {
+                        FieldFailure(
+                            "SourceRuleViolation:" + std::string(clause),
+                            "D3",
+                            "Source colour channel is outside [0,1]",
+                            value.span,
+                            Status::Rejected,
+                            colour,
+                            field,
+                            FieldDetail::AttributePath,
+                            "0 <= value <= 1",
+                            value.text,
+                            "AP214E3_2010.exp " + std::string(clause)
+                        );
+                    }
+                }
+            }
+        }
+        std::unordered_set<std::size_t> curveAssignments;
+        // No curve style means no matching assignment. Skip the assignment scan,
+        // but STILL check styled curves below: zero matches violates the rule.
+        if (!styles.empty())
+        {
+            for (const auto assignment : Population("PRESENTATION_STYLE_ASSIGNMENT"))
+            {
+                std::size_t curves = 0;
+                const auto& values = FieldValue(assignment, "styles");
+                for (const auto& value : values.children)
+                {
+                    Visit(value.span);
+                    if (IsA(*m_data, Target(value), "CURVE_STYLE"))
+                    {
+                        ++curves;
+                    }
+                }
+                if (curves > 1)
+                {
+                    // Every admitted CURVE_STYLE has the same TYPEOF set. PSA.WR1
+                    // permits repeated surface usage but not two curve styles.
+                    FieldFailure(
+                        "SourceRuleViolation:PRESENTATION_STYLE_ASSIGNMENT.WR1",
+                        "D3",
+                        "Assignment repeats the curve-style type",
+                        values.span,
+                        Status::Rejected,
+                        assignment,
+                        "styles",
+                        FieldDetail::AttributePath,
+                        "at most one CURVE_STYLE",
+                        std::to_string(curves),
+                        "AP214E3_2010.exp PRESENTATION_STYLE_ASSIGNMENT.WR1"
+                    );
+                }
+                if (curves)
+                {
+                    curveAssignments.insert(assignment);
+                }
+            }
+        }
+        for (const auto item : Population("STYLED_ITEM"))
+        {
+            if (!IsA(*m_data, Target(FieldValue(item, "item")), "CURVE"))
+            {
+                continue;
+            }
+            std::size_t assignments = 0;
+            const auto& values = FieldValue(item, "styles");
+            for (const auto& value : values.children)
+            {
+                Visit(value.span);
+                assignments += curveAssignments.contains(Target(value));
+            }
+            if (assignments != 1)
+            {
+                // Count assignments CONTAINING a curve style, not references to
+                // the style itself, as required by styled_curve.WR1.
+                FieldFailure(
+                    "SourceRuleViolation:styled_curve.WR1",
+                    "D3",
+                    "Styled curve does not have exactly one curve-style assignment",
+                    values.span,
+                    Status::Rejected,
+                    item,
+                    "styles",
+                    FieldDetail::AttributePath,
+                    "one curve-style assignment",
+                    std::to_string(assignments),
+                    "AP214E3_2010.exp styled_curve.WR1"
+                );
+            }
+        }
+    }
     void CheckAp214RenderingValues()
     {
         // AP214E3_2010.exp source predicates. Compare exact source REALs, not
@@ -2212,6 +2405,7 @@ private:
         }
         if (IsAp214SourceProfile(m_data->profile.kind))
         {
+            CheckAp214CurveStyleValues();
             CheckAp214RenderingValues();
         }
         std::vector<std::size_t> seeds;
@@ -2387,6 +2581,25 @@ private:
             }
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (issue.proof == SemanticData::PreservationProof::CurveStyleWidth)
+            {
+                if (!presentationUse)
+                {
+                    presentationUse = Reach(m_presentationRoots, false);
+                }
+                // Authorize by the typed proof and actual owner graph, never by
+                // a diagnostic message or exported role label. An invalid width
+                // cannot use detached style residue to acquire part ownership.
+                if (!IsAp214SourceProfile(m_data->profile.kind) || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                    !IsA(*m_data, record, "CURVE_STYLE") || FieldValue(record, "curve_width").kind != ValueKind::String ||
+                    !(*presentationUse)[record] || physical[record])
+                {
+                    State(Phase::Types) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
             if (key == "UnsupportedEntityType")
             {
                 // A foreign context descriptor is never a new root. Product()

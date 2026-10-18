@@ -7,4 +7,5 @@
 namespace step_semantics
 {
 void AddAp214RenderingDeclarations(Catalog& catalog);
-}
+void AddAp214CurveStyleDeclarations(Catalog& catalog);
+} // namespace step_semantics

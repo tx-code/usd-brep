@@ -528,6 +528,7 @@ Catalog::Catalog(ProfileKind profile)
     {
         AddDateTimeDeclarations(*this, profile);
         AddAp214RenderingDeclarations(*this);
+        AddAp214CurveStyleDeclarations(*this);
     }
     if (profile == ProfileKind::Ap214MbxSource)
     {

@@ -536,16 +536,17 @@ private:
                 const auto target = Target(*unit.declaration.value);
                 const auto& value = Field(r, "value_component");
                 const auto& tag = value.declaration.value->text;
-                if (tag == "POSITIVE_RATIO_MEASURE")
+                if (tag == "POSITIVE_RATIO_MEASURE" || tag == "POSITIVE_LENGTH_MEASURE" || tag == "NON_NEGATIVE_LENGTH_MEASURE")
                 {
-                    // AP214E3_2010.exp POSITIVE_RATIO_MEASURE.WR1: compare the exact
-                    // source REAL, including signed zero/huge exponents, without
-                    // changing its typed branch or guessing a quantity from RI.name.
+                    // Source TYPE predicates also apply through SIZE_SELECT's
+                    // generic MWU branch. Compare exact REALs (including signed
+                    // zero and huge exponents); use never changes the branch/unit.
                     Count(value.declaration.value->span);
                     ++m_counts.typePredicates;
-                    if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
+                    const auto sign = CompareSourceReals(value.declaration.value->children.front().text, "0.");
+                    if (sign < 0 || (sign == 0 && tag != "NON_NEGATIVE_LENGTH_MEASURE"))
                     {
-                        Rule(r, value, "POSITIVE_RATIO_MEASURE.WR1");
+                        Rule(r, value, tag + ".WR1");
                     }
                 }
                 Dimensions required;
