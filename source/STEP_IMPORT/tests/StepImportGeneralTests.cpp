@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <stdexcept>
 
 namespace
@@ -129,12 +130,16 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive)
     Require(result.brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0, "reloaded level2");
     return result;
 }
-double VolumeWithImportPolicy(const SmBrep& brep, step_import::Point origin)
+double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::Point, 2>& bounds)
 {
-    // ComputeVolume chooses the bounding-box midpoint; the import report uses
-    // the minimum corner in ComputeMassProperties. At finite relative accuracy,
-    // different integration origins can differ without any copy geometry change.
-    // Compare copies/archives with the SAME routine, origin and accuracy.
+    // Origin-dependent quadrature noise must not masquerade as copy/archive
+    // geometry changes. Match the documented mass integration origin/accuracy;
+    // defining coefficients and UV are compared independently below.
+    step_import::Point origin;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        origin[axis] = std::midpoint(bounds[0][axis], bounds[1][axis]);
+    }
     double area = 0, volume = 0, mass = 0;
     SmPoint3d centroid;
     SmVector3d moments, products;
@@ -520,7 +525,7 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     editable.model->Edit(
         [&](SmBrep& brep)
         {
-            copiedVolume = VolumeWithImportPolicy(brep, info.boundsMm[0]);
+            copiedVolume = VolumeWithImportPolicy(brep, info.boundsMm);
         }
     );
     const auto expected = *result.model->MaterialVolumeMm3();
@@ -535,7 +540,7 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     loaded.brep->GetEdges(edges);
     loaded.brep->GetVertices(vertices);
     Require(faces.GetSize() == info.faces && edges.GetSize() == info.edges && vertices.GetSize() == info.vertices, "archive topology preserved");
-    const double volume = VolumeWithImportPolicy(*loaded.brep, info.boundsMm[0]);
+    const double volume = VolumeWithImportPolicy(*loaded.brep, info.boundsMm);
     // The native integrator requests relative 1e-4, not bitwise deterministic
     // quadrature after cache-free reload. Coefficient identity is checked below;
     // this separate measure comparison allows the two numerical integrations.

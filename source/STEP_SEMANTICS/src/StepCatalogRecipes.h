@@ -446,6 +446,17 @@ constexpr Recipe Describe(ProfileKind profile)
     if (profile != ProfileKind::Ap203e2Planar)
     {
         rational_spline::AddRationalSplineDeclarations(recipe);
+        // Pinned N2635 / AP214E3_2010.exp TOROIDAL_SURFACE: two positive
+        // lengths, with the inherited elementary-surface placement. The
+        // major>minor WHERE belongs to the distinct CSG TORUS entity, so
+        // source horn/spindle surfaces remain legal source representations.
+        // Append after existing entries to preserve their type identities.
+        declarations.push_back(
+            { "TOROIDAL_SURFACE",
+              { "ELEMENTARY_SURFACE" },
+              { Real("major_radius", "POSITIVE_LENGTH_MEASURE"), Real("minor_radius", "POSITIVE_LENGTH_MEASURE") },
+              true }
+        );
     }
     return recipe;
 }

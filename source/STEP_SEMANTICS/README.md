@@ -1,5 +1,12 @@
 # STEP source semantics: ticket 03
 
+The three explicit general source profiles admit `TOROIDAL_SURFACE` with its
+inherited elementary-surface placement and two original positive length radii.
+Pinned N2635 and AP214E3_2010.exp impose no entity WHERE ordering those radii;
+`TORUS.WR1` belongs to the separate CSG entity. Horn/spindle source values are
+retained, while native ring construction has its own narrower capability gate.
+The default planar P0 profile is unchanged.
+
 The exact `AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1}` identifier selects
 `214-MBx2010-Source-0.1`, with registry identity `ap214-mbx-2010`. The
 [MBx-IF EXPRESS download table](https://www.mbx-if.org/home/mbx/resources/express-schemas/)
@@ -38,7 +45,7 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 132/114 declarations respectively;
+transport slot. The general catalogs contain 133/115 declarations respectively;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 

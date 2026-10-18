@@ -9,7 +9,7 @@ DATA、其他文件头字段、协议绑定、类型、单位和几何检查均�
 
 新增显式的通用开发路径 `Options.generalBrep=true`，用于精确绑定的 AP214e3／AP203e2 单个普通
 `MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、显式节点 B 样条边，
-PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE 和显式节点 B 样条曲面。
+PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE、标准环形 TOROIDAL_SURFACE 和显式节点 B 样条曲面。
 样条包括已登记的有理复合实体映射；控制点采用欧氏坐标，权重为独立的无量纲参数。
 源权重原词形始终保留，转入内核前检查数值可表示性，构建后读回齐次控制网验证。
 仅当源权重词形全部相同、可证明共同因子精确消去时，允许内核改存单位权重，
@@ -45,6 +45,17 @@ UV 安装与误差检查后，经原生曲线相交/包含分类证明唯一外�
 比较同参数的定义曲线点和最终 UV 抬升点并执行 UV 预算。此采样检查包含端点，不能代替连续误差界。
 面积/体积以原生相对精度 1e-4 计算；尚未建立全局定义误差、
 全局曲线—曲面误差或面积/体积绝对误差界。报告明确标记这些未建立的资格。
+质量积分以包围盒中点为参考原点，改善矩量计算的数值条件；报告记录
+`mass_integration_origin=AxisAlignedBoundsMidpoint`。这不改变定义几何、工作容差或请求精度，
+也不把请求相对精度当作已证明的绝对误差界。
+
+圆环面首版构建要求有限可表示的 `major_radius > minor_radius > 0`，保留源位置架和已有边／缝。
+半径还须大于内核 `SM_EFF_ZERO`；超出此原生数值范围时报告
+`GeneralToroidalKernelRadiusRange`，不进入不安全的直接构造路径。
+源 `TOROIDAL_SURFACE` 仅要求两个正长度；角形／自交的正半径源表示仍可通过源检查，
+其原生构建明确报 `GeneralToroidalRingRequired`，不会移植 CSG `TORUS` 的规则把它判成非法源。
+目标解析角域以度表示，原生 NURBS UV 与之不是线性关系；不声称等同于源参数。
+未标外环的圆环面继续 Deferred，跨周期缝等情况仍须通过既有 UV／有效性检查才能发布。
 
 返回模型是 owning 只读快照，`FaceView::ParameterDomain()` 返回实际原生求值域，
 不承诺它是源 UV 或以毫米计。`WriteNative(path)` 保存不拟合解析定义的二进制原生

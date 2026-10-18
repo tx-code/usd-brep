@@ -270,7 +270,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 }
                 w.Add("}");
                 w.Add(
-                    ",\"measurement_policy\":{\"native_requested_relative_accuracy\":0.0001,\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
+                    ",\"measurement_policy\":{\"native_requested_relative_accuracy\":0.0001,\"mass_integration_origin\":\"AxisAlignedBoundsMidpoint\",\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
                 );
                 w.Add(
                     ",\"qualification\":\"SelectedSourceChecksAndNativeMeasuredPostchecks\",\"full_schema_conformance\":false,\"planar_proofs\":\"NotApplicable\",\"source_sha256\":"

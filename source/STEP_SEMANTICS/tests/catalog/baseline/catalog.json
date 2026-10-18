@@ -3589,7 +3589,8 @@
         "DATE_AND_TIME_ASSIGNMENT",
         "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
         "RATIONAL_B_SPLINE_CURVE",
-        "RATIONAL_B_SPLINE_SURFACE"
+        "RATIONAL_B_SPLINE_SURFACE",
+        "TOROIDAL_SURFACE"
       ],
       "name_index": [
         {
@@ -4099,6 +4100,10 @@
         {
           "name": "TOPOLOGICAL_REPRESENTATION_ITEM",
           "id": 2
+        },
+        {
+          "name": "TOROIDAL_SURFACE",
+          "id": 132
         },
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
@@ -9962,6 +9967,67 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 132,
+          "name": "TOROIDAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "major_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "minor_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            132
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 132,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 132,
+              "local_field_index": 1
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -10482,7 +10548,8 @@
         "DRAUGHTING_PRE_DEFINED_CURVE_FONT",
         "CURVE_STYLE",
         "RATIONAL_B_SPLINE_CURVE",
-        "RATIONAL_B_SPLINE_SURFACE"
+        "RATIONAL_B_SPLINE_SURFACE",
+        "TOROIDAL_SURFACE"
       ],
       "name_index": [
         {
@@ -10924,6 +10991,10 @@
         {
           "name": "TOPOLOGICAL_REPRESENTATION_ITEM",
           "id": 2
+        },
+        {
+          "name": "TOROIDAL_SURFACE",
+          "id": 114
         },
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
@@ -16029,6 +16100,67 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 114,
+          "name": "TOROIDAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "major_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "minor_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            114
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 114,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 114,
+              "local_field_index": 1
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16528,7 +16660,8 @@
         "OVER_RIDING_STYLED_ITEM",
         "PRESENTATION_LAYER_ASSIGNMENT",
         "RATIONAL_B_SPLINE_CURVE",
-        "RATIONAL_B_SPLINE_SURFACE"
+        "RATIONAL_B_SPLINE_SURFACE",
+        "TOROIDAL_SURFACE"
       ],
       "name_index": [
         {
@@ -16994,6 +17127,10 @@
         {
           "name": "TOPOLOGICAL_REPRESENTATION_ITEM",
           "id": 2
+        },
+        {
+          "name": "TOROIDAL_SURFACE",
+          "id": 120
         },
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
@@ -22406,6 +22543,67 @@
               "declaring_type": "RATIONAL_B_SPLINE_SURFACE",
               "declaring_type_id": 119,
               "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 120,
+          "name": "TOROIDAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "major_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "minor_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            120
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 120,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 120,
+              "local_field_index": 1
             }
           ]
         }

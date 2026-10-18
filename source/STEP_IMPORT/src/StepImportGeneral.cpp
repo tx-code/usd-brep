@@ -26,6 +26,7 @@
 #include <SmPlane.h>
 #include <SmRegion.h>
 #include <SmTol.h>
+#include <SmTorus.h>
 #include <SmVertex.h>
 #include <algorithm>
 #include <cfenv>
@@ -34,6 +35,7 @@
 #include <limits>
 #include <map>
 #include <numbers>
+#include <numeric>
 #include <set>
 
 // This path constructs defining geometry directly from a typed source graph.
@@ -1562,6 +1564,36 @@ private:
             Good(cone->AdjustSTEPUVDomain(SmExtent2d(angles[0], domain.GetMin().y, angles[1], domain.GetMax().y)));
             return cone;
         }
+        if (Is(g, "TOROIDAL_SURFACE"))
+        {
+            const double major = N(g, "major_radius") * scale, minor = N(g, "minor_radius") * scale;
+            // This native slice handles finite nonsingular ring tori only.
+            // Horn/spindle surfaces are valid source TOROIDAL_SURFACE values;
+            // refusing their native construction is not an EXPRESS violation.
+            if (!(std::isfinite(major) && std::isfinite(minor) && minor > 0 && major > minor))
+            {
+                Fail("GeneralToroidalRingRequired", g, Status::Unsupported);
+            }
+            // The checked factory rejects radii at/below SM_EFF_ZERO. Its
+            // direct constructor assumes a successful generating-circle
+            // allocation and cannot safely handle that source-positive range.
+            if (minor <= SM_EFF_ZERO || major <= SM_EFF_ZERO)
+            {
+                Fail("GeneralToroidalKernelRadiusRange", g, Status::Unsupported);
+            }
+            // SmTorus's analytic chart uses degrees; its EvaluatePoint takes
+            // the nonlinearly related NURBS UV. No source parameter is changed
+            // or claimed identical to target UV. Existing source seams/edges
+            // remain defining geometry; installed UV must pass the same gates.
+            const SmExtent2d domain(0, 0, 360, 360);
+            SmTorus* raw = nullptr;
+            Step(g);
+            const auto status = SmTorus::CreateCanonical(*m_model->context, frame.Native(), major, minor, raw, FALSE, FALSE, nullptr, &domain);
+            std::unique_ptr<SmTorus> torus(raw);
+            Good(status);
+            Need(torus && torus->GetMajorRadius() == major && torus->GetMinorRadius() == minor, "GeneralToroidalDefinitionChanged", g);
+            return torus;
+        }
         Fail("GeneralUnsupportedSurface", g, Status::Unsupported);
     }
     void AppendSourceUse(SmBrepConstructor& c, const Use& u, LoopMapping& mapping)
@@ -2010,7 +2042,16 @@ private:
         SmPoint3d centroid;
         SmVector3d moments, products;
         Step(shape);
-        const auto& origin = info.boundsMm[0];
+        // Finite-accuracy mass integration also accumulates moment terms.
+        // Center their reference frame on the bounds to reduce cancellation;
+        // a corner reference failed the rotated analytic-torus control.
+        // This changes no geometry or requested accuracy. midpoint avoids
+        // overflow when finite bounds have large coordinates of the same sign.
+        Point origin;
+        for (Index axis = 0; axis < 3; ++axis)
+        {
+            origin[axis] = std::midpoint(info.boundsMm[0][axis], info.boundsMm[1][axis]);
+        }
         Good(SmApiBrepComputeMassProperties(
             m_model->brep.get(),
             1e-4,

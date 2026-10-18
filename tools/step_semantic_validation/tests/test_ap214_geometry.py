@@ -32,6 +32,7 @@ def geometry_source(kind="CIRCLE", source=None):
     definition = {
         "CYLINDRICAL_SURFACE": b"CYLINDRICAL_SURFACE('source cylinder',#133,3.25)",
         "CONICAL_SURFACE": b"CONICAL_SURFACE('source cone',#133,0.,-2.5)",
+        "TOROIDAL_SURFACE": b"TOROIDAL_SURFACE('source toroidal surface',#133,+5.00E0,2.5)",
         "B_SPLINE_SURFACE_WITH_KNOTS": (
             b"B_SPLINE_SURFACE_WITH_KNOTS('source surface',2,1,((#100,#101),(#103,#102),(#100,#102)),"
             b".UNSPECIFIED.,.U.,.F.,.U.,(3,3),(2,2),(-2.,3.),(65.,66.),.UNSPECIFIED.)"),
@@ -78,6 +79,39 @@ class Ap214GeometryTests(unittest.TestCase):
                 self.assertEqual({"kind": "rational", "num": "1", "den": "1"},
                                  result["snapshot"]["units"]["length_scale_mm"])
                 self.assertEqual("NotRun", result["checks"]["global_rules_47"])
+
+    def test_toroidal_surface_keeps_both_radii_without_the_csg_torus_rule(self):
+        original = geometry_source("TOROIDAL_SURFACE")
+        variants = [
+            (original, ()),
+            (original.replace(AP214, b"AUTOMOTIVE_DESIGN {1 0 10303 214 1 1 1 1}"), ()),
+            (original.replace(AP214, AP203).replace(b"'automotive_design',2010",
+             b"'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011"),
+             ("--general-brep-source",)),
+        ]
+        for data, options in variants:
+            for radii in [b"+5.00E0,2.5", b"2.5,2.5", b"1.25,2.5"]:
+                with self.subTest(options=options, radii=radii):
+                    source = data.replace(b"+5.00E0,2.5", radii)
+                    run, result = self.invoke(source, *options)
+                    self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+                    self.assertEqual("Passed", result["checks"]["geometry_dependencies"])
+                    self.assertEqual(source.decode("ascii"), result["source"]["input"]["raw"])
+                    entity = next(r for r in result["snapshot"]["records"] if r["id"] == "134")
+                    self.assertEqual(["name", "position", "major_radius", "minor_radius"],
+                                     [a["name"] for a in entity["attributes"]])
+
+    def test_toroidal_surface_requires_two_positive_lengths_and_its_frame(self):
+        original = geometry_source("TOROIDAL_SURFACE")
+        for radii, field in [(b"0.,2.5", "major_radius"), (b"-1.,2.5", "major_radius"),
+                             (b"5.,0.", "minor_radius"), (b"5.,-1.", "minor_radius")]:
+            with self.subTest(radii=radii):
+                result = self.failed(original.replace(b"+5.00E0,2.5", radii), "SourceRuleViolation:POSITIVE_LENGTH_MEASURE.WR1")
+                diagnostic = result["diagnostics"][0]
+                self.assertEqual(field, diagnostic["field"])
+                self.assertEqual("AP214E3_2010.exp POSITIVE_LENGTH_MEASURE.WR1", diagnostic["responsibility"])
+        self.failed(original.replace(b"#133,+5.00E0,2.5", b"$,+5.00E0,2.5"), "RequiredAttributeMissing")
+        self.failed(original.replace(b"#133,+5.00E0,2.5", b"#100,+5.00E0,2.5"), "ReferenceTypeMismatch")
 
     def test_spline_rows_unknown_logicals_and_noncanonical_knots_are_retained(self):
         for kind, record in (("B_SPLINE_CURVE_WITH_KNOTS", "202"), ("B_SPLINE_SURFACE_WITH_KNOTS", "134")):
