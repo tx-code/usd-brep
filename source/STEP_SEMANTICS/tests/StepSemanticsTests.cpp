@@ -632,6 +632,54 @@ int main(int argc, char** argv)
         std::string text = "stale";
         Require(!InspectJson(reportingInput, report, text) && text.empty(), "partial/stale report was published");
         ++groups;
+
+        {
+            auto generalText = Read(corpus / "S203-P04/input.step");
+            const auto ending = generalText.rfind("ENDSEC;");
+            Require(ending != std::string::npos, "general fixture DATA terminator");
+            generalText.insert(
+                ending,
+                "#900=PROPERTY_DEFINITION('count',$,#7);\n"
+                "#901=VALUE_REPRESENTATION_ITEM('count',COUNT_MEASURE(0));\n"
+                "#902=REPRESENTATION('counts',(#901),#12);\n"
+                "#903=PROPERTY_DEFINITION_REPRESENTATION(#900,#902);\n"
+                "#910=CC_DESIGN_DATE_AND_TIME_ASSIGNMENT(#911,#915,(#7));\n"
+                "#911=DATE_AND_TIME(#912,#913);\n"
+                "#912=CALENDAR_DATE(2026,18,10);\n"
+                "#913=LOCAL_TIME(9,30,0.,#914);\n"
+                "#914=COORDINATED_UNIVERSAL_TIME_OFFSET(8,$,.AHEAD.);\n"
+                "#915=DATE_TIME_ROLE('design');\n"
+            );
+            auto generalRaw = step_source::InspectBytes(generalText, step_source::Limits::PlanarFixtures());
+            auto general = Check(generalRaw, Limits{}, SourcePolicy::Strict, GeometryScope::GeneralBrep);
+            Require(general.status == Status::Checked && general.snapshot, "explicit N2635 general source");
+            Require(
+                general.snapshot->SelectedProfile().kind == ProfileKind::Ap203e2GeneralSource &&
+                    general.snapshot->SelectedProfile().expressSha256 == SchemaSha256,
+                "general scope retains N2635 authority"
+            );
+            Require(general.snapshot->RegisteredTypes().size() > 128, "general type membership must exceed the old compact limit");
+            Require(
+                general.snapshot->IsA(Index(*general.snapshot, "910"), "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT") &&
+                    general.snapshot->IsA(Index(*general.snapshot, "910"), "DATE_AND_TIME_ASSIGNMENT"),
+                "extended leaf and ancestor membership"
+            );
+            auto owned = general.snapshot->Field(Index(*general.snapshot, "901"), "value_component");
+            Require(&owned.Value() == &generalRaw.source->Find("901")->components[0].parameters[1], "general source values were copied");
+            const auto defaultAgain = Check(
+                step_source::InspectBytes(Read(corpus / "S203-P04/input.step"), step_source::Limits::PlanarFixtures()),
+                Limits{}
+            );
+            Require(defaultAgain.snapshot && !defaultAgain.snapshot->Instances("VALUE_REPRESENTATION_ITEM"), "catalog scope leaked into P0");
+            general = {};
+            generalRaw = {};
+            Require(
+                owned.Value().text == "COUNT_MEASURE" && owned.Value().children[0].kind == step_source::ValueKind::Integer &&
+                    owned.Value().children[0].text == "0",
+                "general owning field lost its NUMBER source value"
+            );
+            ++groups;
+        }
         std::cout << "Passed " << groups << " semantic contract groups\n";
         return 0;
     }

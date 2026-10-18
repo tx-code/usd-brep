@@ -185,7 +185,7 @@ void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelecti
         out.String(selection->qualified->profile);
         out.Add(",\"express_sha256\":");
         out.String(selection->qualified->expressSha256);
-        if (selection->qualified->kind == ProfileKind::Ap214e3Source)
+        if (selection->qualified->kind != ProfileKind::Ap203e2Planar)
         {
             out.Add(",\"scope\":\"SourceDeclarationsPartUnitsOnly\"");
         }
@@ -230,9 +230,9 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.String(result.binding);
     out.Add(",\"type_fields\":");
     out.String(result.types);
-    const bool ap214 = result.schemaSelection && result.schemaSelection->qualified &&
-                       result.schemaSelection->qualified->kind == ProfileKind::Ap214e3Source;
-    if (ap214)
+    const bool extendedSource = result.schemaSelection && result.schemaSelection->qualified &&
+                                result.schemaSelection->qualified->kind != ProfileKind::Ap203e2Planar;
+    if (extendedSource)
     {
         out.Add(",\"unit_dependencies\":");
         out.String(result.unitDependencies);
@@ -249,11 +249,13 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.String(result.interoperability);
     }
     // Report partial checks only when those source predicates were attempted;
-    // neither count grants complete AP214 entity/type qualification.
+    // neither count grants complete source entity/type qualification.
     out.Add(",\"global_rules_47\":\"NotRun\",\"other_entity_where\":");
-    out.String(ap214 && (result.geometryDependencyChecks.entityPredicates || result.unitDependencyChecks.total) ? "Partial" : "NotRun");
+    out.String(extendedSource && (result.geometryDependencyChecks.entityPredicates || result.unitDependencyChecks.total) ? "Partial" : "NotRun");
     out.Add(",\"named_measure_predicates\":");
-    out.String(ap214 && (result.geometryDependencyChecks.typePredicates || result.unitDependencyChecks.typePredicates) ? "Partial" : "NotRun");
+    out.String(
+        extendedSource && (result.geometryDependencyChecks.typePredicates || result.unitDependencyChecks.typePredicates) ? "Partial" : "NotRun"
+    );
     out.Add(
         ","
         "\"geometry_consistency\":\"NotRun\",\"conversion_units\":\"NotRun\","
@@ -268,7 +270,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     }
     out.Add("},\"statistics\":{\"dependency_visits\":");
     out.Number(result.dependencyVisits);
-    if (ap214)
+    if (extendedSource)
     {
         out.Add(",\"geometry_dependency_checks\":");
         out.Number(result.geometryDependencyChecks.total);
@@ -453,7 +455,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         }
         out.Add("},\"source_shape_role\":");
         out.String(data.PartDefinition().shapeRole);
-        if (ap214)
+        if (extendedSource)
         {
             out.Add(",\"property_attachments\":[");
             bool firstAttachment = true;
@@ -575,7 +577,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             out.Add("]}");
         }
         out.Add("]");
-        if (ap214)
+        if (extendedSource)
         {
             out.Add(",\"dimension_definitions\":[");
             const auto& dimensions = data.UnitContext().dimensionDefinitions;

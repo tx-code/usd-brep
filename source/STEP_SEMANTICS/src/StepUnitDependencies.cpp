@@ -223,7 +223,9 @@ private:
         const auto& field = bound.declaration;
         issue.source.key = std::move(key);
         issue.source.stage = status == Status::Unsupported ? "D2" : "D3";
-        issue.source.message = "Selected AP214 unit dependency or dimension check did not complete";
+        issue.source.message = m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ?
+                                   "Selected N2635 unit dependency or dimension check did not complete" :
+                                   "Selected AP214 unit dependency or dimension check did not complete";
         issue.source.primary = field.value->span;
         issue.source.recordId = Record(r).id;
         issue.source.component = Record(r).components[bound.component].name;
@@ -248,7 +250,7 @@ private:
             "SourceRuleViolation:" + std::string(clause),
             "declared dimensional/source predicate",
             std::string(m_data.source->Raw(field.declaration.value->span)),
-            "AP214E3_2010.exp " + std::string(clause)
+            std::string(m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ? "N2635 " : "AP214E3_2010.exp ") + std::string(clause)
         );
     }
     [[noreturn]] void Capacity(std::size_t r, const BoundAttribute& field)
@@ -380,6 +382,38 @@ private:
             // AP214 DERIVE follows the factor unit's dimensions, not its numeric
             // magnitude and not an invented NAMED_UNIT.dimensions reference.
             node.dimensions = m_nodes[node.edges[0].target].dimensions;
+            if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource)
+            {
+                // N2635 keeps explicit NAMED_UNIT.dimensions, unlike AP214's
+                // redeclared marker. Its CBU.WR1 must agree with the factor unit.
+                const auto& bound = Field(r, "dimensions");
+                const auto sourceDimensions = Target(*bound.declaration.value);
+                Dimensions explicitDimensions;
+                for (std::size_t i = 0; i < 7; ++i)
+                {
+                    explicitDimensions[i] = Decimal(sourceDimensions, Field(sourceDimensions, DimensionFields[i]));
+                }
+                Count(bound.declaration.value->span);
+                if (explicitDimensions != node.dimensions)
+                {
+                    Rule(r, bound, "CONVERSION_BASED_UNIT.WR1");
+                }
+                const auto factor = Target(*Field(r, "conversion_factor").declaration.value);
+                const auto& value = Field(factor, "value_component");
+                Count(value.declaration.value->span);
+                if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
+                {
+                    Fail(
+                        Status::Rejected,
+                        factor,
+                        value,
+                        "SourceUnitScaleNonPositive",
+                        ">0",
+                        value.declaration.value->children.front().text,
+                        "positive physical conversion-scale guard"
+                    );
+                }
+            }
         }
         else
         {
@@ -457,6 +491,14 @@ private:
                 else if (tag == "LENGTH_MEASURE" || tag == "NON_NEGATIVE_LENGTH_MEASURE" || tag == "POSITIVE_LENGTH_MEASURE")
                 {
                     required = Basis(0);
+                }
+                else if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource && tag == "PLANE_ANGLE_MEASURE")
+                {
+                    required = {};
+                    if (!IsA(target, "PLANE_ANGLE_UNIT"))
+                    {
+                        Rule(r, unit, "PLANE_ANGLE_MEASURE_WITH_UNIT.WR1");
+                    }
                 }
                 else if (tag == "RATIO_MEASURE" || tag == "POSITIVE_RATIO_MEASURE")
                 {

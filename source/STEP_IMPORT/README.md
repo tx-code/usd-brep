@@ -1,9 +1,15 @@
 # STEP_IMPORT（内部 C++20）
 
-新增显式的通用开发路径 `Options.generalBrep=true`，用于 AP214 单个普通
+新增显式的通用开发路径 `Options.generalBrep=true`，用于精确绑定的 AP214e3／AP203e2 单个普通
 `MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、非有理节点 B 样条边，
 PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE 和非有理节点 B 样条曲面。
 仍保留下面原有平面路径的行为和资格；默认选项不进入通用路径。
+
+AP203e2 的通用请求使用独立的 `203e2-G0-Source-0.1` 源子集，保留 N2635 旧上下文、
+显式转换单位量纲、属性与管理声明；管理挂接须证明目标已属于所选零件。
+旧审批 SELECT 冲突只能在显式互操作模式下，经所选 PD／formation 和非物理用途证明后，
+连同原始诊断保留。完整管理 WHERE／global RULE 尚未执行。开发质量配置的历史名称
+`Q-AP214-*` 不决定源协议，实际源身份和源检查范围由报告中的 schema/profile 单独记录。
 
 通用路径先检查类型化源图、所选实体角色、物理单位和源共享拓扑，然后直接构建私有
 SMLib 候选。以源 EC 身份共享边，保留所有源顶点和原定义；不调用缝合或修复器。

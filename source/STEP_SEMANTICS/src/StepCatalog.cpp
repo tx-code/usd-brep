@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepCatalog.h"
 
+#include "StepAp203GeneralCatalog.h"
+
 #include <algorithm>
 #include <functional>
 #include <stdexcept>
@@ -350,7 +352,7 @@ Catalog::Catalog(ProfileKind profile)
         { "DERIVED_UNIT_ELEMENT", {}, {} },
     };
     derivedSlots.assign(std::begin(CommonDerivedSlots), std::end(CommonDerivedSlots));
-    if (profile == ProfileKind::Ap214e3Source)
+    if (profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap203e2GeneralSource)
     {
         // Pinned AP214 unit fields replace guard-only entries before any pointers
         // are bound. DERIVED_UNIT.name is DERIVE, never a transmitted name slot.
@@ -384,21 +386,24 @@ Catalog::Catalog(ProfileKind profile)
         measureBranches.push_back("RATIO_MEASURE");
         measureBranches.push_back("POSITIVE_RATIO_MEASURE");
         declarations.push_back({ "MASS_MEASURE_WITH_UNIT", { "MEASURE_WITH_UNIT" }, {}, true });
-        // These two deprecated AP203 types do not occur in the pinned AP214e3 artifact.
-        declarations.erase(
-            std::remove_if(
-                declarations.begin(),
-                declarations.end(),
-                [](const Declaration& declaration)
-                {
-                    return declaration.name == "MECHANICAL_CONTEXT" || declaration.name == "DESIGN_CONTEXT";
-                }
-            ),
-            declarations.end()
-        );
-        // AP214E3_2010.exp, CONVERSION_BASED_UNIT DERIVE: dimensions is transmitted as '*'.
-        // The source value stays a marker; this descriptor must not invent the factor unit's dimensions reference.
-        derivedSlots.push_back({ "CONVERSION_BASED_UNIT", "NAMED_UNIT", "dimensions" });
+        if (profile == ProfileKind::Ap214e3Source)
+        {
+            // These two deprecated AP203 types do not occur in the pinned AP214e3 artifact.
+            declarations.erase(
+                std::remove_if(
+                    declarations.begin(),
+                    declarations.end(),
+                    [](const Declaration& declaration)
+                    {
+                        return declaration.name == "MECHANICAL_CONTEXT" || declaration.name == "DESIGN_CONTEXT";
+                    }
+                ),
+                declarations.end()
+            );
+            // AP214E3_2010.exp, CONVERSION_BASED_UNIT DERIVE: dimensions is transmitted as '*'.
+            // The source value stays a marker; this descriptor must not invent the factor unit's dimensions reference.
+            derivedSlots.push_back({ "CONVERSION_BASED_UNIT", "NAMED_UNIT", "dimensions" });
+        }
         // Pinned AP214E3_2010.exp, presentation entities and their inherited explicit fields.
         // All values/reference directions stay source-owned. Registering these transport
         // declarations does not evaluate the MDGPR/style/colour WHERE clauses or global RULEs.
@@ -501,7 +506,11 @@ Catalog::Catalog(ProfileKind profile)
         complexSignatures.push_back(MeasureRepresentation);
         declarations.push_back({ "DESCRIPTIVE_REPRESENTATION_ITEM", { "REPRESENTATION_ITEM" }, { Text("description", "TEXT") }, true });
     }
-    if (declarations.size() > 128)
+    if (profile == ProfileKind::Ap203e2GeneralSource)
+    {
+        AddAp203GeneralDeclarations(*this);
+    }
+    if (declarations.size() > TypeMembership{}.size())
     {
         throw std::logic_error("Catalog exceeds compact type capacity");
     }
@@ -582,7 +591,7 @@ bool Catalog::AdmitsComplex(std::span<const std::string> facets) const
         }
     );
 }
-bool Catalog::HasSubtypeConflict(const std::bitset<128>& types) const
+bool Catalog::HasSubtypeConflict(const TypeMembership& types) const
 {
     for (const auto group : ExclusiveGroups)
     {
@@ -598,7 +607,7 @@ bool Catalog::HasSubtypeConflict(const std::bitset<128>& types) const
     }
     return false;
 }
-bool Catalog::MatchesReference(const std::bitset<128>& types, std::string_view expected) const
+bool Catalog::MatchesReference(const TypeMembership& types, std::string_view expected) const
 {
     for (const auto& select : referenceSelects)
     {
@@ -654,7 +663,7 @@ int Catalog::PrefixPower10(std::string_view prefix) const
     }
     throw std::out_of_range("Unregistered SI prefix");
 }
-std::string_view Catalog::RedeclaredBy(const std::bitset<128>& types, const FieldBinding& binding) const
+std::string_view Catalog::RedeclaredBy(const TypeMembership& types, const FieldBinding& binding) const
 {
     for (const auto& slot : derivedSlots)
     {
@@ -674,6 +683,11 @@ const Catalog& Schema(ProfileKind profile)
         case ProfileKind::Ap203e2Planar:
         {
             static const Catalog catalog(ProfileKind::Ap203e2Planar);
+            return catalog;
+        }
+        case ProfileKind::Ap203e2GeneralSource:
+        {
+            static const Catalog catalog(ProfileKind::Ap203e2GeneralSource);
             return catalog;
         }
         case ProfileKind::Ap214e3Source:

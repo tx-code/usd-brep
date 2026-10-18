@@ -126,7 +126,7 @@ public:
                 Fields();
             }
         );
-        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             RunPhase(
                 Phase::UnitDependencies,
@@ -207,7 +207,7 @@ public:
         for (const auto& diagnostic : m_data->preservedDiagnostics)
         {
             const auto& key = diagnostic.source.key;
-            if (key == "RequiredAttributeMissing")
+            if (key == "RequiredAttributeMissing" || key == "ReferenceTypeMismatch")
             {
                 m_outcome.types = "CheckedWithDiagnostics";
             }
@@ -264,6 +264,7 @@ private:
         switch (m_data->profile.kind)
         {
             case ProfileKind::Ap203e2Planar:
+            case ProfileKind::Ap203e2GeneralSource:
                 return "N2635";
             case ProfileKind::Ap214e3Source:
                 return "AP214E3_2010.exp";
@@ -383,7 +384,7 @@ private:
     }
     bool Interoperability() const
     {
-        return m_data->policy == SourcePolicy::PreserveNonGeometric && m_data->profile.kind == ProfileKind::Ap214e3Source;
+        return m_data->policy == SourcePolicy::PreserveNonGeometric && m_data->profile.kind != ProfileKind::Ap203e2Planar;
     }
     bool NonGeometricStyle(std::size_t record) const
     {
@@ -480,6 +481,15 @@ private:
     void Binding()
     {
         m_outcome.schemaSelection = SelectSchema(*m_data->source);
+        // An explicit general-BRep request selects a separate source subset.
+        // The exact N2635 HEADER identity stays unchanged; default P0 checking
+        // must not acquire newly admitted geometry or management declarations.
+        if (m_data->geometryScope == GeometryScope::GeneralBrep && m_outcome.schemaSelection->qualified &&
+            m_outcome.schemaSelection->qualified->kind == ProfileKind::Ap203e2Planar)
+        {
+            m_outcome.schemaSelection->qualified->profile = Ap203GeneralSourceProfile;
+            m_outcome.schemaSelection->qualified->kind = ProfileKind::Ap203e2GeneralSource;
+        }
         const auto& identifiers = m_data->source->Header()[2].parameters[0].children;
         if (identifiers.size() != 1)
         {
@@ -645,6 +655,8 @@ private:
                     Fail(
                         "UnsupportedComplexSignature",
                         "D2",
+                        m_data->profile.kind == ProfileKind::Ap203e2GeneralSource ?
+                            "Complete complex mapping is outside the selected N2635 general source signatures" :
                         m_data->profile.kind == ProfileKind::Ap214e3Source ?
                             "Complete complex mapping is outside the selected AP214 source signatures" :
                             "Complete complex mapping is outside the six admitted signatures",
@@ -653,7 +665,9 @@ private:
                         r,
                         0,
                         {},
-                        m_data->profile.kind == ProfileKind::Ap214e3Source ? "registered AP214 source signature" : "one of six signatures",
+                        m_data->profile.kind == ProfileKind::Ap203e2GeneralSource ? "registered N2635 general source signature" :
+                        m_data->profile.kind == ProfileKind::Ap214e3Source        ? "registered AP214 source signature" :
+                                                                                    "one of six signatures",
                         "other signature",
                         "profile mapping"
                     );
@@ -794,7 +808,19 @@ private:
                     {
                         failure.diagnostic.source.targetId = value.text;
                         failure.diagnostic.source.related.push_back(Record(UnboundTarget(value)).idSpan);
-                        throw;
+                        // N2635 APPROVED_ITEM excludes PD/formation, although legacy
+                        // CC exports use those targets. Preserve the exact mismatch
+                        // provisionally ONLY for these administrative uses; selected
+                        // part identity and absence from physical dependencies must
+                        // be proved before the snapshot is allowed to publish.
+                        const auto target = UnboundTarget(value);
+                        if (!Interoperability() || m_data->profile.kind != ProfileKind::Ap203e2GeneralSource || field.type != "APPROVED_ITEM" ||
+                            !IsA(*m_data, r, "CC_DESIGN_APPROVAL") ||
+                            (!IsA(*m_data, target, "PRODUCT_DEFINITION") && !IsA(*m_data, target, "PRODUCT_DEFINITION_FORMATION")))
+                        {
+                            throw;
+                        }
+                        Preserve(std::move(failure));
                     }
                 }
                 m_data->referenceTargets.emplace(&value, UnboundTarget(value));
@@ -822,7 +848,11 @@ private:
                         "profile measure SELECT guard"
                     );
                 }
-                if (value.children[0].kind != ValueKind::Real)
+                // N2635 count_measure/numeric_measure are NUMBER, unlike the
+                // existing length/angle REAL branches. Retain INTEGER lexemes.
+                if (value.children[0].kind != ValueKind::Real &&
+                    !(m_data->profile.kind == ProfileKind::Ap203e2GeneralSource &&
+                      (value.text == "COUNT_MEASURE" || value.text == "NUMERIC_MEASURE") && value.children[0].kind == ValueKind::Integer))
                 {
                     mismatch();
                 }
@@ -1204,7 +1234,7 @@ private:
         const auto pd = One("PRODUCT_DEFINITION"), pds = One("PRODUCT_DEFINITION_SHAPE"), sdr = One("SHAPE_DEFINITION_REPRESENTATION");
         std::size_t definitionRepresentation = 0;
         std::optional<std::size_t> shapeRelationship;
-        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             // Source SDR selects the root; presentation order and representation counts
             // cannot select the body's geometry or override its unit context.
@@ -1507,7 +1537,7 @@ private:
             }
             if (outer != 1)
             {
-                if (outer == 0 && m_data->profile.kind == ProfileKind::Ap214e3Source && m_data->geometryScope == GeometryScope::GeneralBrep)
+                if (outer == 0 && m_data->profile.kind != ProfileKind::Ap203e2Planar && m_data->geometryScope == GeometryScope::GeneralBrep)
                 {
                     // Ordinary FACE_BOUND is legal source data. Do not guess its
                     // role or silently change the source type: general native
@@ -1628,9 +1658,26 @@ private:
                 // Restrict the entire metadata item boundary, not just its name.
                 // MRI can reference only units; DRI has text. Neither can smuggle
                 // geometry in through a style, placement or another BRep shape.
-                if (!IsA(*m_data, target, "MEASURE_REPRESENTATION_ITEM") && !IsA(*m_data, target, "DESCRIPTIVE_REPRESENTATION_ITEM"))
+                const bool valueItem = m_data->profile.kind == ProfileKind::Ap203e2GeneralSource && IsA(*m_data, target, "VALUE_REPRESENTATION_ITEM");
+                if (!IsA(*m_data, target, "MEASURE_REPRESENTATION_ITEM") && !IsA(*m_data, target, "DESCRIPTIVE_REPRESENTATION_ITEM") && !valueItem)
                 {
                     reject(representation, "items", value, "UnsupportedPropertyItem", "measure or descriptive item", i + 1);
+                }
+                if (valueItem && !IsA(*m_data, Target(FieldValue(representation, "context_of_items")), "GLOBAL_UNIT_ASSIGNED_CONTEXT"))
+                {
+                    FieldFailure(
+                        "SourceRuleViolation:VALUE_REPRESENTATION_ITEM.WR1",
+                        "D3",
+                        "Value items require an assigned unit context",
+                        FieldValue(representation, "context_of_items").span,
+                        Status::Rejected,
+                        representation,
+                        "context_of_items",
+                        FieldDetail::AttributePath,
+                        "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+                        "context without unit assignment",
+                        "N2635 VALUE_REPRESENTATION_ITEM.WR1"
+                    );
                 }
             }
             const auto& context = FieldValue(representation, "context_of_items");
@@ -1701,6 +1748,88 @@ private:
             m_data->part.roles.push_back({ "presentation_" + std::to_string(i), presentation });
         }
     }
+    void AttachAp203Management()
+    {
+        // N2635 inverse administrative associations are not geometry roots. Admit
+        // a root only when ALL of its target items are already owned by this
+        // selected part. Fixed-point expansion handles approval/security links
+        // without allowing an administrative cycle to invent its own ownership.
+        std::vector<std::size_t> candidates;
+        for (const auto name : { "CC_DESIGN_APPROVAL",
+                                 "CC_DESIGN_SECURITY_CLASSIFICATION",
+                                 "CC_DESIGN_PERSON_AND_ORGANIZATION_ASSIGNMENT",
+                                 "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
+                                 "APPROVAL_PERSON_ORGANIZATION",
+                                 "APPROVAL_DATE_TIME",
+                                 "PRESENTATION_LAYER_ASSIGNMENT" })
+        {
+            for (const auto r : Population(name))
+            {
+                candidates.push_back(r);
+            }
+        }
+        std::vector<unsigned char> admitted(m_data->types.size());
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            std::vector<std::size_t> roots;
+            for (const auto& role : m_data->part.roles)
+            {
+                roots.push_back(role.recordIndex);
+            }
+            const auto owned = Reach(std::move(roots), false);
+            for (const auto record : candidates)
+            {
+                if (admitted[record])
+                {
+                    continue;
+                }
+                Visit(Record(record).span);
+                const char* field = IsA(*m_data, record, "APPROVAL_PERSON_ORGANIZATION")  ? "authorized_approval" :
+                                    IsA(*m_data, record, "APPROVAL_DATE_TIME")            ? "dated_approval" :
+                                    IsA(*m_data, record, "PRESENTATION_LAYER_ASSIGNMENT") ? "assigned_items" :
+                                                                                            "items";
+                const auto& value = FieldValue(record, field);
+                bool attached = true;
+                if (value.kind == ValueKind::Aggregate)
+                {
+                    for (const auto& item : value.children)
+                    {
+                        Visit(item.span);
+                        attached = attached && owned[Target(item)];
+                    }
+                }
+                else
+                {
+                    Visit(value.span);
+                    attached = owned[Target(value)];
+                }
+                if (!attached)
+                {
+                    continue;
+                }
+                admitted[record] = 1;
+                m_data->part.roles.push_back({ "administrative_attachment_" + std::to_string(record), record });
+                changed = true;
+            }
+        }
+        for (const auto record : candidates)
+        {
+            if (!admitted[record])
+            {
+                Fail(
+                    "UnsupportedAdministrativeAttachment",
+                    "D2",
+                    "Administrative targets are outside the selected part closure",
+                    Record(record).span,
+                    Status::Unsupported,
+                    record
+                );
+            }
+        }
+    }
+
     void Closure()
     {
         m_outgoing.resize(m_data->types.size());
@@ -1709,10 +1838,14 @@ private:
         {
             m_outgoing[references[i].recordIndex].push_back(i);
         }
-        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             AttachAp214Properties();
             AttachAp214Presentations();
+        }
+        if (m_data->profile.kind == ProfileKind::Ap203e2GeneralSource)
+        {
+            AttachAp203Management();
         }
         std::vector<std::size_t> seeds;
         for (const auto& role : m_data->part.roles)
@@ -1779,6 +1912,14 @@ private:
                         Visit(target.span);
                         return !bodyUse.empty() && bodyUse[Target(target)];
                     }
+                    // Standalone category dictionaries have no source references,
+                    // shape role or unit effect. Keep them as unattached source
+                    // metadata with the original orphan diagnostic, never fake roots.
+                    if (m_data->profile.kind == ProfileKind::Ap203e2GeneralSource && Record(r).components.size() == 1 &&
+                        Record(r).components.front().name == "PRODUCT_CATEGORY")
+                    {
+                        return m_outgoing[r].empty();
+                    }
                     if (!NonGeometricStyle(r))
                     {
                         return false;
@@ -1793,14 +1934,14 @@ private:
                     }
                     return true;
                 };
-                const bool stylesOnly = Interoperability() && std::all_of(orphans.begin(), orphans.end(), nondefiningResidue);
-                if (!stylesOnly)
+                const bool nonphysicalResidue = Interoperability() && std::all_of(orphans.begin(), orphans.end(), nondefiningResidue);
+                if (!nonphysicalResidue)
                 {
                     throw;
                 }
                 // Preserve source-only residue separately. No part role or fake
                 // geometry/presentation attachment is manufactured for these IDs.
-                m_data->unattachedStyles = orphans;
+                m_data->unattachedNonGeometric = orphans;
                 Preserve(std::move(failure));
             }
         }
@@ -1809,7 +1950,7 @@ private:
         {
             items.push_back(Target(value));
         }
-        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             // RI use follows actual representation items and RI references, never the
             // non-RI style/unit/management dependencies traversed for ownership above.
@@ -1863,6 +2004,32 @@ private:
             Visit(issue.diagnostic.source.primary);
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (key == "ReferenceTypeMismatch")
+            {
+                const auto target = IndexOf(*m_data, issue.diagnostic.source.targetId);
+                const bool selected = std::any_of(
+                    m_data->part.roles.begin(),
+                    m_data->part.roles.end(),
+                    [&](const auto& role)
+                    {
+                        return (role.name == "definition" || role.name == "formation") && role.recordIndex == target;
+                    }
+                );
+                const bool attached = std::any_of(
+                    m_data->part.roles.begin(),
+                    m_data->part.roles.end(),
+                    [&](const auto& role)
+                    {
+                        return role.name.starts_with("administrative_attachment_") && role.recordIndex == record;
+                    }
+                );
+                if (!selected || !attached || physical[record])
+                {
+                    State(Phase::Types) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+            }
             const bool measure = key == "SourceRuleViolation:MEASURE_WITH_UNIT.WR1" || key == "SourceRuleViolation:POSITIVE_RATIO_MEASURE.WR1";
             if (measure && (!metadata[record] || physical[record]))
             {
@@ -2037,7 +2204,7 @@ const std::vector<Diagnostic>& Snapshot::PreservedDiagnostics() const
 }
 const std::vector<std::size_t>& Snapshot::UnattachedNonGeometricDeclarations() const
 {
-    return m_data->unattachedStyles;
+    return m_data->unattachedNonGeometric;
 }
 const std::vector<std::string>& Snapshot::RegisteredTypes() const
 {

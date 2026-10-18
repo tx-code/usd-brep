@@ -11,6 +11,7 @@
 
 namespace step_semantics
 {
+using TypeMembership = std::bitset<256>;
 enum class FieldKind
 {
     String,
@@ -67,7 +68,7 @@ struct Catalog
     std::vector<Declaration> declarations;
     std::vector<std::string> names;
     std::unordered_map<std::string, std::size_t> ids;
-    std::vector<std::bitset<128>> ancestors;
+    std::vector<TypeMembership> ancestors;
     std::vector<std::vector<FieldBinding>> flattened;
     std::vector<DerivedSlot> derivedSlots;
     std::vector<NamedBranches> referenceSelects;
@@ -78,12 +79,12 @@ struct Catalog
     std::optional<std::size_t> Find(std::string_view name) const;
     bool HasField(std::size_t type, std::string_view field) const;
     bool AdmitsComplex(std::span<const std::string> facets) const;
-    bool HasSubtypeConflict(const std::bitset<128>& types) const;
-    bool MatchesReference(const std::bitset<128>& types, std::string_view expected) const;
+    bool HasSubtypeConflict(const TypeMembership& types) const;
+    bool MatchesReference(const TypeMembership& types, std::string_view expected) const;
     bool ContainsEnumeration(std::string_view type, std::string_view value) const;
     bool AdmitsMeasure(std::string_view type) const;
     int PrefixPower10(std::string_view prefix) const;
-    std::string_view RedeclaredBy(const std::bitset<128>& types, const FieldBinding& binding) const;
+    std::string_view RedeclaredBy(const TypeMembership& types, const FieldBinding& binding) const;
 };
 const Catalog& Schema(ProfileKind profile);
 
@@ -111,12 +112,12 @@ struct SemanticData
     std::size_t preservedDiagnosticLimit = 1024;
     std::vector<PendingIssue> pendingIssues; // Provisional only; no metadata/root qualification until the final proof.
     std::vector<Diagnostic> preservedDiagnostics;
-    std::vector<std::size_t> unattachedStyles; // Proven nongeometric residue, never a selected-part ownership root.
+    std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.
     std::shared_ptr<const step_source::SourceSnapshot> source;
     std::optional<gsl::not_null<const Catalog*>> catalog; // Selected by binding, before type/field interpretation.
     QualifiedSchemaProfile profile;
     SchemaIdentifier schemaIdentity;
-    std::vector<std::bitset<128>> types; // Compact membership only; no second value/entity object graph.
+    std::vector<TypeMembership> types; // Compact membership only; no second value/entity object graph.
     std::vector<std::vector<std::size_t>> populations;
     std::vector<unsigned char> representationUse;
     std::vector<BoundRecord> fields;

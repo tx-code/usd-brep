@@ -162,7 +162,9 @@ private:
         Diagnostic issue;
         issue.source.key = dependency ? "SourceGeometryDependencyViolation" : "SourceRuleViolation:" + std::string(clause);
         issue.source.stage = "D3";
-        issue.source.message = "Source geometry parameter violates the selected AP214 prerequisite";
+        issue.source.message = m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ?
+                                   "Source geometry parameter violates the selected N2635 prerequisite" :
+                                   "Source geometry parameter violates the selected AP214 prerequisite";
         issue.source.primary = value.span;
         issue.source.recordId = record.id;
         issue.source.component = record.components[bound.component].name;
@@ -174,7 +176,8 @@ private:
         issue.declaredType = field.declaredType;
         issue.expected = std::move(expected);
         issue.actual = std::move(actual);
-        issue.responsibility = "AP214E3_2010.exp " + std::string(clause);
+        issue.responsibility = std::string(m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ? "N2635 " : "AP214E3_2010.exp ") +
+                               std::string(clause);
         throw Stop{ std::move(issue) };
     }
     void Direction(std::size_t r, std::size_t controls, const SplineDirection& direction)

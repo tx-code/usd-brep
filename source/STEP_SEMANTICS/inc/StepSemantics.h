@@ -18,11 +18,13 @@ inline constexpr const char* SchemaName = "AP203_CONFIGURATION_CONTROLLED_3D_DES
 inline constexpr const char* SchemaSha256 = "c68dd02200e2f4213e311553a4f6295effd168209de1fdc4e8003ce4c9ddd088";
 inline constexpr const char* Ap214SourceProfile = "214e3-P0-Source-0.1";
 inline constexpr const char* Ap214SchemaSha256 = "71ab140fe7f774321beee6a31e6fee2afc3973fd60350ae2018c74c211fb4295";
+inline constexpr const char* Ap203GeneralSourceProfile = "203e2-G0-Source-0.1";
 
 enum class ProfileKind
 {
     Ap203e2Planar,
-    Ap214e3Source
+    Ap214e3Source,
+    Ap203e2GeneralSource
 };
 
 struct Limits

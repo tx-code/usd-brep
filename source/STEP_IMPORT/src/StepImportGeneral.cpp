@@ -1613,10 +1613,15 @@ private:
             Good(native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam));
             // FALSE forbids tolerance adjustment. Report kernel observations as
             // measurements, never as the planar implementation's interval proof.
+            // A failed budget still retains the finite observation; absence of
+            // data must remain distinguishable from a measured excess.
+            if (std::isfinite(max) && max >= 0)
+            {
+                m_report.tolerances.push_back({ "UvProjection", "MeasuredCurveSurfaceGap", Id(f.record), max });
+            }
             Need(std::isfinite(max) && max >= 0 && max <= Q(m_options.quality.derivedUvMm), "GeneralDerivedUvGap", f.record);
             Need(std::isfinite(maxVertex) && maxVertex >= 0 && maxVertex <= Q(m_options.quality.consistencyMm), "GeneralDerivedVertexGap", f.record);
             uvGap = std::max(uvGap, max);
-            m_report.tolerances.push_back({ "UvProjection", "MeasuredCurveSurfaceGap", Id(f.record), max });
             // CreateUVTrimCurves also fixes UV endpoints/reparameterization after
             // collecting its projection statistic. Measure the final installed
             // data separately; neither that old statistic nor LEVEL2 covers it.

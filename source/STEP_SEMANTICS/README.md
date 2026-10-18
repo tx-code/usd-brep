@@ -1,5 +1,29 @@
 # STEP source semantics: ticket 03
 
+An explicit `GeometryScope::GeneralBrep` request also selects the separate
+`203e2-G0-Source-0.1` subset for the exact N2635 name/OID. The default P0 catalog,
+rule admission and six-signature contract stay unchanged. G0 shares the audited
+conic/knot and presentation declarations with the AP214 source subset, retains
+AP203 legacy contexts and its explicit conversion-unit dimensions, and adds
+selected approval/security/person/date, layer and value-item declarations from
+the same fixed N2635 artifact. It is a source subset for general development
+construction, not complete N2635 management WHERE/global-rule qualification.
+
+Administrative attachments require a fixed-point proof that every target is
+already owned by the selected part; metadata cycles cannot create geometry roots.
+`VALUE_REPRESENTATION_ITEM` retains NUMBER/REAL lexical forms and its owning
+representation's assigned unit context. No implicit unit is fabricated. Explicit
+conversion dimensions must agree with the factor unit and conversion scales must
+be positive; angle conversion scale evaluation remains outside this source step.
+
+Only explicit `PreserveNonGeometric` may retain legacy CC approval SELECT
+violations for the selected PD/formation, after attachment and nonphysical-use
+proofs. It keeps the original diagnostic and source bytes. Unused, reference-free
+category dictionaries may survive as diagnosed unattached metadata. Foreign
+owners, unsupported branches, physical unit errors and geometry remain failures.
+The general development path and its report retain their separate qualification;
+this does not grant the old planar rules to newly admitted content.
+
 Internal C++20 checks on the immutable [STEP_SOURCE](../STEP_SOURCE/README.md)
 snapshot. No OCCT, SMLib, USD, STEPcode runtime or EXPRESS compiler is linked.
 The existing raw reader and its public behavior remain unchanged.
