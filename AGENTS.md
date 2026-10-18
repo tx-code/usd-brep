@@ -3,221 +3,120 @@
 
 # AGENTS.md
 
-This file provides guidance to AI coding agents when working with code in this repository.
+## Project direction
 
-## Project Overview
+This fork develops a BRep geometry SDK for CAM: the SMLib kernel, SM_API, native STEP import, and Python bindings.
+Analytic and NURBS definitions carry the geometry; tessellation is derived output.
+OpenUSD, Hydra, BrepArray schemas, and USD-based OCCT converters have been removed. The repository and Python package
+retain the names `usd-brep` / `usd_brep` for compatibility. The default SDK has no USD or TBB dependency.
 
-SMLib is a NURBS-based boundary representation (BRep) solid modeling kernel. It represents solids as collections of topological entities (shells, faces, edges, vertices) bound to exact geometric definitions (NURBS surfaces, B-spline curves, analytic primitives). Geometry is mathematically exact and resolution-independent, unlike polygon meshes.
+## Working scope and completion
 
-The library is layered: a low-level C++ kernel (`SMLib`), a stable C-style C++ wrapper (`SM_API`), native STEP import (`STEP_SOURCE` → `STEP_SEMANTICS` → `STEP_PLANAR` → `STEP_IMPORT`), and Python bindings (`SmPyLib` / `_omni_solid`).
+- Carry the requested change through implementation, relevant validation, and fixes for failures it introduces.
+  Local builds, focused tests, and disposable synthetic reproductions are part of that work; proceed without
+  requesting approval at each step. Report the result, validation scope, and any remaining blocker.
+- Read the references that match the task. Start in the owning layer below and follow callers, dependencies,
+  and relevant tests when needed. Tests under `tests/`, component tests, and tools are available for this purpose.
+- Keep broad searches out of generated trees (`_build/`, `_compiler/`, `_repo/`, `_builtpackages/`), binary fixture
+  collections, and `.git/`. Use explicit paths for required build outputs, logs, or fixtures; inspect Git through Git.
+- Current task instructions determine the authorized scope. Historical design-stage pauses apply to their recorded
+  phase; a design approval alone does not authorize a new implementation phase. Preserve unrelated working changes.
+
+## Architecture and task routing
+
+| Task | Owning code and entry reference |
+|---|---|
+| Geometry, topology, numerical algorithms | `source/SMLib/`; [kernel workflow](.agents/skills/smlib-kernel-operations/SKILL.md) for operation failures |
+| Native `SmApi*` wrappers | `source/SM_API/`; [API maintenance](.agents/skills/smlib-sm-api-maintain/SKILL.md) for wrapper changes, [API use](.agents/skills/smlib-sm-api-use/SKILL.md) for callers |
+| Stable Python bindings | `source/SmPyLib/`, including its stubs and tests; [binding maintenance](.agents/skills/smlib-python-api-maintain/SKILL.md) |
+| Developer API (`_smlib_dev`) | `source/SmPyDevLib/`, including its stubs and tests; [dev binding maintenance](.agents/skills/smlib-python-dev-api-maintain/SKILL.md) |
+| Native STEP import | `source/STEP_SOURCE/`, `source/STEP_SEMANTICS/`, `source/STEP_PLANAR/`, `source/STEP_IMPORT/`; [import contract and current capabilities](source/STEP_IMPORT/README.md), then the owning component's README |
+| Python GUI and rendering | `tools/smlib_gui/`, `tools/scripts/smlib_gui*.py`; [GUI workflow](.agents/skills/usd-brep-tools-python-gui/SKILL.md) |
+
+- For operation usage or tuning, use the matching guide from [.agents/operations/INDEX.md](.agents/operations/INDEX.md).
+  For kernel failures localized to booleans, fillets, tessellation, drop-curve, healing, or solvers, select the matching
+  `smlib-kernel-*` skill under `.agents/skills/`; use the general kernel workflow for cross-cutting failures.
+- For `SmBrep` structure, topology validity, or `SmBrepData` transfer, use
+  [smlib-brep-model](.agents/skills/smlib-brep-model/SKILL.md) and its canonical format reference.
+- For `_omni_solid` `RuntimeError`, consult [.agents/docs/errors.md](.agents/docs/errors.md) to interpret the status
+  and kernel trace before tracing the failing implementation.
+- For broader architecture and the native header map, use [.agents/docs/OVERVIEW.md](.agents/docs/OVERVIEW.md).
+  Use [GLOSSARY.md](GLOSSARY.md) when defining domain terms and [planar regions](docs/planar-regions.md) for that API.
+
+## Native STEP contracts
+
+`STEP_SOURCE` owns lossless input; `STEP_SEMANTICS` owns typed source interpretation; `STEP_PLANAR` owns qualified
+planar source checks; `STEP_IMPORT` owns native construction and publication, including the opt-in general BRep
+development path. Each layer owns distinct evidence; consult its README for the exact scope.
+
+- Keep product reading and conversion independent of OCCT and Truck/ruststep. Their documentation/source and
+  independent test comparisons can inform the implementation. Public reproductions use synthetic models;
+  private model libraries and their identifying inventories stay local.
+- Preserve immutable source bytes, entity identities, units, parameter conventions, orientation, and source-to-native
+  correspondence. Reuse shared semantic bindings and ownership/publication mechanisms rather than rebuilding
+  parallel interpretations. Keep equivalent representation normalization distinct from repair.
+- Qualify capabilities by source schema/profile, explicit options, quality configuration, and checks actually run.
+  Schema recognition, a successful native validator, or a rendered mesh cannot establish full import correctness.
+  Surface closure alone does not establish material-solid semantics. Keep source rejection, unsupported scope,
+  unestablished numerical evidence, and native failure distinct.
+- Keep source uncertainty, acceptance error budgets, native working tolerances, and repair allowances distinct.
+  Existing strict paths retain `Repair=None`; interoperability and development paths require their explicit options.
+  Interoperability exceptions stay within proven nongeometric cases and retain the original diagnostics.
+  Source uncertainty must not silently enlarge a tolerance or select a quality configuration. Sampling is not a
+  continuous error bound, and fixture/development values are not production defaults.
+- Publish the complete selected model and required report only after the applicable checks and final execution
+  decision succeed. Failures and cancellation release unpublished candidates without partial publication.
+  Acceptance evidence belongs to the owning read-only snapshot; modeling copies need their own validation.
+  Separate contexts alone do not establish kernel thread safety.
+
+For STEP design changes, consult the relevant section of the
+[confirmed design baseline](docs/step-import-repair-spec.md). For implementation and validation claims, use current
+component contracts, code, and the applicable `docs/step-import/ticket*-acceptance.md` evidence; dated plans and
+proposals describe their recorded stage. Use [local tracker conventions](docs/wayfinder/README.md) when working on
+decision tickets and [benchmark guidance](tools/step_import_benchmark/README.md) for import profiling.
+
+## Python Quick Start and ownership
+
+For runnable packaged `usd_brep` examples, use [the package README](tools/pyproject/README.md); for scripts using
+`_omni_solid`, use [Python API usage](.agents/skills/smlib-python-api-use/SKILL.md) and the matching operation guide.
+
+- Stable modeling APIs belong in `_omni_solid`. **Developer API (`_smlib_dev`)** owns topology-debugger walks/picking,
+  kernel Draw extraction, viewport helpers, and the tests facade. Import `_omni_solid` before `_smlib_dev`.
+  Native STEP import currently exposes a C++ library and optional CLI; it does not imply a Python STEP binding.
+- Follow each operation's docstring: `Pure` leaves inputs unchanged; `Consumes` transfers the named inputs;
+  `Mutates` returns the same handle, or `(handle, ...diagnostics)`. Use `brep.copy()` when preserving an input.
+  Operation names alone do not establish mutation or ownership behavior.
+- `Face.surface()` and `Edge.curve()` borrow Brep-owned geometry. Release affected views before representation-changing
+  `turn_to_nurbs()` or scale, then reacquire them, or mutate a copy. Pointer-preserving rigid transforms, positive
+  uniform scales, and transforms of base NURBS geometry retain those views. Kernel memory is context-managed;
+  honor the operation's context, transfer, and failure-cleanup contracts.
 
 <a name="build--test-commands"></a>
 
-## Build and Test Commands
+## Build and validation
 
-Use the default CMake build for the geometry SDK and explicitly enable development
-or validation targets. Commands and prerequisites: [README.md](README.md#build-it).
-Build flags and kernel layout macros must match in all consumers. The default
-build has no USD or TBB dependency; the Python package retains its historical name.
+[README.md](README.md#build-it) owns build commands, prerequisites, runtime paths, and optional target flags.
+Use the default CMake SDK build; enable development, validation, or examples explicitly as needed.
+C++20, configuration, CRT, and kernel layout macros must match across libraries and consumers.
+Keep CMake, Premake, and standalone compiler settings consistent when changing build requirements.
 
-## Code Style
+When validation scope is unclear, use
+[usd-brep-test-selection](.agents/skills/usd-brep-test-selection/SKILL.md) and the owning component's test guidance.
+Start with checks that exercise the affected contract; broaden for shared ownership, numerical, ABI, or build risk.
+For STEP changes, include the corresponding source/semantic/planar/native contract or evidence checks.
+Documentation-only edits need link/path and whitespace checks. Record the tested configuration and limitations;
+a focused local pass establishes its stated scope, not a full CI or production qualification.
 
-- **C++:** C++20 across all repository-owned targets, including tests and tools; keep CMake, Premake, and explicit compiler flags consistent. clang-format enforced (`.clang-format`).
-- **Python:** PEP 8, 120 column limit (`.editorconfig`)
-- **Indent:** 4 spaces, LF line endings, UTF-8, trailing whitespace trimmed (`.editorconfig`)
-- **Batch files:** CRLF; **Shell scripts:** LF (`.gitattributes`)
+## Code and documentation conventions
 
-### Comments for Critical Code
-
-- **Critical code must have comments.** When adding or changing nontrivial algorithms, protocol/schema
-  interpretation, numerical tolerances, ownership or mutation, cancellation/cleanup, concurrency, or resource
-  boundaries, explain the reasoning and the invariants the implementation must preserve.
-- Put comments beside the relevant decision or at the owning function/module. Describe assumptions, units,
-  orientation/parameter conventions, failure behavior, or why an apparently simpler alternative is incorrect;
-  avoid comments that only repeat the code.
-- For standards-derived behavior, name the fixed source artifact and entity/clause, or link the canonical
-  repository contract. Distinguish source requirements, project restrictions, derived data, and unimplemented
-  checks; recognizing a format or type must not be described as validating it.
-- Update or remove stale comments with the code. Before completing a change, review each critical changed path
-  for an adequate explanation or a nearby contract reference. Comments complement types, checks and tests;
-  they do not replace them. Preserve vendored upstream files unchanged.
-
-## Architecture
-
-### Layers
-
-1. **`SMLib`** (`source/SMLib/`) — core C++ kernel. Owns all geometry/topology classes (`SmBrep`, `SmFace`, `SmEdge`, `SmSurface`, `SmBSplineCurve`, …) and the algorithms. Memory is managed by an internal `SmContext`.
-2. **`SM_API`** (`source/SM_API/`) — high-level C-style C++ API. Functions follow `SmApi*` naming. Primary surface for booleans, sweeps, fillets, tessellation, etc.
-3. **`SmPyLib`** (`source/SmPyLib/`, module `_omni_solid`) — pybind11 bindings exposing `SM_API` to Python, plus tessellation to `PolyBrep` and polygon-mesh booleans.
-
-### Key Concepts
-
-- **BRep** — a solid is defined by its boundary surfaces (`SmBrep` → `SmShell` → `SmFace` → `SmEdge` → `SmVertex`); topology tracks adjacency.
-- **Geometry** — the kernel supports analytic, NURBS, and other curve/surface subclasses. NURBS can represent a sphere exactly; booleans and fillets do not require every input to be converted to NURBS.
-- **Tessellation** — converts exact BRep to polygon meshes (`PolyBrep`); controlled by chord-height tolerance, angle tolerance, max edge length, max aspect ratio.
-- **Context** — SM_API provides a process-global default `SmContext`, created lazily by
-  `SmApiGetOrCreateContext()` and initialized automatically by Python. Selected operations instead
-  use an input object's context or a dedicated output context.
-
-### SM_API Header Map (C++ side)
-
-| Header | Purpose |
-|---|---|
-| `SmApiTypes.h` | Basic types, export macros |
-| `SmApiGeneral.h` | Context, draw, transform / scale / rotate / translate |
-| `SmApiPrimitives.h` | Box, sphere, cone, cylinder, torus, pyramid, partial primitives, skins, blends |
-| `SmApiBrep.h` | Booleans, sweeps, tessellation, cut, project, stitch, fillet, offset/shell |
-| `SmApiCurves.h` | Curve creation, offset, evaluate, knot removal |
-| `SmApiSurfaces.h` | Surface creation (extrude/sweep/ruled/revolution/skin/offset) |
-| `SmApiFillets.h` | Chamfer / circular / remove fillet |
-| `SmApiPolygons.h` | `SmPolyBrep` boolean ops, manifold/volume |
-| `SmApiIntersectors.h` | Curve, surface, face, BRep intersections |
-| `SmApiTrimmedSurfaces.h` | Trim with curves, project-and-trim, planar faces |
-| `SmApiQueries.h` | Read-only queries on Brep / Face / Edge / Vertex: closest-point, topology lookups, bounding box, volume, area, length, vertex point, manifold check, deep copy. Surface / Curve evaluators (parametric domain, point, normal, derivatives, length, planarity, periodicity, …) are exposed as methods on `Surface` / `Curve` and wrap `SmApiSurfaces.h` / `SmApiCurves.h` plus a few kernel-direct calls; see `.agents/operations/queries.md`. |
-| `SmApiHeal.h` | BRep healing |
-
-## Python Quick Start (`_omni_solid`)
-
-These examples use the source-checkout module `_omni_solid`. For the packaged
-`usd_brep` API and its operation submodules, see the [package README](tools/pyproject/README.md).
-
-```python
-import _omni_solid as sm
-
-box = sm.create_box((0, 0, 0), 10, 10, 10)
-sph = sm.create_sphere((0, 0, 0), 5)
-
-result = sm.boolean_union(box.copy(), sph.copy())
-result = sm.boolean_difference(box.copy(), sph.copy())
-
-mesh = sm.tessellate(box, chord_height_tolerance=0.0, curve_angle_tolerance_deg=25.0, surface_angle_tolerance_deg=25.0)
-
-# Quick introspection (one-call summary):
-print(box.info())  # {"faces": 6, "edges": 12, "vertices": 8, "manifold": True,
-                   #  "volume": 1000.0, "bounds": ((0,0,0),(10,10,10)),
-                   #  "center": (5,5,5)}
-
-# Geometric properties (queries) -- methods on the type classes:
-mn, mx = box.bounding_box()                      # ((0,0,0), (10,10,10))
-print(box.center())                              # (5.0, 5.0, 5.0)
-print(box.volume(), box.is_manifold_solid())     # 1000.0 True
-print(box.face_count(), box.edge_count(), box.vertex_count())
-
-face0 = box.faces()[0]
-print(face0.area(), face0.bounding_box())
-print(face0.surface(), face0.uv_domain())        # walk to the parent surface
-
-edge0 = box.edges()[0]
-print(edge0.length(), edge0.bounding_box())
-v_start, v_end = edge0.vertices()                # walk to endpoints
-print(edge0.faces())                             # 2 for a manifold edge
-
-vertex0 = box.vertices()[0]
-print(vertex0.point())                           # e.g. (0.0, 0.0, 0.0)
-print(vertex0.edges(), vertex0.faces())          # walk to incident edges / faces
-
-# Standalone curves and surfaces carry their own parametric queries:
-line = sm.create_line_segment((0, 0, 0), (10, 0, 0))
-print(line.parameter_range(), line.length())     # ((0.0, 1.0), 10.0)
-print(line.evaluate(0.5))                        # (5.0, 0.0, 0.0)
-
-srf = face0.surface()                            # or sm.create_surface_from_points(...)
-(umin, vmin), (umax, vmax) = srf.uv_domain()
-u_mid, v_mid = 0.5 * (umin + umax), 0.5 * (vmin + vmax)
-print(srf.evaluate(u_mid, v_mid))                # (x, y, z)
-print(srf.normal(u_mid, v_mid))                  # unit (nx, ny, nz)
-print(srf.is_planar(1e-3), srf.is_periodic_u())  # True False (box face)
-
-# Copy-then-mutate when you need to keep the original (most ops mutate in place,
-# but they now return the same handle so you can chain: see below):
-trimmed = box.copy()
-sm.cut(trimmed, (0, 0, 5), (0, 0, 1))            # trimmed truncated; box unchanged
-```
-
-Conventions: points/vectors are 3-tuples; return values are opaque handles (`Brep`, `PolyBrep`, `Curve`, `Surface`, …); errors raise `RuntimeError`.
-
-**Developer API (`_smlib_dev`):** kernel-debugger workflows (loopuses, edgeuses, `topology_pick_ray`, `assert_valid`, `dump`, kernel `Draw()` extraction, `viewport_draw_*`, kernel-direct `user_test` / `user_test_example`, and a `tests` facade over `_smlib_tests`) live in a separate extension module. Import `import _smlib_dev as smdev` alongside `_omni_solid` for the Python GUI and SMLib-internal tooling; do not add these back to the stable `_omni_solid` surface.
-
-**Mutation conventions:** common docstring contracts for BRep operations are listed below.
-Consult the individual operation for exceptions and ownership details:
-
-- **`Pure: returns new <type>; inputs unchanged.`** — read-only producer. Example: `offset_brep`, `shell_brep`, `create_box`, `create_sphere`, `linear_sweep`, `tessellate`.
-- **`Consumes: <args>; returns new Brep.`** — ownership of the named inputs transfers to the operation; use only the returned Brep afterward. The result can reuse the modified primary operand. Example: `boolean_union`, `boolean_difference`, `merge_breps`.
-- **`Mutates: <arg>; returns the same handle for chaining.`** — modifies the first argument *and* returns it, so calls compose: `box = sm.fillet_edges(sm.translate(box, (0,0,5)), edges, radius=0.5)`. Example: `fillet_edges`, `cut`, `translate`, `rotate`, `heal_brep`.
-- **`Mutates: <arg>; returns (handle, ...diagnostics) for chaining.`** — same as above plus a tuple of report values; the handle comes *first* so unpacking is forward-compatible. Example: `stitch_into_solid`, `unify_normals`.
-
-Names alone do not determine mutation: non-manifold sweeps mutate their source, and
-`create_blend_primitive` inserts into a supplied BRep. Check the individual operation contract.
-
-Use `brep.copy()` first when you need to preserve the original through a mutator.
-
-`Face.surface()` and `Edge.curve()` return borrowed views of Brep-owned geometry. Before a representation-changing
-`turn_to_nurbs()` or Brep scale, drop all affected borrowed views and reacquire them afterward. The Python binding
-rejects the operation atomically while such a view is live; mutate `brep.copy()` instead when the original view must
-remain valid. Pointer-preserving rigid transforms, positive uniform scales, and transforms of base NURBS geometry do
-not require reacquisition.
-
-## Operation Reference
-
-Per-operation guides — parameters, common patterns, and gotchas — live in **`.agents/operations/`**. Start here:
-
-- **[.agents/operations/INDEX.md](.agents/operations/INDEX.md)** — router by category, with the Python function names and matching `SmApi*` C headers for each operation.
-- Use the existing guide structure when adding a new operation guide, and link it from [.agents/operations/INDEX.md](.agents/operations/INDEX.md).
-
-When asked about a specific operation (e.g. booleans, fillets, tessellation), open the matching guide rather than the source first; the guides encode tuning order, visual diagnosis, and common workflows.
-
-When you (or the user) hit a `RuntimeError` from any `_omni_solid` binding, open **[.agents/docs/errors.md](.agents/docs/errors.md)** before grepping the source. It maps every `SM_ERR_*` code to typical causes and remedies, and explains how to read the `Kernel trace:` segment of the message.
-
-## Deeper Docs
-
-- **[.agents/docs/OVERVIEW.md](.agents/docs/OVERVIEW.md)** — long-form architecture overview (concepts, layout, full header map, common patterns).
-- **[.agents/skills/smlib-brep-model/references/brep-format.md](.agents/skills/smlib-brep-model/references/brep-format.md)** — canonical `SmBrep` runtime/`SmBrepData` structure, validity, validator coverage, special topology, contract.
-- **[.agents/docs/errors.md](.agents/docs/errors.md)** — `RuntimeError` decoder: every `SM_ERR_*` code with typical causes and remedies; how to read the kernel trace.
-- **[.agents/operations/INDEX.md](.agents/operations/INDEX.md)** — operation router.
-- **[README.md](README.md)** — top-level repo usage.
-
-## Agent Conventions in This Repo
-
-- Single source of truth for agent docs is **`AGENTS.md`** plus **`.agents/`**.
-- When adding a new operation guide, follow the existing guide structure and link it from `.agents/operations/INDEX.md`.
-- When a change fixes a bug listed in `KNOWN_ISSUES.md`, remove its entry in the same change.
-
-## Repo-Local Skills
-
-Repo-local agent skills live under **`.agents/skills/`**:
-
-- **[smlib-python-api-use](.agents/skills/smlib-python-api-use/SKILL.md)** — using the existing `_omni_solid` Python API correctly from scripts, examples, tests, and diagnostics.
-- **[smlib-sm-api-use](.agents/skills/smlib-sm-api-use/SKILL.md)** — using existing native `SmApi*` wrappers, including ownership/status handling and the runnable Boolean/bounds example.
-- **[smlib-python-api-maintain](.agents/skills/smlib-python-api-maintain/SKILL.md)** — stable `_omni_solid` bindings: pybind11, stubs, docstrings, mutation semantics, and binding tests.
-- **[smlib-python-dev-api-maintain](.agents/skills/smlib-python-dev-api-maintain/SKILL.md)** — debugger `_smlib_dev` bindings: loopuse/edgeuse topology, topology pick, Draw extraction, blend primitives, and `tests` facade.
-- **[smlib-sm-api-maintain](.agents/skills/smlib-sm-api-maintain/SKILL.md)** — high-level `SM_API` functions, public headers, wrapper status handling, context/ownership rules, and kernel entrypoints.
-- **[smlib-brep-model](.agents/skills/smlib-brep-model/SKILL.md)** — source-backed SMLib `SmBrep` model questions, runtime validity and validator audits, topology code/tests, and native data transfer.
-- **[smlib-kernel-operations](.agents/skills/smlib-kernel-operations/SKILL.md)** — diagnosing failed or incorrect geometry operations across `_omni_solid`, `SM_API`, and `source/SMLib`.
-- **[smlib-kernel-solvers](.agents/skills/smlib-kernel-solvers/SKILL.md)** — global/local solver traversal, convergence, subdivision, solution identity, tangency, and singularity internals.
-- **[smlib-kernel-tessellation](.agents/skills/smlib-kernel-tessellation/SKILL.md)** — tessellation workflow for `_omni_solid.tessellate`, `SmApiTessellate`, `SmBrep::ConvertToPolyBrep`, `SmTess`, `PolyBrep`, and native mesh output.
-- **[smlib-kernel-fillets](.agents/skills/smlib-kernel-fillets/SKILL.md)** — fillet workflow for fillets, chamfers, blends, edge/corner selection, radii, continuity, `SmFilletExecutive`, and solver/topology interactions.
-- **[smlib-kernel-healing](.agents/skills/smlib-kernel-healing/SKILL.md)** — BRep healer workflow for `_omni_solid.heal_brep`, `SmApiHealBrep`, `SmHealData` stages, property caches, problem lists, topology-change callbacks, seams, poles, and import healing.
-- **[smlib-kernel-booleans](.agents/skills/smlib-kernel-booleans/SKILL.md)** — solid BRep boolean workflow for Python/SM_API booleans, manifold dispatch, CSG/list variants, input degeneracies, and `SmTopologyIntersector::IntersectInsertRelate()`; not polygon booleans.
-- **[smlib-kernel-drop-curve](.agents/skills/smlib-kernel-drop-curve/SKILL.md)** — drop-curve workflow for curve-to-surface projection, `SmApiDropCurveToSrf`, `SmSurface::DropCurve`, `SmSurface::DropAndTrimCurve`, seams, domains, tolerances, and UV/3D output pairing.
-- **[usd-brep-tools-python-gui](.agents/skills/usd-brep-tools-python-gui/SKILL.md)** — Python GUI workbench (`tools/smlib_gui`): active objects, viewport, picking via `smdev`, overlays, smoke tests.
-- **[usd-brep-test-selection](.agents/skills/usd-brep-test-selection/SKILL.md)** — validation helper for choosing focused versus broad validation based on changed files and risk.
-
-## Folders that are never relevant
-
-These folders should be skipped during search / indexing for any task. Cursor enforces this via `.cursorignore`; other agents (Claude Code, Codex, Copilot) should treat this list as a hard rule unless the user explicitly asks otherwise.
-
-- **Build artifacts** — `_build/`, `_compiler/`, `_repo/`, `_builtpackages/` (multi-GB, regenerated by every build).
-- **Binary test data** — the top-level test-fixture directories (binary `.smb` / `.usda` and similar fixtures; tens of MB, never edited by hand). See `.cursorignore` for the authoritative list.
-- **Top-level `tests/`** — C++ harness projects, Python roundtrip scripts (`tests/python/`), and related integration tests; skip unless the user asks about them.
-- **`.git/`** — repository internals; always skip.
-
-## Task scope hints
-
-Most day-to-day work touches only a subset of `source/`. The mapping below tells the agent where to look first; only step outside if a search in scope comes up empty or the user names a folder explicitly.
-
-- **`SmPyLib` / `_omni_solid` work** — `source/SmPyLib/`, `source/SM_API/inc/`, `source/SMLib/inc/`, `source/SmPyLib/tests/`. Stable bindings: `SmPyMain.cpp`, `SmPy*.cpp`, `stubs/omni_solid/`.
-- **`SmPyDevLib` / `_smlib_dev` work** — `source/SmPyDevLib/`, `stubs/smlib_dev/`, `tests/test_smlib_dev.py`. Shares `SmPyCommon.h` / `SmPyError` from `source/SmPyLib/src/`. Roundtrip scripts are under `tests/python/` (index-ignored with `tests/`; use explicit paths only when the task needs them).
-- **C kernel API (`SM_API`) work** — `source/SM_API/`, `source/SMLib/inc/`, plus the relevant operation guide under `.agents/operations/`.
-- **Kernel internals** — `source/SMLib/`.
-
-Also **out of scope** for the layers above (don't search unless the user names them): the stand-alone test apps, GUI tools, and internal-only format-bridge components under `source/`; the per-component integration test suites under `tests/` (the `tests/python/` roundtrips are index-ignored with the rest of `tests/`). None are part of the geometry SDK build closure.
+- Follow `.clang-format`, `.editorconfig`, and `.gitattributes`: C++20, four-space indentation, UTF-8;
+  Python uses PEP 8 with a 120-column limit. Preserve vendored upstream bytes and license/provenance notices.
+- Critical code needs nearby rationale: explain invariants for nontrivial algorithms, schema interpretation,
+  tolerances, ownership/mutation, cleanup/cancellation, concurrency, and resource boundaries. State relevant units,
+  orientation/parameter conventions, and failure behavior; update stale comments with the code.
+- For standards-derived behavior, cite the fixed source artifact and entity/clause or canonical repository contract.
+  Distinguish source requirements, project restrictions, derived evidence, and checks still unimplemented.
+- Agent guidance lives in `AGENTS.md` and `.agents/`. Keep this file focused on shared constraints and task pointers;
+  place operation details in the matching guide and link new guides from `.agents/operations/INDEX.md`.
+  Remove a `KNOWN_ISSUES.md` entry when the change fixes it. For upstream merges or release work, use
+  [FORK_MAINTENANCE.md](FORK_MAINTENANCE.md).

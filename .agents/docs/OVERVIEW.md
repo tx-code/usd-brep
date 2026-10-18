@@ -114,7 +114,9 @@ for exceptions and ownership details:
 Names alone do not determine mutation: non-manifold sweeps mutate their source, and
 `create_blend_primitive` inserts into a supplied BRep. Check the individual operation contract.
 
-When you must keep the original through a mutator, copy it first: `keep = brep.copy(); sm.cut(keep, ...)`. The `Brep.copy()` method (and the flat `sm.queries.brep_copy`) is the canonical entry point. The full spelling, with examples, lives in the Python Quick Start in `AGENTS.md`.
+When you must keep the original through a mutator, copy it first: `keep = brep.copy(); sm.cut(keep, ...)`.
+The `Brep.copy()` method (and the flat `sm.queries.brep_copy`) is the canonical entry point. Consult the operation
+docstring and matching guide in [the operation index](../operations/INDEX.md) for its mutation contract and examples.
 
 ### Creating Solids from Profiles
 1. Create 2D curves (circle, rectangle, spline from points)
