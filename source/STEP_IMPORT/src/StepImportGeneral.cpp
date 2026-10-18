@@ -636,6 +636,7 @@ private:
                 return std::atan2(Dot(delta, frame.y) / ry, Dot(delta, frame.x) / rx);
             };
             double t0 = angle(a), t1 = angle(b);
+            std::optional<Index> trimMapping;
             if (c.v0 == c.v1)
             {
                 t1 = t0 + 2 * std::numbers::pi;
@@ -662,7 +663,24 @@ private:
                     // a subset; it cannot extend or ignore the wrapper limits.
                     const auto inside = [&](double t)
                     {
-                        return t + tau * std::ceil((trim.low - t) / tau);
+                        // atan2 and source decimal conversion can straddle a
+                        // cut by a few ulps. Select the adjacent periodic branch
+                        // before bounding that inversion to the ORIGINAL cut.
+                        // This roundoff envelope is independent of quality tol;
+                        // the usual native endpoint/vertex gap check below must
+                        // still pass in mm, including for very large radii.
+                        const double roundoff = 32 * std::numeric_limits<double>::epsilon() *
+                                                std::max({ 1., std::abs(trim.low), std::abs(trim.high) });
+                        double candidate = t + tau * std::ceil((trim.low - t - roundoff) / tau);
+                        if (candidate < trim.low && candidate >= trim.low - roundoff)
+                        {
+                            candidate = trim.low;
+                        }
+                        if (candidate > trim.high && candidate <= trim.high + roundoff)
+                        {
+                            candidate = trim.high;
+                        }
+                        return candidate;
                     };
                     t0 = inside(angle(a));
                     t1 = inside(angle(b));
@@ -686,14 +704,31 @@ private:
                 {
                     trace.parameters.push_back({ "angle_parameter_to_rad", { *trim.angleScale } });
                 }
+                trimMapping = m_report.parameterMappings.size();
                 m_report.parameterMappings.push_back(std::move(trace));
             }
             // A whole-period shift preserves the curve; kernel analytic angles
             // are degrees in [-360,360], while evaluators use a NURBS parameter.
+            const auto sourceBranchBegin = t0;
+            if (trimmed)
+            {
+                // Trimming can lift either endpoint several periods in either
+                // direction. Bring the beginning into [0,2pi) before choosing
+                // the kernel chart; the original source branch stays recorded.
+                const double shift = 2 * std::numbers::pi * std::floor(t0 / (2 * std::numbers::pi));
+                t0 -= shift;
+                t1 -= shift;
+            }
             if (t1 > 2 * std::numbers::pi)
             {
                 t0 -= 2 * std::numbers::pi;
                 t1 -= 2 * std::numbers::pi;
+            }
+            if (trimMapping)
+            {
+                auto& trace = m_report.parameterMappings[*trimMapping];
+                trace.parameters.push_back({ "native_chart_period_shift_rad", { sourceBranchBegin - t0 } });
+                trace.parameters.push_back({ "native_chart_angle_range_rad", { t0, t1 } });
             }
             mapping.kind = "ConicRationalParameter";
             mapping.equation =
@@ -704,6 +739,10 @@ private:
                                    { "x", { frame.x.begin(), frame.x.end() } },
                                    { "y", { frame.y.begin(), frame.y.end() } } };
             const SmExtent1d domain(t0 * 180 / std::numbers::pi, t1 * 180 / std::numbers::pi);
+            if (trimmed && (!(domain.GetMax() > domain.GetMin()) || domain.GetMin() < -360 || domain.GetMax() > 360))
+            {
+                Fail("GeneralTrimmedNativeAngleRangeUnestablished", c.geometry, Status::Unsupported);
+            }
             Step(g);
             if (trimmed)
             {

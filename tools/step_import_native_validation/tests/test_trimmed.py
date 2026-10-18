@@ -145,3 +145,38 @@ class TrimmedNativeTests(unittest.TestCase):
                     self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
                     self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"],
                                            delta=63 * math.pi * 2e-4)
+
+    def test_equivalent_positive_and_negative_periods_use_a_supported_native_chart(self):
+        for first, last in [(b"-12.566370614359172", b"-7.853981633974483"),
+                            (b"12.566370614359172", b"10.995574287564276")]:
+            with self.subTest(first=first):
+                source = test_general.partitioned_cylinder_source()
+                replacement = (b"#308=TRIMMED_CURVE('',#350,(PARAMETER_VALUE(" + first + b")),"
+                               b"(PARAMETER_VALUE(" + last + b")),.T.,.PARAMETER.);\n#350=CIRCLE('',#306,3.);")
+                source = source.replace(b"#308=CIRCLE('',#306,3.);", replacement)
+                run, result = self.invoke_bytes(source)
+                self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+                mapping = next(m for m in result["parameter_mappings"]
+                               if m["source_geometry"] == "350" and m["kind"] == "ConicRationalParameter")
+                self.assertTrue(all(-2 * math.pi <= t <= 2 * math.pi for t in mapping["parameters"]["angle_range_rad"]))
+                trace = next(m for m in result["parameter_mappings"] if m["kind"] == "TrimmedConicSourceDomain")
+                parameters = trace["parameters"]
+                self.assertAlmostEqual(parameters["edge_basis_angle_branch_rad"][0] - parameters["native_chart_period_shift_rad"][0],
+                                       parameters["native_chart_angle_range_rad"][0], places=14)
+                self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"],
+                                       delta=63 * math.pi * 2e-4)
+
+    def test_non_cardinal_cut_does_not_shift_an_endpoint_by_a_whole_period(self):
+        source = test_general.partitioned_cylinder_source()
+        for record, angle, z in [(302, .1, 2), (303, 1., 2), (304, 1., 5), (305, .1, 5)]:
+            old = {302: "(-3.,0.,2.)", 303: "(0.,-3.,2.)", 304: "(0.,-3.,5.)", 305: "(-3.,0.,5.)"}[record]
+            point = f"({3 * math.cos(angle):.17g},{3 * math.sin(angle):.17g},{z}.)"
+            source = source.replace(f"#{record}=CARTESIAN_POINT('',{old})".encode("ascii"),
+                                    f"#{record}=CARTESIAN_POINT('',{point})".encode("ascii"))
+        replacement = (b"#308=TRIMMED_CURVE('',#350,(PARAMETER_VALUE(0.1)),(PARAMETER_VALUE(1.0)),.T.,.PARAMETER.);\n"
+                       b"#350=CIRCLE('',#306,3.);")
+        source = source.replace(b"#308=CIRCLE('',#306,3.);", replacement)
+        run, result = self.invoke_bytes(source)
+        self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+        self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"],
+                               delta=63 * math.pi * 2e-4)

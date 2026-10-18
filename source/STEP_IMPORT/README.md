@@ -17,8 +17,9 @@ PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE、标准环形 TOROIDAL_SURFACE �
 两种表示同时存在时都检查物理一致性，master 选择主表示；UNSPECIFIED 且两者存在时选参数。
 原数值、单位和源裁剪始终保留，不以拓扑端点替代源裁剪范围。
 边可使用源裁剪的一段；封闭边须证明源裁剪为完整一周，完整周期可在源顶点处等价换缝。
-`TrimmedConicSourceDomain` 记录 `source_geometry`、`source_basis_geometry`、原角域、方向、
-canonical 裁剪参数域和边角度分支；原参数到 radian 的已建立比例单独记录，原生 NURBS 参数不冒充角度。
+`TrimmedConicSourceDomain` 记录 `source_geometry`、`source_basis_geometry`、经方向选支的角域、方向、
+canonical 裁剪参数域、边角度分支及原生角域的整周平移；原参数到 radian 的已建立比例单独记录，
+原生 NURBS 参数不冒充角度。端点反求在舍入量内贴近裁剪界时取原裁剪界，之后仍须满足毫米端点误差预算。
 当前开发范围只解释绝对值不超过 4π rad 的参数及至多一周的非零有向范围；
 仅以 binary64 转换舍入量识别整周，不以一致性容差补成整圆。
 嵌套／其他基础曲线、未建立的参数单位、歧义或多周范围明确不支持。
