@@ -69,6 +69,27 @@ def cylinder_source(implicit_seam=False):
     return prefix + records.encode("ascii") + b"ENDSEC;\nEND-ISO-10303-21;\n"
 
 
+def bulged_box_source():
+    # Only the top face changes. Its Bernstein height is
+    # z=35+80*u*(1-u)*v*(1-v): the interior maximum is 40, while
+    # every boundary remains at 35. The exact added volume is 4000/9.
+    # An edge-only box therefore cannot satisfy this independent control.
+    data = (CORPUS / "S203-P04/input.step").read_bytes()
+    points = []
+    for i, x in enumerate((2, 7, 12)):
+        for j, y in enumerate((-3, 7, 17)):
+            z = 55 if i == j == 1 else 35
+            points.append(f"#{600 + 3 * i + j}=CARTESIAN_POINT('',({x}.,{y}.,{z}.));\n")
+    surface = (b"B_SPLINE_SURFACE_WITH_KNOTS('analytic bulge',2,2,"
+               b"((#600,#601,#602),(#603,#604,#605),(#606,#607,#608)),"
+               b".UNSPECIFIED.,.F.,.F.,.F.,(3,3),(3,3),(0.,1.),(0.,1.),.UNSPECIFIED.)")
+    assert data.count(b"PLANE('',#513)") == 1
+    data = data.replace(b"PLANE('',#513)", surface)
+    # The old placement stays an explicitly retained auxiliary item.
+    data = data.replace(b"'body',(#21),#12", b"'body',(#21,#513),#12")
+    return data.replace(b"ENDSEC;\nEND-ISO", "".join(points).encode("ascii") + b"ENDSEC;\nEND-ISO")
+
+
 class GeneralTests(unittest.TestCase):
     def invoke_bytes(self, data, *options):
         with tempfile.TemporaryDirectory(prefix="step-general-") as directory:
@@ -107,6 +128,18 @@ class GeneralTests(unittest.TestCase):
         self.assertIsNone(result["model"])
         self.assertEqual(0, result["native_calls"])
         self.assertEqual("GeneralRequiresMaterialSolid", result["diagnostics"][-1]["key"])
+
+    def test_tight_bounds_include_curved_face_interior_extrema(self):
+        data = bulged_box_source()
+        run, result = self.invoke_bytes(data)
+        self.assertEqual(0, run.returncode, run.stderr or result)
+        model = result["model"]
+        self.assertEqual((6, 12, 8), tuple(model[key] for key in ("faces", "edges", "vertices")))
+        self.assertAlmostEqual(6000 + 4000 / 9, model["material_volume"]["value_mm3"], delta=0.02)
+        for expected, actual in zip(((2, -3, 5), (12, 17, 40)), model["bounds_mm"]):
+            for a, b in zip(expected, actual):
+                self.assertAlmostEqual(a, b, delta=1e-6)
+        self.assertEqual(data.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
 
     def test_native_call_limit_discards_private_candidate(self):
         run, result = self.invoke("S203-P04", "--max-native-calls", 3)

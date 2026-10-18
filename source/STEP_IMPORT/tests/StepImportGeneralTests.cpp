@@ -440,6 +440,38 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
         const auto failed = step_import::ImportFile(source, limited);
         Require(failed.status == step_import::Status::ResourceLimit && !failed.model, "private candidate resource cleanup");
     }
+    // Measurement queries may be reordered/reused, but every actual query still
+    // costs one call and exposes a cooperative cancellation boundary. Exercise
+    // late failures after native geometry exists, without depending on a fixed
+    // implementation-specific total call count.
+    const auto calls = outcome.report.nativeCalls;
+    Require(calls > 3, "general measured calls");
+    for (const auto limit : { calls - 3, calls - 1 })
+    {
+        auto limited = options;
+        limited.nativeLimits.nativeCalls = limit;
+        const auto failed = step_import::ImportFile(source, limited);
+        Require(
+            failed.status == step_import::Status::ResourceLimit && !failed.model && failed.report.candidateDiscarded,
+            "late measured-query limit discards candidate"
+        );
+        Require(failed.report.nativeCalls == limit, "no uncharged measured query beyond limit");
+    }
+    auto cancelled = options;
+    cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+    cancelled.execution.progress = [&](step_import::Progress progress)
+    {
+        if (progress.phase == step_import::Phase::BeforeNativeCall && progress.nativeCalls == calls - 1)
+        {
+            cancelled.execution.control->RequestCancel();
+        }
+    };
+    const auto stopped = step_import::ImportFile(source, cancelled);
+    Require(
+        stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded,
+        "late measured-query cancellation discards candidate"
+    );
+    Require(stopped.report.nativeCalls == calls - 1, "cancelled query is not executed");
     auto retained = outcome.model->Face();
     const auto identity = retained.SourceId();
     outcome = {};

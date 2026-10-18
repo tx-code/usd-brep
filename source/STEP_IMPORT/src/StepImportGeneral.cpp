@@ -1941,10 +1941,33 @@ private:
         info.edges = m_model->edges.size();
         info.vertices = vertices.size();
         info.shapeRole = "MaterialSolid";
-        SmPoint3d mn, mx;
-        Step(shape);
-        Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, mn, mx));
-        info.boundsMm = { P(mn), P(mx) };
+        // This path has already checked a closed all-face material boundary:
+        // there are no free curves/vertices outside these faces. Each required
+        // tight face box includes its vertices, edges AND trimmed interior
+        // surface extrema. Their union therefore bounds the whole model without
+        // repeating the expensive whole-BRep tight-bound query. Keep the same
+        // boxes for FaceView::Info; edge-only or ordinary boxes are insufficient.
+        bool firstFace = true;
+        for (Index i = 0; i < m_model->faces.size(); ++i)
+        {
+            auto& f = m_model->faces[i];
+            SmPoint3d faceMin, faceMax;
+            Step(faces[i].record);
+            Good(SmApiFaceBoundingBox(f.face, TRUE, faceMin, faceMax));
+            f.info.boundsMm = { P(faceMin), P(faceMax) };
+            for (Index a = 0; a < 3; ++a)
+            {
+                Need(
+                    std::isfinite(f.info.boundsMm[0][a]) && std::isfinite(f.info.boundsMm[1][a]) && f.info.boundsMm[1][a] >= f.info.boundsMm[0][a],
+                    "GeneralFiniteBounds",
+                    faces[i].record
+                );
+                info.boundsMm[0][a] = firstFace ? f.info.boundsMm[0][a] : std::min(info.boundsMm[0][a], f.info.boundsMm[0][a]);
+                info.boundsMm[1][a] = firstFace ? f.info.boundsMm[1][a] : std::max(info.boundsMm[1][a], f.info.boundsMm[1][a]);
+            }
+            firstFace = false;
+        }
+        Need(!firstFace, "GeneralFiniteBounds", shape);
         for (Index a = 0; a < 3; ++a)
         {
             Need(
@@ -1957,7 +1980,19 @@ private:
         SmPoint3d centroid;
         SmVector3d moments, products;
         Step(shape);
-        Good(SmApiBrepComputeMassProperties(m_model->brep.get(), 1e-4, 1., mn, info.areaMm2, volume, mass, centroid, moments, products));
+        const auto& origin = info.boundsMm[0];
+        Good(SmApiBrepComputeMassProperties(
+            m_model->brep.get(),
+            1e-4,
+            1.,
+            SmPoint3d(origin[0], origin[1], origin[2]),
+            info.areaMm2,
+            volume,
+            mass,
+            centroid,
+            moments,
+            products
+        ));
         Need(std::isfinite(volume) && volume > 0 && std::isfinite(info.areaMm2) && info.areaMm2 > 0, "GeneralSolidMeasures", shape);
         info.materialVolumeMm3 = volume;
         info.centroidMm = P(centroid);
@@ -1998,9 +2033,6 @@ private:
             }
             f.info.edges = faceEdges.size() + (MissingSeam(faces[i]) ? 1 : 0);
             f.info.vertices = faceVertices.size();
-            Step(faces[i].record);
-            Good(SmApiFaceBoundingBox(f.face, TRUE, mn, mx));
-            f.info.boundsMm = { P(mn), P(mx) };
             m_report.faces.push_back({ f.faceId, Id(faces[i].surface), faces[i].same, f.info });
         }
         m_model->info = info;
