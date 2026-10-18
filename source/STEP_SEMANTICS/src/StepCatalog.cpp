@@ -354,8 +354,10 @@ Catalog::Catalog(ProfileKind profile)
     derivedSlots.assign(std::begin(CommonDerivedSlots), std::end(CommonDerivedSlots));
     if (profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap203e2GeneralSource)
     {
-        // Pinned AP214 unit fields replace guard-only entries before any pointers
-        // are bound. DERIVED_UNIT.name is DERIVE, never a transmitted name slot.
+        // Compared transport declarations in pinned AP214E3_2010.exp and N2635:
+        // DERIVED_UNIT/ELEMENT replace guard-only entries before pointers bind.
+        // DERIVED_UNIT.name is DERIVE, never a transmitted name slot. Shared
+        // fields do not imply shared complete schema/rule qualification.
         for (auto& declaration : declarations)
         {
             if (declaration.name == "DERIVED_UNIT")
@@ -372,7 +374,7 @@ Catalog::Catalog(ProfileKind profile)
             {
                 declaration.simple = true;
             }
-            // AP214 property metadata uses the existing exact base declarations.
+            // Both artifacts' property metadata uses these exact base declarations.
             // DERIVE names/IDs/descriptions are not extra transmitted parameters.
             if (declaration.name == "PROPERTY_DEFINITION_REPRESENTATION" || declaration.name == "PROPERTY_DEFINITION" ||
                 declaration.name == "REPRESENTATION" || declaration.name == "REPRESENTATION_CONTEXT")
@@ -404,7 +406,7 @@ Catalog::Catalog(ProfileKind profile)
             // The source value stays a marker; this descriptor must not invent the factor unit's dimensions reference.
             derivedSlots.push_back({ "CONVERSION_BASED_UNIT", "NAMED_UNIT", "dimensions" });
         }
-        // Pinned AP214E3_2010.exp, presentation entities and their inherited explicit fields.
+        // Compared AP214E3_2010.exp/N2635 presentation entities and inherited explicit fields.
         // All values/reference directions stay source-owned. Registering these transport
         // declarations does not evaluate the MDGPR/style/colour WHERE clauses or global RULEs.
         declarations.insert(
@@ -433,7 +435,7 @@ Catalog::Catalog(ProfileKind profile)
                 { "SHAPE_REPRESENTATION_RELATIONSHIP", { "REPRESENTATION_RELATIONSHIP" }, {}, true },
             }
         );
-        // The AP214 source root may be a placement-only SHAPE_REPRESENTATION linked
+        // Either source root may be a placement-only SHAPE_REPRESENTATION linked
         // to the BRep representation; admitting its fields does not apply a transform.
         std::find_if(
             declarations.begin(),
@@ -445,8 +447,10 @@ Catalog::Catalog(ProfileKind profile)
         )->simple = true;
         referenceSelects.insert(referenceSelects.end(), std::begin(Ap214ReferenceSelects), std::end(Ap214ReferenceSelects));
         enumerations.push_back({ "SURFACE_SIDE", SurfaceSides });
-        // Pinned AP214 conics share AXIS2_PLACEMENT; only its 3D branch is admitted
-        // in this source profile. Axes/radii/angles remain original source values.
+        // AP214E3_2010.exp/N2635 CONIC.position is AXIS2_PLACEMENT. Restricting
+        // that SELECT to 3D is this project's subset, not an EXPRESS restriction.
+        // Axes/radii/angles remain original source values. The B-spline fields
+        // and enum literals below were also compared with both fixed artifacts.
         declarations.insert(
             declarations.end(),
             {
@@ -498,7 +502,7 @@ Catalog::Catalog(ProfileKind profile)
         enumerations.push_back({ "B_SPLINE_CURVE_FORM", CurveForms });
         enumerations.push_back({ "B_SPLINE_SURFACE_FORM", SurfaceForms });
         enumerations.push_back({ "KNOT_TYPE", KnotTypes });
-        // AP214E3_2010.exp: MRI inherits RI before MWU, so simple mapping is
+        // AP214E3_2010.exp/N2635: MRI inherits RI before MWU, so simple mapping is
         // name/value_component/unit_component. Keep both source parent roles.
         declarations.push_back({ "MEASURE_REPRESENTATION_ITEM", { "REPRESENTATION_ITEM", "MEASURE_WITH_UNIT" }, {}, true });
         // External mapping transmits each parent's local fields in its own facet;

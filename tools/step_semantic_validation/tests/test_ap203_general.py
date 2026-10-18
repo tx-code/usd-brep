@@ -110,3 +110,26 @@ class Ap203GeneralTests(unittest.TestCase):
         self.assertEqual(3, run.returncode)
         self.assertIsNone(result["snapshot"])
         self.assertEqual("PreservedDiagnosticLimit", result["diagnostics"][0]["key"])
+
+    def test_generic_angle_measure_requires_dimensions_without_subtype_nominality(self):
+        # N2635 valid_units checks dimensions for this value branch. A generic
+        # MWU does not inherit PLANE_ANGLE_MEASURE_WITH_UNIT's nominal WR1.
+        data = BOX.replace(b"#11=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));", b"""#11=(CONVERSION_BASED_UNIT('degree',#902) NAMED_UNIT(#900) PLANE_ANGLE_UNIT());
+#900=DIMENSIONAL_EXPONENTS(0.,0.,0.,0.,0.,0.,0.);
+#901=NAMED_UNIT(#900);
+#902=MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.0174532925),#901);""")
+        run, result = self.invoke(data, "--general-brep-source")
+        self.assertEqual(0, run.returncode, result["diagnostics"])
+        self.assertEqual(data.decode("ascii"), result["source"]["input"]["raw"])
+
+    def test_angle_measure_subtype_checks_nominal_unit_for_any_value_branch(self):
+        # N2635 PLANE_ANGLE_MEASURE_WITH_UNIT.WR1 applies to the entity subtype,
+        # even if the source selected LENGTH_MEASURE for value_component.
+        data = BOX.replace(b"#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));", b"""#10=(CONVERSION_BASED_UNIT('custom',#902) LENGTH_UNIT() NAMED_UNIT(#900));
+#900=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);
+#901=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));
+#902=PLANE_ANGLE_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#901);""")
+        run, result = self.invoke(data, "--general-brep-source", "--interop-nongeometric")
+        self.assertEqual(1, run.returncode)
+        self.assertIsNone(result["snapshot"])
+        self.assertEqual("SourceRuleViolation:PLANE_ANGLE_MEASURE_WITH_UNIT.WR1", result["diagnostics"][0]["key"])

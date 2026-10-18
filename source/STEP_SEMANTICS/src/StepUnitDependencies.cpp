@@ -494,11 +494,10 @@ private:
                 }
                 else if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource && tag == "PLANE_ANGLE_MEASURE")
                 {
+                    // N2635 valid_units checks only the value branch's dimension.
+                    // Nominal angle-unit membership belongs to the MWU subtype
+                    // below; generic MWU must not inherit that entity's WR1.
                     required = {};
-                    if (!IsA(target, "PLANE_ANGLE_UNIT"))
-                    {
-                        Rule(r, unit, "PLANE_ANGLE_MEASURE_WITH_UNIT.WR1");
-                    }
                 }
                 else if (tag == "RATIO_MEASURE" || tag == "POSITIVE_RATIO_MEASURE")
                 {
@@ -520,8 +519,8 @@ private:
                         "profile dimensional interpretation subset; no guessed dimension"
                     );
                 }
-                // The admitted measure branches are explicit length aliases, mass and ratios.
-                // Remaining measure families are rejected by typed admission, never guessed.
+                // Only the dimensional branches handled above are interpreted.
+                // Remaining families fail explicitly, never by a guessed dimension.
                 Count(unit.declaration.value->span);
                 if (m_nodes[Index(target)].dimensions != required)
                 {
@@ -541,6 +540,16 @@ private:
                     if (!IsA(target, "MASS_UNIT"))
                     {
                         Rule(r, unit, "MASS_MEASURE_WITH_UNIT.WR1");
+                    }
+                }
+                if (IsA(r, "PLANE_ANGLE_MEASURE_WITH_UNIT"))
+                {
+                    // N2635 PLANE_ANGLE_MEASURE_WITH_UNIT.WR1 constrains this
+                    // entity's unit_component regardless of value_component's tag.
+                    Count(unit.declaration.value->span);
+                    if (!IsA(target, "PLANE_ANGLE_UNIT"))
+                    {
+                        Rule(r, unit, "PLANE_ANGLE_MEASURE_WITH_UNIT.WR1");
                     }
                 }
             }

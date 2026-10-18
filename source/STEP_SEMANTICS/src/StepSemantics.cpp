@@ -327,6 +327,7 @@ private:
         throw std::logic_error("Unknown semantic phase progress");
     }
     std::vector<std::vector<std::size_t>> m_outgoing;
+    std::vector<unsigned char> m_administrativeAttachments;
     std::size_t m_context = 0;
     std::size_t m_representation = 0;
 
@@ -1768,7 +1769,7 @@ private:
                 candidates.push_back(r);
             }
         }
-        std::vector<unsigned char> admitted(m_data->types.size());
+        m_administrativeAttachments.assign(m_data->types.size(), 0);
         bool changed = true;
         while (changed)
         {
@@ -1781,7 +1782,7 @@ private:
             const auto owned = Reach(std::move(roots), false);
             for (const auto record : candidates)
             {
-                if (admitted[record])
+                if (m_administrativeAttachments[record])
                 {
                     continue;
                 }
@@ -1809,14 +1810,14 @@ private:
                 {
                     continue;
                 }
-                admitted[record] = 1;
+                m_administrativeAttachments[record] = 1;
                 m_data->part.roles.push_back({ "administrative_attachment_" + std::to_string(record), record });
                 changed = true;
             }
         }
         for (const auto record : candidates)
         {
-            if (!admitted[record])
+            if (!m_administrativeAttachments[record])
             {
                 Fail(
                     "UnsupportedAdministrativeAttachment",
@@ -2015,14 +2016,9 @@ private:
                         return (role.name == "definition" || role.name == "formation") && role.recordIndex == target;
                     }
                 );
-                const bool attached = std::any_of(
-                    m_data->part.roles.begin(),
-                    m_data->part.roles.end(),
-                    [&](const auto& role)
-                    {
-                        return role.name.starts_with("administrative_attachment_") && role.recordIndex == record;
-                    }
-                );
+                // Consult the ownership proof itself. Exported role labels are
+                // report text and cannot authorize a source-type exception.
+                const bool attached = record < m_administrativeAttachments.size() && m_administrativeAttachments[record];
                 if (!selected || !attached || physical[record])
                 {
                     State(Phase::Types) = FailureProgress(issue.status);
