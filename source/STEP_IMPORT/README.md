@@ -1,5 +1,15 @@
 # STEP_IMPORT（内部 C++20）
 
+另一个独立选项 `Options.dataStringPolicy=PreserveOpaqueBytes`／CLI
+`--preserve-opaque-data-strings` 可保留未知编码的 DATA 文本；同样必须显式选择通用质量与
+`SourcePolicy::PreserveNonGeometric`，不会随旧文件头选项或互操作模式自动启用。
+当前仅允许已证明属于所选零件的 `PRODUCT.id/name`、主 `REPRESENTATION.name`，
+以及已验证全部目标归属的 `PRESENTATION_LAYER_ASSIGNMENT.name`。
+这些值始终是 `OpaqueString`，文本不可得，原始 token、身份、跨度与诊断留在只读源快照和报告中；
+不猜编码、不转码、不改名、不把未知文本当成空名称。其他字段或未证明的用途明确不支持。
+它不改变 schema 绑定、几何、单位、容差、完整报告／模型的发布和取消清理。
+旧 AP203 等未绑定协议不会因此自动获得导入资格。
+
 显式通用互操作请求可另选 `Options.headerNamePolicy=PreserveOpaqueBytes`，仅保留
 文件头 `FILE_NAME.name` 的非标准原始字节。该字段是 `OpaqueString`，不生成解码后的
 名称，报告包含原 token、跨度及 `OpaqueHeaderFileName` 提示；不转换原始文件。

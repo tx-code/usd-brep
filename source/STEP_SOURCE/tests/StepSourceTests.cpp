@@ -321,6 +321,45 @@ int main()
             Require(owner->Records()[0].components[0].parameters[0].text == "standard", "opaque name policy leaked to DATA");
             ++checks;
         }
+        {
+            const std::string raw = "'unknown-\x80\xfe'";
+            const auto opaqueInput = File("#1=A(" + raw + ",#2);\n#2=B();\n");
+            auto opaque = InspectBytes(opaqueInput, limits, HeaderNamePolicy::StrictAscii, DataStringPolicy::PreserveOpaqueBytes);
+            Require(opaque.status == Status::Inspected && opaque.source, "explicit opaque DATA capture");
+            auto owner = opaque.source;
+            const auto& value = owner->Records()[0].components[0].parameters[0];
+            Require(value.kind == ValueKind::OpaqueString && value.text.empty(), "unknown DATA text is unavailable");
+            Require(
+                owner->Raw(value.span) == raw && owner->Bytes() == opaqueInput && owner->References().size() == 1,
+                "source bytes, token identity and references survive opaque text"
+            );
+            Require(InspectJson(opaque, json) && json.find("\"text\":null") != std::string::npos, "no fake empty decoded DATA text");
+            opaque.limits.reportBytes = 1;
+            Require(!InspectJson(opaque, json) && json.empty(), "opaque DATA report obeys output budget");
+            opaque = {};
+            Require(owner->Raw(value.span) == raw, "DATA token survives outcome release");
+            const auto bad = InspectBytes(opaqueInput + "/*\x80*/", limits, HeaderNamePolicy::StrictAscii, DataStringPolicy::PreserveOpaqueBytes);
+            Require(!bad.source && bad.status == Status::Unsupported, "DATA policy cannot publish high-byte comments");
+            bool bytesRejected = false, fileRejected = false;
+            try
+            {
+                InspectBytes(opaqueInput, limits, HeaderNamePolicy::StrictAscii, static_cast<DataStringPolicy>(99));
+            }
+            catch (const std::invalid_argument&)
+            {
+                bytesRejected = true;
+            }
+            try
+            {
+                InspectFile({}, limits, HeaderNamePolicy::StrictAscii, static_cast<DataStringPolicy>(99));
+            }
+            catch (const std::invalid_argument&)
+            {
+                fileRejected = true;
+            }
+            Require(bytesRejected && fileRejected, "unknown DATA policy rejected before capture");
+            ++checks;
+        }
         ReportWriterContract();
         ++checks;
         std::cout << "Passed " << checks << " native source contract groups\n";

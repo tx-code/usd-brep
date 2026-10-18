@@ -186,7 +186,9 @@ public:
         for (std::size_t i = 0; i < input.size(); ++i)
         {
             const auto byte = static_cast<unsigned char>(input[i]);
-            if (byte == 127 || (byte >= 128 && m_result.headerNamePolicy == HeaderNamePolicy::StrictAscii) ||
+            if (byte == 127 ||
+                (byte >= 128 && m_result.headerNamePolicy == HeaderNamePolicy::StrictAscii &&
+                 m_result.dataStringPolicy == DataStringPolicy::StrictAscii) ||
                 (byte < 32 && byte != '\t' && byte != '\r' && byte != '\n'))
             {
                 Fail("UnsupportedEncoding", "This reader slice accepts ASCII bytes only", { i, i + 1 }, Status::Unsupported);
@@ -213,7 +215,7 @@ public:
         // The opt-in exception belongs to one completed HEADER token only.
         // Check every byte before DATA parsing, including skipped comments and
         // all other HEADER fields; no encoding relaxation can reach geometry.
-        if (m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes)
+        if (m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes && m_result.dataStringPolicy == DataStringPolicy::StrictAscii)
         {
             for (std::size_t i = 0; i < input.size(); ++i)
             {
@@ -245,12 +247,14 @@ public:
             Fail("UnsupportedDataSection", "Parameterized DATA sections are not supported", Peek().span, Status::Unsupported);
         }
         Expect(TokenKind::Semicolon);
+        m_inData = true;
         while (Peek().kind == TokenKind::Reference)
         {
             ParseRecord();
         }
         m_recordId.clear();
         m_component.clear();
+        m_inData = false;
         Word("ENDSEC");
         Expect(TokenKind::Semicolon);
         if (Peek().text == "DATA" || Peek().text == "SIGNATURE" || Peek().text == "ANCHOR" || Peek().text == "REFERENCE")
@@ -263,7 +267,43 @@ public:
         {
             Fail("TrailingContent", "Content after the end marker is not accepted", Peek().span);
         }
+        if (m_result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes)
+        {
+            // Lexing establishes token spans, not text or field meaning. Before
+            // publishing ANY source graph, reject every high byte outside an
+            // explicitly opaque token, including skipped comments/HEADER text.
+            // Spans arrive in lexical order: keep this whole-carrier pass linear.
+            std::size_t opaque = 0;
+            for (std::size_t i = 0; i < input.size(); ++i)
+            {
+                while (opaque < m_opaqueDataStrings.size() && m_opaqueDataStrings[opaque].end <= i)
+                {
+                    ++opaque;
+                }
+                const bool inData = opaque < m_opaqueDataStrings.size() && m_opaqueDataStrings[opaque].begin <= i &&
+                                    i < m_opaqueDataStrings[opaque].end;
+                const bool inHeader = m_opaqueHeaderName && m_opaqueHeaderName->begin <= i && i < m_opaqueHeaderName->end;
+                if (static_cast<unsigned char>(input[i]) >= 128 && !inData && !inHeader)
+                {
+                    Fail("UnsupportedEncoding", "Non-ASCII bytes are outside explicitly preserved STRING tokens", { i, i + 1 }, Status::Unsupported);
+                }
+            }
+        }
         Resolve();
+        if (!m_opaqueDataStrings.empty())
+        {
+            m_result.diagnostics.push_back(
+                { "OpaqueDataStringsRetained",
+                  "D0",
+                  "Nonstandard DATA strings retained as original bytes; text and encoding are unestablished",
+                  m_opaqueDataStrings.front(),
+                  {},
+                  {},
+                  {},
+                  {},
+                  {} }
+            );
+        }
     }
 
 private:
@@ -278,6 +318,8 @@ private:
     std::vector<std::size_t> m_path;
     bool m_headerNameExpected = false;
     std::optional<Span> m_opaqueHeaderName;
+    bool m_inData = false;
+    std::vector<Span> m_opaqueDataStrings;
 
     [[noreturn]] void Fail(std::string key, std::string message, Span span, Status status = Status::Rejected, std::string stage = "D0")
     {
@@ -339,9 +381,11 @@ private:
         }
         return position;
     }
-    std::optional<Token> OpaqueHeaderName(std::size_t start)
+    std::optional<Token> OpaqueString(std::size_t start)
     {
-        if (!m_headerNameExpected || m_result.headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes)
+        const bool header = !m_inData && m_headerNameExpected && m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes;
+        const bool data = m_inData && m_result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes;
+        if (!header && !data)
         {
             return {};
         }
@@ -382,15 +426,23 @@ private:
                         // Decode neither legacy bytes nor escape directives in
                         // this opaque value. A legacy multibyte trail may itself
                         // be '\\'; its meaning cannot be inferred as P21 syntax.
-                        m_opaqueHeaderName = Span{ start, m_pos };
+                        const Span span{ start, m_pos };
+                        if (header)
+                        {
+                            m_opaqueHeaderName = span;
+                        }
+                        else
+                        {
+                            m_opaqueDataStrings.push_back(span);
+                        }
                         m_result.statistics.maxStringBytes = std::max(m_result.statistics.maxStringBytes, m_pos - start);
-                        return Token{ TokenKind::OpaqueString, *m_opaqueHeaderName, {} };
+                        return Token{ TokenKind::OpaqueString, span, {} };
                     }
                     break;
                 }
             }
         }
-        m_pos = saved; // Ordinary ASCII names retain the exact existing decoder and diagnostics.
+        m_pos = saved; // Ordinary ASCII strings retain the exact existing decoder and diagnostics.
         return {};
     }
 
@@ -564,7 +616,7 @@ private:
                 break;
             case '\'':
             {
-                if (const auto opaque = OpaqueHeaderName(start))
+                if (const auto opaque = OpaqueString(start))
                 {
                     return *opaque;
                 }
@@ -638,6 +690,10 @@ private:
                 Fail("UnsupportedToken", "Binary, user-defined and value-instance forms are not supported", { start, m_pos }, Status::Unsupported);
             default:
             {
+                if (static_cast<unsigned char>(c) >= 128)
+                {
+                    Fail("UnsupportedEncoding", "Non-ASCII byte outside a STRING token", { start, m_pos }, Status::Unsupported);
+                }
                 if (Upper(c))
                 {
                     while (m_pos < text.size() && (Upper(text[m_pos]) || Digit(text[m_pos]) || text[m_pos] == '-'))
@@ -1012,15 +1068,20 @@ Location SourceSnapshot::Locate(std::size_t offset) const
     return { static_cast<std::size_t>(line), offset - m_data->lines[static_cast<std::size_t>(line) - 1] + 1 };
 }
 
-InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy headerNamePolicy)
+InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy headerNamePolicy, DataStringPolicy dataStringPolicy)
 {
     if (headerNamePolicy != HeaderNamePolicy::StrictAscii && headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes)
     {
         throw std::invalid_argument("Unknown HEADER filename policy");
     }
+    if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes)
+    {
+        throw std::invalid_argument("Unknown DATA string policy");
+    }
     InspectOutcome result{};
     result.limits = limits;
     result.headerNamePolicy = headerNamePolicy;
+    result.dataStringPolicy = dataStringPolicy;
     if (!ValidLimits(limits))
     {
         result.status = Status::ResourceLimit;
@@ -1078,11 +1139,15 @@ InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy h
     return result;
 }
 
-InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, HeaderNamePolicy headerNamePolicy)
+InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, HeaderNamePolicy headerNamePolicy, DataStringPolicy dataStringPolicy)
 {
+    if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes)
+    {
+        throw std::invalid_argument("Unknown DATA string policy");
+    }
     if (!ValidLimits(limits))
     {
-        return InspectBytes({}, limits, headerNamePolicy);
+        return InspectBytes({}, limits, headerNamePolicy, dataStringPolicy);
     }
     std::ifstream input(path, std::ios::binary);
     std::string bytes;
@@ -1096,18 +1161,19 @@ InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, Hea
             bytes.append(buffer.data(), static_cast<std::size_t>(input.gcount()));
             if (bytes.size() > limits.inputBytes)
             {
-                return InspectBytes(std::move(bytes), limits, headerNamePolicy);
+                return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy);
             }
         }
         if (input.eof() && !input.bad())
         {
-            return InspectBytes(std::move(bytes), limits, headerNamePolicy);
+            return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy);
         }
     }
     InspectOutcome result{};
     result.status = Status::IoFailure;
     result.limits = limits;
     result.headerNamePolicy = headerNamePolicy;
+    result.dataStringPolicy = dataStringPolicy;
     result.diagnostics.push_back({ "InputReadFailure", "Capture", "Input capture did not complete", {}, {}, {}, {}, {}, {} });
     return result;
 }

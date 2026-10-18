@@ -51,7 +51,7 @@ enum class ValueKind
     Derived,
     Aggregate,
     Typed,
-    OpaqueString // Only FILE_NAME.name under the explicit preservation policy; no decoded text.
+    OpaqueString // Explicit raw HEADER name / DATA text preservation only; no decoded text.
 };
 
 enum class HeaderNamePolicy
@@ -59,13 +59,18 @@ enum class HeaderNamePolicy
     StrictAscii,
     PreserveOpaqueBytes // Nonstandard HEADER FILE_NAME.name only; never selects or guesses a code page.
 };
+enum class DataStringPolicy
+{
+    StrictAscii,
+    PreserveOpaqueBytes // Unknown DATA STRING text; downstream must qualify each field's use independently.
+};
 
 struct Value
 {
     ValueKind kind = ValueKind::Unset;
     Span span;
     // Numbers: exact source lexeme, never double. Strings: decoded UTF-8.
-    // OpaqueString: text is unavailable (empty storage); use kind + owning Raw(span), not an empty filename.
+    // OpaqueString: text is unavailable (empty storage); use kind + owning Raw(span), never an invented empty label.
     // Reference: canonical decimal ID (without '#'); typed value: type name.
     std::string text;
     std::vector<Value> children;
@@ -161,11 +166,22 @@ struct InspectOutcome
     Limits limits{};
     std::vector<Diagnostic> diagnostics;
     HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii;
+    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii;
 };
 
 // Bytes are owned by value before parsing. Neither entry point consults a path after capture.
-InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii);
-InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii);
+InspectOutcome InspectBytes(
+    std::string bytes,
+    Limits limits,
+    HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii,
+    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii
+);
+InspectOutcome InspectFile(
+    const std::filesystem::path& path,
+    Limits limits,
+    HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii,
+    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii
+);
 
 // Bounded internal JSON report. False clears output; never returns a truncated success document.
 bool InspectJson(const InspectOutcome& outcome, std::string& output);

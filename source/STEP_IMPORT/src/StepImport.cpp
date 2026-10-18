@@ -88,6 +88,12 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");
     }
+    if (options.dataStringPolicy != step_source::DataStringPolicy::StrictAscii &&
+        (options.dataStringPolicy != step_source::DataStringPolicy::PreserveOpaqueBytes || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("Opaque DATA text requires explicit general interoperability");
+    }
 }
 template <class Capture>
 Outcome Import(const Options& options, Capture capture)
@@ -99,6 +105,7 @@ Outcome Import(const Options& options, Capture capture)
     step_source::InspectOutcome raw;
     raw.limits = options.sourceLimits;
     raw.headerNamePolicy = options.headerNamePolicy;
+    raw.dataStringPolicy = options.dataStringPolicy;
     detail::Execution execution(options, report);
     detail::Publication publication(options, result, raw, execution);
     try
@@ -230,7 +237,7 @@ Outcome ImportBytes(std::string bytes, const Options& options)
         frozen,
         [&]
         {
-            return step_source::InspectBytes(std::move(bytes), frozen.sourceLimits, frozen.headerNamePolicy);
+            return step_source::InspectBytes(std::move(bytes), frozen.sourceLimits, frozen.headerNamePolicy, frozen.dataStringPolicy);
         }
     );
 }
@@ -243,7 +250,7 @@ Outcome ImportFile(const std::filesystem::path& path, const Options& options)
         frozen,
         [&]
         {
-            return step_source::InspectFile(capturedPath, frozen.sourceLimits, frozen.headerNamePolicy);
+            return step_source::InspectFile(capturedPath, frozen.sourceLimits, frozen.headerNamePolicy, frozen.dataStringPolicy);
         }
     );
 }

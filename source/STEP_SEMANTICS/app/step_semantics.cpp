@@ -27,6 +27,8 @@ int main(int argc, char** argv)
         step_semantics::Limits semanticLimits;
         auto policy = step_semantics::SourcePolicy::Strict;
         auto geometryScope = step_semantics::GeometryScope::ExplicitOuterBounds;
+        auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
+        auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
         const std::unordered_map<std::string_view, std::size_t*> options = { { "--max-input-bytes", &limits.inputBytes },
                                                                              { "--max-records", &limits.records },
                                                                              { "--max-values", &limits.values },
@@ -55,6 +57,14 @@ int main(int argc, char** argv)
             else if (arg == "--general-brep-source")
             {
                 geometryScope = step_semantics::GeometryScope::GeneralBrep;
+            }
+            else if (arg == "--preserve-opaque-header-name")
+            {
+                headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+            }
+            else if (arg == "--preserve-opaque-data-strings")
+            {
+                dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
             }
             else if (options.count(arg))
             {
@@ -85,7 +95,7 @@ int main(int argc, char** argv)
             std::cerr << "Usage: step_semantic_inspect --fixture-limits <input.step> [--max-... N]\n";
             return 64;
         }
-        const auto source = step_source::InspectFile(std::filesystem::path(path), limits);
+        const auto source = step_source::InspectFile(std::filesystem::path(path), limits, headerNamePolicy, dataStringPolicy);
         const auto semantics = step_semantics::Check(source, semanticLimits, policy, geometryScope);
         std::string output;
         if (!step_semantics::InspectJson(source, semantics, output))

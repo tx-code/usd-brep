@@ -117,6 +117,10 @@ int main(int argc, char** argv)
             {
                 options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
             }
+            else if (arg == "--preserve-opaque-data-strings")
+            {
+                options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+            }
             else if (arg == "--write-native" && i + 1 < argc)
             {
                 nativeOutput = std::filesystem::path(argv[++i]);

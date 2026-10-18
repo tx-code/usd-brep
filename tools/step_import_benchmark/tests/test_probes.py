@@ -128,6 +128,20 @@ class ProbeTests(unittest.TestCase):
         self.assertTrue(all(x["elapsed_ms"] >= 0 for x in intervals))
         self.assertLessEqual(sum(x["elapsed_ms"] for x in intervals), profiled["operation_ms"])
 
+    def test_explicit_opaque_data_probe_records_the_real_import_policy(self):
+        from tools.step_import_native_validation.tests.test_opaque_data import opaque_source
+
+        with tempfile.TemporaryDirectory(prefix="step-opaque-benchmark-") as directory:
+            path = Path(directory) / "source.step"
+            path.write_bytes(opaque_source())
+            trial, = self.invoke("native", "import", path, "--quality", "Q-AP214-development-mm-01",
+                                 "--source-policy", "PreserveNonGeometric",
+                                 "--data-string-policy", "PreserveOpaqueBytes")["trials"]
+        self.assertTrue(trial["has_model"])
+        self.assertEqual("PreserveOpaqueBytes", trial["data_string_policy"])
+        self.assertGreaterEqual(trial["preserved_source_diagnostics"], 1)
+        self.assertEqual((3, 3, 2), tuple(trial["model"][k] for k in ("faces", "edges", "vertices")))
+
     def test_other_readers_and_invalid_flags_cannot_silently_ignore_native_configuration(self):
         with tempfile.TemporaryDirectory(prefix="step-invalid-benchmark-") as directory:
             for engine, mode, flags in [
@@ -142,6 +156,10 @@ class ProbeTests(unittest.TestCase):
                 ("native", "import", ["--native-boundary-timing", "2"]),
                 ("native", "import", ["--header-name-policy", "unknown"]),
                 ("native", "import", ["--header-name-policy", "PreserveOpaqueBytes"]),
+                ("source", "source", ["--data-string-policy", "PreserveOpaqueBytes"]),
+                ("occt", "transfer", ["--data-string-policy", "StrictAscii"]),
+                ("native", "import", ["--data-string-policy", "unknown"]),
+                ("native", "import", ["--data-string-policy", "PreserveOpaqueBytes"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

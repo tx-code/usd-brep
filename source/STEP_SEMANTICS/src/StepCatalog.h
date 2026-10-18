@@ -222,7 +222,8 @@ struct SemanticData
     {
         ExistingMetadata,
         MissingApplicationProtocol,
-        CurveStyleWidth
+        CurveStyleWidth,
+        OpaqueDisplayText
     };
     struct PendingIssue
     {

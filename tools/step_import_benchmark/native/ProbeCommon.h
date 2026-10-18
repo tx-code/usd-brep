@@ -99,7 +99,7 @@ struct Args
 {
     std::filesystem::path input, output;
     std::string mode;
-    std::string quality, sourcePolicy, headerNamePolicy; // Explicit native-import choices; empty preserves the strict P0 run.
+    std::string quality, sourcePolicy, headerNamePolicy, dataStringPolicy; // Explicit choices; empty preserves the strict P0 run.
     std::optional<bool> nativeBoundaryTiming; // Presence is distinct from enabled; never silently ignore a foreign engine's flag.
     std::size_t warmup = 0, repeat = 1, maximumInput = 64 * 1024 * 1024;
 };
@@ -124,13 +124,16 @@ inline Args Parse(const std::vector<std::string>& tokens)
         {
             args.mode = value;
         }
-        else if (key == "--quality" || key == "--source-policy" || key == "--header-name-policy")
+        else if (key == "--quality" || key == "--source-policy" || key == "--header-name-policy" || key == "--data-string-policy")
         {
             if (value.empty())
             {
                 throw std::invalid_argument("Empty explicit native configuration");
             }
-            (key == "--quality" ? args.quality : key == "--source-policy" ? args.sourcePolicy : args.headerNamePolicy) = value;
+            (key == "--quality"            ? args.quality :
+             key == "--source-policy"      ? args.sourcePolicy :
+             key == "--header-name-policy" ? args.headerNamePolicy :
+                                             args.dataStringPolicy) = value;
         }
         else
         {
@@ -197,7 +200,8 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
         const auto args = Parse(tokens);
         // Never accept a native policy flag and silently ignore it on the other
         // reader. Invalid policies are rejected even for an input-budget skip.
-        if (!args.quality.empty() || !args.sourcePolicy.empty() || !args.headerNamePolicy.empty() || args.nativeBoundaryTiming.has_value())
+        if (!args.quality.empty() || !args.sourcePolicy.empty() || !args.headerNamePolicy.empty() || !args.dataStringPolicy.empty() ||
+            args.nativeBoundaryTiming.has_value())
         {
             if (std::string_view(engine) != "self-native" || args.mode != "import")
             {
@@ -206,15 +210,16 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
             if ((!args.quality.empty() && args.quality != "Q-P0-mm-01" && args.quality != "Q-AP214-development-mm-01" &&
                  args.quality != "Q-AP214-tolerance-study-mm-01") ||
                 (!args.sourcePolicy.empty() && args.sourcePolicy != "Strict" && args.sourcePolicy != "PreserveNonGeometric") ||
-                (!args.headerNamePolicy.empty() && args.headerNamePolicy != "StrictAscii" && args.headerNamePolicy != "PreserveOpaqueBytes"))
+                (!args.headerNamePolicy.empty() && args.headerNamePolicy != "StrictAscii" && args.headerNamePolicy != "PreserveOpaqueBytes") ||
+                (!args.dataStringPolicy.empty() && args.dataStringPolicy != "StrictAscii" && args.dataStringPolicy != "PreserveOpaqueBytes"))
             {
                 throw std::invalid_argument("Unknown explicit native quality or source policy");
             }
-            if (args.headerNamePolicy == "PreserveOpaqueBytes" &&
+            if ((args.headerNamePolicy == "PreserveOpaqueBytes" || args.dataStringPolicy == "PreserveOpaqueBytes") &&
                 (args.sourcePolicy != "PreserveNonGeometric" ||
                  (args.quality != "Q-AP214-development-mm-01" && args.quality != "Q-AP214-tolerance-study-mm-01")))
             {
-                throw std::invalid_argument("Opaque header names require explicit general quality and nongeometric interoperability");
+                throw std::invalid_argument("Opaque text requires explicit general quality and nongeometric interoperability");
             }
         }
         const auto bytes = std::filesystem::file_size(args.input);

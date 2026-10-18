@@ -66,6 +66,10 @@ bench::Trial Run(const bench::Args& args)
             {
                 options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
             }
+            if (args.dataStringPolicy == "PreserveOpaqueBytes")
+            {
+                options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+            }
             std::vector<std::pair<std::size_t, double>> intervals;
             std::optional<std::pair<std::size_t, bench::Clock::time_point>> previous;
             if (args.nativeBoundaryTiming.value_or(false))
@@ -142,6 +146,10 @@ bench::Trial Run(const bench::Args& args)
             if (!args.headerNamePolicy.empty())
             {
                 row.extra += ",\"header_name_policy\":" + bench::Q(args.headerNamePolicy);
+            }
+            if (!args.dataStringPolicy.empty())
+            {
+                row.extra += ",\"data_string_policy\":" + bench::Q(args.dataStringPolicy);
             }
             if (args.nativeBoundaryTiming.value_or(false))
             {

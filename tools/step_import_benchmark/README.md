@@ -91,6 +91,12 @@ OCCT 使用默认 FixShape 路径，系统长度单位设为毫米，实际精�
 本地 OCCT 可为开发版本，必须以结果中的完整版本号、实际加载 DLL 与其 SHA256 为准。
 `build_id` 是 configure 时的仓库提交；源码与二进制的构建绑定仍需本机构建日志及源身份记录。
 
+原生 import 探针可显式传入 `--data-string-policy PreserveOpaqueBytes`，并须同时
+选择通用质量及 `--source-policy PreserveNonGeometric`；该选项单独记录在 trial 中。
+HEADER 原字节策略仍由独立的 `--header-name-policy` 控制。其他引擎或模式不会忽略
+这些选项，即使输入超过字节预算也会先拒绝不适用的配置。未知 DATA 文本的可用字段和
+资格限制由 [STEP_IMPORT](../../source/STEP_IMPORT/README.md) 规定。
+
 ## 公共入口检查
 
 设置 `STEP_BENCH_SOURCE`、`STEP_BENCH_NATIVE`、`STEP_BENCH_OCCT` 为三个 Release 程序，

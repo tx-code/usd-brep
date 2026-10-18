@@ -1,5 +1,19 @@
 # STEP source semantics: ticket 03
 
+Explicit general interoperability may preserve unavailable DATA text in exactly
+`PRODUCT.id`, `PRODUCT.name`, `REPRESENTATION.name` and
+`PRESENTATION_LAYER_ASSIGNMENT.name`. Source capture must separately select its
+raw DATA-string policy. Typing retains `OpaqueDataTextUnestablished` as
+`ProfileUnsupported`, never a decoded/empty label or a proven malformed value.
+Final approval requires the actual selected product/representation, or a layer
+whose complete attachment was already proved. A representation's nondefining name
+is distinct from its geometry-owning item dependencies. Other fields, protocol
+claims, property-rule names, units and unapproved owners remain unsupported.
+`CheckedWithDiagnostics` and owning `OpaqueString` values expose this limitation;
+the source bytes, field roles, scope and all other checks remain intact. Strict
+semantics and P0 do not gain this exception. Both source policy flags are exposed
+by the semantic CLI, independently of `--interop-nongeometric`.
+
 The three explicit general profiles also retain `TRIMMED_CURVE`, its original
 `basis_curve`, both `SET[1:2]` cuts, sense and master preference. The pinned
 N2635 / AP214E3_2010 declarations admit only `CARTESIAN_POINT` references or

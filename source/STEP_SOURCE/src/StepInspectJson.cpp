@@ -68,6 +68,10 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
     {
         out.Add(",\"header_name_policy\":\"PreserveOpaqueBytes\"");
     }
+    if (result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes)
+    {
+        out.Add(",\"data_string_policy\":\"PreserveOpaqueBytes\"");
+    }
     out.Add(",\"source_complete\":");
     out.Add(result.source ? "true" : "false");
     out.Add(",\"schema_validation\":\"NotRun\",\"native_build\":\"NotRun\",\"input\":{\"capture_complete\":");

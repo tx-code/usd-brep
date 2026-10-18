@@ -21,6 +21,20 @@ string/record/input/report budgets still apply. The unknown name is retained
 metadata, not proof of standard string conformance; `Inspected` still means only
 completion of the explicitly selected source inspection.
 
+A separate `DataStringPolicy::PreserveOpaqueBytes` (CLI
+`--preserve-opaque-data-strings`) can capture nonstandard DATA STRING tokens as
+`OpaqueString`. Their original bytes/spans remain owned; `text` is null in JSON
+and unavailable in C++, not an invented empty string. An aggregate
+`OpaqueDataStringsRetained` notice records the limitation. ASCII-only tokens keep
+the original Part21 decoder, including malformed-escape diagnostics. This option
+does not imply the HEADER exception, decoding, semantic acceptance or schema
+conformance. High bytes outside allowed tokens, including comments and identifiers,
+and control bytes remain rejected before source publication. The whole-carrier
+check after tokenization is linear in bytes plus opaque-token spans. Record/value,
+string, reference and report budgets still apply; no partial graph is published.
+Only a downstream field-specific nongeometric proof may admit uninterpreted DATA
+text to a typed/imported result. Default source behavior remains unchanged.
+
 Standalone build, from the repository root:
 
 ```powershell

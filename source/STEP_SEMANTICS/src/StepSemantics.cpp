@@ -755,6 +755,42 @@ private:
         switch (kind)
         {
             case FieldKind::String:
+                if (value.kind == ValueKind::OpaqueString)
+                {
+                    try
+                    {
+                        // Unknown encoding is unavailable text, not a known
+                        // empty/malformed label. Keep the strict diagnostic and
+                        // require a field-specific ownership proof before any
+                        // typed snapshot can use this interoperability exception.
+                        Fail(
+                            "OpaqueDataTextUnestablished",
+                            "D1",
+                            "DATA text interpretation remains unestablished",
+                            value.span,
+                            Status::Unsupported,
+                            r,
+                            c,
+                            path,
+                            std::string(field.type),
+                            "OpaqueString",
+                            "project DATA carrier policy; not established source STRING semantics"
+                        );
+                    }
+                    catch (Failure& failure)
+                    {
+                        const auto& issue = failure.diagnostic;
+                        const bool display = (issue.declaredIn == "PRODUCT" && (issue.field == "id" || issue.field == "name")) ||
+                                             ((issue.declaredIn == "REPRESENTATION" || issue.declaredIn == "PRESENTATION_LAYER_ASSIGNMENT") &&
+                                              issue.field == "name");
+                        if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep || !display || path.size() != 1)
+                        {
+                            throw;
+                        }
+                        Preserve(std::move(failure), SemanticData::PreservationProof::OpaqueDisplayText);
+                    }
+                    break;
+                }
                 if (value.kind != ValueKind::String)
                 {
                     mismatch();
@@ -2620,6 +2656,36 @@ private:
             }
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (issue.proof == SemanticData::PreservationProof::OpaqueDisplayText)
+            {
+                // These FOUR fields are labels/identifiers, not geometry or
+                // unit definitions (pinned N2635/AP214 declarations). A record-
+                // level physical exclusion would be wrong for REPRESENTATION:
+                // its items own the body, whereas its name does not define it.
+                // Prove actual selected/attached ownership, not mere type/name.
+                const auto& field = issue.diagnostic.field;
+                const auto& owner = issue.diagnostic.declaredIn;
+                const bool selectedProduct = owner == "PRODUCT" && (field == "id" || field == "name") &&
+                                             std::any_of(
+                                                 m_data->part.roles.begin(),
+                                                 m_data->part.roles.end(),
+                                                 [&](const auto& role)
+                                                 {
+                                                     return role.name == "product" && role.recordIndex == record;
+                                                 }
+                                             );
+                const bool selectedRepresentation = owner == "REPRESENTATION" && field == "name" && record == m_representation;
+                const bool attachedLayer = owner == "PRESENTATION_LAYER_ASSIGNMENT" && field == "name" &&
+                                           record < m_administrativeAttachments.size() && m_administrativeAttachments[record] && !physical[record];
+                if (m_data->geometryScope != GeometryScope::GeneralBrep || FieldValue(record, field).kind != ValueKind::OpaqueString ||
+                    !(selectedProduct || selectedRepresentation || attachedLayer))
+                {
+                    State(Phase::Types) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
             if (issue.proof == SemanticData::PreservationProof::CurveStyleWidth)
             {
                 if (!presentationUse)

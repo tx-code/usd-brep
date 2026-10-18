@@ -15,6 +15,7 @@
 #include <SmFace.h>
 #include <SmLine.h>
 #include <SmPlane.h>
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -408,6 +409,69 @@ void OpaqueHeaderContract(const std::filesystem::path& source)
     Near(*modelOwner->MaterialVolumeMm3(), 6000, 1e-5, "opaque metadata leaves exact box volume");
     Require(modelOwner->CopyForModeling().model != nullptr, "opaque-source native copy after outcome release");
 }
+void OpaqueDataContract(const std::filesystem::path& source)
+{
+    std::ifstream input(source, std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    const auto position = text.find("'P0-PART'");
+    Require(position != std::string::npos, "public product identifier fixture");
+    const std::string raw = "'unknown-\x80\xfe'";
+    text.replace(position, std::string_view("'P0-PART'").size(), raw);
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+    auto result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::Accepted && result.model, "opaque DATA native import");
+    Near(*result.model->MaterialVolumeMm3(), 6000, 1e-5, "unknown product text preserves analytic box");
+    auto snapshot = result.report.generalSource->snapshot;
+    const auto product = std::find_if(
+                             snapshot->PartDefinition().roles.begin(),
+                             snapshot->PartDefinition().roles.end(),
+                             [](const auto& role)
+                             {
+                                 return role.name == "product";
+                             }
+    )->recordIndex;
+    auto field = snapshot->Field(product, "id");
+    result = {};
+    Require(field.Value().kind == step_source::ValueKind::OpaqueString && field.Value().text.empty(), "text is unavailable, not decoded");
+    Require(snapshot->Source().Raw(field.Value().span) == raw && snapshot->Source().Bytes() == text, "owning original DATA bytes");
+    auto cancelled = options;
+    cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+    cancelled.execution.progress = [&](step_import::Progress progress)
+    {
+        if (progress.phase == step_import::Phase::NativeReady)
+        {
+            cancelled.execution.control->RequestCancel();
+        }
+    };
+    const auto stopped = step_import::ImportBytes(text, cancelled);
+    Require(
+        stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded,
+        "opaque source does not bypass final cancellation or candidate cleanup"
+    );
+    auto limited = options;
+    limited.nativeLimits.reportBytes = 1;
+    const auto failed = step_import::ImportBytes(text, limited);
+    Require(
+        !failed.model && failed.report.json.empty() && failed.report.candidateDiscarded,
+        "opaque source cannot publish a model without its complete report"
+    );
+    auto invalid = options;
+    invalid.sourcePolicy = step_semantics::SourcePolicy::Strict;
+    bool rejected = false;
+    try
+    {
+        step_import::ImportBytes(text, invalid);
+    }
+    catch (const std::invalid_argument&)
+    {
+        rejected = true;
+    }
+    Require(rejected, "opaque DATA opt-in cannot relax strict import");
+}
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
     auto options = step_import::Options::PlanarFixture();
@@ -483,7 +547,13 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     model.reset();
     Require(!identity.empty() && std::isfinite(retained.Closest({ 20, 7, 20 }).distanceMm), "owning face view lifetime");
 }
-void DevelopmentContract(const std::filesystem::path& source, const std::filesystem::path& directory, bool study, bool opaqueHeaderName)
+void DevelopmentContract(
+    const std::filesystem::path& source,
+    const std::filesystem::path& directory,
+    bool study,
+    bool opaqueHeaderName,
+    bool opaqueDataText
+)
 {
     auto options = step_import::Options::PlanarFixture();
     options.generalBrep = true;
@@ -491,6 +561,10 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
     if (opaqueHeaderName)
     {
         options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+    }
+    if (opaqueDataText)
+    {
+        options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
     }
     options.quality = study ? step_import::Quality::GeneralToleranceStudy() : step_import::Quality::GeneralDevelopment();
     options.sourceLimits = { 67108864, 1000000, 2000000, 2000000, 128, 1048576, 16777216, 268435456, 1024 };
@@ -575,10 +649,16 @@ int main(int argc, char** argv)
 {
     try
     {
-        if ((argc == 5 || argc == 6) && std::string_view(argv[1]) == "--development-file")
+        if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
-            Require(argc == 5 || std::string_view(argv[5]) == "--preserve-opaque-header-name", "explicit HEADER filename flag required");
-            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", argc == 6);
+            bool header = false, data = false;
+            for (int i = 5; i < argc; ++i)
+            {
+                const std::string_view flag(argv[i]);
+                Require(flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings", "unknown explicit text flag");
+                (flag == "--preserve-opaque-header-name" ? header : data) = true;
+            }
+            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data);
             return 0;
         }
         Require(argc == 3, "fixture and local output directory required");
@@ -586,6 +666,7 @@ int main(int argc, char** argv)
         FinalTrimContract();
         RationalContract(argv[1], argv[2]);
         OpaqueHeaderContract(argv[1]);
+        OpaqueDataContract(argv[1]);
         LifecycleContract(argv[1], argv[2]);
     }
     catch (const std::exception& error)
