@@ -28,8 +28,21 @@ void Writer::StringValue(std::string_view text, bool utf8)
 {
     Add("\"");
     const char hex[] = "0123456789abcdef";
-    for (const unsigned char c : text)
+    std::size_t begin = 0;
+    for (std::size_t i = 0; i < text.size(); ++i)
     {
+        const auto c = static_cast<unsigned char>(text[i]);
+        if (c != '"' && c != '\\' && c >= 32 && c != 127 && (utf8 || c < 128))
+        {
+            continue;
+        }
+        // Every byte in this run has the existing literal representation. One
+        // bounded append preserves the byte cap without per-character growth
+        // checks. Raw high bytes still escape; decoded UTF-8 stays unchanged.
+        if (begin != i)
+        {
+            Add(text.substr(begin, i - begin));
+        }
         if (c == '"')
         {
             Add("\\\"");
@@ -38,16 +51,16 @@ void Writer::StringValue(std::string_view text, bool utf8)
         {
             Add("\\\\");
         }
-        else if (c < 32 || c == 127 || (!utf8 && c >= 128))
+        else
         {
             const char escaped[] = { '\\', 'u', '0', '0', hex[c >> 4], hex[c & 15] };
             Add(std::string_view(escaped, 6));
         }
-        else
-        {
-            const char value = static_cast<char>(c);
-            Add(std::string_view(&value, 1));
-        }
+        begin = i + 1;
+    }
+    if (begin < text.size())
+    {
+        Add(text.substr(begin));
     }
     Add("\"");
 }

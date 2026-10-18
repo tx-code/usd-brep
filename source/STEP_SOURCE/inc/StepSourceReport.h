@@ -21,7 +21,11 @@ public:
         output.clear();
         try
         {
-            Writer writer(maximum);
+            // Reuse the caller's allocation privately, rather than holding the
+            // previous report buffer while constructing another complete one.
+            // Producers still observe empty output; only success publishes it.
+            Writer writer(maximum, std::move(output));
+            output.clear(); // A moved-from string is valid but its state need not be assumed.
             serialize(writer);
             output = std::move(writer.m_text);
             return true;
@@ -46,7 +50,7 @@ public:
 
 private:
 
-    explicit Writer(std::size_t maximum) : m_maximum(maximum)
+    Writer(std::size_t maximum, std::string&& storage) noexcept : m_maximum(maximum), m_text(std::move(storage))
     {
     }
     std::size_t m_maximum;

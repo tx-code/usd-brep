@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepSource.h"
+#include "StepSourceReport.h"
 
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <new>
 #include <stdexcept>
 #include <type_traits>
 
@@ -23,6 +25,118 @@ std::string File(const std::string& records)
     return "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('test'),'2;1');\n"
            "FILE_NAME('x','2026-10-16',('a'),('b'),'p','s','');\nFILE_SCHEMA(('TEST'));\nENDSEC;\nDATA;\n" +
            records + "ENDSEC;\nEND-ISO-10303-21;\n";
+}
+void ReportWriterContract()
+{
+    using step_source::report::Writer;
+    std::string raw = "prefix\"\\";
+    raw.push_back('\0');
+    raw += "\t\x7f\x80\xfftail";
+    const std::string expected = "\"prefix\\\"\\\\\\u0000\\u0009\\u007f\\u0080\\u00fftail\"";
+    std::string output;
+    for (std::size_t limit = 0; limit <= expected.size() + 1; ++limit)
+    {
+        output.assign(8192, 's');
+        const bool complete = Writer::Publish(
+            limit,
+            output,
+            [&](Writer& writer)
+            {
+                writer.String(raw);
+            }
+        );
+        Require(complete == (limit >= expected.size()), "Every emitted raw-byte budget boundary");
+        Require(complete ? output == expected : output.empty(), "No stale or partial raw-byte report");
+    }
+    const std::string unicode = "\xe4\xb8\xad\xf0\x9f\x98\x80";
+    const auto text = unicode + "\x7f\n";
+    const auto escaped = "\"" + unicode + "\\u007f\\u000a\"";
+    Require(
+        Writer::Publish(
+            escaped.size(),
+            output,
+            [&](Writer& writer)
+            {
+                writer.Utf8String(text);
+            }
+        ) && output == escaped,
+        "Decoded UTF-8 keeps its literal bytes and escapes controls"
+    );
+    Require(
+        !Writer::Publish(
+            escaped.size() - 1,
+            output,
+            [&](Writer& writer)
+            {
+                writer.Utf8String(text);
+            }
+        ) && output.empty(),
+        "UTF-8 budget failure after a prior complete report"
+    );
+    Require(
+        Writer::Publish(
+            2,
+            output,
+            [&](Writer& writer)
+            {
+                writer.String({});
+            }
+        ) && output == "\"\"",
+        "Empty string report"
+    );
+
+    bool allocationPropagated = false;
+    output.assign(8192, 's');
+    try
+    {
+        Writer::Publish(
+            10000,
+            output,
+            [&](Writer& writer)
+            {
+                Require(output.empty(), "Producer must observe no published output");
+                writer.Add("partial");
+                throw std::bad_alloc();
+            }
+        );
+    }
+    catch (const std::bad_alloc&)
+    {
+        allocationPropagated = true;
+    }
+    Require(allocationPropagated && output.empty(), "Allocation failure propagates without stale or partial output");
+
+    bool producerPropagated = false;
+    output.assign(8192, 's');
+    try
+    {
+        Writer::Publish(
+            10000,
+            output,
+            [&](Writer& writer)
+            {
+                Require(output.empty(), "Producer must observe empty output after another failure");
+                writer.Add("partial");
+                throw std::runtime_error("intentional producer failure");
+            }
+        );
+    }
+    catch (const std::runtime_error& failure)
+    {
+        producerPropagated = std::string_view(failure.what()) == "intentional producer failure";
+    }
+    Require(producerPropagated && output.empty(), "Other producer failures are not report byte limits");
+    Require(
+        Writer::Publish(
+            2,
+            output,
+            [&](Writer& writer)
+            {
+                writer.Add("{}");
+            }
+        ) && output == "{}",
+        "Success after producer failure"
+    );
 }
 } // namespace
 
@@ -207,6 +321,8 @@ int main()
             Require(owner->Records()[0].components[0].parameters[0].text == "standard", "opaque name policy leaked to DATA");
             ++checks;
         }
+        ReportWriterContract();
+        ++checks;
         std::cout << "Passed " << checks << " native source contract groups\n";
         return 0;
     }
