@@ -1,8 +1,8 @@
 # Compile-time STEP catalog design
 
-This is the selected design for migrating the fixed STEP_SEMANTICS catalogs;
-it describes required results, not a completed product migration. Current source
-acceptance remains owned by [STEP_SEMANTICS](../../source/STEP_SEMANTICS/README.md).
+This records the implemented design for the fixed STEP_SEMANTICS catalogs and
+the acceptance requirements for further changes. Current source acceptance
+remains owned by [STEP_SEMANTICS](../../source/STEP_SEMANTICS/README.md).
 
 ## Scope and intended benefit
 
@@ -96,3 +96,11 @@ and optimize generation rather than silently restoring runtime construction.
 Each implementation batch should be independently reviewable; platform claims
 require that platform's compile controls and runtime contracts. Per-run receipts,
 source inventories, candidate investigations, and one-off probes stay local.
+
+The [catalog validation tools](../../tools/step_catalog_validation/README.md)
+own full-fact comparisons, allocation controls, compiler rejection cases, and
+the build-cost measurement procedure. The consteval implementation concentrates
+work in one translation unit: assess its peak compiler commit separately from
+the aggregate compile time of all replaced catalog translation units. A shorter
+build does not establish a lower compiler memory requirement. Keep generation
+private so ordinary consumers do not instantiate the builder.

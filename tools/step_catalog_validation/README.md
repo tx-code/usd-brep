@@ -73,3 +73,55 @@ CTest 注册全量基线比较、工具破坏控制、编译驱动、四个分�
 完整源语义/CLI 诊断、预算和独立 N2635 witness 仍由
 [语义验证工具](../step_semantic_validation/README.md)负责。本工具不替代它们，
 也不因固定目录等价就授予数值、几何、native 导入或跨平台资格。
+
+## 构建与导入成本比较
+
+固定迁移前后两个源码版本，排除不属于该迁移的提交；保持工具链、架构、C++20、配置、CRT、
+宏、优化/LTO 和并行度相同。比较 native 导入时，两侧使用指纹相同且 ABI 匹配的内核库、
+相同输入字节与显式选项。源码、二进制和输入指纹、完整命令及原始结果保存在本地，不能仅凭当前 HEAD
+声称某个运行属于某个版本。构建或测量失败必须保留为失败，不能进入成功耗时汇总。
+
+Windows 可用以下包装器测量一次构建命令；输出目录中每次新建独立 JSON，不覆盖历史记录，
+被测命令的标准输入/输出/错误和退出码原样传递，超时返回 124：
+
+```powershell
+python -m tools.step_catalog_validation.process_measure --output-directory D:/Temp/catalog-costs --timeout 600 -- cmake --build _build/catalog-validation --config Release --target STEP_SEMANTICS --parallel 1
+```
+
+需要每个翻译单元的测量时，在 Ninja 配置中把包装器设为编译器 launcher；使用绝对路径，
+不要把包含工作目录假设的 `python -m` 命令直接交给另一目录中的构建：
+
+```powershell
+$measure = (Resolve-Path tools/step_catalog_validation/process_measure.py).Path
+$python = (Get-Command python).Source
+cmake -S source/STEP_SEMANTICS -B _build/catalog-costs -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_CXX_COMPILER_LAUNCHER=$python;$measure;--output-directory;D:/Temp/catalog-compiler-costs;--"
+cmake --build _build/catalog-costs --target STEP_SEMANTICS --parallel 1
+```
+
+从已配置匹配 MSVC 的开发者终端执行。本地化 `/showIncludes` 前缀的编码不匹配可能让 Ninja
+漏记头文件依赖。使用 `ninja -C <build> -t deps <catalog-object>` 核对真实头文件依赖，
+再核对私有头和公开头修改后的重编译集合。已安装英文编译器资源时，可从首次配置起统一
+`VSLANG=1033`；只有中文资源时，这个变量不能替代实际前缀核对。不能把 `no work to do`
+或缺失依赖导致的零编译计作增量性能收益。
+
+包装器在恢复进程执行前把它加入 Windows Job Object，内核保留整个命令树的峰值，包含短命编译器子进程；
+没有以轮询内存估计峰值。`peak_process_commit_bytes` 是树中单个进程的最大提交内存，
+`peak_job_commit_bytes` 是整棵树同时提交内存的峰值，两者都不是驻留 RAM、累计请求字节或
+导入净内存。`tree_user_seconds` / `tree_kernel_seconds` 累计树中进程 CPU 时间；
+`wall_seconds` 从恢复挂起进程前计至整棵树结束，包含执行和子进程结束，不包括最初的
+CreateProcess 调用、包装器启动及结果写出。包装器本身在该 Job 外。
+无效启动/测量错误不给出成功收据；超时会终止整棵树。其他平台不输出伪造的零内存结果。
+工具单测用已知提交量、短命子进程、失败退出、超时及根进程先退出的子进程验证这些边界。
+
+先完成预热构建，再交替测量两侧至少三轮。至少区分：整个语义库重新编译、全部目录源文件重新编译、
+私有登记变化、公开头变化、普通消费者变化。固定使用一个构建目标，记录实际重编译文件集合；
+基于时间戳的增量触发必须确实被构建系统识别。旧版目录分散在六个翻译单元，不能只拿旧
+`StepCatalog.cpp` 与新 owner 比较。单元耗时总和、整个目标 wall time、峰值和并行构建成本分别报告；
+串行结果不外推为并行结果。记录样本范围，避免把文件缓存、测量包装器或其他构建竞争当成产品收益。
+
+产物体积同时报告全部目录 object 合计、完整语义静态库和实际链接的消费者；object/lib 大小
+不等同于最终程序体积。完整导入复用[导入基准探针](../step_import_benchmark/README.md)，
+关闭 native-boundary timing，分别比较新进程首次导入和进程内预热后的导入。说明文件缓存条件、
+ImportFile 操作时间和进程 wall time 的边界；核对接受状态、诊断、模型事实、原生调用数与选项相同。
+每个样件分别统计，再说明合并方法。合成样件的时间差不能直接外推为真实大模型速度收益，
+也不能用零目录分配代替完整导入提速证据。每次运行的观测值与分析收据仅保留在 `.local/` 或外部构建目录。
