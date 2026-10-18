@@ -87,9 +87,9 @@ geometry; do not copy its timings into a speed guarantee.
 From the repository root on Linux:
 
 ```bash
-./repo.sh build -r --target sm_api_boolean_bounds_example
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:${LD_LIBRARY_PATH:-}" \
-    ./_build/linux-x86_64/release/sm_api_boolean_bounds_example
+cmake -S . -B _build/cam-examples -DSMLIB_BUILD_PYTHON=OFF -DSMLIB_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build _build/cam-examples --target sm_api_boolean_bounds_example --parallel 4
+./_build/cam-examples/bin/sm_api_boolean_bounds_example
 ```
 
 Expected: three timing summaries ending in `checks passed`, and exit status 0.
@@ -102,7 +102,7 @@ runs untimed final qualification queries.
 `SM_API_test` compiles and runs the same example source. On Linux:
 
 ```bash
-./repo.sh build -r --target SM_API_test_app
+./repo.sh build -r --validation --target SM_API_test_app
 ./tests/SM_API_test/SM_API_test.sh linux-x86_64
 ```
 

@@ -15,25 +15,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import platform
 import sys
+
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 if REPO not in sys.path:
     sys.path.insert(0, REPO)
 
+import smlib_runtime  # noqa: E402
 _REEXEC_ENV = "SMLIB_GUI_REEXEC"
 
 
 def _pick_platform() -> str:
-    if sys.platform == "win32":
-        return "windows-x86_64"
-    if sys.platform == "darwin":
-        return "macos-universal"
-    machine = platform.machine().lower()
-    return "linux-aarch64" if machine in ("aarch64", "arm64") else "linux-x86_64"
+    return smlib_runtime._pick_platform()
 
 
 def _prepend_env_path(name: str, paths: list[str]) -> None:
@@ -43,8 +41,7 @@ def _prepend_env_path(name: str, paths: list[str]) -> None:
 
 
 def _apply_build_env(config: str) -> str:
-    plat = _pick_platform()
-    build_bin = os.environ.get("SMLIB_RUNTIME_DIR") or os.path.join(REPO, "_build", plat, config)
+    build_bin = smlib_runtime.runtime_directory(REPO, config)
     python_lib = os.path.join(REPO, "_build", "target-deps", "python", "lib")
     python_root = os.path.join(REPO, "_build", "target-deps", "python")
 

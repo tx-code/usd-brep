@@ -89,7 +89,7 @@ Mirrors `source/SMLib/inc/SmMessages.h`. When fixing a failure, treat the `Typic
 | 1006 | `SM_ERR_NULL_POINTER` | Required pointer was NULL | A kernel step detected a NULL pointer, or a legacy wrapper rejected a NULL argument. This is not general detection of stale handles. |
 | 1007 | `SM_ERR_INVALID_INPUT` | Invalid argument | NULL required arguments, negative dimensions, a radius of zero, a sweep angle of zero degrees, an empty curve list, a zero-length plane normal or projection/sweep direction, etc. Check the binding docstring for per-arg constraints. |
 | 1008 | `SM_ERR_NON_NULL_OUTPUT_POINTER` | Output pointer was already non-NULL | Internal API contract violation; not normally reachable from Python. |
-| 1010 | `SM_ERR_ASSERTVALID_FAILURE` | `AssertValid()` on a topology object failed | Topology corruption — usually from feeding the kernel hand-built `BrepArray` data that didn't pass through `stitch_*`. Re-stitch and retry. |
+| 1010 | `SM_ERR_ASSERTVALID_FAILURE` | `AssertValid()` on a topology object failed | Topology corruption, for example from inconsistent hand-built topology data. Inspect the failing invariant before choosing a repair; stitching does not repair every invalid graph. |
 | 1020 | `SM_ERR_OUTSIDE_OF_DOMAIN` | Parameter not in [u_min, u_max] / [v_min, v_max] | Curve / surface evaluation at a parameter the kernel doesn't own. Clamp to the domain or call `evaluate_continuity` first. |
 | 1021 | `SM_ERR_NOT_WITHIN_TOLERANCE` | Geometry didn't converge to the requested tolerance | Often raised by tessellation, healing, intersection, and projection. Try a looser tolerance (`chord_height_tolerance`, `tol3d`); inspect the geometry and operation diagnostics before retrying.  |
 | 1022 | `SM_ERR_NOT_CONVERGING` | Iterative solver diverged | Surface-surface intersection on tangent surfaces, fillet propagation across high-curvature transitions, drop-point on near-degenerate surfaces. Perturb input or relax tolerance. |
@@ -150,15 +150,6 @@ actual returned status and any available trace or failed-face diagnostics; a fac
 guaranteed. Isolate the failing geometry and compare explicit tolerances appropriate to its scale.
 Inspect input validity before healing, then re-tessellate at the original settings. See
 [the tessellation guide](../operations/tessellation.md).
-
-<a name="usd-import--export"></a>
-
-### USD Import and Export
-
-Any `RuntimeError` from `usd.import_breps` / `usd.import_meshes` / `usd.export_brep`:
-- Bad path: file doesn't exist, or path is to a directory.
-- Stage parses but contains no `BrepArray` (for `import_breps`) or no `UsdGeomMesh` (for `import_meshes`). The bindings raise rather than returning an empty list — see the docstring.
-- Schema mismatch on import: the `BrepArray` was written by an incompatible version. `usd.import_meshes` can read separately authored `UsdGeomMesh` prims, but does not convert an unreadable `BrepArray` to meshes.
 
 ## Catching Errors in Python
 

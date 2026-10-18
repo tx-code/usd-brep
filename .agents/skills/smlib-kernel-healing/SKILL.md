@@ -1,6 +1,6 @@
 ---
 name: smlib-kernel-healing
-description: "Use when SMLib BRep healing (heal_brep, HealBrep, or healing during USD import) crashes, reports success but leaves gaps, seams or poles unrepaired, changes a model unexpectedly, or works on stale data after topology edits, and when changing the healer's stages or change tracking. Not for how to call heal_brep, failures not yet traced to healing, or curve knot removal."
+description: "Use when SMLib BRep healing (heal_brep, HealBrep, or native import healing) crashes, reports success but leaves gaps, seams or poles unrepaired, changes a model unexpectedly, or works on stale data after topology edits, and when changing the healer's stages or change tracking. Not for how to call heal_brep, failures not yet traced to healing, or curve knot removal."
 ---
 
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
@@ -63,16 +63,12 @@ stale healer state, crashes, and incomplete repairs in `SmHealData` or import he
 - Preserve the distinction between implemented fixes, disabled dispatch, and successful stubs.
   Consult the design reference's incomplete-repair inventory. Keep `Fix_BadLoops` disabled until
   broken-loop classification and repair are validated; helper tests alone do not justify enabling it.
-- USD import currently leaves CAD provenance empty, so `heal=True` also heals SMLib-authored USD.
-  Provenance semantics and source-based skipping remain undecided; do not infer them from the
-  dormant `m_sCADSource` branch.
 
 ## Example Requests
 
 ```text
 Use $smlib-kernel-healing to find why heal_brep crashes on this imported STEP solid.
 heal_brep returns success, but the seam gaps and the missing pole loop are still there. Why?
-Importing our own exported USD with heal=True changes the topology. What is the healer doing?
 After Fix_MoveSeam the next stage reads face properties that no longer match the face.
 I added a new topology operation; how do I make the healer track what it removes and adds?
 UpdateTargetLists asserts in a debug build after an edge split. Trace the stale entry.
@@ -120,14 +116,6 @@ First distinguish measured tolerance changes from geometric gap closure. `Fix_Ba
 and `Fix_BadLoops` is disabled in `HealTgts`. Check which stages actually ran before blaming stale
 caches. Report unsupported repairs explicitly. A direct missing-pole helper regression can test
 that helper, but does not justify enabling general broken-loop repair.
-
-### “Why does heal=True modify USD that our own kernel exported?”
-
-Follow `UsdBrepRead.cpp` → `m_sCADSource` → `SmuConvert.cpp`'s healer-version assignment →
-`MakeTopologyFromData`. The ordinary USD path leaves the source string empty, selecting an older
-healer version even for SMLib-authored files. Compare fresh imports with healing off/on and report
-the topology/tolerance changes. Explain the current provenance limitation; do not invent a source
-marker or skip policy. SMB's stored healer version is a separate input contract.
 
 ### “A new topology mutator needs healer tracking.”
 

@@ -1,15 +1,16 @@
 :: SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 :: SPDX-License-Identifier: Apache-2.0
 @echo off
-
-cd tests\prog_test
-
-ECHO Run prog_test_app.exe...
-call "..\..\_build\windows-x86_64\release\prog_test_app.exe" %*
-ECHO Error level after prog_test_app.exe:  %ERRORLEVEL%
-
-if %ERRORLEVEL% == 0 (
-ECHO Tests passed
-) else (
-ECHO Tests failed
+setlocal
+set "runtime=%SMLIB_RUNTIME_DIR%"
+if not defined runtime (
+    set "tree=%SMLIB_CMAKE_BUILD_DIR%"
+    if not defined SMLIB_CMAKE_BUILD_DIR set "tree=%~dp0..\..\_build\cam"
 )
+if not defined runtime set "runtime=%tree%\bin\Release"
+set "PATH=%runtime%;%PATH%"
+pushd "%~dp0"
+"%runtime%\prog_test_app.exe" %*
+set "result=%errorlevel%"
+popd
+exit /b %result%

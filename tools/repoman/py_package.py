@@ -5,8 +5,8 @@
 
 import argparse
 import glob
-import json
 import os
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -16,7 +16,7 @@ import omni.repo.man
 from omni.repo.man.deps import get_uv
 
 from wheel_version import wheel_version
-
+from tools.scripts.smlib_build import ROOT, runtime_directory
 
 # Supplied by the interpreter and the VC++ redistributable. Vendoring python312
 # would give the process a second interpreter; the CRT must match the host.
@@ -33,7 +33,7 @@ _EXCLUDED_LIBS = {
 def _dependency_closure(start: str, search_dirs: List[str]) -> List[str]:
     """Every shared library `start` needs, restricted to what we ship.
 
-    Read from the binaries themselves rather than from the premake link lists,
+    Read from the binaries themselves rather than from build-system link lists,
     which cover direct links only.
     """
     available: Dict[str, str] = {}
@@ -101,15 +101,19 @@ def setup_repo_tool(parser: argparse.ArgumentParser, config: Dict) -> Callable:
 
     parser.description = "Build a self-contained wheel for the usd-brep Python bindings."
     omni.repo.man.add_config_arg(parser)
-    parser.add_argument("--build-dir", help="runtime directory from a CMake build (default: legacy build tree)")
+    parser.add_argument("--build-dir", help="runtime directory (default: selected configuration of _build/cam)")
 
     def run_repo_tool(options, config: Dict):
         tool_config = config["repo_py_package"]
         staging_dir = omni.repo.man.resolve_tokens(tool_config["staging_dir"])
         install_dir = omni.repo.man.resolve_tokens(tool_config["install_dir"])
 
-        build_dir = os.path.abspath(options.build_dir) if options.build_dir else omni.repo.man.resolve_tokens(
-            "$root/_build/$platform/$config"
+        build_dir = (
+            os.path.abspath(options.build_dir)
+            if options.build_dir
+            else str(
+                runtime_directory(Path(os.environ.get("SMLIB_CMAKE_BUILD_DIR", ROOT / "_build/cam")), options.config)
+            )
         )
 
         # Match the suffix exactly; the build tree also holds .exp/.lib/.pdb.

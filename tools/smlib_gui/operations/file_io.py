@@ -9,7 +9,6 @@ import os
 from ..model import ActiveObject, make_active_objects
 from ..runtime import sm
 
-
 SMB_EXTENSION = ".smb"
 SMP_EXTENSION = ".smp"
 SUPPORTED_LOAD_EXTENSIONS = frozenset({SMB_EXTENSION, SMP_EXTENSION})
@@ -81,8 +80,7 @@ def _stem_name(filename: str) -> str:
     return stem or "imported"
 
 
-def import_native_brep_object(filename: str, starting_id: int = 1,
-                              ascii: bool | None = None) -> list[ActiveObject]:
+def import_native_brep_object(filename: str, starting_id: int = 1, ascii: bool | None = None) -> list[ActiveObject]:
     """Import a native SMLib single-BRep or multi-object part file."""
     if sm is None:
         raise RuntimeError("_omni_solid module not found")
@@ -91,9 +89,7 @@ def import_native_brep_object(filename: str, starting_id: int = 1,
     if native_file_is_part(filename):
         read_part = getattr(sm, "read_part_from_file", None)
         if read_part is None:
-            raise RuntimeError(
-                "Native SMLib part (*.smp) load is not exposed by this _omni_solid build."
-            )
+            raise RuntimeError("Native SMLib part (*.smp) load is not exposed by this _omni_solid build.")
         curves, surfaces, _boolean_tree_nodes, breps = read_part(filename, ascii=read_ascii)
         base_name = _stem_name(filename)
         imported = [
@@ -112,8 +108,7 @@ def import_native_brep_object(filename: str, starting_id: int = 1,
     return make_active_objects([(_stem_name(filename), brep)], starting_id=starting_id)
 
 
-def import_file_objects(filename: str, starting_id: int = 1,
-                        heal: bool = False) -> list[ActiveObject]:
+def import_file_objects(filename: str, starting_id: int = 1) -> list[ActiveObject]:
     """Import any model format supported by the GUI."""
     kind = file_kind_for_path(filename)
     if kind in ("smb", "smp"):

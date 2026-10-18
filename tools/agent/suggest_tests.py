@@ -20,16 +20,18 @@ class Recommendation:
     broader: tuple[str, ...]
 
 
+BUILD_COMMAND = "cmake --build _build/cam-tools --config Release --parallel 4"
+TEST_COMMAND = "ctest --test-dir _build/cam-tools -C Release --output-on-failure"
+DOC_CHECKS = Recommendation("Documentation", ("git diff --check", "check changed local links and paths"), ())
+
 RECOMMENDATIONS = (
     (
         "prog_test focused suites",
-        (
-            "tests/prog_test/",
-        ),
+        ("tests/prog_test/",),
         Recommendation(
             "prog_test focused suites",
             (
-                "make --directory=_compiler/gmake2 prog_test_app config=release_x86_64 -j22 --output-sync",
+                BUILD_COMMAND + " --target prog_test_app",
                 "./tests/prog_test/prog_test.sh linux-x86_64 --list-suites",
             ),
             ("./tests/prog_test/prog_test.sh linux-x86_64",),
@@ -43,22 +45,20 @@ RECOMMENDATIONS = (
         ),
         Recommendation(
             "SmPyLib / Python bindings",
-            ("./repo.sh build", "tools/agent/run_smpylib_tests.sh"),
-            ("./repo.sh test",),
+            (BUILD_COMMAND, TEST_COMMAND + " -R python_geometry"),
+            (TEST_COMMAND, "use run_geometry_tests.py --dev against the selected runtime for dev binding changes"),
         ),
     ),
     (
         "SM_API",
-        (
-            "source/SM_API/",
-        ),
+        ("source/SM_API/",),
         Recommendation(
             "SM_API",
             (
-                "./repo.sh build",
+                BUILD_COMMAND,
                 "run a focused Python repro or API-level test for the touched operation",
             ),
-            ("./tests/SM_API_test/SM_API_test.sh linux-x86_64", "./repo.sh test"),
+            (TEST_COMMAND + " -R sm_api", TEST_COMMAND),
         ),
     ),
     (
@@ -78,35 +78,45 @@ RECOMMENDATIONS = (
     ),
     (
         "SMLib kernel",
-        (
-            "source/SMLib/",
-        ),
+        ("source/SMLib/",),
         Recommendation(
             "SMLib kernel",
-            ("./repo.sh build", "run a minimal repro through SM_API or _omni_solid"),
-            ("run the relevant C++ suite", "./repo.sh test"),
+            (BUILD_COMMAND, "run a minimal repro through SM_API or _omni_solid"),
+            ("run the relevant C++ suite", TEST_COMMAND),
+        ),
+    ),
+    (
+        "Native STEP import and evidence tools",
+        (
+            "source/STEP_SOURCE/",
+            "source/STEP_SEMANTICS/",
+            "source/STEP_PLANAR/",
+            "source/STEP_IMPORT/",
+            "tools/step_",
+        ),
+        Recommendation(
+            "Native STEP import and evidence tools",
+            (BUILD_COMMAND, TEST_COMMAND + " -R step_"),
+            ("run the owning tools/step_* tests from its README",),
         ),
     ),
     (
         "Agent docs / tooling",
         (
             ".agents/",
-            ".claude",
-            "CLAUDE.md",
             "AGENTS.md",
-            "tools/agent/",
         ),
-        Recommendation(
-            "Agent docs / tooling",
-            ("rg \"\\.claude\" AGENTS.md .agents source/SmPyLib",),
-            (),
-        ),
+        DOC_CHECKS,
+    ),
+    (
+        "Agent tooling",
+        ("tools/agent/",),
+        Recommendation("Agent tooling", ("run the changed tool on focused inputs", "git diff --check"), ()),
     ),
     (
         "Build / packaging",
         (
             "CMakeLists.txt",
-            "premake",
             "repo.toml",
             "repo.sh",
             "repo.bat",
@@ -114,12 +124,18 @@ RECOMMENDATIONS = (
             "build.bat",
             "tests.sh",
             "tests.bat",
-            "tools/CI/",
+            "repo_tools.toml",
+            "prebuild",
+            "deps/",
+            "cmake/",
+            "tools/scripts/smlib_build.py",
+            "tools/repoman/",
+            "tools/pyproject/",
         ),
         Recommendation(
             "Build / packaging",
-            ("./repo.sh build",),
-            ("./repo.sh test",),
+            (BUILD_COMMAND,),
+            (TEST_COMMAND,),
         ),
     ),
 )
@@ -193,15 +209,13 @@ def changed_paths_from_git() -> list[str]:
 
 
 def classify(path: str) -> list[Recommendation]:
+    if Path(path).suffix.lower() in {".md", ".rst"}:
+        return [DOC_CHECKS]
     matches: list[Recommendation] = []
     for _label, prefixes, recommendation in RECOMMENDATIONS:
         for prefix in prefixes:
             if prefix.endswith("/"):
                 if path.startswith(prefix):
-                    matches.append(recommendation)
-                    break
-            elif prefix in {"premake"}:
-                if Path(path).name.startswith(prefix):
                     matches.append(recommendation)
                     break
             elif path == prefix or path.startswith(prefix):
@@ -254,8 +268,7 @@ def main(argv: list[str]) -> int:
         else:
             unknown.append(path)
         focused_suite_commands.extend(
-            f"./tests/prog_test/prog_test.sh linux-x86_64 --suite {suite}"
-            for suite in focused_prog_test_suites(path)
+            f"./tests/prog_test/prog_test.sh linux-x86_64 --suite {suite}" for suite in focused_prog_test_suites(path)
         )
 
     focused_suite_commands = unique(focused_suite_commands)
@@ -286,7 +299,7 @@ def main(argv: list[str]) -> int:
         for path in unknown:
             print(f"  - {path}")
         if not first:
-            first.append("./repo.sh build")
+            first.append(BUILD_COMMAND)
 
     print("\nFirst validation:")
     if first:

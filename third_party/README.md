@@ -6,7 +6,7 @@
 
 `microsoft-gsl/UPSTREAM.json` pins the source commit, archive SHA256 and each
 vendored file. The upstream license and notices are retained. CMake uses
-`cmake/MicrosoftGsl.cmake`; Premake uses the same include tree. No dependency
+`cmake/MicrosoftGsl.cmake`. No dependency
 download or upstream test build happens during configuration.
 
 Use `gsl::not_null` for internal handles that are nonnull by construction and

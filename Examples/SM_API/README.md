@@ -26,18 +26,13 @@ or modeling tolerance.
 From the repository root on Linux:
 
 ```bash
-./repo.sh build -r --target sm_api_boolean_bounds_example
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:${LD_LIBRARY_PATH:-}" \
-    ./_build/linux-x86_64/release/sm_api_boolean_bounds_example
+./repo.sh build -r --examples --target sm_api_boolean_bounds_example
+./_build/cam/bin/sm_api_boolean_bounds_example
 ```
 
-Use the matching platform directory on other supported platforms. On Windows,
-build with `repo.bat build -r --target sm_api_boolean_bounds_example` and run
-`_build\windows-x86_64\release\sm_api_boolean_bounds_example.exe` with the USD
-dependency `release\bin` directory on `PATH`.
-
-The package also includes the example sources under `Examples/SM_API` and the
-executable under `bin`. Run it with the package's normal shared-library setup.
+On Windows, build with `repo.bat build -r --examples --target sm_api_boolean_bounds_example` and run
+`_build/cam/bin/Release/sm_api_boolean_bounds_example.exe`. Examples remain in the source checkout
+and build tree; the production SDK archive excludes their binaries.
 To compile independently, build `boolean_bounds.cpp` as C++20 with
 `SM_BOOLEAN_BOUNDS_EXAMPLE_STANDALONE` defined, include the `SM_API` and `SMLib`
 headers, and link `SM_API` and `SMLib` plus their normal runtime dependencies.
@@ -84,6 +79,6 @@ The owning regression suite compiles and runs the same source via
 It checks correctness, never a timing ratio. To run the suite on Linux:
 
 ```bash
-./repo.sh build -r --target SM_API_test_app
-./tests/SM_API_test/SM_API_test.sh linux-x86_64
+./repo.sh build -r --validation --target SM_API_test_app
+ctest --test-dir _build/cam -C Release -R sm_api --output-on-failure
 ```

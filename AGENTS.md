@@ -98,7 +98,7 @@ For runnable packaged `usd_brep` examples, use [the package README](tools/pyproj
 [README.md](README.md#build-it) owns build commands, prerequisites, runtime paths, and optional target flags.
 Use the default CMake SDK build; enable development, validation, or examples explicitly as needed.
 C++20, configuration, CRT, and kernel layout macros must match across libraries and consumers.
-Keep CMake, Premake, and standalone compiler settings consistent when changing build requirements.
+Keep root CMake and standalone compiler settings consistent when changing build requirements.
 
 When validation scope is unclear, use
 [usd-brep-test-selection](.agents/skills/usd-brep-test-selection/SKILL.md) and the owning component's test guidance.

@@ -1,6 +1,6 @@
 ---
 name: smlib-brep-model
-description: "Use for internal SMLib SmBrep model questions, validity and AssertValid audits, topology code and tests, or SmBrepData/BrepArray translation. Do not use for ordinary SM_API or Python operation usage."
+description: "Use for internal SMLib SmBrep model questions, validity and AssertValid audits, topology code and tests, or SmBrepData transfer. Do not use for ordinary SM_API or Python operation usage."
 ---
 
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
@@ -32,7 +32,7 @@ Use the reference's vocabulary consistently:
 - **Conditional enforcement:** depends on test level, build macros, topology class, or lazy data.
 - **Validator gap:** an intended rule is missing, disabled, defective, or unsafe on arbitrary
   damage.
-- **Translation policy:** behavior of `SmBrepData` or `BREP_SM_USD`, not runtime permission.
+- **Translation policy:** behavior of `SmBrepData` transfer, not runtime permission.
 
 When sources disagree, state the conflict. Do not redefine the model around a validator defect or
 serializer shortcut.
@@ -54,7 +54,7 @@ pairings for suspected reversals. See
 ## Workflow
 
 1. Identify whether the artifact is a live `SmBrep`, flattened `SmBrepData`, persisted data,
-   SM_API/Python object, or USD `BrepArray`.
+   or SM_API/Python object.
 2. Locate the relevant type header and constructor or mutator.
 3. Read the root and local validator predicates that cover the relationship.
 4. Check consuming algorithms when validity is not asserted directly.

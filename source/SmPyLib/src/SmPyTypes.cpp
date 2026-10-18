@@ -671,7 +671,7 @@ void bind_types(py::module_& m)
              py::arg("filename"), py::arg("ascii") = true,
              "Serialize this Brep to disk via SmApiWriteBrepToFile.\n"
              "ASCII mode produces a deterministic text file suitable for textual\n"
-             "diff (e.g. compare 'after creation' vs 'after USD round-trip').")
+             "diff (e.g. compare 'after creation' vs 'after native file round-trip').")
         .def("tessellate", &smpy_tessellate, py::return_value_policy::reference,
            py::kw_only(),
            py::arg("chord_height_tolerance") = SmTessellationDefaults::kChordHeightTol,

@@ -18,8 +18,17 @@ from tools.step_planar_validation import runner as planar
 from tools.step_semantic_validation import runner as semantic
 from tools.step_inspect_validation import runner as source
 from tools.step_import_validation.common import InvalidEvidence, load_json, write_json
+from tools.step_evidence.dependencies import INVENTORIES, PROVENANCE, VERSIONS
 
 CORPUS = Path(__file__).resolve().parents[2] / "step_import_validation/corpus/ap203e2-planar/v1"
+
+
+class DependencyInventoryTests(unittest.TestCase):
+    def test_historical_inventory_is_frozen_while_new_runs_drop_retired_projects(self):
+        self.assertIs(VERSIONS["execution-dependencies.v1"], INVENTORIES)
+        for group in ("native:STEP_SOURCE", "native:STEP_SEMANTICS", "native:STEP_PLANAR"):
+            self.assertTrue(any(path.endswith("/premake5.lua") for path in VERSIONS["execution-dependencies.v2"][group]))
+            self.assertFalse(any(path.endswith("/premake5.lua") for path in VERSIONS[PROVENANCE][group]))
 
 
 class PackageTests(unittest.TestCase):
@@ -53,7 +62,8 @@ class PackageTests(unittest.TestCase):
                 package = adapter.run(binary, CORPUS, self.root / ("shared-" + ticket), selected)
                 metadata = load_json(package / "run.json")
                 self.assertEqual("step-evidence.v2", metadata.get("package_protocol"))
-                self.assertEqual("execution-dependencies.v2", metadata["source_provenance"])
+                self.assertEqual("execution-dependencies.v3", metadata["source_provenance"])
+                self.assertFalse(any(path.endswith("/premake5.lua") for path in metadata["sources"]))
                 self.assertIn("source/STEP_SOURCE/inc/StepSourceReport.h", metadata["sources"])
                 self.assertEqual(selected, metadata["selected"])
                 self.assertTrue("tools/step_evidence/package.py" in metadata["sources"])

@@ -96,7 +96,7 @@ class Runner:
             folder = repo / "source" / component
             require(folder.is_dir(), "native source directory missing during identity capture")
             paths.update(p for p in folder.rglob("*")
-                         if p.suffix in {".cpp", ".h", ".lua"} or p.name == "CMakeLists.txt")
+                         if p.suffix in {".cpp", ".h"} or p.name == "CMakeLists.txt")
         for dependency in self.stage.dependencies:
             folder = repo / "tools" / dependency
             require(folder.is_dir(), "tool dependency directory missing during identity capture")

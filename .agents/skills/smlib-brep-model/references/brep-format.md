@@ -68,7 +68,7 @@ Use these labels when explaining a rule:
 | **Validator enforcement** | Predicate currently checked by `ValidatePointers` or an `AssertValid` implementation. |
 | **Conditional enforcement** | Check depends on test level, build macros, lazy data, or topology classification. |
 | **Validator gap** | Intended/model rule is missing, disabled, defective, or unsafe to exercise on arbitrary corruption. |
-| **Translation policy** | Choice made by `BREP_SM_USD`; not an inherent SMLib validity rule. |
+| **Translation policy** | Choice made by a data-transfer consumer; not an inherent SMLib validity rule. |
 
 For a compliance answer, state both the rule and how it is enforced. "`AssertValid` passes" is not a
 complete definition of correctness.
@@ -369,8 +369,7 @@ Face F
 ```
 
 The pair belongs to the same logical loop and face but runs in opposite directions. This pair is one
-logical face-edge occurrence. It is important not to count it as two independent BrepArray edgeuse
-records; `SmBrepData` and USD both collapse the pair.
+logical face-edge occurrence. `SmBrepData` collapses the pair into one logical edgeuse record.
 
 ### Radial list order
 
@@ -434,8 +433,8 @@ When an edgeuse UV trim is present:
 Sources: `SmEdgeuse.h`, `SmEdgeuse::AssertValid` in `SmEdgeuse.cpp`, and `ValidatePointers` in
 `SmBrep.cpp`.
 
-Absence of a UV curve is not intrinsically invalid. Consumers may generate one. Distinguish that
-from an authored "zero-order NURBS" sentinel in USD, which is not the same runtime state.
+Absence of a UV curve is not intrinsically invalid. Consumers may generate one. A missing curve
+is distinct from an allocated but invalid B-spline curve.
 
 A wrong UV curve can make loop-orientation, UV closure, or seam checks fail on correctly constructed
 topology. Check edgeuse orientations, vertex identity, loop order, edge intervals, and 3D endpoint
@@ -511,7 +510,7 @@ opposite orientations.
 
 ### Geometry ownership and supported runtime types
 
-Runtime SMLib is more general than USD BrepArray's analytic/NURBS schema subset:
+Runtime SMLib supports the following geometry families:
 
 - A face can own any valid `SmSurface` subclass accepted by the kernel, including B-spline, plane,
   cone, cylinder, sphere, torus, revolution, extrusion, blend, curve-bounded, offset, and STEP
@@ -536,8 +535,8 @@ owns at most one UV curve through its `SAME` member.
   natural interval.
 - A UV trim curve, when present, uses the same parameter interval as its 3D edge. It is not generally
   reparameterized to `[0,1]`.
-- Periodic analytic SMLib STEP-style parameterizations commonly use degrees; the USD schema uses
-  radians. This is a translation issue, not permission to mix units inside one SMLib object.
+- Periodic analytic SMLib STEP-style parameterizations commonly use degrees. Verify the owning
+  curve/surface contract and convert source parameters explicitly when their units differ.
 
 ### Tolerance roles
 
@@ -671,7 +670,7 @@ edges as lower-dimensional embedded content. Use `SmBrep::MakeWireEdge` or
 - A **vertex loop** is a zero-length inner boundary on a face: two loop vertexuses on the same vertex,
   one per face side.
 
-They are structurally different and map to different USD fields. A vertex can also participate in
+They are structurally different. A vertex can also participate in
 wire or loop edges; predicates named `IsWireVertex` versus `HasWireEdge`, or `IsLoopVertex` versus
 `HasLoopVertex`, distinguish exclusive from mixed use. Review predicate implementations before
 using their names as cardinality guarantees.
@@ -686,7 +685,7 @@ reason, not merely matching coordinates.
 ## Flattened `SmBrepData`
 
 `SmBrepData` is an indexed transfer/serialization representation, not the live intrusive graph. It
-is used by database and USD conversion paths. Its records and top-level arrays are defined in
+is used by native serialization and topology construction. Its records and top-level arrays are defined in
 `SmBrepData.h`.
 
 ### Array hierarchy
@@ -723,15 +722,8 @@ both a target record and which member of that target pair is selected:
 in an edge loop (`3`). The record I/O retains all four discriminators, but current
 `SmBrepData::FromBrep` populates `m_vEdgeuses` with one record per mated face-edge pair and one per
 wire edge (`0` and `2`); it stores a vertex loop through `SmLoopData::m_lVertex`, and a shell vertex
-through `SmShellData::m_lVertex`. Current USD import follows the same arrangement. The format notes
+through `SmShellData::m_lVertex`. The format notes
 in `SmBrepData.h` and the extraction logic in `SmBrepData.cpp` establish this distinction.
-
-The broader wording in the bridge crosswalk in `SmuConvert.cpp` mixes runtime use objects,
-flattened records, and regenerated import data. Treat it as conversion guidance, not as the current
-`FromBrep` array-cardinality contract or proof that loop/shell vertex records must be present.
-
-This representation-level collapse is the direct conceptual precursor to BrepArray's one stored
-edgeuse record per logical face-edge occurrence.
 
 ## Construction and mutation
 
@@ -989,8 +981,7 @@ E has two logical occurrences on F:
 Runtime E radial list has four individual edgeuses.
 ```
 
-Flattening produces two `SmEUData` records, and BrepArray likewise stores two logical edgeuse
-records, one for each UV-side occurrence.
+Flattening produces two `SmEUData` records, one for each UV-side occurrence.
 
 The two occurrences share one 3D edge/vertices but have distinct trim placement. They are not
 duplicate coincident edges.

@@ -18,7 +18,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
-set(CMAKE_INSTALL_RPATH "$ORIGIN")
+if(APPLE)
+    set(CMAKE_INSTALL_RPATH "@loader_path")
+else()
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
 
 add_library(smlib_build_options INTERFACE)
 # Keep SDK consumers and standalone validation targets on the same language baseline.
@@ -141,9 +145,41 @@ if(SMLIB_BUILD_VALIDATION)
         -m unittest tools.agent.tests.test_changesets -v)
     set_tests_properties(changesets changesets_contracts PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
     if(SMLIB_BUILD_PYTHON)
+        add_test(NAME build_entry_contracts COMMAND ${Python3_EXECUTABLE}
+            -m unittest discover -s "${CMAKE_SOURCE_DIR}/tools/agent/tests" -p test_smlib_build.py -v)
+        set_tests_properties(build_entry_contracts PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
         add_test(NAME python_geometry COMMAND ${Python3_EXECUTABLE}
             "${CMAKE_SOURCE_DIR}/tools/agent/run_geometry_tests.py" --runtime "$<TARGET_FILE_DIR:_omni_solid>")
+        if(SMLIB_BUILD_DEV)
+            add_test(NAME python_dev COMMAND ${Python3_EXECUTABLE}
+                "${CMAKE_SOURCE_DIR}/tools/agent/run_geometry_tests.py" --runtime "$<TARGET_FILE_DIR:_omni_solid>"
+                --dev --target test_usd_brep_package)
+        endif()
     endif()
+endif()
+
+# Install only the production SDK. Validation executables and debugger modules
+# remain in the build tree even when they were enabled for local development.
+install(TARGETS SMLib SM_API STEP_SOURCE STEP_SEMANTICS STEP_PLANAR STEP_IMPORT
+    RUNTIME DESTINATION lib LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+foreach(layer SMLib SM_API STEP_SOURCE STEP_SEMANTICS STEP_PLANAR STEP_IMPORT)
+    install(DIRECTORY "source/${layer}/inc/" DESTINATION "include/${layer}" FILES_MATCHING PATTERN "*.h")
+endforeach()
+install(DIRECTORY third_party/microsoft-gsl/ DESTINATION third_party/microsoft-gsl)
+install(FILES third_party/microsoft-gsl/LICENSE third_party/microsoft-gsl/ThirdPartyNotices.txt
+    DESTINATION PACKAGE-LICENSES/MicrosoftGSL)
+install(FILES README.md LICENSE THIRD_PARTY_NOTICES.md VERSION DESTINATION .)
+if(SMLIB_BUILD_PYTHON)
+    # The SDK puts its extension beside the Python package and its libraries in
+    # ../lib. The wheel packager separately stages a flat, self-contained package.
+    if(APPLE)
+        set_target_properties(_omni_solid PROPERTIES INSTALL_RPATH "@loader_path/../lib")
+    else()
+        set_target_properties(_omni_solid PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+    endif()
+    install(TARGETS _omni_solid LIBRARY DESTINATION python RUNTIME DESTINATION python)
+    install(DIRECTORY source/SmPyLib/python/usd_brep/ source/SmPyLib/stubs/usd_brep/
+        DESTINATION python/usd_brep FILES_MATCHING PATTERN "*.py" PATTERN "*.pyi" PATTERN "py.typed")
 endif()
 if(SMLIB_BUILD_EXAMPLES)
     add_executable(sm_api_boolean_bounds_example Examples/SM_API/boolean_bounds.cpp)

@@ -10,3 +10,13 @@
 command = "py_package"
 entry_point = "py_package:setup_repo_tool"
 ai_description = "Build the usd-brep Python wheel"
+
+[repo_build]
+command = "build"
+entry_point = "cmake_build:setup_build_tool"
+ai_description = "Configure and build the geometry SDK with CMake"
+
+[repo_fetch]
+command = "fetch"
+entry_point = "cmake_build:setup_fetch_tool"
+ai_description = "Fetch Python and pybind11 without compiler discovery"

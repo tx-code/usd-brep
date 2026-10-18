@@ -221,7 +221,6 @@ void bind_tessellation(py::module_& m)
         "    poly_brep_volume_via_api: Volume of the tessellated mesh.\n"
         "    compute_volume: Exact volume of the source Brep.\n"
         "    poly_boolean: Boolean ops on tessellated meshes.\n"
-        "    usd.export_mesh: Round-trip the mesh through USD.\n"
         "\n"
         "Wraps: SmApiTessellate");
 }

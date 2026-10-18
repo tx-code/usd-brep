@@ -51,21 +51,6 @@ flags, and geometry-only tracking currently has a narrower effect described belo
 | `SmHealData::LoadTargets` / `HealTgts` | Internal controls for explicit target sets and stage-level diagnosis. `LoadTargets` expects fresh/reset state. `HealTgts` runs from the beginning; it is not a resume API. |
 | `SmBrep::MakeTopologyFromData` | Calls healing when enabled and the stored healer version is older than `SM_HEALER_VERSION`, or when `bAlwaysHeal` forces it. Enabled import healing is not unconditional execution. |
 
-The USD path is `SmPyUsd.cpp` → `SmApiUsdImportBrep(s)` →
-`SMU_BrepConvert::BrepMove_UsdToSMLib` → `BrepMove_OneUsdBrepToSMLib` →
-`MakeTopologyFromData`. Current Python USD imports default to `heal=False`. `SmuConvert.cpp`
-selects the current healer version only when `m_sCADSource` equals `"SMLib"`; otherwise it assigns
-an older version. In the ordinary USD read path, `UsdBrepArrayData::ReSet` clears that string and
-`UsdBrepRead.cpp` leaves its read commented out. The bridge also does not populate it on export.
-Consequently, enabling USD import healing currently runs it even for SMLib-authored USD.
-The source-selection branch is infrastructure awaiting provenance data, not an effective filter.
-
-CAD provenance was intended as custom data, not a schema attribute, but its meaning (kernel or
-authoring application) and healing policy remain unresolved. Do not invent a metadata key or
-infer healing eligibility from an application name. SMB files carry healer-version information
-used by their import gate; that does not establish equivalent provenance for USD. Check the actual
-flag and version arguments. Direct `heal_brep` bypasses the import version gate.
-
 Optional targets in `SmHealData::HealBrep` are copied. Despite the parameter comments, deletions
 are not written back to the caller's arrays. Selected targets also do not provide an isolation
 boundary: fixes can change connected topology.

@@ -90,7 +90,7 @@ ctest --test-dir <external-build> -C Release --output-on-failure
 <external-build>/Release/step_planar_inspect --fixture-limits --quality Q-P0-mm-01 input.step
 ```
 
-C++20 is required by the STEP_SOURCE/STEP_SEMANTICS/STEP_PLANAR targets in both CMake and Premake.
+C++20 is required by the STEP_SOURCE/STEP_SEMANTICS/STEP_PLANAR targets in the root and standalone CMake builds.
 This does not change the repository's global standard or build SMLib.
 
 Exit codes: 0 checked source evidence; 1 source rejection; 2 upstream profile/transport unsupported; 3 resource limit;

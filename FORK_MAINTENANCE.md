@@ -33,8 +33,8 @@ Local patch sequence (recorded by commit, independent of temporary branch names)
    regression integration. No USD removal or STEP importer is included.
 
 The copy-ownership tests currently use their independent CMake/CTest entry point
-at `tests/assertvalid_ownership`. The planar-region suite is in the normal
-Premake build and `tests.bat` / `tests.sh`, with a CMake entry point as well.
+at `tests/assertvalid_ownership`. The planar-region suite is in the root
+CMake validation build and runs through CTest and `tests.bat` / `tests.sh`.
 Keep passing evidence tied to exact commits, toolchains and runtime libraries.
 Do not claim a full CI gate from a focused local test run. Hosted CI provisioning
 is a separate task; no successful hosted CI run is implied by this document.

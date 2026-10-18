@@ -87,10 +87,10 @@ INVENTORIES = {
     ),
 }
 
-PROVENANCE = "execution-dependencies.v2"
+PROVENANCE = "execution-dependencies.v3"
 VERSIONS = {
     "execution-dependencies.v1": INVENTORIES,
-    PROVENANCE: {
+    "execution-dependencies.v2": {
         **INVENTORIES,
         "native:STEP_SOURCE": INVENTORIES["native:STEP_SOURCE"] + (
             "source/STEP_SOURCE/inc/StepSourceReport.h",
@@ -100,6 +100,13 @@ VERSIONS = {
             "source/STEP_SEMANTICS/inc/StepSemanticReport.h",
         ),
     },
+}
+
+# Historical inventories validate saved source identities without consulting the
+# checkout. Keep v1/v2 intact; new runs no longer depend on retired project files.
+VERSIONS[PROVENANCE] = {
+    group: tuple(path for path in paths if not path.endswith("/premake5.lua"))
+    for group, paths in VERSIONS["execution-dependencies.v2"].items()
 }
 
 

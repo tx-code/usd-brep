@@ -92,8 +92,8 @@ tools/agent/run_smpylib_tests.sh --target test_omni_solid.TestBooleans
 Fallback explicit command:
 
 ```bash
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
-PYTHONPATH="$PWD/_build/linux-x86_64/release" \
+LD_LIBRARY_PATH="$PWD/_build/cam/bin:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
+PYTHONPATH="$PWD/_build/cam/bin" \
 ./_build/target-deps/python/bin/python3 -m unittest discover -s source/SmPyLib/tests -p "test_*.py" -v
 ```
 

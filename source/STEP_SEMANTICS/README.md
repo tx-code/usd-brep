@@ -410,8 +410,8 @@ ctest --test-dir C:/temp/step-semantic-build -C Debug --output-on-failure
 ```
 
 Choose the appropriate local compiler/generator. CMake includes STEP_SOURCE as a
-subdirectory and builds both source and semantic contract tests. Root Premake also
-registers the static library and CLI, outside the USD stack. This is not a kernel build.
+subdirectory and builds both source and semantic contract tests. The root SDK CMake build also
+registers the static library and CLI independently of the geometry kernel. This is not a kernel build.
 
 ```cpp
 #include "StepSemantics.h"

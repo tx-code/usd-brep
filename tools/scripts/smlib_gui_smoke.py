@@ -38,7 +38,10 @@ logger = logging.getLogger(__name__)
 
 if "--show" not in sys.argv:
     os.environ.pop("DISPLAY", None)
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # QtInteractor needs a real HWND for WGL on Windows, even when VTK renders
+    # off screen. Qt's offscreen platform supplies no valid pixel format there;
+    # the normal Windows platform keeps the unshown smoke window hidden.
+    os.environ.setdefault("QT_QPA_PLATFORM", "windows" if sys.platform == "win32" else "offscreen")
     os.environ.setdefault("PYVISTA_OFF_SCREEN", "true")
     os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "smlib_gui_matplotlib"))
     os.environ.setdefault("MESA_SHADER_CACHE_DIR", os.path.join(tempfile.gettempdir(), "smlib_gui_mesa"))

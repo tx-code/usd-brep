@@ -195,7 +195,7 @@ observer异常是ExecutionFailure；意外`bad_alloc`向调用者传播，不能
 
 ### 命令行
 
-根 Premake 注册两个项目。独立 CMake 可接收已有 `SMLib` / `SM_API` targets；本机 Windows 路径使用
+根 CMake 在启用 `SMLIB_BUILD_VALIDATION` 时注册库和 CLI。独立 CMake 可接收已有 `SMLib` / `SM_API` targets；本机 Windows 路径使用
 匹配源码、配置、CRT、宏及工具链的 SDK，目录中分别为 `release/`、`debug/` 的 DLL 与 import lib：
 
 ```powershell

@@ -67,7 +67,7 @@ Use $smlib-python-dev-api-maintain to wire a prog_test suite through smdev.tests
 ## Validation
 
 ```bash
-./repo.sh build
+./repo.sh build --dev
 tools/agent/run_smpylib_tests.sh --target test_smlib_dev
 timeout 30s pyenv exec python tools/scripts/smlib_gui_smoke.py   # when GUI/pick/draw changes
 ```

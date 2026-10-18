@@ -15,24 +15,19 @@ contributors.
 Install the prerequisites listed in `README.md`, then build and test from the
 repository root:
 
-```bash
-./repo.sh build
-./repo.sh test
+```shell
+cmake -S . -B _build/cam-tools -DSMLIB_BUILD_DEV=ON -DSMLIB_BUILD_VALIDATION=ON
+cmake --build _build/cam-tools --config Release --parallel 4
+ctest --test-dir _build/cam-tools -C Release --output-on-failure
 ```
 
-On Windows, use the equivalent batch wrapper:
-
-```bat
-repo.bat build
-repo.bat test
-```
-
-The repo tooling fetches USD, Python, Premake, and other build dependencies via
-Packman. A host C++ toolchain is still required.
+See `README.md` for standalone Python dependency paths and shared CMake wrapper
+entry points. Packman fetches Python, pybind11, and repository tools.
+A host C++ toolchain is required.
 
 ## Before Submitting Changes
 
-Run the formatter used by CI:
+Run the repository formatter on the affected files:
 
 ```bash
 ./repo.sh format
@@ -41,12 +36,12 @@ Run the formatter used by CI:
 For code changes, run the relevant focused tests first, then run the full suite
 when the change affects shared behavior:
 
-```bash
-./repo.sh test
+```shell
+ctest --test-dir _build/cam-tools -C Release --output-on-failure
 ```
 
 If you change Python bindings, include tests under `source/SmPyLib/tests/`.
-If you change C++ kernel, SM_API, or USD bridge behavior, include focused
+If you change C++ kernel, SM_API, or native STEP behavior, include focused
 coverage near the affected layer where practical.
 
 ## Pending Release Notes
@@ -75,11 +70,12 @@ not select or bump versions.
 
 ## Operations And Bindings
 
-SMLib operations span the C++ kernel, the C-style C++ `SM_API`, the USD bridge,
-and the `_omni_solid` Python bindings. When adding or changing an operation:
+SMLib modeling operations span the C++ kernel, the C-style C++ `SM_API`,
+and the `_omni_solid` Python bindings. Native STEP import uses its own layered
+source, semantics, planar validation, and construction libraries. When adding or changing an operation:
 
 1. Keep the implementation in the appropriate layer (`source/SMLib/`,
-   `source/SM_API/`, `source/SM_API_USD/`, or `source/SmPyLib/`).
+   `source/SM_API/`, `source/STEP_*/`, or `source/SmPyLib/`).
 2. Preserve the documented mutation semantics for Python bindings.
 3. Add or update focused tests for the affected API surface.
 4. Update the relevant operation guide under `.agents/operations/`.

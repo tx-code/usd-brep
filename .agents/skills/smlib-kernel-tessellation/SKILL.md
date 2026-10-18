@@ -1,6 +1,6 @@
 ---
 name: smlib-kernel-tessellation
-description: "Debug SMLib BRep tessellation and immediate mesh/USD output, including `tessellate`, `SmApiTessellate`, `SmTess`, `PolyBrep`, and headless visual inspection. Do not use for translator or kernel-topology failures unless the first incorrect stage is tessellation."
+description: "Debug SMLib BRep tessellation and immediate mesh output, including `tessellate`, `SmApiTessellate`, `SmTess`, `PolyBrep`, and headless visual inspection. Do not use for translator or kernel-topology failures unless the first incorrect stage is tessellation."
 ---
 
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
@@ -12,13 +12,13 @@ Use this skill for exact BRep to polygon mesh conversion and the mesh workflows 
 
 ## Purpose
 
-Diagnose BRep-to-mesh conversion failures and downstream mesh/USD issues where the first question is whether tessellation, `PolyBrep` topology, or export population introduced the problem.
+Diagnose BRep-to-mesh conversion failures and downstream mesh issues where the first question is whether tessellation, `PolyBrep` topology, or export population introduced the problem.
 
 ## Prerequisites
 
 - Have an input BRep, tessellation parameters, model scale, and expected mesh use case.
-- Record BRep invariants before inspecting mesh arrays or USD output.
-- Use `usd-brep-test-selection` for focused tessellation, mesh, or USD validation.
+- Record BRep invariants before inspecting mesh arrays.
+- Use `usd-brep-test-selection` for focused tessellation or mesh validation.
 
 ## Open First
 
@@ -57,7 +57,7 @@ normal public conversion protects the caller by tessellating a temporary copy.
 
 1. Reproduce with one BRep and explicit tessellation options.
 2. Check source BRep validity and exact face/loop data before debugging mesh symptoms. Diagnose the native importer first if its output BRep is already wrong.
-3. Compare raw `PolyBrep` topology with downstream mesh arrays, USD output, and consistent named-view renders.
+3. Compare raw `PolyBrep` topology with downstream mesh arrays and consistent named-view renders.
 4. Trace Python/API -> `SmBrep::ConvertToPolyBrep` -> `SmTess` -> face-specific tessellation only when the source BRep is valid.
 5. Add a regression that checks both topology invariants and representative mesh-array shape; use a headless render as supporting evidence for visual regressions.
 
@@ -68,20 +68,19 @@ normal public conversion protects the caller by tessellating a temporary copy.
 - Inspect the source BRep before the mesh: face count, edge count, `is_manifold_solid()`, bounding box, and any analytic/periodic surfaces.
 - Validate mesh output with `PolyBrep` topology queries, `is_manifold_solid()`, bounds, face counts, and `to_mesh_arrays()`.
 - Treat `SmTess` as allowed to work on a copied/temporary BRep; do not infer input mutation from internal tessellation setup without checking the wrapper contract.
-- For USD output, distinguish custom `BrepArray` export from standard `UsdGeomMesh` population.
 - A missing rendered face is not sufficient evidence of a tessellator defect. Locate the first stage with a missing face, invalid loop, bad range, empty mesh cell stream, or incorrect actor visibility.
 
 ## Example Requests
 
 ```text
 Use $smlib-kernel-tessellation to debug tessellate returning non-manifold PolyBrep output for a valid solid.
-Use $smlib-kernel-tessellation to trace why USD mesh export has missing faces after BRep tessellation.
+Use $smlib-kernel-tessellation to trace why a rendered mesh has missing faces after BRep tessellation.
 ```
 
 ## Troubleshooting
 
 - If mesh arrays are empty, verify the BRep is valid and tessellation parameters are appropriate for model scale.
-- If only USD output is wrong, compare `PolyBrep` queries and `to_mesh_arrays()` before editing USD population.
+- If only rendering is wrong, compare `PolyBrep` queries and `to_mesh_arrays()` before editing viewport population.
 - If smoothing or stitching changes topology, isolate the raw tessellation output first.
 - If only imported models fail, validate the importer output geometry and topology before modifying `SmTess`.
 
@@ -92,7 +91,7 @@ Use $smlib-kernel-tessellation to trace why USD mesh export has missing faces af
 
 ## Validation
 
-Use `usd-brep-test-selection`. Obvious focused suites are SmPyLib tessellation tests, `prog_test` tessellation, USD mesh import/export tests, or a minimal Python repro that checks mesh arrays and topology.
+Use `usd-brep-test-selection`. Obvious focused suites are SmPyLib tessellation tests, `prog_test` tessellation, or a minimal Python repro that checks mesh arrays and topology.
 
 For repeatable visual evidence across one file or a corpus:
 

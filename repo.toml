@@ -9,62 +9,9 @@
 
 logging = "warn"
 
-[repo.tokens]
-# Sets the Linux glibc/ABI target to 2.35 (Ubuntu 22, _GLIBCXX_USE_CXX11_ABI=1)
-"platform:linux-x86_64".abi = "2.35"
-"platform:linux-aarch64".abi = "2.35"
-"platform:windows-x86_64".abi = "v142"
-
-
 [repo.folders]
 
 version_file = "VERSION"
-
-
-########################################################################################################################
-# Build
-########################################################################################################################
-
-[repo_build]
-
-# Public / local Linux builds: do not relaunch inside linbuild Docker.
-docker.enabled = false
-
-clean.folders = [
-    "${root}/_build",
-    "${root}/_compiler",
-    "${root}/_repo",
-]
-
-# List of packman manifests to pull (in order)
-# related to compilation
-fetch.packman_host_files_to_pull = [
-    "${root}/deps/host-deps.packman.xml",
-]
-
-# List of packman manifests to pull (in order)
-# related to code dependencies.
-# Mostly you should just add more dependencies to the
-# target-deps file but you can add additional
-# manifest files for dependencies that should be tracked
-# seperately.
-fetch.packman_target_files_to_pull = [
-    "${root}/deps/target-deps-python.packman.xml",
-    "${root}/deps/target-deps.packman.xml",
-]
-fetch."platform:macos-universal".packman_target_files_to_pull = [
-    "${root}/deps/target-deps-python-macos.packman.xml",
-]
-
-msbuild.sln_file = "usd-brep.sln"
-
-# Use the host-installed Visual Studio / Windows SDK instead of the packman msvc and
-# winsdk packages. If discovery fails, set msbuild.vs_path / msbuild.winsdk_path here.
-msbuild.link_host_toolchain = true
-msbuild.vs_version = "vs2019"  # "vs2019" | "vs2022" | "" (vswhere); pinned to match Kit (MSVC 14.2x)
-
-# ABI=1 in premake since 107.0:
-premake.linux_x86_64_cxx_abi = true
 
 
 ########################################################################################################################
@@ -85,16 +32,16 @@ env_vars = []
 # Description:  Delegates to the top-level tests.sh / tests.bat runner -- the same script CI invokes.
 #               It runs the project's test suite serially; see tests.sh for the exact sub-suites.
 #
-#               Prerequisite: a populated _build tree. Run `./prebuild.sh` (generate projects)
-#               or `./repo.sh build` first; tests.sh does not build.
+#               Prerequisite: `./build.sh --validation` (or the Windows wrapper).
+#               tests.sh does not build.
 #-----------------------------------------------------------------------------------------------------------------------
 
 [repo_test.suites.usd_brep]
 kind = "executable"
 
-# ${shell_ext} is .sh on linux/macOS and .bat on windows; ${platform} is e.g. linux-x86_64.
+# ${shell_ext} selects the host wrapper; both wrappers run CTest in _build/cam.
 executable = "${root}/tests${shell_ext}"
-args = ["${platform}"]
+args = []
 
 # tests.sh runs many sub-suites serially; give it generous headroom (seconds).
 timeout = 3600
@@ -123,6 +70,9 @@ license_text = ""
 # Re-enable legal-blurb maintenance for the scoped C++ dirs (overrides the tool-level default above).
 maintain_legal_blurbs = true
 files.include = [
+    "source/**",
+    "Examples/**",
+    "tools/step_import_benchmark/native/**",
 ]
 files.exclude = [
     # Keep GitHub-excluded internal notes outside legal-header maintenance.
@@ -132,6 +82,16 @@ files.exclude = [
 # Re-enable legal-blurb maintenance for the scoped Python dirs (overrides the tool-level default above).
 maintain_legal_blurbs = true
 files.include = [
+    "source/SmPyLib/**",
+    "source/SmPyDevLib/**",
+    "Examples/PyAPI/**",
+    "tools/agent/**",
+    "tools/scripts/**",
+    "tools/smlib_gui/**",
+    "tools/step_*/**",
+    "tools/repoman/py_package.py",
+    "tools/repoman/wheel_version.py",
+    "tools/pyproject/setup.py",
 ]
 files.exclude = [
     # Keep GitHub-excluded internal notes outside legal-header maintenance.
@@ -158,31 +118,17 @@ omniverse_flow_version_scheme = true
 append_git_hash = false
 package_per_config = true
 manylinux_platform = "2_35"
-files = [
-    ["LICENSE", ""],
-    ["THIRD_PARTY_NOTICES.md", ""],
-    ["README.md", ""],
-    ["VERSION", ""],
-    ["_build/$${platform}/$${config}/SMLib[.-]*", "lib"],
-    ["_build/$${platform}/$${config}/SM_API[.-]*", "lib"],
-    ["_build/$${platform}/$${config}/libSMLib[.-]*", "lib"],
-    ["_build/$${platform}/$${config}/libSM_API[.-]*", "lib"],
-    ["_build/$${platform}/$${config}/STEP_*.lib", "lib"],
-    ["_build/$${platform}/$${config}/libSTEP_*.a", "lib"],
-    ["_build/$${platform}/$${config}/_omni_solid*.pyd", "python"],
-    ["_build/$${platform}/$${config}/_omni_solid*.so", "python"],
-    ["source/SmPyLib/python/usd_brep/*.py", "python/usd_brep"],
-    ["source/SmPyLib/stubs/usd_brep/*", "python/usd_brep"],
-    ["source/SMLib/inc/*.h", "include/SMLib"],
-    ["source/SM_API/inc/*.h", "include/SM_API"],
-    ["source/STEP_SOURCE/inc/*.h", "include/STEP_SOURCE"],
-    ["source/STEP_SEMANTICS/inc/*.h", "include/STEP_SEMANTICS"],
-    ["source/STEP_PLANAR/inc/*.h", "include/STEP_PLANAR"],
-    ["source/STEP_IMPORT/inc/*.h", "include/STEP_IMPORT"],
-    ["third_party/microsoft-gsl/**", "third_party/microsoft-gsl"],
-]
+# CMake installation owns the archive layout and excludes development targets.
+# build.bat/build.sh stage this tree only after a successful complete SDK build.
+files = [["_build/install/$${config}/**", ""]]
 files_exclude = [["**/*.pdb"], ["**/*.exp"], ["**/*.ilk"], ["**/__pycache__/**"], ["**/*.pyc"]]
-"release".files_strip = [["**/*.so"]]
+
+# Wheel staging is separate from CMake build outputs so packaging never clears
+# the runtime supplied through --build-dir. Keep both paths configuration-local.
+[repo_py_package]
+enabled = true
+staging_dir = "${root}/_build/py_package/${platform}/${config}"
+install_dir = "${root}/_build/packages/${platform}/${config}"
 
 [repo_docs]
 
@@ -216,13 +162,10 @@ sphinx_exclude_patterns = [
     "Examples",
     "TestFiles",
     "TestFilesSmb",
-    # Design context, not user documentation
-    "proposals",
     # Root markdown that is not part of the rendered docs
     "AGENTS.md",
     "CHANGELOG.md",
     "CITATION.md",
-    "CLAUDE.md",
     "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "KNOWN_ISSUES.md",
@@ -263,13 +206,12 @@ EXTRACT_ALL = YES
 sphinx_generate_doxygen_groups = true
 sphinx_generate_doxygen_pages = true
 
-# Lets the autodoc step import usd_brep; the package, the module it wraps, and their
-# libraries all share one flat dir.
+# Autodoc uses the CMake-installed Python package and its matching native libraries.
 library_paths = [
-    "${root}/_build/${platform}/${config}",
+    "${root}/_build/install/${config}/lib",
 ]
 python_paths = [
-    "${root}/_build/${platform}/${config}",
+    "${root}/_build/install/${config}/python",
 ]
 python_path = "${root}/_build/target-deps/python/python${exe_ext}"
 

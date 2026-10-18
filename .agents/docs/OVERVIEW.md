@@ -36,7 +36,11 @@ source/
   SMLib/          — core kernel (geometry, topology, algorithms)
   SM_API/         — high-level C API (SmApiPrimitives, SmApiBrep, SmApiCurves, etc.)
   SmPyLib/        — Python bindings (_omni_solid module)
-  *_test/         — test projects
+  SmPyDevLib/     — optional debugger bindings (_smlib_dev)
+  STEP_SOURCE/    — lossless native STEP input
+  STEP_SEMANTICS/ — typed STEP interpretation
+  STEP_PLANAR/    — qualified planar source checks
+  STEP_IMPORT/    — native BRep construction and publication
 ```
 
 ## SM_API Header Organization
@@ -134,6 +138,3 @@ docstring and matching guide in [the operation index](../operations/INDEX.md) fo
 2. `compute_volume` — get enclosed volume (requires manifold solid)
 3. `brep_closest_point` — find nearest point on BRep surface
 4. `intersect_breps` / `intersect_brep_with_plane` — get intersection curves
-
-
-### End-to-end 3D assets

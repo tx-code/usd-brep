@@ -12,8 +12,8 @@ import tempfile
 import unittest
 
 # Python 3.8+ on Windows does not search PATH for an extension module's dependent
-# DLLs, so the USD libraries that _omni_solid links against (staged outside the
-# module's own directory) have to be registered explicitly. Mirrors test_omni_solid.py.
+# DLLs, so native runtime directories supplied through PATH have to be registered
+# explicitly. Mirrors test_omni_solid.py.
 if sys.platform == "win32":
     for p in os.environ.get("PATH", "").split(";"):
         if p and os.path.isdir(p):

@@ -8,7 +8,7 @@
 
 ## Overview
 
-A **`PolyBrep`** is SMLib’s polygon mesh representation: triangulated (or polygonal) topology with 3D points. You obtain one by **tessellating** an exact `Brep`, **importing** USD meshes (`usd.import_mesh` / `usd.import_meshes`), or as the **result of polygon booleans**. It is the right type for rendering-oriented data, mesh analysis, and approximate set operations on discrete geometry.
+A **`PolyBrep`** is SMLib’s polygon mesh representation: triangulated (or polygonal) topology with 3D points. You obtain one by **tessellating** an exact `Brep`, or as the **result of polygon booleans**. It is the right type for rendering-oriented data, mesh analysis, and approximate set operations on discrete geometry.
 
 This guide documents the **Python** surface for inspecting and measuring a `PolyBrep`. C API equivalents for mesh booleans and volume checks live in `SmApiPolygons.h`; tessellation entry points are in `SmApiBrep.h` (`SmApiTessellate`).
 
@@ -41,7 +41,7 @@ Returns vertex positions as a list of `(x, y, z)` tuples in mesh order (consiste
 Points and polygon indices preserve the original mesh connectivity. Normals are
 averaged per vertex by default. Pass `face_varying_normals=True` to either method
 for one source-face normal per polygon corner, in polygon order without the
-counts in `faces`. Use USD `faceVarying` interpolation with this output.
+counts in `faces`. Each polygon corner has its own normal with this output.
 Missing or degenerate normals fall back to the vertex average, then `(0, 0, 1)`.
 
 `to_mesh_arrays()` returns Python lists for compatibility. `to_numpy_arrays()`
@@ -80,7 +80,7 @@ Deep-copy the mesh into a fresh `PolyBrep` with independent topology (wraps `SmA
 Returns `(area, (cx, cy, cz))` for the mesh surface.
 
 ### mass_properties(density=1.0, origin=None)
-Mesh counterpart of `Brep.mass_properties` (wraps `SmApiPolyBrepComputeMassProperties`), with the same keys and conventions: `area`, `volume`, `mass`, `centroid`, `moments_of_inertia` `(Ixx, Iyy, Izz)` and `products_of_inertia` `(Iyz, Izx, Ixy)` as raw positive integrals. `origin=None` gives centroidal inertia (two passes); an explicit `origin` is a single pass about that point. Results are exact for the mesh, so there is no `relative_accuracy`; accuracy is that of the tessellation. The result does not depend on winding direction: a closed mesh wound inside-out (for example, as imported from USD) gives the same result, whereas `poly_brep_volume_via_api` returns a negative signed volume for it. Raises `RuntimeError` (`SM_ERR_INVALID_INPUT`) for a mesh that is not a closed manifold solid, an invalid density, or a non-finite origin.
+Mesh counterpart of `Brep.mass_properties` (wraps `SmApiPolyBrepComputeMassProperties`), with the same keys and conventions: `area`, `volume`, `mass`, `centroid`, `moments_of_inertia` `(Ixx, Iyy, Izz)` and `products_of_inertia` `(Iyz, Izx, Ixy)` as raw positive integrals. `origin=None` gives centroidal inertia (two passes); an explicit `origin` is a single pass about that point. Results are exact for the mesh, so there is no `relative_accuracy`; accuracy is that of the tessellation. The result does not depend on winding direction: a closed mesh wound inside-out (for example, after reversing its face orientations) gives the same result, whereas `poly_brep_volume_via_api` returns a negative signed volume for it. Raises `RuntimeError` (`SM_ERR_INVALID_INPUT`) for a mesh that is not a closed manifold solid, an invalid density, or a non-finite origin.
 
 When a mesh already exists (for example, one built for rendering), this is a cheap preview of the exact `Brep.mass_properties`, most of all on models with many trimmed faces. On simple curved primitives the exact integration is already cheap, so the mesh path gains little.
 

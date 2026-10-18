@@ -11,7 +11,7 @@
 #ifndef __SmApiTessellationParams_H__
 #define __SmApiTessellationParams_H__
 
-/// Default tessellation quality, shared by the C++ API, the Python bindings and hdUsdBrep.
+/// Default tessellation quality, shared by the C++ API and Python bindings.
 namespace SmTessellationDefaults
 {
   constexpr double kChordHeightTol     = 0.0;   ///< 0 = ignore; absolute world units, so scale-dependent

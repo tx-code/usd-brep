@@ -17,7 +17,8 @@ uv run --locked --group gui python tools/scripts/smlib_gui.py --release
 uv run --locked --group gui python tools/scripts/smlib_gui.py --wait-for-lldb
 ```
 
-The interactive launcher looks under `_build/<platform>/debug` by default.
+The interactive launcher uses the Debug configuration of `_build/cam` by default.
+Set `SMLIB_CMAKE_BUILD_DIR` for another CMake tree or `SMLIB_RUNTIME_DIR` for an explicit runtime.
 Build debug SMLib first, or pass `--release` if you only have a release tree.
 
 Run the smoke check with the same locked environment:

@@ -3,7 +3,7 @@
 
 # Known issues
 
-Known bugs in USD BRep.
+Known bugs in the SMLib geometry SDK.
 
 ## Modeling
 
@@ -17,7 +17,7 @@ Known bugs in USD BRep.
 
 `heal_brep` (`SmApiHealBrep`) does not report failures from its repair stages, including seam insertion.
 
-**Workaround:** check the healed Brep, for example with `is_manifold_solid()`, or with `bin/brep_geometry_validator` after exporting it to USD.
+**Workaround:** check the healed Brep with `is_manifold_solid()` and, in development builds, `_smlib_dev.assert_valid()`. These checks cover their respective topology contracts; they do not establish complete geometric validity.
 
 ### Healing closed surfaces with missing or coincident seams
 
@@ -55,27 +55,3 @@ On solids filleted with `circular_fillet`, `tessellate()` can wind some triangle
 Face area, Brep area and volume, and mass properties (`Face.area()`, `Brep.area()`, `Brep.volume()` and the matching `SmApi*` functions) can be inaccurate for faces whose trim curves have interior knots, such as rational circles. Measured relative area errors were up to about 1.4% at the default `relative_accuracy` of 1e-3, and up to 20% at 1e-1.
 
 **Workaround:** use a smaller `relative_accuracy`. The error fell as the accuracy was tightened in every measured case.
-
-## USD import and validation
-
-### Malformed BrepArray topology can crash import
-
-Reading a BrepArray whose topology counts or indices disagree with its array sizes can read out of bounds and crash the process. Such files fail BrepArray validation.
-
-**Workaround:** validate files before importing them, for example with `brep_validator_cli/validate_usd.sh --brep-only` or `nvidia_usd_validate`.
-
-### BrepArrays with UV trim curves from other exporters
-
-Some BrepArrays written by other exporters, such as OCCT-based UsdSolid exporters, carry UV trim curves that import does not convert correctly. Their faces can tessellate incorrectly, or the Brep can be skipped. BrepArrays written by USD BRep are not affected.
-
-### An orphan edge makes the validator report unrelated failures
-
-When a BrepArray contains an edge that no edgeuse refers to (BA.582), the BrepArray validator can no longer tell which edges and vertices belong to which Brep. It then reports unrelated failures, such as BA.175, BA.205, BA.225, BA.265, BA.310, BA.320, BA.365 and BA.465, for later Breps.
-
-**Workaround:** fix the BA.582 failure first, then validate again.
-
-### The validator scripts in the release package expect a source checkout
-
-`brep_validator_cli/validate_usd.sh` and `brep_validator_cli/validate_directory.sh` look for a source build (`_build/` and `tools/packman/`). Run from the release package, `validate_usd.sh` exits with code 127, and `validate_directory.sh` exits with code 1 and no output.
-
-**Workaround:** run `python brep_validator_cli/validate_usd.py <file>` with a Python 3.12 that can import `pxr` and `usd_validation_nvidia`, or install `usd-brep[validation]` and run `nvidia_usd_validate`.

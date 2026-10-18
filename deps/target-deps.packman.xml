@@ -1,3 +1,0 @@
-<project toolsVersion="5.6">
-  <!-- Geometry dependencies are vendored; Python is in target-deps-python.packman.xml. -->
-</project>

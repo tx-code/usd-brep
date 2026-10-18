@@ -41,8 +41,8 @@ Controls refinement of BRep edge curves, using changes in curve tangent directio
 Smaller positive values produce finer boundary segments. It is independent of
 surface refinement, although finer boundaries can also increase face triangle count.
 
-Both angles are in degrees and default to **25.0** across the C++ API, Python and
-hdUsdBrep, all sharing `SmTessellationDefaults` (a default-constructed
+Both angles are in degrees and default to **25.0** across the C++ API and Python,
+sharing `SmTessellationDefaults` (a default-constructed
 `SmTessellationParams` uses them). Setting either to **0** disables its angular
 criterion, leaving chord-height and edge-length constraints to refine the mesh.
 
@@ -190,22 +190,9 @@ Outputs replace previous values: flat points, per-edge counts and borrowed edges
 Keep the Brep alive and reacquire edges after topology changes.
 
 Missing/failed curves have zero counts and return an error, retaining valid samples.
-Invalid inputs clear outputs. Degenerate curves retain one point; `GetBoundaryData`
-omits empty and single-point edges from USD lines.
+Invalid inputs clear outputs. Degenerate curves retain one point; downstream
+polyline renderers must omit edges with fewer than two points.
 
 Python: `points, counts, edges = sm.tessellate_boundaries(brep)`.
 Keyword options: `angle_tolerance_deg=5.0`, `allow_partial=False`.
 Sampling failures raise unless partial output is enabled; invalid arguments always raise.
-
-## USD mesh extraction
-
-Own a tessellated `SmPolyBrep` with `SMU_BrepConvert::TessellatedMeshPtr` and read it
-with `GetTessellatedMeshData`, which returns USD arrays and copied material paths that
-outlive the source BRep. Keep the source alive until extraction returns. Destroying
-the source before the mesh requires `TessellatedMeshPtr`; otherwise keep the source
-alive until mesh destruction.
-
-The back-pointer flag is enabled for the call and restored afterwards, so a cached mesh
-keeps its own setting; the deleter disables it before destruction, which is what stops
-`~SmPolyBrep` from reaching into a freed BRep. One call at a time per mesh.
-`GetMeshData` callers are unaffected.

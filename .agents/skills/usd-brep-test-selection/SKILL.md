@@ -17,7 +17,7 @@ Select the smallest credible build, test, or sanity-check path for an SMLib chan
 ## Prerequisites
 
 - Inspect changed files or the failing CI job before selecting tests.
-- Know whether the task is docs-only, Python binding, `SM_API`, kernel, USD, OCCT translation, GUI/headless rendering, build, or tooling.
+- Know whether the task is docs-only, Python binding, `SM_API`, kernel, native STEP, GUI/headless rendering, build, or tooling.
 - Use implementation/debug skills first when the code behavior is not understood.
 
 ## Example Requests
@@ -50,42 +50,35 @@ python3 tools/agent/suggest_tests.py --paths source/SmPyLib/src/SmPyBooleans.cpp
 
 | Changed area | First validation | Broader validation |
 |---|---|---|
-| `source/SmPyLib/` (stable bindings) | `cmake --build _build/cam-tools --config Release --parallel 4`, then `tools/agent/run_smpylib_tests.sh` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
-| `source/SmPyDevLib/`, `stubs/smlib_dev/` | `cmake --build _build/cam-tools --config Release --parallel 4`, then `tools/agent/run_smpylib_tests.sh --target test_smlib_dev` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` plus `tools/scripts/smlib_gui_smoke.py` when pick/draw/tests change |
+| `source/SmPyLib/` (stable bindings) | `cmake --build _build/cam-tools --config Release --parallel 4`, then the stable Python CTest command below | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
+| `source/SmPyDevLib/`, including its `stubs/smlib_dev/` | `cmake --build _build/cam-tools --config Release --parallel 4`, then `run_geometry_tests.py --dev` against the selected runtime | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` plus `tools/scripts/smlib_gui_smoke.py` when pick/draw/tests change |
 | `tools/smlib_gui/`, `tools/scripts/smlib_gui*.py` | `uv run --locked --group gui python tools/scripts/smlib_gui_smoke.py` | Run `smlib_gui_render.py --jobs N` on a focused recursive fixture tree; add SmPyLib tests if bindings changed |
 | `source/SM_API/` or `source/SM_API/inc/` | `cmake --build _build/cam-tools --config Release --parallel 4`, focused Python repro or API-level test for the operation | `./tests/SM_API_test/SM_API_test.sh linux-x86_64`, then `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
 | `source/SMLib/` | `cmake --build _build/cam-tools --config Release --parallel 4`, minimal repro through `SM_API` or `_omni_solid`, then a focused `prog_test` suite when mapped below | Relevant C++ suite plus `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
-| `tests/prog_test/` | `make --directory=_compiler/gmake2 prog_test_app config=release_x86_64 -j22 --output-sync`, then focused `prog_test` suites | `./tests/prog_test/prog_test.sh linux-x86_64` |
-| `source/OCCT_BREP_EXPORT/`, `tools/usd_to_occt_test/` | `cmake --build _build/cam-tools --config Release --parallel 4`, then the focused exporter command below | Importer suite and `./tests/usd_test/usd_test.sh linux-x86_64` |
+| `tests/prog_test/` | `cmake --build _build/cam-tools --config Release --target prog_test_app --parallel 4`, then focused `prog_test` suites | `./tests/prog_test/prog_test.sh linux-x86_64` |
+| `source/STEP_SOURCE/`, `source/STEP_SEMANTICS/`, `source/STEP_PLANAR/`, `source/STEP_IMPORT/`, `tools/step_*` | Build the affected CMake target and run its contract tests (`ctest ... -R step_`); use the owning README for focused evidence-tool tests | Broader STEP contract/evidence checks when shared interfaces change |
 | `.agents/`, `AGENTS.md`, docs only | markdown/path sanity checks; no kernel tests | none required |
 | `tools/agent/` | run/lint the changed script or a targeted tool check | relevant script validation or CI check |
-| Build files, packaging, `premake*`, `repo.toml` | `cmake --build _build/cam-tools --config Release --parallel 4` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
+| Build files, packaging, `tools/scripts/smlib_build.py`, `repo.toml` | `cmake --build _build/cam-tools --config Release --parallel 4` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
 
-## SmPyLib Focus Command
+## SmPyLib Focus Commands
 
-Use the helper when available:
+The CMake validation build registers the stable Python suite:
 
-```bash
-tools/agent/run_smpylib_tests.sh
-tools/agent/run_smpylib_tests.sh --target test_omni_solid.TestBooleans
-tools/agent/run_smpylib_tests.sh --target test_smlib_dev
+```shell
+ctest --test-dir _build/cam-tools -C Release --output-on-failure -R python_geometry
 ```
 
-If `_omni_solid` / `_smlib_dev` exist under `_build/linux-x86_64/release`, use this local command:
+For a focused target or debugger tests, use `tools/agent/run_geometry_tests.py`
+with the selected runtime directory from README.md. For example, on Windows:
 
-```bash
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
-PYTHONPATH="$PWD/_build/linux-x86_64/release" \
-./_build/target-deps/python/bin/python3 -m unittest discover -s source/SmPyLib/tests -p "test_*.py" -v
+```shell
+python tools/agent/run_geometry_tests.py --runtime _build/cam-tools/bin/Release --target test_omni_solid.TestBooleans
+python tools/agent/run_geometry_tests.py --runtime _build/cam-tools/bin/Release --dev
 ```
 
-For a single class, add the test directory to `PYTHONPATH` and use a target such as:
-
-```bash
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
-PYTHONPATH="$PWD/_build/linux-x86_64/release:$PWD/source/SmPyLib/tests" \
-./_build/target-deps/python/bin/python3 -m unittest test_omni_solid.TestBooleans -v
-```
+On Linux, `tools/agent/run_smpylib_tests.sh` remains a focused convenience wrapper.
+Set `SMLIB_RUNTIME_DIR` for CMake output and pass `--dev` to include dev tests.
 
 ## prog_test Focus Commands
 

@@ -30,9 +30,9 @@ ctest --test-dir C:/temp/step-source-build -C Debug --output-on-failure
 & C:/temp/step-source-build/Debug/step_inspect.exe --fixture-limits tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P01/input.step
 ```
 
-Choose a generator/installation for the local compiler as needed. The root Premake
-also registers the `STEP_SOURCE` static library and `step_inspect` console target,
-outside the USD-dependent stack. Standalone CMake does not build the rest of the kernel.
+Choose a generator/installation for the local compiler as needed. The root CMake build
+also registers the `STEP_SOURCE` static library and, with validation enabled, the `step_inspect` console target,
+independently of the geometry kernel. Standalone CMake does not build the rest of the SDK.
 
 ```cpp
 #include "StepSource.h"

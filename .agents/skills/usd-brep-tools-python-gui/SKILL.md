@@ -80,7 +80,7 @@ Maintain the PySide6/PyVista workbench package in `tools/smlib_gui/`, its intera
 - If PyVista/Qt fails in headless validation, verify that offscreen environment variables were set before imports and report environment-specific failures separately from GUI logic failures.
 - If the first model renders but a later model crashes or disappears, rerun with the default isolated workers before changing geometry or tessellation code.
 - If a user test plays back the wrong source, inspect `tools/smlib_gui/user_test.py` and `user_test_catalog.py`, then verify Run / Reload / Replay through the left-panel editor.
-- If GUI test_4 does not pick up C++ edits, rebuild `_smlib_dev` (`./repo.sh build`). Python Reload only re-reads `user_test.py`.
+- If GUI test_4 does not pick up C++ edits, rebuild `_smlib_dev` (`./repo.sh build --dev`). Python Reload only re-reads `user_test.py`.
 - If a selected-object operation uses the wrong object, inspect the active-object registry, selection IDs, and consumed-handle behavior before changing kernel calls.
 - If tessellation or overlay rendering fails, record the originating object kind, display handle, and query result before adding fallbacks.
 
