@@ -90,6 +90,65 @@ def bulged_box_source():
     return data.replace(b"ENDSEC;\nEND-ISO", "".join(points).encode("ascii") + b"ENDSEC;\nEND-ISO")
 
 
+def conical_frustum_source():
+    # Independent 3-4-5 frustum: radii 3/6, height 4, slant 5.
+    # The STEP angle is atan(3/4); its decimal rounds far below the mm budget.
+    data = cylinder_source().replace(b"(0.,0.,7.)", b"(0.,0.,4.)")
+    data = data.replace(b"(0.,3.,7.)", b"(0.,6.,4.)")
+    data = data.replace(b"CIRCLE('',#107,3.)", b"CIRCLE('',#107,6.)")
+    data = data.replace(b"CYLINDRICAL_SURFACE('',#106,3.)",
+                        b"CONICAL_SURFACE('',#106,3.,0.6435011087932843868)")
+    data = data.replace(b"VECTOR('',#104,7.)", b"VECTOR('',#114,5.)")
+    return data.replace(b"ENDSEC;\nEND-ISO", b"#114=DIRECTION('',(0.,3.,4.));\nENDSEC;\nEND-ISO")
+
+
+def partitioned_cylinder_source():
+    # Partition an analytic cylinder's side into a face with a rectangular UV
+    # hole and an exact filling face on the SAME support. Material and total
+    # area stay 63*pi/60*pi; the source intentionally has 4 faces/7 edges/6 VPs.
+    data = cylinder_source().replace(b"(#180,#181,#182)", b"(#180,#181,#182,#344)")
+    data = data.replace(b"#172=FACE_OUTER_BOUND", b"#172=FACE_BOUND")
+    data = data.replace(b"#182=ADVANCED_FACE('',(#172),", b"#182=ADVANCED_FACE('',(#172,#342),")
+    extra = b"""#300=CARTESIAN_POINT('',(0.,0.,2.));
+#301=CARTESIAN_POINT('',(0.,0.,5.));
+#302=CARTESIAN_POINT('',(-3.,0.,2.));
+#303=CARTESIAN_POINT('',(0.,-3.,2.));
+#304=CARTESIAN_POINT('',(0.,-3.,5.));
+#305=CARTESIAN_POINT('',(-3.,0.,5.));
+#306=AXIS2_PLACEMENT_3D('',#300,#104,#105);
+#307=AXIS2_PLACEMENT_3D('',#301,#104,#105);
+#308=CIRCLE('',#306,3.);
+#309=CIRCLE('',#307,3.);
+#310=VERTEX_POINT('',#302);
+#311=VERTEX_POINT('',#303);
+#312=VERTEX_POINT('',#304);
+#313=VERTEX_POINT('',#305);
+#314=VECTOR('',#104,3.);
+#315=DIRECTION('',(0.,0.,-1.));
+#316=VECTOR('',#315,3.);
+#317=LINE('',#303,#314);
+#318=LINE('',#305,#316);
+#320=EDGE_CURVE('',#310,#311,#308,.T.);
+#321=EDGE_CURVE('',#311,#312,#317,.T.);
+#322=EDGE_CURVE('',#313,#312,#309,.T.);
+#323=EDGE_CURVE('',#313,#310,#318,.T.);
+#330=ORIENTED_EDGE('',*,*,#320,.T.);
+#331=ORIENTED_EDGE('',*,*,#321,.T.);
+#332=ORIENTED_EDGE('',*,*,#322,.F.);
+#333=ORIENTED_EDGE('',*,*,#323,.T.);
+#334=ORIENTED_EDGE('',*,*,#323,.F.);
+#335=ORIENTED_EDGE('',*,*,#322,.T.);
+#336=ORIENTED_EDGE('',*,*,#321,.F.);
+#337=ORIENTED_EDGE('',*,*,#320,.F.);
+#340=EDGE_LOOP('',(#330,#331,#332,#333));
+#341=EDGE_LOOP('',(#334,#335,#336,#337));
+#342=FACE_BOUND('',#341,.T.);
+#343=FACE_OUTER_BOUND('',#340,.T.);
+#344=ADVANCED_FACE('',(#343),#142,.T.);
+"""
+    return data.replace(b"ENDSEC;\nEND-ISO", extra + b"ENDSEC;\nEND-ISO")
+
+
 class GeneralTests(unittest.TestCase):
     def invoke_bytes(self, data, *options):
         with tempfile.TemporaryDirectory(prefix="step-general-") as directory:
@@ -196,3 +255,61 @@ class GeneralTests(unittest.TestCase):
         self.assertFalse(changes[0]["source_rewritten"])
         self.assertEqual(data.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
         self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=63 * math.pi * 2e-4)
+
+    def test_unmarked_cylinder_band_is_classified_after_its_explicit_seam_cut(self):
+        data = cylinder_source(implicit_seam=True).replace(b"#172=FACE_OUTER_BOUND", b"#172=FACE_BOUND")
+        explicit = cylinder_source().replace(b"#172=FACE_OUTER_BOUND", b"#172=FACE_BOUND")
+        for source in (data, data.replace(b"(#172,#173)", b"(#173,#172)"), explicit):
+            with self.subTest(source=source[-90:]):
+                run, result = self.invoke_bytes(source)
+                self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+                self.assertEqual((3, 3, 2), tuple(result["model"][key] for key in ("faces", "edges", "vertices")))
+                self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=63 * math.pi * 2e-4)
+                self.assertAlmostEqual(60 * math.pi, result["model"]["area_mm2"], delta=60 * math.pi * 2e-4)
+                self.assertEqual(source.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
+                # A cut rectangle is derived from BOTH source rings. Neither
+                # original periodic bound is falsely promoted to source outer.
+                self.assertFalse(any(row["source_face"] == "182" for row in result["classified_outer_bounds"]))
+                (region,) = [row for row in result["representation_normalizations"]
+                             if row["kind"] == "NativeCylindricalCurveIntersectionContainment"]
+                self.assertEqual("182", region["source_face"])
+                self.assertEqual({"172", "173"} if source != explicit else {"172"}, set(region["source_bounds"]))
+                self.assertFalse(region["source_rewritten"])
+
+    def test_conical_frustum_control_has_independent_area_and_volume(self):
+        run, result = self.invoke_bytes(conical_frustum_source())
+        self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+        self.assertAlmostEqual(84 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=84 * math.pi * 2e-4)
+        self.assertAlmostEqual(90 * math.pi, result["model"]["area_mm2"], delta=90 * math.pi * 2e-4)
+
+    def test_unmarked_conical_frustum_preserves_the_same_material_region(self):
+        source = conical_frustum_source().replace(b"#172=FACE_OUTER_BOUND", b"#172=FACE_BOUND")
+        run, result = self.invoke_bytes(source)
+        self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+        self.assertEqual((3, 3, 2), tuple(result["model"][key] for key in ("faces", "edges", "vertices")))
+        self.assertAlmostEqual(84 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=84 * math.pi * 2e-4)
+        self.assertAlmostEqual(90 * math.pi, result["model"]["area_mm2"], delta=90 * math.pi * 2e-4)
+        self.assertEqual(source.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
+
+    def test_unmarked_region_keeps_orientation_and_support_guards(self):
+        wrong = cylinder_source().replace(b"#172=FACE_OUTER_BOUND", b"#172=FACE_BOUND")
+        wrong = wrong.replace(b"#182=ADVANCED_FACE('',(#172),#142,.T.)", b"#182=ADVANCED_FACE('',(#172),#142,.F.)")
+        run, report = self.invoke_bytes(wrong)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["model"])
+        unsupported = bulged_box_source().replace(b"#516=FACE_OUTER_BOUND", b"#516=FACE_BOUND")
+        run, report = self.invoke_bytes(unsupported)
+        self.assertEqual(7, run.returncode)
+        self.assertEqual("GeneralRegionClassificationPending", report["diagnostics"][-1]["key"])
+        self.assertIsNone(report["model"])
+
+    def test_unmarked_cylinder_region_preserves_inner_loop_and_shared_partition(self):
+        data = partitioned_cylinder_source()
+        for source in (data, data.replace(b"(#172,#342)", b"(#342,#172)")):
+            with self.subTest(reversed_set=source != data):
+                run, result = self.invoke_bytes(source)
+                self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+                self.assertEqual((4, 7, 6), tuple(result["model"][key] for key in ("faces", "edges", "vertices")))
+                self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=63 * math.pi * 2e-4)
+                self.assertAlmostEqual(60 * math.pi, result["model"]["area_mm2"], delta=60 * math.pi * 2e-4)
+                self.assertEqual(source.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])

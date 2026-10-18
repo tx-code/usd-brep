@@ -1784,19 +1784,32 @@ private:
     }
     void ClassifyRegion(const Face& f, NativeFaceData& native)
     {
-        // Only source-unmarked planar regions are normalized here. The kernel
-        // classifier computes containment from curve intersections; area sign or
-        // source SET order alone cannot identify the outer region.
-        if (!Is(f.surface, "PLANE"))
+        // Source-unmarked planes, cylinders and cones use curve-intersection
+        // containment after installed-UV validation. An envelope/SET order is
+        // only construction bootstrapping; it cannot identify the outer region.
+        const bool cylinder = Is(f.surface, "CYLINDRICAL_SURFACE");
+        const bool cone = Is(f.surface, "CONICAL_SURFACE");
+        const bool periodicSupport = cylinder || cone;
+        if (!Is(f.surface, "PLANE") && !periodicSupport)
         {
             Fail("GeneralRegionClassificationPending", f.record, Status::Deferred);
         }
         SmFaceProps properties(native.face, 0, m_model->context.get());
         Step(f.record);
         // The property collector uses a healer-stage enum as a readiness gate.
-        // Tolerances and UV/seam prerequisites were established directly above
-        // for this nonperiodic plane; no healer or geometry mutation is invoked.
+        // Tolerances and UV/seam prerequisites were established directly above;
+        // no healer or geometry mutation is invoked.
         Good(properties.SetProps(SM_PROPSTAGE_3, native.face, 0, SM_HO_FIX_SPLITEDGE_ATSEAM));
+        if (periodicSupport)
+        {
+            Need(
+                properties.m_eBadMissingSeam == SM_SP_NEITHER && properties.m_eBadCrossedSeam == SM_SP_NEITHER &&
+                    properties.m_eBadNearMissSeam == SM_SP_NEITHER && properties.m_bBadUnpairedNoArea_Loop == FALSE &&
+                    properties.m_lBadMissingPoles == 0,
+                "GeneralRegionSeamUnestablished",
+                f.record
+            );
+        }
         Need(
             properties.m_lOuterLoopCnt == 1 && properties.m_lBadOrient_LoopCnt == 0 && properties.m_lBadNested_LoopCnt == 0 &&
                 properties.m_lBadNoArea_LoopCnt == 0 && properties.m_lBadClosed3d_LoopCnt == 0 && properties.m_lBadClosedPtr_LoopCnt == 0,
@@ -1820,7 +1833,24 @@ private:
         const auto it = std::find(native.loops.begin(), native.loops.end(), outer);
         Need(it != native.loops.end(), "GeneralClassifiedLoopIdentity", f.record);
         const auto index = static_cast<Index>(it - native.loops.begin());
-        m_report.classifiedOuterBounds.push_back({ Id(f.record), Id(f.loops[index].bound) });
+        if (periodicSupport)
+        {
+            // A cut annulus is derived from BOTH rings; neither source ring is
+            // an outer-bound marker. Preserve all origins and keep the planar
+            // one-bound classification report separate from this result.
+            RepresentationNormalization classification;
+            classification.kind = cylinder ? "NativeCylindricalCurveIntersectionContainment" : "NativeConicalCurveIntersectionContainment";
+            classification.sourceFaceId = Id(f.record);
+            for (const auto& loop : f.loops)
+            {
+                classification.sourceBoundIds.push_back(Id(loop.bound));
+            }
+            m_report.normalizations.push_back(std::move(classification));
+        }
+        else
+        {
+            m_report.classifiedOuterBounds.push_back({ Id(f.record), Id(f.loops[index].bound) });
+        }
         if (it != native.loops.begin())
         {
             // Kernel constructor uses first loop as outer. Reorder intact loops
