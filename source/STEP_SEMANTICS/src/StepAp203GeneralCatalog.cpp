@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAp203GeneralCatalog.h"
 
+#include "StepDateTimeCatalog.h"
+
 namespace step_semantics
 {
 namespace
@@ -13,10 +15,6 @@ Field Text(const char* name, bool optional = false, const char* type = "LABEL")
 Field Ref(const char* name, const char* type)
 {
     return { name, type, FieldKind::Reference };
-}
-Field Integer(const char* name, const char* type = "INTEGER", bool optional = false)
-{
-    return { name, type, FieldKind::Integer, optional };
 }
 Field Set(const char* name, const char* type)
 {
@@ -38,11 +36,9 @@ Field OptionalNames(const char* name)
 constexpr std::string_view Approved[] = { "PRODUCT", "SECURITY_CLASSIFICATION" };
 constexpr std::string_view PersonOrganization[] = { "PERSON", "ORGANIZATION", "PERSON_AND_ORGANIZATION" };
 constexpr std::string_view DateTime[] = { "DATE", "DATE_AND_TIME", "LOCAL_TIME" };
-constexpr std::string_view DateItems[] = { "APPROVAL_PERSON_ORGANIZATION", "PRODUCT_DEFINITION", "SECURITY_CLASSIFICATION" };
 constexpr std::string_view Classified[] = { "PRODUCT_DEFINITION_FORMATION" };
 constexpr std::string_view PersonItems[] = { "PRODUCT", "PRODUCT_DEFINITION", "PRODUCT_DEFINITION_FORMATION", "SECURITY_CLASSIFICATION" };
 constexpr std::string_view Layered[] = { "REPRESENTATION_ITEM" };
-constexpr std::string_view AheadBehind[] = { "AHEAD", "EXACT", "BEHIND" };
 constexpr std::string_view ConversionAngle[] = { "CONVERSION_BASED_UNIT", "NAMED_UNIT", "PLANE_ANGLE_UNIT" };
 constexpr std::string_view ShapeRelationship[] = { "REPRESENTATION_RELATIONSHIP", "SHAPE_REPRESENTATION_RELATIONSHIP" };
 } // namespace
@@ -96,39 +92,18 @@ void AddAp203GeneralDeclarations(Catalog& catalog)
               true },
             { "SECURITY_CLASSIFICATION_ASSIGNMENT", {}, { Ref("assigned_security_classification", "SECURITY_CLASSIFICATION") } },
             { "CC_DESIGN_SECURITY_CLASSIFICATION", { "SECURITY_CLASSIFICATION_ASSIGNMENT" }, { Set("items", "CC_CLASSIFIED_ITEM") }, true },
-            { "DATE", {}, { Integer("year_component", "YEAR_NUMBER") } },
-            { "CALENDAR_DATE",
-              { "DATE" },
-              { Integer("day_component", "DAY_IN_MONTH_NUMBER"), Integer("month_component", "MONTH_IN_YEAR_NUMBER") },
-              true },
-            { "DATE_AND_TIME", {}, { Ref("date_component", "DATE"), Ref("time_component", "LOCAL_TIME") }, true },
-            { "LOCAL_TIME",
-              {},
-              { Integer("hour_component", "HOUR_IN_DAY"),
-                Integer("minute_component", "MINUTE_IN_HOUR", true),
-                { "second_component", "SECOND_IN_MINUTE", FieldKind::Real, true },
-                Ref("zone", "COORDINATED_UNIVERSAL_TIME_OFFSET") },
-              true },
-            { "COORDINATED_UNIVERSAL_TIME_OFFSET",
-              {},
-              { Integer("hour_offset"), Integer("minute_offset", "INTEGER", true), { "sense", "AHEAD_OR_BEHIND", FieldKind::Enumeration } },
-              true },
-            { "DATE_TIME_ROLE", {}, { Text("name") }, true },
-            { "DATE_AND_TIME_ASSIGNMENT", {}, { Ref("assigned_date_and_time", "DATE_AND_TIME"), Ref("role", "DATE_TIME_ROLE") } },
-            { "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT", { "DATE_AND_TIME_ASSIGNMENT" }, { Set("items", "DATE_TIME_ITEM") }, true },
         }
     );
+    AddDateTimeDeclarations(catalog, ProfileKind::Ap203e2GeneralSource);
     catalog.referenceSelects.insert(
         catalog.referenceSelects.end(),
         { { "APPROVED_ITEM", Approved },
           { "PERSON_ORGANIZATION_SELECT", PersonOrganization },
           { "DATE_TIME_SELECT", DateTime },
-          { "DATE_TIME_ITEM", DateItems },
           { "CC_CLASSIFIED_ITEM", Classified },
           { "CC_PERSON_ORGANIZATION_ITEM", PersonItems },
           { "LAYERED_ITEM", Layered } }
     );
-    catalog.enumerations.push_back({ "AHEAD_OR_BEHIND", AheadBehind });
     catalog.complexSignatures.push_back(ConversionAngle);
     catalog.complexSignatures.push_back(ShapeRelationship);
     for (auto& declaration : catalog.declarations)

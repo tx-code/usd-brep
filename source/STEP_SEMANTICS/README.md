@@ -1,5 +1,33 @@
 # STEP source semantics: ticket 03
 
+The AP214e3 source subset also retains applied date/time assignments and the
+rendering/transparency style chain from fixed `AP214E3_2010.exp` (71ab140f...).
+Date transport declarations are shared with the compared N2635 fields, while
+each protocol keeps its own assignment subtype and admitted SELECT branches.
+Calendar values, clock fields and zone markers stay as written: calendar/time
+WHERE predicates, date range TYPE predicates and UTC/epoch conversion are not
+implemented or claimed. Date assignments must target already owned part content;
+an inverse link cannot give an unattached property or shape a geometry root.
+
+Rendering enums/references/cardinalities are checked, together with
+`SURFACE_STYLE_TRANSPARENT.WR1` and the distinct-property-TYPEOF requirement in
+`SURFACE_STYLE_RENDERING_WITH_PROPERTIES.WR1`. The rendering method is required.
+Strict mode rejects `$`; explicit interoperability may retain that original
+error only on a proven selected-body presentation, outside physical dependencies.
+It does not choose a display method or change geometry. Invalid other enum
+values, missing colour references and unattached missing methods remain failures.
+
+Two additional property-only unit spellings can be retained diagnostically under
+the same explicit policy: a well-typed explicit dimensions reference where an
+AP214 mass conversion unit requires `*`, and `SI_UNIT.WR1` for non-KILO GRAM used
+in a derived unit. Original references/prefixes and strict errors remain intact.
+Complete property-item dependency and physical-closure checks precede approval:
+sharing such a unit/factor with the body or its unit context rejects the import.
+These are nonconforming source metadata, not clean units or repaired quantities.
+Unit cycles, wrong reference types, nonmass marker errors and dimensional
+contradictions remain fatal. Existing MRI value/unit errors keep their own
+original diagnostics and independent ownership checks.
+
 An explicit `GeometryScope::GeneralBrep` request also selects the separate
 `203e2-G0-Source-0.1` subset for the exact N2635 name/OID. The default P0 catalog,
 rule admission and six-signature contract stay unchanged. G0 shares the audited

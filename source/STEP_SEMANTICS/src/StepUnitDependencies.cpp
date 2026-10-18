@@ -180,6 +180,24 @@ private:
         Expects(m_index[record] != NoUnit);
         return m_index[record];
     }
+    void PreservePending(Stop&& stop, std::size_t record, const BoundAttribute& field)
+    {
+        // Provisional only: the outer checker still has to prove property
+        // attachment and exclude the body's entire physical unit closure.
+        if (m_data.pendingIssues.size() >= m_data.preservedDiagnosticLimit)
+        {
+            Fail(
+                Status::ResourceLimit,
+                record,
+                field,
+                "PreservedDiagnosticLimit",
+                "configured preserved diagnostic capacity",
+                std::to_string(m_data.pendingIssues.size() + 1),
+                "explicit interoperability capacity; no diagnostics silently discarded"
+            );
+        }
+        m_data.pendingIssues.push_back({ stop.failure.status, std::move(stop.failure.diagnostic) });
+    }
     std::string Nominal(std::size_t r) const
     {
         if (IsA(r, "DERIVED_UNIT"))
@@ -372,7 +390,24 @@ private:
                     Count(prefix.declaration.value->span);
                     if (prefix.declaration.value->text != "KILO")
                     {
-                        Rule(r, prefix, "SI_UNIT.WR1");
+                        try
+                        {
+                            Rule(r, prefix, "SI_UNIT.WR1");
+                        }
+                        catch (Stop& stop)
+                        {
+                            // AP214 SI_UNIT.WR1 is a real source error when a
+                            // gram mass unit is used directly in a derived unit.
+                            // Its dimensions are already known (mass), so retain
+                            // the original prefix/error provisionally for a
+                            // nonphysical property; never change GRAM to KILO.
+                            if (m_data.profile.kind != ProfileKind::Ap214e3Source || m_data.policy != SourcePolicy::PreserveNonGeometric ||
+                                text != "GRAM")
+                            {
+                                throw;
+                            }
+                            PreservePending(std::move(stop), r, prefix);
+                        }
                     }
                 }
             }
@@ -565,19 +600,7 @@ private:
                 // This is only a deferred source error. The outer checker must
                 // still prove that the MRI belongs to an attached property and
                 // is not a body/physical-unit dependency before any publication.
-                if (m_data.pendingIssues.size() >= m_data.preservedDiagnosticLimit)
-                {
-                    Fail(
-                        Status::ResourceLimit,
-                        r,
-                        Field(r, "value_component"),
-                        "PreservedDiagnosticLimit",
-                        "configured preserved diagnostic capacity",
-                        std::to_string(m_data.pendingIssues.size() + 1),
-                        "explicit interoperability capacity; no diagnostics silently discarded"
-                    );
-                }
-                m_data.pendingIssues.push_back({ stop.failure.status, std::move(stop.failure.diagnostic) });
+                PreservePending(std::move(stop), r, Field(r, "value_component"));
             }
         }
     }

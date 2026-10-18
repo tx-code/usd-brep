@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.20)
 project(STEP_SEMANTICS LANGUAGES CXX)
 enable_testing()
 add_subdirectory(../STEP_SOURCE source-reader)
-add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepAp203GeneralCatalog.cpp src/StepSemantics.cpp src/StepSemanticJson.cpp src/StepSchemaSelection.cpp
+add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepAp203GeneralCatalog.cpp src/StepDateTimeCatalog.cpp src/StepAp214PresentationCatalog.cpp src/StepSemantics.cpp src/StepSemanticJson.cpp src/StepSchemaSelection.cpp
     src/StepGeometryDependencies.cpp src/StepSourceNumber.cpp src/StepUnitDependencies.cpp src/StepUnitRational.cpp)
 target_include_directories(STEP_SEMANTICS PUBLIC inc PRIVATE src)
 target_compile_features(STEP_SEMANTICS PUBLIC cxx_std_20)

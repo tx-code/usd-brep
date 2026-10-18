@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 97,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 108,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -677,6 +677,80 @@ int main(int argc, char** argv)
                 owned.Value().text == "COUNT_MEASURE" && owned.Value().children[0].kind == step_source::ValueKind::Integer &&
                     owned.Value().children[0].text == "0",
                 "general owning field lost its NUMBER source value"
+            );
+            ++groups;
+        }
+        {
+            auto metadataText = Read(corpus / "S203-P04/input.step");
+            const std::string original = "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}";
+            metadataText.replace(metadataText.find(original), original.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+            metadataText.insert(
+                metadataText.rfind("ENDSEC;"),
+                "#940=DATE_TIME_ROLE('creation');\n"
+                "#941=APPLIED_DATE_AND_TIME_ASSIGNMENT(#942,#940,(#7));\n"
+                "#942=DATE_AND_TIME(#943,#944);\n"
+                "#943=CALENDAR_DATE(+2024,29,2);\n"
+                "#944=LOCAL_TIME(12,30,+17.000E+0,#945);\n"
+                "#945=COORDINATED_UNIVERSAL_TIME_OFFSET(0,$,.BEHIND.);\n"
+                "#950=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('display',(#951),#12);\n"
+                "#951=STYLED_ITEM('style',(#952),#21);\n"
+                "#952=PRESENTATION_STYLE_ASSIGNMENT((#953));\n"
+                "#953=SURFACE_STYLE_USAGE(.BOTH.,#954);\n"
+                "#954=SURFACE_SIDE_STYLE('surface',(#955));\n"
+                "#955=SURFACE_STYLE_RENDERING_WITH_PROPERTIES($,#957,(#956));\n"
+                "#956=SURFACE_STYLE_TRANSPARENT(+0.000E+0);\n"
+                "#957=COLOUR_RGB('RGB',0.2,0.4,0.6);\n"
+            );
+            auto input = step_source::InspectBytes(metadataText, step_source::Limits::PlanarFixtures());
+            auto checked = Check(input, Limits{}, SourcePolicy::PreserveNonGeometric);
+            Require(checked.status == Status::CheckedWithDiagnostics && checked.snapshot, "AP214 explicit metadata policy");
+            auto method = checked.snapshot->Field(Index(*checked.snapshot, "955"), "rendering_method");
+            auto seconds = checked.snapshot->Field(Index(*checked.snapshot, "944"), "second_component");
+            Require(&method.Value() == &input.source->Find("955")->components[0].parameters[0], "missing method source identity");
+            Require(
+                checked.snapshot->PreservedDiagnostics().size() == 1 && method.Value().kind == step_source::ValueKind::Unset,
+                "missing rendering method must not receive an implicit value"
+            );
+            Require(checked.snapshot->IsA(Index(*checked.snapshot, "941"), "DATE_AND_TIME_ASSIGNMENT"), "applied date parent identity");
+            input = {};
+            checked = {};
+            Require(
+                method.Value().kind == step_source::ValueKind::Unset && seconds.Value().text == "+17.000E+0",
+                "metadata fields retain owning source after outcome release"
+            );
+            ++groups;
+        }
+        {
+            auto massMetadataText = Read(corpus / "S203-P01/input.step");
+            massMetadataText.replace(massMetadataText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+            massMetadataText.insert(
+                massMetadataText.rfind("ENDSEC;"),
+                "#970=(CONVERSION_BASED_UNIT('gram',#976) MASS_UNIT() NAMED_UNIT(#975));\n"
+                "#975=DIMENSIONAL_EXPONENTS(0.,1.,0.,0.,0.,0.,0.);\n"
+                "#976=MASS_MEASURE_WITH_UNIT(MASS_MEASURE(0.001),#977);\n"
+                "#977=(MASS_UNIT() NAMED_UNIT(*) SI_UNIT(.KILO.,.GRAM.));\n"
+                "#978=DERIVED_UNIT((#979,#980));\n"
+                "#979=DERIVED_UNIT_ELEMENT(#970,1.);\n"
+                "#980=DERIVED_UNIT_ELEMENT(#10,-3.);\n"
+                "#981=MEASURE_REPRESENTATION_ITEM('density',POSITIVE_RATIO_MEASURE(1.),#978);\n"
+                "#982=PROPERTY_DEFINITION('density',$,#7);\n"
+                "#983=PROPERTY_DEFINITION_REPRESENTATION(#982,#984);\n"
+                "#984=REPRESENTATION('density',(#981),#12);\n"
+            );
+            auto input = step_source::InspectBytes(massMetadataText, step_source::Limits::PlanarFixtures());
+            auto checked = Check(input, Limits{}, SourcePolicy::PreserveNonGeometric);
+            Require(checked.status == Status::CheckedWithDiagnostics && checked.snapshot, "property-only source mass spelling");
+            auto reference = checked.snapshot->Field(Index(*checked.snapshot, "970"), "dimensions");
+            const auto target = Index(*checked.snapshot, "975");
+            Require(
+                reference.Value().kind == step_source::ValueKind::Reference && reference.ReferenceTarget() == target,
+                "diagnosed mass dimensions reference must stay bound, not replaced by '*'"
+            );
+            input = {};
+            checked = {};
+            Require(
+                reference.Value().text == "975" && reference.ReferenceTarget() == target,
+                "diagnosed original reference retains owning source after outcome release"
             );
             ++groups;
         }

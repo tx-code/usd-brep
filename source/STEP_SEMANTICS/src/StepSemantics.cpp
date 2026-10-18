@@ -3,6 +3,7 @@
 #include "StepCatalog.h"
 #include "StepGeometryDependencies.h"
 #include "StepSchemaSelection.h"
+#include "StepSourceNumber.h"
 #include "StepUnitDependencies.h"
 
 #include <algorithm>
@@ -207,7 +208,7 @@ public:
         for (const auto& diagnostic : m_data->preservedDiagnostics)
         {
             const auto& key = diagnostic.source.key;
-            if (key == "RequiredAttributeMissing" || key == "ReferenceTypeMismatch")
+            if (key == "RequiredAttributeMissing" || key == "ReferenceTypeMismatch" || key == "DerivedSlotMarkerRequired")
             {
                 m_outcome.types = "CheckedWithDiagnostics";
             }
@@ -328,6 +329,7 @@ private:
     }
     std::vector<std::vector<std::size_t>> m_outgoing;
     std::vector<unsigned char> m_administrativeAttachments;
+    std::vector<std::size_t> m_presentationRoots;
     std::size_t m_context = 0;
     std::size_t m_representation = 0;
 
@@ -393,8 +395,8 @@ private:
         // STYLED_ITEM is deliberately absent: it references a geometric RI and
         // must still pass the existing selected-body attachment proof.
         constexpr std::string_view names[] = {
-            "PRESENTATION_STYLE_ASSIGNMENT", "SURFACE_STYLE_USAGE", "SURFACE_SIDE_STYLE", "SURFACE_STYLE_FILL_AREA", "FILL_AREA_STYLE",
-            "FILL_AREA_STYLE_COLOUR",        "COLOUR_RGB"
+            "PRESENTATION_STYLE_ASSIGNMENT", "SURFACE_STYLE_USAGE", "SURFACE_SIDE_STYLE",      "SURFACE_STYLE_FILL_AREA",  "FILL_AREA_STYLE",
+            "FILL_AREA_STYLE_COLOUR",        "COLOUR_RGB",          "SURFACE_STYLE_RENDERING", "SURFACE_STYLE_TRANSPARENT"
         };
         return std::any_of(
             std::begin(names),
@@ -1003,19 +1005,38 @@ private:
                     {
                         if (value.kind != ValueKind::Derived)
                         {
-                            Fail(
-                                "DerivedSlotMarkerRequired",
-                                "D1",
-                                "Redeclared explicit slot must contain '*'",
-                                value.span,
-                                Status::Rejected,
-                                r,
-                                c,
-                                path,
-                                "*",
-                                std::string(m_data->source->Raw(value.span)),
-                                "explicit-to-derived redeclaration"
-                            );
+                            try
+                            {
+                                Fail(
+                                    "DerivedSlotMarkerRequired",
+                                    "D1",
+                                    "Redeclared explicit slot must contain '*'",
+                                    value.span,
+                                    Status::Rejected,
+                                    r,
+                                    c,
+                                    path,
+                                    "*",
+                                    std::string(m_data->source->Raw(value.span)),
+                                    "explicit-to-derived redeclaration"
+                                );
+                            }
+                            catch (Failure& failure)
+                            {
+                                // AP214's CBU dimensions are DERIVE, so an explicit
+                                // mass-dimensions reference remains a source error.
+                                // Retain only this well-typed metadata spelling;
+                                // final approval must prove property ownership and
+                                // absence from every physical dependency. Never
+                                // rewrite it to '*' or use it as a derived value.
+                                if (!Interoperability() || m_data->profile.kind != ProfileKind::Ap214e3Source || field.name != "dimensions" ||
+                                    value.kind != ValueKind::Reference || !IsA(*m_data, r, "CONVERSION_BASED_UNIT") || !IsA(*m_data, r, "MASS_UNIT"))
+                                {
+                                    throw;
+                                }
+                                Scalar(value, FieldKind::Reference, field, r, c, path);
+                                Preserve(std::move(failure));
+                            }
                         }
                         continue;
                     }
@@ -1043,11 +1064,15 @@ private:
                         }
                         catch (Failure& failure)
                         {
-                            // Only RI/REP labels are nondefining. Keep '$' in the
-                            // original Value; axes, points, references and units
-                            // never acquire a default through this policy.
-                            if (!Interoperability() || field.name != "name" || field.kind != FieldKind::String ||
-                                (!IsA(*m_data, r, "REPRESENTATION_ITEM") && !IsA(*m_data, r, "REPRESENTATION") && !NonGeometricStyle(r)))
+                            const bool label = field.name == "name" && field.kind == FieldKind::String &&
+                                               (IsA(*m_data, r, "REPRESENTATION_ITEM") || IsA(*m_data, r, "REPRESENTATION") || NonGeometricStyle(r));
+                            const bool rendering = field.name == "rendering_method" && field.kind == FieldKind::Enumeration &&
+                                                   IsA(*m_data, r, "SURFACE_STYLE_RENDERING");
+                            // Preserve only the original missing label or rendering
+                            // method. The latter still needs a selected-presentation
+                            // and nonphysical-use proof before publication. No enum,
+                            // axis, reference, unit or other value is invented.
+                            if (!Interoperability() || (!label && !rendering))
                             {
                                 throw;
                             }
@@ -1747,11 +1772,13 @@ private:
             // Retain the presentation's own context and complete style chain through
             // source references. Its context never replaces the body's unit context.
             m_data->part.roles.push_back({ "presentation_" + std::to_string(i), presentation });
+            m_presentationRoots.push_back(presentation);
         }
     }
-    void AttachAp203Management()
+    void AttachAdministrativeMetadata()
     {
-        // N2635 inverse administrative associations are not geometry roots. Admit
+        // N2635 CC assignments / AP214E3_2010.exp applied date assignments are
+        // inverse administrative associations, not geometry roots. Admit
         // a root only when ALL of its target items are already owned by this
         // selected part. Fixed-point expansion handles approval/security links
         // without allowing an administrative cycle to invent its own ownership.
@@ -1762,12 +1789,21 @@ private:
                                  "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
                                  "APPROVAL_PERSON_ORGANIZATION",
                                  "APPROVAL_DATE_TIME",
-                                 "PRESENTATION_LAYER_ASSIGNMENT" })
+                                 "PRESENTATION_LAYER_ASSIGNMENT",
+                                 "APPLIED_DATE_AND_TIME_ASSIGNMENT" })
         {
+            if (!Schema(*m_data).Find(name))
+            {
+                continue; // Only declarations in this protocol's catalog participate.
+            }
             for (const auto r : Population(name))
             {
                 candidates.push_back(r);
             }
+        }
+        if (m_data->profile.kind == ProfileKind::Ap214e3Source && candidates.empty())
+        {
+            return; // Existing AP214 files pay no visits for an absent new feature.
         }
         m_administrativeAttachments.assign(m_data->types.size(), 0);
         bool changed = true;
@@ -1831,6 +1867,58 @@ private:
         }
     }
 
+    void CheckAp214RenderingValues()
+    {
+        // AP214E3_2010.exp source predicates. Compare exact source REALs, not
+        // floating approximations. These checks neither interpret a display
+        // method nor grant a geometry/presentation ownership root.
+        for (const auto record : Population("SURFACE_STYLE_TRANSPARENT"))
+        {
+            const auto& value = FieldValue(record, "transparency");
+            Visit(value.span);
+            if (CompareSourceReals(value.text, "0.") < 0 || CompareSourceReals(value.text, "1.") > 0)
+            {
+                FieldFailure(
+                    "SourceRuleViolation:SURFACE_STYLE_TRANSPARENT.WR1",
+                    "D3",
+                    "Transparency is outside the declared source range",
+                    value.span,
+                    Status::Rejected,
+                    record,
+                    "transparency",
+                    FieldDetail::AttributePath,
+                    "0 <= value <= 1",
+                    value.text,
+                    "AP214E3_2010.exp SURFACE_STYLE_TRANSPARENT.WR1"
+                );
+            }
+        }
+        for (const auto record : Population("SURFACE_STYLE_RENDERING_WITH_PROPERTIES"))
+        {
+            const auto& properties = FieldValue(record, "properties");
+            Visit(properties.span);
+            // The SET cardinality/type checks have already run. WR1 additionally
+            // forbids two separate records of the same TYPEOF set. Identical
+            // value content is not a substitute for this nominal rule.
+            if (properties.children.size() == 2 && m_data->types[Target(properties.children[0])] == m_data->types[Target(properties.children[1])])
+            {
+                FieldFailure(
+                    "SourceRuleViolation:SURFACE_STYLE_RENDERING_WITH_PROPERTIES.WR1",
+                    "D3",
+                    "Rendering properties have the same source type",
+                    properties.span,
+                    Status::Rejected,
+                    record,
+                    "properties",
+                    FieldDetail::AttributePath,
+                    "distinct TYPEOF sets",
+                    "same TYPEOF set",
+                    "AP214E3_2010.exp SURFACE_STYLE_RENDERING_WITH_PROPERTIES.WR1"
+                );
+            }
+        }
+    }
+
     void Closure()
     {
         m_outgoing.resize(m_data->types.size());
@@ -1844,9 +1932,13 @@ private:
             AttachAp214Properties();
             AttachAp214Presentations();
         }
-        if (m_data->profile.kind == ProfileKind::Ap203e2GeneralSource)
+        if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
-            AttachAp203Management();
+            AttachAdministrativeMetadata();
+        }
+        if (m_data->profile.kind == ProfileKind::Ap214e3Source)
+        {
+            CheckAp214RenderingValues();
         }
         std::vector<std::size_t> seeds;
         for (const auto& role : m_data->part.roles)
@@ -1981,6 +2073,9 @@ private:
         // it is an actual metadata item and is absent from body geometry and
         // physical-unit dependencies (including conversion-factor references).
         const auto physical = Reach({ m_representation, m_context }, false);
+        std::optional<std::vector<unsigned char>> presentationUse;
+        std::optional<std::vector<unsigned char>> propertyUse;
+        std::vector<std::size_t> propertyItems;
         std::vector<unsigned char> metadata(m_data->types.size());
         for (const auto& attachment : m_data->part.propertyAttachments)
         {
@@ -1988,6 +2083,7 @@ private:
             {
                 Visit(value.span);
                 metadata[Target(value)] = 1;
+                propertyItems.push_back(Target(value));
             }
         }
         if (m_data->pendingIssues.size() > m_outcome.limits.preservedDiagnostics)
@@ -2005,6 +2101,40 @@ private:
             Visit(issue.diagnostic.source.primary);
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (key == "DerivedSlotMarkerRequired" || key == "SourceRuleViolation:SI_UNIT.WR1")
+            {
+                // Only proven property-item dependencies can retain these two
+                // source unit errors. The full outgoing physical closure is an
+                // independent exclusion: sharing even one bad factor with the
+                // body's units makes the original error fatal. Derived source
+                // dimensions remain diagnostic observations, not clean units.
+                if (!propertyUse)
+                {
+                    propertyUse = Reach(propertyItems, false);
+                }
+                if (!(*propertyUse)[record] || physical[record])
+                {
+                    State(key == "DerivedSlotMarkerRequired" ? Phase::Types : Phase::UnitDependencies) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+            }
+            if (key == "RequiredAttributeMissing" && issue.diagnostic.field == "rendering_method")
+            {
+                // Unlike a nondefining RI label, a missing rendering method is
+                // preserved only on a proven selected-part presentation chain.
+                // Unattached style residue or a physical dependency cannot use it.
+                if (!presentationUse)
+                {
+                    presentationUse = Reach(m_presentationRoots, false);
+                }
+                if (!IsA(*m_data, record, "SURFACE_STYLE_RENDERING") || !(*presentationUse)[record] || physical[record])
+                {
+                    State(Phase::Types) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+            }
             if (key == "ReferenceTypeMismatch")
             {
                 const auto target = IndexOf(*m_data, issue.diagnostic.source.targetId);

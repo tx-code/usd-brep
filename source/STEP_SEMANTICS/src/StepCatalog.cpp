@@ -3,6 +3,8 @@
 #include "StepCatalog.h"
 
 #include "StepAp203GeneralCatalog.h"
+#include "StepAp214PresentationCatalog.h"
+#include "StepDateTimeCatalog.h"
 
 #include <algorithm>
 #include <functional>
@@ -513,6 +515,11 @@ Catalog::Catalog(ProfileKind profile)
     if (profile == ProfileKind::Ap203e2GeneralSource)
     {
         AddAp203GeneralDeclarations(*this);
+    }
+    if (profile == ProfileKind::Ap214e3Source)
+    {
+        AddDateTimeDeclarations(*this, profile);
+        AddAp214RenderingDeclarations(*this);
     }
     if (declarations.size() > TypeMembership{}.size())
     {
