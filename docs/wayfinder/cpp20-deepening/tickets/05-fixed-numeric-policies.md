@@ -23,3 +23,6 @@ assignee: null
 ## Context
 
 固定 Quality 工厂、受限 Rational 及单位解释的初步入口见[初步代码线索](../initial-scan.md)。
+
+[代码基线](../evidence/code-baseline.md)已确认 Rational 默认值/getter 可常量求值，
+非零构造在本机被拒绝，并记录固定 Quality 与动态请求的消费者和诊断边界。

@@ -9,7 +9,7 @@ assignee: null
 ## Question
 
 SmTArray 等模板及内部指针/数量接口中，哪些实际前提能用 concepts、traits、requires、固定 extent 或 static_assert 准确表达？
-约束应放在存储本体、特定算法还是调用 seam，才能拒绝错误用法而不误拒合法的历史实例？
+约束应放在存储本体、特定算法还是调用 seam，才能拒绝错误用法，并准确识别需要迁移的历史实例？
 
 先核实类型的构造、复制、清零、析构和比较要求。语法表达式可调用不等于语义安全；
 不得用“无虚函数”或泛泛的 trivially-copyable 限制替代真实对象生命周期审计。
@@ -23,3 +23,7 @@ SmTArray 等模板及内部指针/数量接口中，哪些实际前提能用 con
 ## Context
 
 [初步代码线索](../initial-scan.md)。本票先定约束位置和可证明的范围，不授权全面替换容器或改变 BRep 所有权合同。
+
+[代码基线](../evidence/code-baseline.md)已定位真实的按值嵌套数组和存储辅助器；
+类型探针也确认非多态并不等于 trivially-copyable。用户允许破坏性改动，
+可以讨论有构造语义的存储替换；不能仅用过强 trait 将需要迁移的旧实例统称为不合法。

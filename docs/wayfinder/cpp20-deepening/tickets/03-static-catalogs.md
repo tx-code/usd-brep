@@ -22,3 +22,7 @@ STEP schema、规则、协议身份以及其他被证据基线识别出的固定
 ## Context
 
 已有 `StepRuleCatalog.h` 的编译期登记校验，待调查 `StepCatalog.cpp` 的运行期固定目录构造；见[初步代码线索](../initial-scan.md)。
+
+[代码基线](../evidence/code-baseline.md)已确认各 profile 的目录按首次访问缓存。
+本机编译观察区分了临时 vector 计算、最终持久存储和 bitset 修改；不能将当前 Catalog 整体原样标为 constexpr。
+固定状态/协议登记也有具体线索，但是否与 schema 目录一同推进仍待本票取舍。

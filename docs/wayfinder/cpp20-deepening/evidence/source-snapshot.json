@@ -1,0 +1,203 @@
+{
+  "scan_started_at_commit": "5249915",
+  "head_when_fingerprinted": "f92934adae02984ec3564dc48044991b99542f6b",
+  "date": "2026-10-18",
+  "scope_note": "Directly inspected source identities; not a full transitive-header, platform, or macro-configuration closure.",
+  "files": [
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "49fd03b57a9191ccf17472bfa8c00f7b826d41e029cefaa5668b472cbbaf9173",
+      "working_tree_changed": true
+    },
+    {
+      "path": "source/SMLib/inc/SmTArray.h",
+      "sha256": "129f846f6b00f80a9a425f849094a39568f3668507ea2585de86909dfc47910b",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmObject.h",
+      "sha256": "0d92667bb6bd071b8a60ae5ca5750bad34e5e8187abb8044b675800f9deeecb8",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmVector3d.h",
+      "sha256": "9118aa5329d4bb89de849bf00edd0d4af22b8edda7360c0f28ee37898ca37da1",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmBucketSort.h",
+      "sha256": "478dcc458e8857324d17fabafe5e8aceac63692e93cf106eb57bc7d32d070766",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmFilletExecutive.h",
+      "sha256": "0f919f96da4d3b400734d3971dddd49535365da7451a61e346772572fb8de632",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmMapPtrToPtr.h",
+      "sha256": "91588cc6a12f94e3b6afdd29f9bad70021892caf7c3e59c0145de0d61387bec3",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmCoreTypes.h",
+      "sha256": "bdefa75ef66caddf624d09f2e279e386e5c58db0f2becbace56f6569c3889f86",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmTopoTypes.h",
+      "sha256": "19da29aff9511d3dba3089911945867a2e6a299377e4b46b83733d6ac32c2556",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/inc/SmMessages.h",
+      "sha256": "f5ff614fa94e265abe73b2f3a6a195f84bd499b39ab06381f673498542896b0c",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/src/SmBrep.cpp",
+      "sha256": "8604f2d523a1450484ff4cb1c920893d5612f0931694d5af46b4f0a48556d327",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/src/SmCurveClass.cpp",
+      "sha256": "754a5bccc15fada9928e0677bd05f35dbc2343be244e5bfb76d43e6c3d809c61",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SMLib/src/SmTopologyIntersector.cpp",
+      "sha256": "7142295e1707b944e25a27700e489a8a63cc58ef99206600f71eac9de37c9086",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SM_API/src/SmApiGeneral.cpp",
+      "sha256": "c38ad08120c06c01ae891cd084545de8b8f389dbba6a970c12c10aff1da059b7",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SM_API/inc/SmApiBrep.h",
+      "sha256": "ca08db54ad2211c4c98eb229bb875573e799fe731b9226288737181705fb4296",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SM_API/inc/SmApiCurves.h",
+      "sha256": "0dfd139e35adcc01324668b7377f70dadc5e093dbfff1ac12c43842db46a6b27",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SM_API/inc/SmApiSurfaces.h",
+      "sha256": "09b657cfef07158dd00dbbece14baa961ea9cca24facde1be1b3be4883252a45",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SM_API/inc/SmApiPrimitives.h",
+      "sha256": "97dfdbc9c4922ffb102015560d9c6a8018b9d8d6656d9e7504b2202609d9c22d",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SM_API/inc/SmApiTessellationParams.h",
+      "sha256": "9b54534c909d3ef51292ac04700bb0fedde6bcb1812719f345a9940a7a120fea",
+      "working_tree_changed": true
+    },
+    {
+      "path": "source/SmPyLib/src/SmPyCommon.h",
+      "sha256": "ba904b3404b0bbae46a1ab33df01ba9a4a9f75e023b2dda1b6b36005c86e698d",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SmPyLib/src/SmPyError.cpp",
+      "sha256": "0aee21d7ca6062f9d53fa2a451ba2a4807a74dc5e8f9dad2eb46c85297836e19",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SmPyLib/src/SmPySweeps.cpp",
+      "sha256": "47f1147a850ff8ea18c40ae5295073391657c98851367f0f37050a498405f9b3",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SmPyLib/src/SmPyPrimitives.cpp",
+      "sha256": "05296338803b0a69580f7f6b9cf3705b764109504c2debab56e0e32f2cb8b489",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SmPyLib/tests/test_omni_solid.py",
+      "sha256": "6d3331603d202f37ac5f07f421b428c1ffac9073ae8f0c3eba58fe1ce9a2432f",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/SmPyDevLib/src/SmPyDevMain.cpp",
+      "sha256": "b80ba652f61c0978c51a0a9fee3e9fe6f952712c0173d76058febf6182a9a9e8",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SEMANTICS/src/StepCatalog.h",
+      "sha256": "912a3af9feef0babc5f501a1b2bfab160a6c5d58e6bbde1c051d117f0eac1c5c",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SEMANTICS/src/StepCatalog.cpp",
+      "sha256": "8f42227ede3e0e4fe615c5a788fa563dd68c4a61a831aa1900b314d290c6666a",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SEMANTICS/src/StepSchemaSelection.cpp",
+      "sha256": "3e6696a982d5a84748b4cd8eb7b4c396c73a1c98b8e2593ddd098325531ed6ee",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SEMANTICS/src/StepUnitRational.h",
+      "sha256": "d3a27f4712a5bf7001e7b1db1b82a768b695e3c7dc53fc6b262d9fb743a16361",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SEMANTICS/src/StepUnitRational.cpp",
+      "sha256": "510ff006ee6bc7b49bdbf3b0afc566b09529e9e2fbaaeaa4201ee09ec965b136",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SEMANTICS/tests/StepSemanticsTests.cpp",
+      "sha256": "3b4fce2e677d6d4d6d0cc637289cd79dbdc8fdcd7a986d5fc757ec17998905c2",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_PLANAR/inc/StepPlanar.h",
+      "sha256": "e88ef36221ed60b2807c865ba6dd47cd61209cd27081ca2ac4387b1996090ec6",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_PLANAR/src/StepExact.cpp",
+      "sha256": "bc222226144bf1c3e7ac70247965db1438d0a18141c56dcac87062695645fef7",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_PLANAR/src/StepRuleCatalog.h",
+      "sha256": "4e00b8ce0489dd38ad05f449d891c81424372761adfdc3ef8cabb152af28b1c1",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_PLANAR/tests/StepPlanarTests.cpp",
+      "sha256": "d9b2491f7d55f39e81b67d5b17b01ebee20b708288b67009db7c925df31fd036",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_SOURCE/tests/StepSourceTests.cpp",
+      "sha256": "ea4d3f906a629cf4b8dd4ef6d161def79b4eb436209a91caa844d51ced8e4187",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_IMPORT/inc/StepImport.h",
+      "sha256": "a35ddd4316ef74ddb13ab00fc90f7c551c13152f9498f5606dfcea8838eb49be",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_IMPORT/src/StepImport.cpp",
+      "sha256": "0ca8fb364536ae5c4c04d95a6b5823eae8cbc47f2eedc332b6088d4c187b948f",
+      "working_tree_changed": false
+    },
+    {
+      "path": "source/STEP_IMPORT/tests/StepImportLifecycleTests.cpp",
+      "sha256": "d6ecf55c953d7dcb447187d0656e96414ef36824f87e0edb40b0ec95d20f94e8",
+      "working_tree_changed": false
+    }
+  ]
+}

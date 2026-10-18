@@ -30,6 +30,7 @@ state: open
 ## Decisions so far
 
 - [编译期深化应采用什么收益与兼容性门槛](tickets/01-priorities-and-compatibility.md)：允许破坏性改动；编译期保障优先，以实测控制构建成本。
+- [建立已有编译期保障与候选点的代码基线](tickets/02-code-evidence-baseline.md)：已记录固定目录、存储契约等候选及 9 项本机编译观察，具体迁移方案待讨论。
 
 ## Not yet specified
 
