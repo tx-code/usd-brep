@@ -9,25 +9,16 @@ This file provides guidance to AI coding agents when working with code in this r
 
 SMLib is a NURBS-based boundary representation (BRep) solid modeling kernel. It represents solids as collections of topological entities (shells, faces, edges, vertices) bound to exact geometric definitions (NURBS surfaces, B-spline curves, analytic primitives). Geometry is mathematically exact and resolution-independent, unlike polygon meshes.
 
-The library is layered: a low-level C++ kernel (`SMLib`), a stable C-style C++ wrapper (`SM_API`), a USD integration layer (`SM_API_USD`), and Python bindings (`SmPyLib` / `_omni_solid`).
+The library is layered: a low-level C++ kernel (`SMLib`), a stable C-style C++ wrapper (`SM_API`), native STEP import (`STEP_SOURCE` → `STEP_SEMANTICS` → `STEP_PLANAR` → `STEP_IMPORT`), and Python bindings (`SmPyLib` / `_omni_solid`).
 
 <a name="build--test-commands"></a>
 
 ## Build and Test Commands
 
-```shell
-# Build (Linux; run from the repository root)
-./prebuild.sh
-./repo.sh build
-
-# Run tests
-./repo.sh test
-
-# Format code
-./repo.sh format
-```
-
-See the [build instructions](README.md#build-it) for prerequisites and Windows/macOS commands.
+Use the default CMake build for the geometry SDK and explicitly enable development
+or validation targets. Commands and prerequisites: [README.md](README.md#build-it).
+Build flags and kernel layout macros must match in all consumers. The default
+build has no USD or TBB dependency; the Python package retains its historical name.
 
 ## Code Style
 
@@ -57,9 +48,7 @@ See the [build instructions](README.md#build-it) for prerequisites and Windows/m
 
 1. **`SMLib`** (`source/SMLib/`) — core C++ kernel. Owns all geometry/topology classes (`SmBrep`, `SmFace`, `SmEdge`, `SmSurface`, `SmBSplineCurve`, …) and the algorithms. Memory is managed by an internal `SmContext`.
 2. **`SM_API`** (`source/SM_API/`) — high-level C-style C++ API. Functions follow `SmApi*` naming. Primary surface for booleans, sweeps, fillets, tessellation, etc.
-3. **`SM_API_USD`** (`source/SM_API_USD/`) — USD import/export. BRep data is stored as a custom `BrepArray` schema alongside standard USD prims.
-4. **`BREP_SM_USD` / `BREP_USD_DATA`** — internal libraries doing the BRep ↔ USD data conversion.
-5. **`SmPyLib`** (`source/SmPyLib/`, module `_omni_solid`) — pybind11 bindings exposing `SM_API` and `SM_API_USD` to Python, plus tessellation to `PolyBrep` and polygon-mesh booleans.
+3. **`SmPyLib`** (`source/SmPyLib/`, module `_omni_solid`) — pybind11 bindings exposing `SM_API` to Python, plus tessellation to `PolyBrep` and polygon-mesh booleans.
 
 ### Key Concepts
 
@@ -103,8 +92,6 @@ result = sm.boolean_difference(box.copy(), sph.copy())
 
 mesh = sm.tessellate(box, chord_height_tolerance=0.0, curve_angle_tolerance_deg=25.0, surface_angle_tolerance_deg=25.0)
 
-sm.usd.export_brep(box, "out.usda")
-
 # Quick introspection (one-call summary):
 print(box.info())  # {"faces": 6, "edges": 12, "vertices": 8, "manifold": True,
                    #  "volume": 1000.0, "bounds": ((0,0,0),(10,10,10)),
@@ -147,7 +134,7 @@ trimmed = box.copy()
 sm.cut(trimmed, (0, 0, 5), (0, 0, 1))            # trimmed truncated; box unchanged
 ```
 
-Conventions: points/vectors are 3-tuples; return values are opaque handles (`Brep`, `PolyBrep`, `Curve`, `Surface`, …); errors raise `RuntimeError`; USD lives in the `_omni_solid.usd` submodule.
+Conventions: points/vectors are 3-tuples; return values are opaque handles (`Brep`, `PolyBrep`, `Curve`, `Surface`, …); errors raise `RuntimeError`.
 
 **Developer API (`_smlib_dev`):** kernel-debugger workflows (loopuses, edgeuses, `topology_pick_ray`, `assert_valid`, `dump`, kernel `Draw()` extraction, `viewport_draw_*`, kernel-direct `user_test` / `user_test_example`, and a `tests` facade over `_smlib_tests`) live in a separate extension module. Import `import _smlib_dev as smdev` alongside `_omni_solid` for the Python GUI and SMLib-internal tooling; do not add these back to the stable `_omni_solid` surface.
 
@@ -181,32 +168,12 @@ When asked about a specific operation (e.g. booleans, fillets, tessellation), op
 
 When you (or the user) hit a `RuntimeError` from any `_omni_solid` binding, open **[.agents/docs/errors.md](.agents/docs/errors.md)** before grepping the source. It maps every `SM_ERR_*` code to typical causes and remedies, and explains how to read the `Kernel trace:` segment of the message.
 
-## End-to-End 3D Asset Generation
-
-For text-to-3D / image-to-3D / "build me a \<thing\> in 3D" requests, follow the canonical pipeline in **[.agents/docs/generate_asset.md](.agents/docs/generate_asset.md)**:
-
-```text
-SMLib (analytic primitives + NURBS surfaces, sweeps, booleans, fillets)
-  → sm.tessellate(brep) → PolyBrep
-  → PolyBrep.to_mesh_arrays() → dict: points, normals, faces, face_normals
-  → UsdGeom.Mesh prims (z-up, cm scale)
-```
-
-Hard rules:
-
-- **Do not round-trip through `BrepArray` USD prims** for asset authoring. Stay in-process via
-  `_omni_solid` and only emit `UsdGeom.Mesh` at the end. Round-tripping costs latency and collapses
-  per-entity effective tolerances to one per-BRep maximum.
-- Start from `tools/scripts/example_generate_asset.py` — it's a runnable reference; copy and adapt.
-
 ## Deeper Docs
 
 - **[.agents/docs/OVERVIEW.md](.agents/docs/OVERVIEW.md)** — long-form architecture overview (concepts, layout, full header map, common patterns).
-- **[.agents/skills/smlib-brep-model/references/brep-format.md](.agents/skills/smlib-brep-model/references/brep-format.md)** — canonical `SmBrep` runtime/`SmBrepData` structure, validity, validator coverage, special topology, and BrepArray translation contract.
-- **[.agents/docs/generate_asset.md](.agents/docs/generate_asset.md)** — full asset-generation playbook.
+- **[.agents/skills/smlib-brep-model/references/brep-format.md](.agents/skills/smlib-brep-model/references/brep-format.md)** — canonical `SmBrep` runtime/`SmBrepData` structure, validity, validator coverage, special topology, contract.
 - **[.agents/docs/errors.md](.agents/docs/errors.md)** — `RuntimeError` decoder: every `SM_ERR_*` code with typical causes and remedies; how to read the kernel trace.
 - **[.agents/operations/INDEX.md](.agents/operations/INDEX.md)** — operation router.
-- **[source/HYDRA_USD_BREP/README.md](source/HYDRA_USD_BREP/README.md)** — viewing BrepArrays in usdview: the launcher, requirements and display modes.
 - **[README.md](README.md)** — top-level repo usage.
 
 ## Agent Conventions in This Repo
@@ -224,20 +191,16 @@ Repo-local agent skills live under **`.agents/skills/`**:
 - **[smlib-python-api-maintain](.agents/skills/smlib-python-api-maintain/SKILL.md)** — stable `_omni_solid` bindings: pybind11, stubs, docstrings, mutation semantics, and binding tests.
 - **[smlib-python-dev-api-maintain](.agents/skills/smlib-python-dev-api-maintain/SKILL.md)** — debugger `_smlib_dev` bindings: loopuse/edgeuse topology, topology pick, Draw extraction, blend primitives, and `tests` facade.
 - **[smlib-sm-api-maintain](.agents/skills/smlib-sm-api-maintain/SKILL.md)** — high-level `SM_API` functions, public headers, wrapper status handling, context/ownership rules, and kernel entrypoints.
-- **[usd-brep-data-author](.agents/skills/usd-brep-data-author/SKILL.md)** — USD BrepArray data author: changing `source/BREP_USD_DATA`, codeless schema metadata, applied API schemas, `UsdBrepRead/Write/Utilities`, and direct Sdf authoring under `SdfChangeBlock`.
-- **[usd-brep-schema](.agents/skills/usd-brep-schema/SKILL.md)** — schema-first BrepArray questions, asset compliance checks, validator/implementation drift audits, and schema-driven reader/writer/translator tests.
-- **[smlib-brep-model](.agents/skills/smlib-brep-model/SKILL.md)** — source-backed SMLib `SmBrep` model questions, runtime validity and validator audits, topology code/tests, and SMLib/BrepArray translation.
-- **[usd-brep-occt-translation](.agents/skills/usd-brep-occt-translation/SKILL.md)** — OCCT `.brep` import/export workflow: exact geometry, parameter ranges, topology orientation, periodic seams, pcurves, tolerances, component preservation, and round-trip validation.
+- **[smlib-brep-model](.agents/skills/smlib-brep-model/SKILL.md)** — source-backed SMLib `SmBrep` model questions, runtime validity and validator audits, topology code/tests, and native data transfer.
 - **[smlib-kernel-operations](.agents/skills/smlib-kernel-operations/SKILL.md)** — diagnosing failed or incorrect geometry operations across `_omni_solid`, `SM_API`, and `source/SMLib`.
 - **[smlib-kernel-solvers](.agents/skills/smlib-kernel-solvers/SKILL.md)** — global/local solver traversal, convergence, subdivision, solution identity, tangency, and singularity internals.
-- **[smlib-kernel-tessellation](.agents/skills/smlib-kernel-tessellation/SKILL.md)** — tessellation workflow for `_omni_solid.tessellate`, `SmApiTessellate`, `SmBrep::ConvertToPolyBrep`, `SmTess`, `PolyBrep`, and USD mesh output.
+- **[smlib-kernel-tessellation](.agents/skills/smlib-kernel-tessellation/SKILL.md)** — tessellation workflow for `_omni_solid.tessellate`, `SmApiTessellate`, `SmBrep::ConvertToPolyBrep`, `SmTess`, `PolyBrep`, and native mesh output.
 - **[smlib-kernel-fillets](.agents/skills/smlib-kernel-fillets/SKILL.md)** — fillet workflow for fillets, chamfers, blends, edge/corner selection, radii, continuity, `SmFilletExecutive`, and solver/topology interactions.
 - **[smlib-kernel-healing](.agents/skills/smlib-kernel-healing/SKILL.md)** — BRep healer workflow for `_omni_solid.heal_brep`, `SmApiHealBrep`, `SmHealData` stages, property caches, problem lists, topology-change callbacks, seams, poles, and import healing.
 - **[smlib-kernel-booleans](.agents/skills/smlib-kernel-booleans/SKILL.md)** — solid BRep boolean workflow for Python/SM_API booleans, manifold dispatch, CSG/list variants, input degeneracies, and `SmTopologyIntersector::IntersectInsertRelate()`; not polygon booleans.
 - **[smlib-kernel-drop-curve](.agents/skills/smlib-kernel-drop-curve/SKILL.md)** — drop-curve workflow for curve-to-surface projection, `SmApiDropCurveToSrf`, `SmSurface::DropCurve`, `SmSurface::DropAndTrimCurve`, seams, domains, tolerances, and UV/3D output pairing.
 - **[usd-brep-tools-python-gui](.agents/skills/usd-brep-tools-python-gui/SKILL.md)** — Python GUI workbench (`tools/smlib_gui`): active objects, viewport, picking via `smdev`, overlays, smoke tests.
 - **[usd-brep-test-selection](.agents/skills/usd-brep-test-selection/SKILL.md)** — validation helper for choosing focused versus broad validation based on changed files and risk.
-- **[text-to-3d-asset-generation](.agents/skills/text-to-3d-asset-generation/SKILL.md)** — text/image-to-3D CAD/USD asset workflow routed through `.agents/docs/generate_asset.md`.
 
 ## Folders that are never relevant
 
@@ -252,11 +215,9 @@ These folders should be skipped during search / indexing for any task. Cursor en
 
 Most day-to-day work touches only a subset of `source/`. The mapping below tells the agent where to look first; only step outside if a search in scope comes up empty or the user names a folder explicitly.
 
-- **`SmPyLib` / `_omni_solid` work** — `source/SmPyLib/`, `source/SM_API/inc/`, `source/SM_API_USD/inc/` (only if touching `SmPyUsd.cpp`), `source/SMLib/inc/`, `source/BREP_SM_USD/inc/`, `source/BREP_USD_DATA/inc/`, `source/SmPyLib/tests/`. Stable bindings: `SmPyMain.cpp`, `SmPy*.cpp`, `stubs/omni_solid/`.
+- **`SmPyLib` / `_omni_solid` work** — `source/SmPyLib/`, `source/SM_API/inc/`, `source/SMLib/inc/`, `source/SmPyLib/tests/`. Stable bindings: `SmPyMain.cpp`, `SmPy*.cpp`, `stubs/omni_solid/`.
 - **`SmPyDevLib` / `_smlib_dev` work** — `source/SmPyDevLib/`, `stubs/smlib_dev/`, `tests/test_smlib_dev.py`. Shares `SmPyCommon.h` / `SmPyError` from `source/SmPyLib/src/`. Roundtrip scripts are under `tests/python/` (index-ignored with `tests/`; use explicit paths only when the task needs them).
 - **C kernel API (`SM_API`) work** — `source/SM_API/`, `source/SMLib/inc/`, plus the relevant operation guide under `.agents/operations/`.
-- **USD bridge work** — `source/SM_API_USD/`, `source/BREP_SM_USD/`, `source/BREP_USD_DATA/`.
-- **OCCT `.brep` translator work** — `source/OCCT_BREP_IMPORT/`, `source/OCCT_BREP_EXPORT/`, `tools/occt_to_usd_test/`, `tools/usd_to_occt_test/`; use `usd-brep-occt-translation` before attributing a visual defect to tessellation.
 - **Kernel internals** — `source/SMLib/`.
 
-Also **out of scope** for the layers above (don't search unless the user names them): the stand-alone test apps, GUI tools, and internal-only format-bridge components under `source/`; the per-component integration test suites under `tests/` (the `tests/python/` roundtrips are index-ignored with the rest of `tests/`). None are part of the `SmPyLib` / `SM_API` / USD-bridge build closure.
+Also **out of scope** for the layers above (don't search unless the user names them): the stand-alone test apps, GUI tools, and internal-only format-bridge components under `source/`; the per-component integration test suites under `tests/` (the `tests/python/` roundtrips are index-ignored with the rest of `tests/`). None are part of the geometry SDK build closure.

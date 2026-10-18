@@ -358,7 +358,6 @@ Paths are repository-relative. Search these symbols before expanding scope.
 | Concern | Source anchors |
 |---|---|
 | Stable entrypoints | `source/SmPyLib/src/SmPyHeal.cpp`; `source/SM_API/src/SmApiHeal.cpp` |
-| Import gate | `source/SmPyLib/src/SmPyUsd.cpp`; `source/SM_API_USD/src/SmApiUsd.cpp`; `source/BREP_SM_USD/src/SmuConvert.cpp`; `source/SMLib/src/SmBrep.cpp`: `MakeTopologyFromData`, `HealBrep` |
 | State and execution | `source/SMLib/inc/SmHealData.h`; `source/SMLib/src/SmHealData.cpp`: `HealBrep`, `LoadTargets`, `HealTgts`, `UpdateTargetLists`, `FreeTargets`, `Remove*Props_FromLists` |
 | Ordered operations and linked lists | `source/SMLib/inc/SmHealProbArray.h`: `SmHealerOpType`, `SmProbArray`, `SmPairProbArray`, `SmMixedProbArray`, `SmTriedProbArray` |
 | Measured properties | `source/SMLib/inc/SmFaceProps.h`, `SmEdgeProps.h`, `SmVertexProps.h`, `SmLoopProps.h` and matching `.cpp` files under `source/SMLib/src/` |

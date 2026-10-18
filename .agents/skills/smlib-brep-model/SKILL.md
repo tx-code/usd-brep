@@ -73,7 +73,6 @@ Useful starting points:
 | Mate/radial edge topology and UV trims | `SmEdgeuse.h`, `SmEdge::AssertValid`, `SmEdgeuse::AssertValid` |
 | Vertex incidence and vertex loops | `SmVertexuse.h`, `SmVertex::CheckPointers` |
 | Flattened records | `SmBrepData.h`, `FromBrep`, `MakeTopologyFromData` |
-| USD mapping | `SmuConvert.cpp`, then `$usd-brep-schema` |
 
 ## Example Requests
 
@@ -81,7 +80,6 @@ Useful starting points:
 Use $smlib-brep-model to explain the mate and radial links for a non-manifold edge.
 Use $smlib-brep-model to audit whether AssertValid checks that two face loops share no vertex.
 Use $smlib-brep-model to review a vertex-loop constructor change and propose focused tests.
-Use $smlib-brep-model with $usd-brep-schema to map seams and wire topology without losing incidence.
 ```
 
 ## Validate a BRep
@@ -142,26 +140,8 @@ For each behavior change, add:
 4. round-trip or downstream traversal coverage when representation changes;
 5. relevant seam, wire, vertex-loop, radial-edge, and shell forms.
 
-## Work Between SMLib and BrepArray
-
-Load this skill with `$usd-brep-schema`; each representation has independent authority.
-
-1. Write a mapping table for affected topology, geometry, parameters, and tolerances.
-2. Validate the source under its own contract.
-3. Separate lossless mapping from healing, approximation, generated data, and normalization.
-4. Preserve occurrence counts and first-entry semantics while collapsing or expanding paired
-   runtime topology.
-5. Convert analytic angular units where required without changing NURBS parameter domains.
-6. Rebuild and verify reciprocal topology after import.
-7. Validate the target independently and test both directions; round-trip success can hide paired
-   implementation errors.
-8. Report every representation loss or normalization.
-
-Do not promote current translator behavior into either format's contract.
-
 ## Boundaries
 
-- Use `$usd-brep-schema` for authoritative USD schema questions.
 - Use `smlib-kernel-operations` or its specialist skills for algorithm failures whose topology
   model is already known to be valid.
 - Do not expose intrusive topology construction, `SmContext`, or validator internals as public

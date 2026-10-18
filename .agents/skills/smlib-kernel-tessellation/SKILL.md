@@ -25,7 +25,6 @@ Diagnose BRep-to-mesh conversion failures and downstream mesh/USD issues where t
 1. `AGENTS.md` for architecture and search scope.
 2. `.agents/operations/tessellation.md` for Python/C parameters and tolerance semantics.
 3. `.agents/operations/polybrep.md` for inspecting mesh topology and properties.
-4. `.agents/operations/usd_import_export.md` when USD mesh import/export is involved.
 5. `.agents/docs/errors.md` for `RuntimeError` or `SM_ERR_*` diagnosis.
 6. `tools/smlib_gui/headless.py` and `tools/scripts/smlib_gui_render.py` when the symptom is visual or affects a file corpus.
 
@@ -37,7 +36,6 @@ Diagnose BRep-to-mesh conversion failures and downstream mesh/USD issues where t
 - Tessellator: `source/SMLib/inc/SmTess.h`, `source/SMLib/src/SmTess.cpp`.
 - Mesh topology: `source/SMLib/inc/SmPoly.h`, `source/SMLib/src/SmPoly.cpp`.
 - Face-specific tessellation paths: `source/SMLib/inc/SmFace.h`, `source/SMLib/src/SmFace.cpp`.
-- USD mesh handoff: `source/BREP_SM_USD/inc/SmuTessellate.h`, `source/BREP_SM_USD/src/SmuTessellate.cpp`, `source/BREP_SM_USD/inc/SmuConvert.h`, `source/BREP_SM_USD/src/SmuConvert.cpp`.
 
 ## Internal Model
 
@@ -58,7 +56,7 @@ normal public conversion protects the caller by tessellating a temporary copy.
 ## Workflow
 
 1. Reproduce with one BRep and explicit tessellation options.
-2. Check source BRep validity and exact face/loop data before debugging mesh symptoms. For OCCT `.brep` inputs, switch to `usd-brep-occt-translation` if the staged USD or ingested BRep is already wrong.
+2. Check source BRep validity and exact face/loop data before debugging mesh symptoms. Diagnose the native importer first if its output BRep is already wrong.
 3. Compare raw `PolyBrep` topology with downstream mesh arrays, USD output, and consistent named-view renders.
 4. Trace Python/API -> `SmBrep::ConvertToPolyBrep` -> `SmTess` -> face-specific tessellation only when the source BRep is valid.
 5. Add a regression that checks both topology invariants and representative mesh-array shape; use a headless render as supporting evidence for visual regressions.
@@ -85,7 +83,7 @@ Use $smlib-kernel-tessellation to trace why USD mesh export has missing faces af
 - If mesh arrays are empty, verify the BRep is valid and tessellation parameters are appropriate for model scale.
 - If only USD output is wrong, compare `PolyBrep` queries and `to_mesh_arrays()` before editing USD population.
 - If smoothing or stitching changes topology, isolate the raw tessellation output first.
-- If only imported `.brep` files fail, validate OCCT-to-USD-to-SMLib geometry and topology with `usd-brep-occt-translation` before modifying `SmTess`.
+- If only imported models fail, validate the importer output geometry and topology before modifying `SmTess`.
 
 ## Limitations
 

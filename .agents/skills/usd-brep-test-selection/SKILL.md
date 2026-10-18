@@ -50,18 +50,16 @@ python3 tools/agent/suggest_tests.py --paths source/SmPyLib/src/SmPyBooleans.cpp
 
 | Changed area | First validation | Broader validation |
 |---|---|---|
-| `source/SmPyLib/` (stable bindings) | `./repo.sh build`, then `tools/agent/run_smpylib_tests.sh` | `./repo.sh test` |
-| `source/SmPyDevLib/`, `stubs/smlib_dev/` | `./repo.sh build`, then `tools/agent/run_smpylib_tests.sh --target test_smlib_dev` | `./repo.sh test` plus `tools/scripts/smlib_gui_smoke.py` when pick/draw/tests change |
+| `source/SmPyLib/` (stable bindings) | `cmake --build _build/cam-tools --config Release --parallel 4`, then `tools/agent/run_smpylib_tests.sh` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
+| `source/SmPyDevLib/`, `stubs/smlib_dev/` | `cmake --build _build/cam-tools --config Release --parallel 4`, then `tools/agent/run_smpylib_tests.sh --target test_smlib_dev` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` plus `tools/scripts/smlib_gui_smoke.py` when pick/draw/tests change |
 | `tools/smlib_gui/`, `tools/scripts/smlib_gui*.py` | `uv run --locked --group gui python tools/scripts/smlib_gui_smoke.py` | Run `smlib_gui_render.py --jobs N` on a focused recursive fixture tree; add SmPyLib tests if bindings changed |
-| `source/SM_API/` or `source/SM_API/inc/` | `./repo.sh build`, focused Python repro or API-level test for the operation | `./tests/SM_API_test/SM_API_test.sh linux-x86_64`, then `./repo.sh test` |
-| `source/SMLib/` | `./repo.sh build`, minimal repro through `SM_API` or `_omni_solid`, then a focused `prog_test` suite when mapped below | Relevant C++ suite plus `./repo.sh test` |
+| `source/SM_API/` or `source/SM_API/inc/` | `cmake --build _build/cam-tools --config Release --parallel 4`, focused Python repro or API-level test for the operation | `./tests/SM_API_test/SM_API_test.sh linux-x86_64`, then `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
+| `source/SMLib/` | `cmake --build _build/cam-tools --config Release --parallel 4`, minimal repro through `SM_API` or `_omni_solid`, then a focused `prog_test` suite when mapped below | Relevant C++ suite plus `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
 | `tests/prog_test/` | `make --directory=_compiler/gmake2 prog_test_app config=release_x86_64 -j22 --output-sync`, then focused `prog_test` suites | `./tests/prog_test/prog_test.sh linux-x86_64` |
-| `source/SM_API_USD/`, `source/BREP_SM_USD/`, `source/BREP_USD_DATA/`, `source/schema/omniSolid/`, USD test harnesses | `./repo.sh build`, focused USD import/export repro | `./tests/SM_API_USD_test/SM_API_USD_test.sh linux-x86_64` and `./tests/usd_test/usd_test.sh linux-x86_64` |
-| `source/OCCT_BREP_IMPORT/`, `tools/occt_to_usd_test/` | `./repo.sh build`, then the focused importer command below | Exporter round trip, `./tests/usd_test/usd_test.sh linux-x86_64`, and OCCT headless corpus audit |
-| `source/OCCT_BREP_EXPORT/`, `tools/usd_to_occt_test/` | `./repo.sh build`, then the focused exporter command below | Importer suite and `./tests/usd_test/usd_test.sh linux-x86_64` |
+| `source/OCCT_BREP_EXPORT/`, `tools/usd_to_occt_test/` | `cmake --build _build/cam-tools --config Release --parallel 4`, then the focused exporter command below | Importer suite and `./tests/usd_test/usd_test.sh linux-x86_64` |
 | `.agents/`, `AGENTS.md`, docs only | markdown/path sanity checks; no kernel tests | none required |
 | `tools/agent/` | run/lint the changed script or a targeted tool check | relevant script validation or CI check |
-| Build files, packaging, `premake*`, `repo.toml` | `./repo.sh build` | `./repo.sh test` |
+| Build files, packaging, `premake*`, `repo.toml` | `cmake --build _build/cam-tools --config Release --parallel 4` | `ctest --test-dir _build/cam-tools -C Release --output-on-failure` |
 
 ## SmPyLib Focus Command
 
@@ -76,8 +74,7 @@ tools/agent/run_smpylib_tests.sh --target test_smlib_dev
 If `_omni_solid` / `_smlib_dev` exist under `_build/linux-x86_64/release`, use this local command:
 
 ```bash
-OMNISOLID_PLUGIN_PATH="$PWD/_build/schema/omniSolid/resources" \
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
+LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
 PYTHONPATH="$PWD/_build/linux-x86_64/release" \
 ./_build/target-deps/python/bin/python3 -m unittest discover -s source/SmPyLib/tests -p "test_*.py" -v
 ```
@@ -85,36 +82,10 @@ PYTHONPATH="$PWD/_build/linux-x86_64/release" \
 For a single class, add the test directory to `PYTHONPATH` and use a target such as:
 
 ```bash
-OMNISOLID_PLUGIN_PATH="$PWD/_build/schema/omniSolid/resources" \
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
+LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
 PYTHONPATH="$PWD/_build/linux-x86_64/release:$PWD/source/SmPyLib/tests" \
 ./_build/target-deps/python/bin/python3 -m unittest test_omni_solid.TestBooleans -v
 ```
-
-## OCCT Converter Focus Commands
-
-The converter subprocesses need the built schema plugin and shared libraries. Mirror the hard-gate environment in `tests.sh`:
-
-```bash
-platform=linux-x86_64
-export OMNISOLID_PLUGIN_PATH="$PWD/_build/schema/omniSolid/resources"
-export LD_LIBRARY_PATH="$PWD/_build/$platform/release:$PWD/_build/target-deps/usd/release/lib:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}"
-export PYTHONPATH="$PWD/_build/$platform/release:${PYTHONPATH:-}"
-export OCCT_TO_USD="$PWD/_build/$platform/release/occt_to_usd"
-export USD_TEST_APP="$PWD/_build/$platform/release/usd_test_app"
-./_build/target-deps/python/bin/python3 -m unittest discover \
-  -s tools/occt_to_usd_test -p "test_*.py"
-```
-
-For exporter round trips, retain that environment and run:
-
-```bash
-export USD_TO_OCCT="$PWD/_build/$platform/release/usd_to_occt"
-./_build/target-deps/python/bin/python3 -m unittest discover \
-  -s tools/usd_to_occt_test -p "test_*.py"
-```
-
-Use `./tests.sh linux-x86_64` for the complete canonical gate. Use the headless OCCT audit only after these data-flow checks; rendered screenshots do not replace schema, `AssertValid`, or topology round-trip assertions.
 
 ## prog_test Focus Commands
 
@@ -155,10 +126,9 @@ Use these defaults for obvious `source/SMLib/` changes:
 
 ## Troubleshooting
 
-- If a focused test cannot import `_omni_solid`, run `./repo.sh build` or report the missing build output.
+- If a focused test cannot import `_omni_solid`, run `cmake --build _build/cam-tools --config Release --parallel 4` or report the missing build output.
 - If `prog_test` output differs broadly, rerun a focused suite or compare against a same-branch control before assigning causality.
-- If CI failed outside the changed layer, inspect logs before expanding to full `./repo.sh test`.
-- If an OCCT visual audit fails, locate the first incorrect data-flow stage before selecting kernel tessellation tests.
+- If CI failed outside the changed layer, inspect logs before expanding to full `ctest --test-dir _build/cam-tools -C Release --output-on-failure`.
 - If docs or `.agents/` changed only, prefer path/format validation and report that kernel tests were not run.
 
 ## Limitations
@@ -170,6 +140,8 @@ Use these defaults for obvious `source/SMLib/` changes:
 
 - Start with the smallest test that exercises the changed behavior.
 - Add broader tests when the change touches shared ownership, tolerance handling, public API signatures, build files, or object lifetime.
-- For OCCT translator changes, test import and export together whenever the modified contract has a symmetric representation.
-- If a test cannot run because the build output is missing, run `./repo.sh build` before declaring the test blocked.
+- If a test cannot run because the build output is missing, run `cmake --build _build/cam-tools --config Release --parallel 4` before declaring the test blocked.
 - Always report tests that were not run and why.
+
+For build options and runtime locations use README.md. Native CMake validation
+requires `SMLIB_BUILD_VALIDATION=ON`; dev bindings require `SMLIB_BUILD_DEV=ON`.

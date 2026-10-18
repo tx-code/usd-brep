@@ -6,7 +6,7 @@
 This document describes the in-memory SMLib boundary-representation model rooted at `SmBrep`,
 the flattened `SmBrepData` transfer form, and the validity assumptions implemented by the kernel.
 It is a source-oriented reference for answering format questions, reviewing malformed topology,
-writing constructors and tests, and translating between SMLib and USD `BrepArray`.
+writing constructors and tests for SMLib runtime and native data.
 
 Source names below are navigation aids, not a pinned baseline. Verify every named symbol and
 executable predicate in the current checkout.
@@ -29,10 +29,8 @@ executable predicate in the current checkout.
 14. [Validation model](#validation-model)
 15. [Known validator gaps and hazards](#known-validator-gaps-and-hazards)
 16. [Worked structural examples](#worked-structural-examples)
-17. [SMLib and USD BrepArray](#smlib-and-usd-breparray)
-18. [Translation and normalization rules](#translation-and-normalization-rules)
-19. [Testing checklist](#testing-checklist)
-20. [Source index](#source-index)
+17. [Testing checklist](#testing-checklist)
+18. [Source index](#source-index)
 
 ## Scope and authority
 
@@ -47,7 +45,7 @@ reconstructed from several source layers:
    `AssertValid` encode structural and geometric acceptance rules.
 4. **Algorithms and tests:** traversal, classification, healing, stitching, and translation code
    expose assumptions not always asserted directly.
-5. **Transfer implementations:** `SmBrepData` and USD conversion describe serializations of the
+5. **Transfer implementations:** `SmBrepData` serializers describe transfers of the
    runtime model. They are not, by themselves, the definition of runtime validity.
 
 When these disagree, report the disagreement. Do not silently redefine SMLib validity to match a
@@ -56,8 +54,7 @@ established by the type model and constructors and consumed by kernel algorithms
 is strong implementation evidence, but can contain bugs, conditional legacy behavior, or incomplete
 coverage.
 
-This document does **not** describe `SmPolyBrep`, the stable `_omni_solid` handle surface, or the USD
-schema as if they were the same format.
+This document does **not** describe `SmPolyBrep`, the stable `_omni_solid` handle surface, as if it were the same format.
 
 ## Validity vocabulary
 
@@ -866,11 +863,10 @@ Direct `ValidatePointers()` callers keep the default `SM_NO_WALK` and still run 
 Its contract comment in `SmBrep.cpp` is a valuable index, but the executable predicates decide
 current behavior. Audit both because they are not perfectly aligned.
 
-For persisted database data, standalone `SmBrepData`, or a USD asset, validate the source container's
-counts, ranges, discriminators, and indices before `MakeTopologyFromData`. `AssertValid` evaluates
-the reconstructed runtime graph; a pass does not prove that an original byte stream or USD layer
-obeyed its own format contract. Validate USD first with `$usd-brep-schema`, then validate the
-expanded SMLib graph independently.
+For persisted native data or standalone `SmBrepData`, validate container counts,
+ranges, discriminators and indices before `MakeTopologyFromData`. `AssertValid`
+evaluates the reconstructed runtime graph; a pass does not establish validity
+of the original byte stream. Validate transfer data and the runtime graph independently.
 
 ### Per-type coverage
 
@@ -999,140 +995,6 @@ records, one for each UV-side occurrence.
 The two occurrences share one 3D edge/vertices but have distinct trim placement. They are not
 duplicate coincident edges.
 
-## SMLib and USD BrepArray
-
-For USD schema correctness, use the `$usd-brep-schema` skill and the authoritative
-`source/schema/omniSolid/resources/schema.usda` layer. This section describes correspondence and
-current bridge behavior; it does not add SMLib rules to the USD schema or vice versa.
-
-### Conceptual topology crosswalk
-
-| SMLib runtime | `SmBrepData` | USD BrepArray | Translation note |
-|---|---|---|---|
-| One `SmBrep` object | One indexed data object | One partition in packed arrays | USD prim can contain many BReps. |
-| Ordered regions, first infinite | `m_vRegions` blocks | region counts/types | Preserve order and void classification. |
-| Shell direct use kind | shell type + indices | faceuse count, wire-edge count, point type/index | USD can encode faceuses plus wires in one faceuse shell. |
-| Two runtime faceuses per face | faceuse records reference one face | faceuse records/counts | Preserve orientations and shell/region incidence. |
-| Two runtime loopuses per logical loop | one logical loop record | one loop record | USD stores one side plus counts/vertex sentinel. |
-| Two runtime EUs per logical face-edge occurrence | one `SmEUData` pair record | one edgeuse record | Expand/collapse mate pair exactly once. |
-| Edge radial circular list | signed next-member fields | next radial EU index + entry type | Signed member selection becomes explicit top/bottom entry. |
-| Runtime face and wire edges share one edge class/list | one `m_vEdges` collection | separate edge and wire-edge arrays/APIs | Split on export, recombine on import. |
-| All vertices share one class/list | one `m_vVertices` collection | shell points versus general vertices | Split shell vertices from general vertices; regenerate use objects. |
-| Optional UV curve pointer | optional paired EU geometry | UV NURBS occurrence | Absence must be represented according to the schema, not invented sentinel semantics. |
-
-The current bridge documents this mapping in `source/BREP_SM_USD/src/SmuConvert.cpp`.
-
-### Runtime uses that USD does not store individually
-
-The current USD representation does not serialize every SMLib use object:
-
-- mate face side and loop side are implied by the logical records;
-- wire edgeuses are regenerated from wire-edge records;
-- shell vertexuses are regenerated from shell point data;
-- vertex-loop vertexuses are regenerated from the loop's vertex index;
-- ordinary edge vertexuses are regenerated from edge endpoints and edgeuse orientation.
-
-Consequently, a translator must validate that enough information exists to reconstruct the SMLib
-reciprocal graph. Successful array indexing alone is not proof that the expanded runtime graph is
-valid.
-
-### Geometry set mismatch
-
-USD BrepArray currently has a smaller named geometry set: NURBS plus selected analytic curves and
-surfaces. SMLib accepts additional runtime curve and surface subclasses. Translation therefore has
-three cases:
-
-1. preserve an exactly corresponding analytic representation;
-2. preserve a B-spline/NURBS representation with correct knot/control-point conventions;
-3. approximate an unsupported SMLib type to NURBS under `ApproxTol3d`, recording that the result is
-   normalized rather than representation-identical.
-
-The present SMLib-to-USD exporter preserves selected analytic surfaces but exports edge and wire
-curves as NURBS in its normal path. Treat that as current implementation policy, not a schema or
-SMLib limitation.
-
-## Translation and normalization rules
-
-### SMLib to BrepArray
-
-1. Validate the completed SMLib BRep at full walk/test level and retain diagnostics.
-2. Flatten through `SmBrepData::FromBrep`; do not derive packed counts from raw pointer addresses.
-3. Preserve region and shell ordering. First region remains infinite; first non-infinite shell remains
-   outer.
-4. Split the unified SMLib edge list into face edges and wire edges.
-5. Split shell vertices/points from ordinary vertices without losing shared endpoint indexing.
-6. Emit one USD edgeuse record per logical mated SMLib pair, not per individual runtime edgeuse.
-7. Convert signed `SmEUData` radial member selection to the USD next-radial index and top/bottom entry
-   token after any culled-record index compaction.
-8. Cull/regenerate wire, shell-point, and vertex-loop use records only where their USD parent records
-   carry sufficient reconstruction data.
-9. Convert SMLib analytic angular domains and cone angles from degrees to schema radians. Do not
-   alter NURBS domains merely because analytic domains change units.
-10. Preserve supported geometry; derive the export approximation tolerance from the maximum
-    effective zone tolerance across the BRep, faces, edges, and vertices: zone tolerance ->
-    `SM_ZONE_TO_XSECTTOL3D` -> `SmTol::GetApproxTol3d(sXSectTol3d)`. Use that budget for
-    unsupported-type approximation and report representation loss; it is not the ambient context
-    approximation tolerance.
-11. Preserve face trimming intent. If unbounded SMLib face ranges are replaced by trim-derived finite
-    bounds, report that as normalization.
-12. Map the relevant SMLib intersection tolerance to per-BRep `brep:intersectTol3d`; do not confuse it
-    with approximation tolerance.
-13. Validate the resulting asset against the authoritative USD schema independently of SMLib
-    validation.
-
-### BrepArray to SMLib
-
-1. Validate schema structure, authored types, packing, occurrence arrays, indices, units, and explicit
-   topology rules before allocating a runtime graph.
-2. Build `SmBrepData` with local partition-relative indices.
-3. Recombine USD face edges and wire edges into the SMLib edge array while retaining shell ranges.
-4. Recombine shell points and ordinary vertices into the SMLib vertex array.
-5. Expand each stored logical face edgeuse into the two runtime members represented by `SmEUData`.
-6. Reconstruct signed radial-member fields from next-radial index and entry type; verify the complete
-   cycle and alternating orientation before runtime construction.
-7. Generate wire, shell-vertex, loop-vertex, and ordinary edge vertexuses from their parent records.
-8. Convert analytic angular ranges from radians to SMLib degrees; leave NURBS parameterization as
-   authored unless an explicit conversion requires otherwise.
-9. Convert each BRep's authored `brep:intersectTol3d` to zone-tolerance fields on `SmBrepData`,
-   reconstructed edge and vertex records, and face records under `SM_USE_OLDTOL`; independently
-   derive approximation tolerance. This does not reconfigure `SmContext` defaults.
-10. Preserve eligible NURBS-face UV curves. Current import discards authored analytic-face UV
-    curves and disables automatic UV-trim creation because stored and runtime parameter spaces
-    differ. Missing trims remain null; later consumers may regenerate them through
-    `GetOrCreateUVTrimCurve`. Do not treat a schema-invalid zero-order curve as equivalent to absence.
-11. Construct topology, run healing only under an explicit import policy, then run full SMLib
-    validation. Report healing and any downstream trim generation separately from import.
-
-Current import entry points are `BrepMove_OneUsdBrepToSMLib` and
-`BrepMove_OneUsdBrepToSMLibData` in `SmuConvert.cpp`.
-
-### Current bridge normalizations and loss points
-
-| Area | Current behavior to account for |
-|---|---|
-| Curve representation | SMLib export writes edge/wire curves as NURBS. Existing B-splines bypass approximation; other types go through `ApproximateCurve`. Import can create supported analytic curve types and canonicalizes unclamped flat-knot B-splines through `SmBSplineCurve::CreateCanonical`, including face-edge, wire-edge, and UV curves. |
-| Surface representation | Plane, sphere, cylinder, cone, and torus retain analytic types. B-splines bypass approximation, though import may canonicalize unclamped knots. Export attempts to approximate other surfaces to B-spline. A null approximation is logged and skipped after face metadata has been appended; export can still return `SM_SUCCESS` with the packed surface payload absent. This path is not atomic. |
-| Angular units | SMLib STEP analytic ranges use degrees; USD equations/ranges use radians. |
-| Unbounded faces | Optional export policy can replace an unbounded analytic face range with bounds derived from trims. |
-| Trim classification | Import maps USD `general` to SMLib `UNSURE`, while `rectangular` maps to `TRUE`; a round trip can normalize internal trim state. |
-| Missing UV curves | Export omits analytic-face UV curves; import discards authored analytic-face UV curves and disables automatic trim creation. Imported trims remain null until a later consumer explicitly or lazily regenerates them with `GetOrCreateUVTrimCurve`. This is representation loss followed by possible downstream regeneration. |
-| Healing | Import selects healer behavior based on source metadata/options. A healed result is not a byte- or topology-identical decode. |
-| UV absence sentinel | Current export paths have historically emitted zero-valued UV NURBS entries for absence. The authoritative USD schema requires positive order for authored occurrences; audit with `$usd-brep-schema`. |
-
-### Authoring recommendations
-
-- Author the simplest representation that preserves intended exactness and has a direct target
-  mapping.
-- Keep topology identity separate from geometric coincidence; share indices/objects for real
-  connectivity.
-- Make periodic seams explicit before translation.
-- Preserve loop/shell/region ordering because both formats attach semantics to first entries.
-- State every normalization: unit conversion, analytic-to-NURBS approximation, reparameterization,
-  trim creation, healing, stitching, or unbounded-domain bounding.
-- Test both direction-specific conversions. A round trip can hide two compensating mistakes.
-- Compare semantics after round trip: region classification, shell type/connectivity, loop type and
-  order, radial cycles, shared vertices, parameter domains, geometry deviation, and tolerance use.
-
 ## Testing checklist
 
 ### SMLib-only code or validator change
@@ -1146,20 +1008,6 @@ Current import entry points are `BrepMove_OneUsdBrepToSMLib` and
 - Cover closed edges, periodic seams, vertex loops, wire shells, and vertex shells when affected.
 - Exercise lazy UV/gap data both absent and materialized.
 - Record build-conditional tolerance behavior.
-
-### Translation change
-
-- Validate the source under its own contract before conversion.
-- Validate the target under its own contract after conversion.
-- Test one and multiple packed BReps.
-- Test face edges and wire edges independently and together in a faceuse shell.
-- Test ordinary vertices, shared endpoints, shell points, and vertex loops.
-- Test lamina (2 runtime EUs), manifold/seam (4), and spine/non-manifold (6+) radial cycles.
-- Test analytic and NURBS domains, including degree/radian boundaries.
-- Measure approximation error for unsupported geometry against the selected `ApproxTol3d`.
-- Test absent and present UV trim curves without relying on an invalid sentinel.
-- Compare first-entry semantics for region, shell, and loop order.
-- Report healing or normalization separately from lossless decoding.
 
 ## Source index
 
@@ -1199,13 +1047,3 @@ Current import entry points are `BrepMove_OneUsdBrepToSMLib` and
 | `SmVertex::AssertValid` | `SmVertex.cpp` |
 | `SmVertexuse::AssertValid` | `SmVertexuse.cpp` |
 | `SmBrepConstructor` implementation | `SmBrepData.cpp` |
-
-### USD bridge
-
-| Symbol/topic | Source |
-|---|---|
-| Runtime/data/USD crosswalk comment | `source/BREP_SM_USD/src/SmuConvert.cpp` |
-| `BrepAppend_SMLibToUsdBrep` | `SmuConvert.cpp` |
-| Import crosswalk comment | `SmuConvert.cpp` |
-| `BrepMove_OneUsdBrepToSMLib` | `SmuConvert.cpp` |
-| `BrepMove_OneUsdBrepToSMLibData` | `SmuConvert.cpp` |

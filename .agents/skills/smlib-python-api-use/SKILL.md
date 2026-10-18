@@ -25,7 +25,7 @@ Write, review, or debug Python code that calls existing `_omni_solid` functions 
 1. `AGENTS.md` for repo conventions, ignored folders, and Python quick start.
 2. `.agents/operations/INDEX.md`, then the operation guide matching the task.
 3. `.agents/docs/errors.md` when a call raises `RuntimeError`.
-4. `source/SmPyLib/stubs/usd_brep/__init__.pyi` and `source/SmPyLib/stubs/usd_brep/usd.pyi` when exact Python signatures or return types matter. For debugger APIs, also `source/SmPyDevLib/stubs/smlib_dev/__init__.pyi`.
+4. `source/SmPyLib/stubs/usd_brep/__init__.pyi` when exact Python signatures or return types matter. For debugger APIs, also `source/SmPyDevLib/stubs/smlib_dev/__init__.pyi`.
 5. `source/SmPyLib/tests/test_omni_solid.py` for executable examples.
 
 ## Example Requests
@@ -44,7 +44,7 @@ Use $smlib-python-api-use to triage a RuntimeError from drop_curve_to_surface.
 - Honor the docstring mutation line: pure producers leave inputs unchanged, consuming operations invalidate named inputs, and mutators return the same handle for chaining.
 - Call `brep.copy()` before mutators or consumers when the original must survive.
 - Choose diagnostic cost deliberately: counts and ordinary `bounding_box()` are lightweight; `volume()` integrates geometry, and `info()` includes a volume query. Do not put them or tight bounds in a hot loop without measuring their cost. See the [Boolean/bounds guidance](../../operations/booleans.md#separate-boolean-cost-from-optional-bounds-queries).
-- For mesh output, use `tessellate()` -> `PolyBrep` -> `to_mesh_arrays()` and the mesh/USD guidance in `.agents/docs/generate_asset.md`.
+- For mesh output, use `tessellate()` -> `PolyBrep` -> `to_mesh_arrays()` for application mesh output.
 - Use native SMLib BRep file I/O for `.smb` round-trips: save with
   `brep.write_to_file(path, ascii=True)`, load with
   `sm.read_brep_from_file(path)` or `sm.Brep.read_from_file(path)`. Treat load

@@ -26,9 +26,8 @@ Maintain the PySide6/PyVista workbench package in `tools/smlib_gui/`, its intera
 2. `tools/smlib_gui/headless.py` and `tools/scripts/smlib_gui_render.py` for reusable offscreen rendering and recursive batch orchestration.
 3. `tools/smlib_gui/operations/file_io.py` for the shared supported-format load/save dispatch.
 4. `tools/scripts/smlib_gui_smoke.py` for the current GUI and headless validation hook.
-5. `tools/scripts/smlib_gui_occt_audit.py` when maintaining OCCT corpus diagnostics rather than the format-agnostic renderer.
 6. `tools/smlib_gui/runtime.py` for `sm` / `smdev` import setup.
-7. `source/SmPyLib/stubs/usd_brep/__init__.pyi`, `source/SmPyDevLib/stubs/smlib_dev/__init__.pyi`, and `source/SmPyLib/stubs/usd_brep/usd.pyi` for exposed Python API behavior.
+7. `source/SmPyLib/stubs/usd_brep/__init__.pyi`, `source/SmPyDevLib/stubs/smlib_dev/__init__.pyi` for exposed Python API behavior.
 8. The relevant `.agents/operations/*` guide and `usd-brep-test-selection` before broad validation.
 
 ## When To Use
@@ -52,7 +51,6 @@ Maintain the PySide6/PyVista workbench package in `tools/smlib_gui/`, its intera
 4. Respect `_omni_solid` mutation conventions. Pure operations return new handles, consuming booleans invalidate inputs, and mutators return the same handle for chaining.
 5. Prefer existing stable query and I/O APIs before adding bindings. Route topology pick, loopuse/edgeuse traversal, Draw extraction, and `prog_test` through `smdev`. Add minimal `_omni_solid` or `_smlib_dev` bindings only when a named debugger workflow is blocked.
 6. Keep supported-format dispatch in `tools/smlib_gui/operations/file_io.py` so interactive and headless entry points load models consistently.
-7. Keep the generic renderer format-agnostic. Put OCCT-specific mesh metrics and anomaly policy in `smlib_gui_occt_audit.py`.
 8. Update `tools/scripts/smlib_gui_smoke.py` when a core workflow needs automated coverage.
 
 ## Headless Rendering Rules
@@ -125,3 +123,7 @@ Use $usd-brep-tools-python-gui to debug topology pick metadata shown after a ray
 Use $usd-brep-tools-python-gui to add a persistent tessellation control for max edge length.
 Use $usd-brep-tools-python-gui to add a model format to the recursive headless renderer.
 ```
+
+Build the debugger extensions with `SMLIB_BUILD_DEV=ON`. Set
+`SMLIB_RUNTIME_DIR` for a CMake runtime. The GUI supports `.smb` and `.smp`;
+its removed scene-format converters are no longer a file I/O path.

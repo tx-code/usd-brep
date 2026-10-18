@@ -25,16 +25,16 @@ Keep `_omni_solid` bindings, docstrings, stubs, tests, and operation docs synchr
 1. `AGENTS.md` for repo scope and ignored folders.
 2. `source/SmPyLib/DOCSTRING_STYLE.md` before editing docstrings.
 3. `.agents/operations/INDEX.md`, then the operation guide matching the binding category.
-4. The matching public header under `source/SM_API/inc/` or `source/SM_API_USD/inc/`.
+4. The matching public header under `source/SM_API/inc/`.
 5. `source/SmPyLib/src/SmPyCommon.h` and `source/SmPyLib/src/SmPyMain.cpp` for shared registration patterns.
 6. The matching binding file under `source/SmPyLib/src/SmPy*.cpp`.
-7. `source/SmPyLib/stubs/usd_brep/__init__.pyi` and, for USD bindings, `source/SmPyLib/stubs/usd_brep/usd.pyi`.
+7. `source/SmPyLib/stubs/usd_brep/__init__.pyi`.
 8. `source/SmPyLib/tests/test_omni_solid.py`.
 
 ## Authoring Rules
 
 - Register function-only bindings through `BoundModule` so the API appears both flat (`sm.create_box`) and in the category submodule (`sm.primitives.create_box`), unless the existing local pattern says otherwise.
-- Keep type, enum, USD, `PolyBrep`, and tessellation registration consistent with `SmPyMain.cpp` and `SmPyCommon.h`.
+- Keep type, enum, `PolyBrep`, and tessellation registration consistent with `SmPyMain.cpp` and `SmPyCommon.h`.
 - Use `CHECK_STATUS(...)` for kernel calls that return `SmStatus` or `SmApiStatus`.
 - Return kernel-owned handles with the existing local return policy pattern; Python does not own `Brep`, `Face`, `Edge`, `Vertex`, `Curve`, `Surface`, or `PolyBrep`.
 - If a binding needs `Loop`, `Loopuse`, `Edgeuse`, topology picking, or kernel `Draw()`, stop and use `smlib-python-dev-api-maintain` instead.
@@ -92,8 +92,7 @@ tools/agent/run_smpylib_tests.sh --target test_omni_solid.TestBooleans
 Fallback explicit command:
 
 ```bash
-OMNISOLID_PLUGIN_PATH="$PWD/_build/schema/omniSolid/resources" \
-LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
+LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" \
 PYTHONPATH="$PWD/_build/linux-x86_64/release" \
 ./_build/target-deps/python/bin/python3 -m unittest discover -s source/SmPyLib/tests -p "test_*.py" -v
 ```

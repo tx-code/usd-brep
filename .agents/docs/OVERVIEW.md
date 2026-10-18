@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# USD BRep — Solid Modeling Library
+# SMLib Geometry SDK
 
 ## What It Is
 
@@ -11,9 +11,7 @@ The library is structured in layers:
 
 - **SMLib** — the low-level kernel. Owns all geometry and topology classes (`SmBrep`, `SmFace`, `SmEdge`, `SmSurface`, `SmBSplineCurve`, etc.) and the algorithms that operate on them. This is a C++ library with an internal `SmContext` that manages memory.
 - **SM_API** — a high-level C-style C++ API that wraps common SMLib operations into simple function calls. Functions follow the `SmApi*` naming convention. This is the primary API for users who want to create geometry, perform booleans, sweeps, fillets, tessellation, etc.
-- **SM_API_USD** — a USD integration layer that provides import/export of BRep data to/from OpenUSD files (.usda/.usdc/.usd). BRep geometry is stored as a custom `BrepArray` schema alongside standard USD prims.
-- **BREP_SM_USD / BREP_USD_DATA** — internal libraries for the actual BRep↔USD data conversion.
-- **SmPyLib** (`_omni_solid`) — Python bindings via pybind11 that expose SM_API and SM_API_USD as a Python module, including tessellation to **`PolyBrep`** and polygon mesh booleans.
+- **SmPyLib** (`_omni_solid`) — Python bindings via pybind11 that expose SM_API as a Python module, including tessellation to **`PolyBrep`** and polygon mesh booleans.
 
 ## Key Concepts
 
@@ -37,9 +35,6 @@ object's context or create a dedicated output context.
 source/
   SMLib/          — core kernel (geometry, topology, algorithms)
   SM_API/         — high-level C API (SmApiPrimitives, SmApiBrep, SmApiCurves, etc.)
-  SM_API_USD/     — USD import/export API
-  BREP_SM_USD/    — internal BRep↔USD converter
-  BREP_USD_DATA/  — USD BRep schema data classes
   SmPyLib/        — Python bindings (_omni_solid module)
   *_test/         — test projects
 ```
@@ -71,7 +66,6 @@ The Python module `_omni_solid` wraps SM_API with Pythonic conventions:
 - Kernel-status failures routed through `CHECK_STATUS` raise `RuntimeError` containing a wrapped
   entry and status, followed by either a kernel trace or a binding-site fallback — see
   [`errors.md`](errors.md) for both forms and per-code guidance
-- USD functions live in the `_omni_solid.usd` submodule
 - Tessellated meshes (`PolyBrep`) support topology queries, bounding box, mass properties, plane section, and ray tests — see `.agents/operations/polybrep.md`
 
 ### Quick Reference
@@ -98,9 +92,6 @@ faces = box.faces()
 edges = box.edges()
 verts = box.vertices()
 
-# USD round-trip
-sm.usd.export_brep(box, "out.usda")
-breps = sm.usd.import_breps("out.usda")
 ```
 
 ## Error Handling
@@ -142,11 +133,5 @@ When you must keep the original through a mutator, copy it first: `keep = brep.c
 3. `brep_closest_point` — find nearest point on BRep surface
 4. `intersect_breps` / `intersect_brep_with_plane` — get intersection curves
 
-### USD Pipeline
-1. Create BRep geometry using python API
-2. Export to USD: `sm.usd.export_brep(brep, "file.usda")` (subject-first)
-3. Append to existing USD files: `sm.usd.append_breps([brep1, brep2], "file.usda")` (subject-first)
 
 ### End-to-end 3D assets
-
-[generate_asset](generate_asset.md) — canonical pipeline for producing a visualizable 3D asset: SMLib creation → SMLib tessellation → mesh-only USD. Follow when building or generating a complete 3D asset (robot, vehicle, part, etc.).

@@ -42,3 +42,23 @@ is a separate task; no successful hosted CI run is implied by this document.
 Preserve upstream copyright/license notices and the applicable third-party
 license materials in distributions. Record local modifications and keep their
 regressions with the code. Public reproductions must use synthetic models.
+
+## Geometry SDK cleanup
+
+The USD/Hydra/schema/OCCT-USD stack is retired. Python keeps its historical
+package name; development tools and validation are opt-in (see README.md).
+The implementation is recorded by these commits:
+
+1. `83b82355d87f83e19ce2b569ea9bf55677e8c77e`: geometry SDK / Python decoupling and independent build targets.
+2. `834d6a13323074af6d4d8b98947a0bff600ecdcc`: native GUI runtime and removal of scene-format workflows.
+3. `ffbb918ea99f6e013237a74d4aa981ee73c1f4c7`: retired integration libraries, converters, validators and resources.
+
+Local Windows x64 MSVC 19.50 Release validation built the SDK and optional
+targets; 48 CTest cases passed. Python ran 380 cases (2 skipped), and debugger
+bindings ran 22 cases (1 skipped), with no failures. The native GUI module
+loading check passed. Full GUI smoke validation remains incomplete because
+the locked Qt/VTK dependency downloads did not finish.
+
+These runs used a working tree containing separate, uncommitted STEP semantic
+changes. They are local integration evidence for that tree, rather than a
+clean-checkout or hosted-CI gate for the cleanup commits alone.

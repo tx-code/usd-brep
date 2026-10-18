@@ -29,11 +29,6 @@ Quick reference for all SMLib operation guides organized by category.
 | [heal_import](heal_import.md) | `heal_brep` | SmApiHeal.h | Attempt supported BRep repairs |
 | [interactive_performance](interactive_performance.md) | `mass_properties`, `volume`, `bounding_box`, `tessellate`, `translate`, `rotate`, `transform`, `boolean_difference` | SmApiQueries.h, SmApiBrep.h, SmApiGeneral.h | Preview-vs-exact API selection and cache reuse: property preview levers, tessellation quality knobs, rigid-transform reuse, repeated cutters (not kernel tessellation cost or context/concurrency) |
 
-## SM_API_USD Operations
-
-| Guide | Python Functions | C API Header | Description |
-|---|---|---|---|
-| [usd_import_export](usd_import_export.md) | `usd.ensure_plugin_registered`, `usd.import_breps`, `usd.import_brep`, `usd.export_brep`, `usd.export_breps`, `usd.append_breps`, `usd.import_meshes`, `usd.import_mesh`, `usd.export_mesh`, `usd.export_meshes`, `usd.append_meshes` | SmApiUsd.h | Round-trip BRep (`BrepArray`) and polygon meshes (`UsdGeomMesh` ↔ `PolyBrep`) |
 
 ## See Also
 
@@ -45,7 +40,7 @@ Quick reference for all SMLib operation guides organized by category.
 2. **Shape** — sweeps, booleans, cut, trim
 3. **Refine** — fillets, offset/shell
 4. **Validate** — is_manifold_solid, compute_volume, closest_point queries
-5. **Export** — USD export, tessellation (`tessellate` → `PolyBrep`)
+5. **Export** — native BRep I/O, tessellation (`tessellate` → `PolyBrep`)
 
 ## Python Binding Coverage
 
@@ -75,4 +70,4 @@ The stable `_omni_solid` module exposes:
 
   Face boundary methods expose ordered edge occurrences and direction bits without stable use objects. For direct `Loop` / `Loopuse` / `Edgeuse` objects, `topology_pick_ray`, and kernel Draw extraction, see **[dev_topology](dev_topology.md)**.
 
-- **Type stubs (`.pyi`):** `source/SmPyLib/stubs/usd_brep/__init__.pyi` and `source/SmPyLib/stubs/usd_brep/usd.pyi` for stable API; `source/SmPyDevLib/stubs/smlib_dev/__init__.pyi` for debugger API.
+- **Type stubs (`.pyi`):** `source/SmPyLib/stubs/usd_brep/__init__.pyi` for stable API; `source/SmPyDevLib/stubs/smlib_dev/__init__.pyi` for debugger API.

@@ -4,7 +4,7 @@
 # Healing
 
 **Source:** `source/SM_API/inc/SmApiHeal.h`
-**Python:** `_omni_solid.heal_brep`. Also integrated into USD import (`heal` parameter).
+**Python:** `_omni_solid.heal_brep`.
 
 
 **Kernel internals:** [BRep healer design](../skills/smlib-kernel-healing/references/architecture.md)
@@ -37,10 +37,6 @@ remains disabled because its classification and repair are unreliable. A success
 establish that every defect was repaired; validate the resulting topology and geometry.
 
 **Design notes:**
-- USD import healing defaults on in C (`SmApiUsdImportBreps` / `SmApiUsdImportBrep`) and off in
-  Python (`heal=False`). When enabled it runs on **every** imported Brep, including SMLib-authored
-  USD: the public bridge neither preserves the CAD-source marker on export nor reads it on import,
-  so the source is always empty and the healer is never skipped. See  [USD import/export](usd_import_export.md).
 - For programmatically created geometry (using SM_API primitives and booleans), healing is usually unnecessary — the kernel produces clean geometry.
 - Healing is most valuable for imported geometry from external sources.
 
@@ -49,7 +45,5 @@ establish that every defect was repaired; validate the resulting topology and ge
 | Source | Heal? | Rationale |
 |---|---|---|
 | Created with SM_API | Usually no | Kernel-generated geometry is clean |
-| Imported from USD (external or known-problem source) | Consider `heal=True` in Python | Attempt supported repairs; healing changes topology and tolerances and does not provide general gap closure |
-| Imported from USD (SMLib-authored) | Usually no | Already clean, and healing is not skipped automatically |
 | Boolean results | Usually no | Booleans produce valid topology |
 | After manual topology edits | Yes | Human edits may introduce inconsistencies |

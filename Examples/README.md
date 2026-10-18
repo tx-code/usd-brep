@@ -22,6 +22,3 @@ Each example should:
 - state its supported input scope and ownership behavior;
 - have its important observable outcomes exercised by the owning test suite;
 - be indexed by the README in its category.
-
-For the end-to-end SMLib-to-USD mesh authoring workflow, see the related
-[asset-generation script](../tools/scripts/example_generate_asset.py).

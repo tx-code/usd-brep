@@ -7,7 +7,7 @@ Run the GUI through the repo `uv.lock` so PySide6, PyVista, pyvistaqt, VTK, and
 NumPy stay on a known-compatible Python 3.12 stack:
 
 ```bash
-# Debug SMLib/USD (default). Kernel Dump() echoes to the terminal.
+# Debug SMLib (default). Kernel Dump() echoes to the terminal.
 uv run --locked --group gui python tools/scripts/smlib_gui.py
 
 # Release binaries (Dump() is silent).
@@ -30,12 +30,11 @@ uv run --locked --group gui python tools/scripts/smlib_gui_smoke.py --show --tim
 Render every supported model below a directory without opening the GUI:
 
 ```bash
-uv run --locked --group gui python tools/scripts/smlib_gui_render.py TestFiles/occt_breps
+uv run --locked --group gui python tools/scripts/smlib_gui_render.py TestFilesSmb
 uv run --locked --group gui python tools/scripts/smlib_gui_render.py TestFiles --output-dir /tmp/smlib_renders
 ```
 
-The renderer recursively discovers `.brep`, `.smb`, `.usd`, `.usda`, and
-`.usdc` files. With no output directory, it writes the four-view contact sheet
+The renderer recursively discovers `.smb` and `.smp` files. With no output directory, it writes the four-view contact sheet
 beside each source. With `--output-dir`, it preserves the input directory
 hierarchy below that root. For example, `parts/a/box.smb` produces
 `renders/a/box.smb_contact.png`.
@@ -59,10 +58,11 @@ configurable through `--help`.
 Build the repo first if `_omni_solid` or `_smlib_dev` fails to import:
 
 ```bash
-./repo.sh build
+cmake -S . -B _build/cam-tools -DSMLIB_BUILD_DEV=ON
+cmake --build _build/cam-tools --config Release --parallel 4
 ```
 
-The GUI runtime still adds the built SMLib and USD paths at startup. The `uv`
+The GUI runtime still adds the built SMLib paths at startup. The `uv`
 environment only controls third-party Python packages, especially the
 Qt/PyVista/VTK combination that is sensitive to version drift.
 
@@ -85,3 +85,7 @@ Edit `smdev.user_test()`, rebuild `_smlib_dev`, then pick **test_4** and press
 **Run**. Assign the returned Brep (`result = smdev.user_test()`) so the GUI
 can tessellate it. `smdev.user_test_example()` is the kernel analog of
 **test_2**. Python Reload does not pick up C++ edits.
+
+For CMake builds set `SMLIB_RUNTIME_DIR` to the runtime directory, for example
+`_build/cam-tools/bin/Release` on Windows. GUI dependencies remain in the
+optional `gui` dependency group.

@@ -12,7 +12,7 @@ Polygon booleans operate on `SmPolyBrep` objects (Python **`PolyBrep`**) rather 
 
 The operations mirror the BRep booleans but work on triangulated geometry. Results are approximate (limited by mesh resolution) but can handle arbitrarily complex input meshes.
 
-Obtain meshes via **`tessellate`** (see **[tessellation](tessellation.md)**), **USD mesh import** (see **[usd_import_export](usd_import_export.md)**), or a previous polygon boolean. Inspect results with **[polybrep](polybrep.md)**.
+Obtain meshes via **`tessellate`** (see **[tessellation](tessellation.md)**), or a previous polygon boolean. Inspect results with **[polybrep](polybrep.md)**.
 
 ## Operations
 

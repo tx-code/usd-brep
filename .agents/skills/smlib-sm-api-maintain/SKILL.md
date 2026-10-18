@@ -1,6 +1,6 @@
 ---
 name: smlib-sm-api-maintain
-description: "Use when adding, changing, or debugging an SmApi wrapper in source/SM_API or source/SM_API_USD, including declarations, status propagation, ownership, context selection, and kernel dispatch. Do not use for Python-only bindings, existing-API usage, or kernel algorithm fixes; use the corresponding Python or kernel skill."
+description: "Use when adding, changing, or debugging an SmApi wrapper in source/SM_API, including declarations, status propagation, ownership, context selection, and kernel dispatch. Do not use for Python-only bindings, existing-API usage, or kernel algorithm fixes; use the corresponding Python or kernel skill."
 ---
 
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
@@ -25,8 +25,8 @@ Design and update the stable `SM_API` contract that sits between Python/integrat
 
 1. `AGENTS.md` for architecture, style, and search scope.
 2. `.agents/operations/INDEX.md`, then the operation guide for the API family.
-3. The public header in `source/SM_API/inc/` or `source/SM_API_USD/inc/`.
-4. The matching implementation in `source/SM_API/src/` or `source/SM_API_USD/src/`.
+3. The public header in `source/SM_API/inc/`.
+4. The matching implementation in `source/SM_API/src/`.
 5. The kernel header and source that actually implement the operation under `source/SMLib/inc/` and `source/SMLib/src/`.
 6. `smlib-python-api-maintain` if the public API needs Python exposure.
 
@@ -54,7 +54,6 @@ Design and update the stable `SM_API` contract that sits between Python/integrat
 - Curves: `source/SM_API/inc/SmApiCurves.h`, `source/SM_API/src/SmApiCurves.cpp`.
 - Fillets: `source/SM_API/inc/SmApiFillets.h`, `source/SM_API/src/SmApiFillets.cpp`.
 - Queries: `source/SM_API/inc/SmApiQueries.h`, `source/SM_API/src/SmApiQueries.cpp`.
-- USD: `source/SM_API_USD/inc/SmApiUsd.h`, `source/SM_API_USD/src/SmApiUsd.cpp`.
 
 ## Change Flow
 
@@ -72,7 +71,6 @@ Use $smlib-sm-api-maintain to review why a wrapper returns success with a null o
 Which context should a new SmApi tessellation wrapper use for its output?
 Trace an SM_ERR from an SmApi wrapper to the owning kernel operation without changing the kernel.
 Change an SmApi ownership contract and identify every header, implementation, test, and doc update.
-Add a source/SM_API_USD wrapper while preserving status propagation and output initialization.
 Review whether a borrowed face surface can be returned safely through an existing SmApi function.
 Use $smlib-sm-api-maintain to expose an existing kernel operation without adding Python bindings.
 ```

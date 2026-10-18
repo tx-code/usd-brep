@@ -10,7 +10,7 @@
 
 Tessellation converts exact BRep geometry (NURBS surfaces) into polygon meshes (`SmPolyBrep` / Python `PolyBrep`) for rendering, export, or polygon-based operations. The tessellation algorithm subdivides each face into triangles that approximate the underlying surface within specified tolerances.
 
-The output is a **`PolyBrep`** — use it with **[polygon booleans](polygon_booleans.md)**, **[USD mesh I/O](usd_import_export.md)**, or the inspection helpers in **[polybrep](polybrep.md)**.
+The output is a **`PolyBrep`** — use it with **[polygon booleans](polygon_booleans.md)**, the inspection helpers in **[polybrep](polybrep.md)**.
 
 ## Parameters
 

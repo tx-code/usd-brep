@@ -10,7 +10,7 @@
 
 A **`PolyBrep`** is SMLib’s polygon mesh representation: triangulated (or polygonal) topology with 3D points. You obtain one by **tessellating** an exact `Brep`, **importing** USD meshes (`usd.import_mesh` / `usd.import_meshes`), or as the **result of polygon booleans**. It is the right type for rendering-oriented data, mesh analysis, and approximate set operations on discrete geometry.
 
-This guide documents the **Python** surface for inspecting and measuring a `PolyBrep`. C API equivalents for mesh booleans and volume checks live in `SmApiPolygons.h`; tessellation entry points are in `SmApiBrep.h` (`SmApiTessellate`). File I/O for meshes is covered in **[usd_import_export](usd_import_export.md)**.
+This guide documents the **Python** surface for inspecting and measuring a `PolyBrep`. C API equivalents for mesh booleans and volume checks live in `SmApiPolygons.h`; tessellation entry points are in `SmApiBrep.h` (`SmApiTessellate`).
 
 ## Types
 
@@ -26,7 +26,6 @@ This guide documents the **Python** surface for inspecting and measuring a `Poly
 | Workflow | Entry point |
 |---|---|
 | BRep → mesh | `sm.tessellate(brep, ...)` — see **[tessellation](tessellation.md)** |
-| Mesh ↔ USD | `sm.usd.import_mesh`, `sm.usd.export_mesh`, … — see **[usd_import_export](usd_import_export.md)** |
 | Mesh ∪ / ∩ / − | `sm.poly_boolean*` — see **[polygon_booleans](polygon_booleans.md)** |
 
 ## Topology and points
