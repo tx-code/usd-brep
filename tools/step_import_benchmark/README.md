@@ -21,6 +21,13 @@ $env:PATH = '<occt-build>/win64/vc14/bin;' + $env:PATH
 具体 Inspected / Accepted / Unsupported / Rejected / ResourceLimit / PartialTransfer 等在结果中区分；
 进程异常或无法发布结果返回非0。超出工具输入预算为 `NotRunInputBudget`，不是源文件非法或引擎失败。
 
+`self-native/import` 还接受显式 `--quality Q-AP214-development-mm-01`（1 μm）或
+`Q-AP214-tolerance-study-mm-01`（10 μm），以测量已实现的通用开发路径。
+互操作必须另传 `--source-policy PreserveNonGeometric`，质量配置本身不会放宽源策略。
+不传参数仍为严格 P0；错误配置以及其他模式收到这些原生参数时直接拒绝。
+每次 trial 记录实际质量、策略、预算和计时范围。通用路径的面积／体积请求相对精度
+为 1e-4，包含在公共导入操作内；导入后的 `Info()` 查询另记时间。
+
 ## 画像与批测
 
 ```powershell

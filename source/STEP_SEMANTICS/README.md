@@ -1,5 +1,14 @@
 # STEP source semantics: ticket 03
 
+The explicit general N2635/AP214 subsets admit rational B-spline curves and
+surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
+U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
+strict positivity are checked before construction; exact source predicates do
+not round tiny positive values to zero. The derived `weights` value has no P21
+transport slot. The general catalogs contain 132/110 declarations respectively;
+the default P0 catalog remains at 72. This is not admission of other rational
+uniform/quasi-uniform mappings or complete EXPRESS conformance.
+
 The AP214e3 source subset also retains applied date/time assignments and the
 rendering/transparency style chain from fixed `AP214E3_2010.exp` (71ab140f...).
 Date transport declarations are shared with the compared N2635 fields, while

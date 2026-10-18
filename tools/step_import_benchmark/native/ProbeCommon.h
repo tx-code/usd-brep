@@ -13,6 +13,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifdef _WIN32
@@ -98,6 +99,7 @@ struct Args
 {
     std::filesystem::path input, output;
     std::string mode;
+    std::string quality, sourcePolicy; // Explicit native-import choices; empty preserves the legacy strict P0 run.
     std::size_t warmup = 0, repeat = 1, maximumInput = 64 * 1024 * 1024;
 };
 inline Args Parse(const std::vector<std::string>& tokens)
@@ -120,6 +122,14 @@ inline Args Parse(const std::vector<std::string>& tokens)
         else if (key == "--mode")
         {
             args.mode = value;
+        }
+        else if (key == "--quality" || key == "--source-policy")
+        {
+            if (value.empty())
+            {
+                throw std::invalid_argument("Empty explicit native configuration");
+            }
+            (key == "--quality" ? args.quality : args.sourcePolicy) = value;
         }
         else
         {
@@ -180,6 +190,21 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
     try
     {
         const auto args = Parse(tokens);
+        // Never accept a native policy flag and silently ignore it on the other
+        // reader. Invalid policies are rejected even for an input-budget skip.
+        if (!args.quality.empty() || !args.sourcePolicy.empty())
+        {
+            if (std::string_view(engine) != "self-native" || args.mode != "import")
+            {
+                throw std::invalid_argument("Quality and source policy apply only to self-native import");
+            }
+            if ((!args.quality.empty() && args.quality != "Q-P0-mm-01" && args.quality != "Q-AP214-development-mm-01" &&
+                 args.quality != "Q-AP214-tolerance-study-mm-01") ||
+                (!args.sourcePolicy.empty() && args.sourcePolicy != "Strict" && args.sourcePolicy != "PreserveNonGeometric"))
+            {
+                throw std::invalid_argument("Unknown explicit native quality or source policy");
+            }
+        }
         const auto bytes = std::filesystem::file_size(args.input);
         std::ostringstream out;
         out << "{\"format\":\"step-import-benchmark.v1\",\"engine\":" << Q(engine) << ",\"mode\":" << Q(args.mode) << ",\"build_mode\":\""

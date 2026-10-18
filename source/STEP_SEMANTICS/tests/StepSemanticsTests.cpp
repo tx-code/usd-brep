@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 108,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 110,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -751,6 +751,40 @@ int main(int argc, char** argv)
             Require(
                 reference.Value().text == "975" && reference.ReferenceTarget() == target,
                 "diagnosed original reference retains owning source after outcome release"
+            );
+            ++groups;
+        }
+        {
+            auto weightedText = Read(corpus / "S203-P04/input.step");
+            for (const auto id : { "200", "201" })
+            {
+                const auto first = weightedText.find("#" + std::string(id) + "=");
+                Require(first != std::string::npos, "weighted fixture unused line dependency");
+                weightedText.erase(first, weightedText.find('\n', first) + 1 - first);
+            }
+            const std::string line = "LINE('',#100,#201)";
+            weightedText.replace(
+                weightedText.find(line),
+                line.size(),
+                "(BOUNDED_CURVE() B_SPLINE_CURVE(1,(#100,#101),.POLYLINE_FORM.,.F.,.F.) "
+                "B_SPLINE_CURVE_WITH_KNOTS((2,2),(0.,1.),.UNSPECIFIED.) CURVE() "
+                "GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE((+2.000E0,5.)) "
+                "REPRESENTATION_ITEM('weighted line'))"
+            );
+            auto weightedInput = step_source::InspectBytes(weightedText, step_source::Limits::PlanarFixtures());
+            auto weighted = Check(weightedInput, Limits{}, SourcePolicy::Strict, GeometryScope::GeneralBrep);
+            Require(weighted.status == Status::Checked && weighted.snapshot, "N2635 rational source");
+            Require(weighted.snapshot->RegisteredTypes().size() == 132, "N2635 rational catalog scope");
+            auto weights = weighted.snapshot->Field(Index(*weighted.snapshot, "202"), "weights_data");
+            Require(
+                &weights.Value() == &weightedInput.source->Find("202")->components[5].parameters[0],
+                "weights must reference the original rational facet"
+            );
+            weightedInput = {};
+            weighted = {};
+            Require(
+                weights.Value().children[0].text == "+2.000E0" && weights.Value().children[1].text == "5.",
+                "owning weights retain source lexemes after outcome release"
             );
             ++groups;
         }

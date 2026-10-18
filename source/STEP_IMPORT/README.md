@@ -1,8 +1,13 @@
 # STEP_IMPORT（内部 C++20）
 
 新增显式的通用开发路径 `Options.generalBrep=true`，用于精确绑定的 AP214e3／AP203e2 单个普通
-`MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、非有理节点 B 样条边，
-PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE 和非有理节点 B 样条曲面。
+`MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、显式节点 B 样条边，
+PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE 和显式节点 B 样条曲面。
+样条包括已登记的有理复合实体映射；控制点采用欧氏坐标，权重为独立的无量纲参数。
+源权重原词形始终保留，转入内核前检查数值可表示性，构建后读回齐次控制网验证。
+仅当源权重词形全部相同、可证明共同因子精确消去时，允许内核改存单位权重，
+并记录 `ExactUniformWeightCancellation`；非均匀权重被内核近似简化时拒绝。
+这不保证所有有理参数化都满足目标内核的 UV／容差检查；失败仍丢弃整个候选。
 仍保留下面原有平面路径的行为和资格；默认选项不进入通用路径。
 
 AP203e2 的通用请求使用独立的 `203e2-G0-Source-0.1` 源子集，保留 N2635 旧上下文、

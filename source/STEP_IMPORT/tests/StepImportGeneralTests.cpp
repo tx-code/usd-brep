@@ -179,7 +179,7 @@ void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b, bool definingC
 }
 struct ArchiveClassChanges
 {
-    std::size_t extrusionSurfaces = 0, linearUv = 0;
+    std::size_t extrusionSurfaces = 0, planeSurfaces = 0, linearUv = 0;
 };
 ArchiveClassChanges CompareNativeDefinitions(SmBrep& a, SmBrep& b)
 {
@@ -218,14 +218,21 @@ ArchiveClassChanges CompareNativeDefinitions(SmBrep& a, SmBrep& b)
         const auto second = dynamic_cast<SmBSplineSurface*>(fb[i]->GetSurface());
         if (first && second && first->GetType() != second->GetType())
         {
-            // The archive reader recognizes V-linear spline surfaces as exact
-            // extrusion subclasses. Allow only this observed canonicalization,
-            // and still compare EVERY coefficient, weight and knot below.
+            // The reader recognizes exact extrusion/plane subclasses. Class
+            // labels can differ only if EVERY coefficient, weight, degree and
+            // knot below remains identical, preserving evaluator parameters.
             Require(
-                first->GetType() == SmBSplineSurface_TYPE && second->GetType() == SmSurfOfExtrusion_TYPE,
+                first->GetType() == SmBSplineSurface_TYPE && (second->GetType() == SmSurfOfExtrusion_TYPE || second->GetType() == SmPlane_TYPE),
                 "unqualified archive surface reclassification"
             );
-            ++changes.extrusionSurfaces;
+            if (second->GetType() == SmPlane_TYPE)
+            {
+                ++changes.planeSurfaces;
+            }
+            else
+            {
+                ++changes.extrusionSurfaces;
+            }
         }
         Require(first && second, "admitted exact native surface net");
         Require(
@@ -271,6 +278,104 @@ ArchiveClassChanges CompareNativeDefinitions(SmBrep& a, SmBrep& b)
         }
     }
     return changes;
+}
+void RationalContract(const std::filesystem::path& source, const std::filesystem::path& directory)
+{
+    std::ifstream input(source, std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    const auto replace = [&](std::string_view old, std::string_view value)
+    {
+        const auto position = text.find(old);
+        Require(position != std::string::npos, "independent rational fixture carrier");
+        text.replace(position, old.size(), value);
+    };
+    replace(
+        "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}",
+        "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}"
+    );
+    replace("#200=DIRECTION('',(1.,0.,0.));\n", "");
+    replace("#201=VECTOR('',#200,10.);\n", "");
+    replace(
+        "LINE('',#100,#201)",
+        "(BOUNDED_CURVE() B_SPLINE_CURVE(1,(#100,#101),.POLYLINE_FORM.,.F.,.F.) "
+        "B_SPLINE_CURVE_WITH_KNOTS((2,2),(0.,1.),.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() "
+        "RATIONAL_B_SPLINE_CURVE((2.,5.)) REPRESENTATION_ITEM('weighted line'))"
+    );
+    replace(
+        "PLANE('',#513)",
+        "(BOUNDED_SURFACE() B_SPLINE_SURFACE(1,1,((#104,#107),(#105,#106)),.PLANE_SURF.,.F.,.F.,.F.) "
+        "B_SPLINE_SURFACE_WITH_KNOTS((2,2),(2,2),(0.,1.),(0.,1.),.UNSPECIFIED.) GEOMETRIC_REPRESENTATION_ITEM() "
+        "RATIONAL_B_SPLINE_SURFACE(((1.25,1.25),(1.25,1.25))) REPRESENTATION_ITEM('weighted plane') SURFACE())"
+    );
+    replace("'body',(#21),#12", "'body',(#21,#513),#12");
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    const auto result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::Accepted && result.model, "weighted analytic box import");
+    Near(*result.model->MaterialVolumeMm3(), 6000, 1.2, "independent weighted box physical volume");
+    bool surfaceChecked = false;
+    for (const auto& face : result.model->Faces())
+    {
+        if (face.SourceId() == "517")
+        {
+            const auto p = face.EvaluateSurface(0.5, 0.5);
+            Near(p[0], 7, 1e-9, "uniform weights cancel without reparameterizing U");
+            Near(p[1], 7, 1e-9, "uniform weights cancel without reparameterizing V");
+            Near(p[2], 35, 1e-9, "source Euclidean surface controls");
+            surfaceChecked = true;
+        }
+    }
+    Require(surfaceChecked, "source rational face association");
+    Require(
+        std::any_of(
+            result.report.parameterMappings.begin(),
+            result.report.parameterMappings.end(),
+            [](const auto& mapping)
+            {
+                return mapping.kind == "ExactUniformWeightCancellation" && mapping.sourceGeometryId == "514" && mapping.sourceUseId == "517";
+            }
+        ),
+        "exact weight cancellation provenance"
+    );
+    auto copy = result.model->CopyForModeling();
+    Require(copy.model && copy.status == step_import::Status::Accepted, "rational independent copy");
+    copy.model->Edit(
+        [&](SmBrep& brep)
+        {
+            SmTArray<SmEdge*> edges;
+            brep.GetEdges(edges);
+            bool found = false;
+            for (ULONG i = 0; i < edges.GetSize(); ++i)
+            {
+                auto curve = dynamic_cast<SmBSplineCurve*>(edges[i]->GetCurve());
+                if (!curve || !curve->IsRational())
+                {
+                    continue;
+                }
+                SmTArray<SmPoint3d> controls;
+                SmTArray<double> weights;
+                Require(curve->GetControlPolygon(controls, weights) == SM_SUCCESS && weights.GetSize() == 2, "native source weights");
+                Require(weights[0] == 2 && weights[1] == 5, "nonuniform weights must not become ones");
+                SmPoint3d point;
+                Require(curve->EvaluatePoint(0.5, point) == SM_SUCCESS, "rational evaluator");
+                Near(point.x, 64. / 7., 1e-9, "independent weighted midpoint (not affine midpoint)");
+                Near(point.y, -3, 1e-9, "weighted Euclidean ordinate");
+                found = true;
+            }
+            Require(found, "rational edge survives native topology construction");
+        }
+    );
+    std::filesystem::create_directories(directory);
+    const auto archive = directory / "rational-box.smb";
+    result.model->WriteNative(archive);
+    auto reloaded = ReloadNative(archive);
+    copy.model->Edit(
+        [&](SmBrep& brep)
+        {
+            CompareNativeDefinitions(brep, *reloaded.brep);
+        }
+    );
 }
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
@@ -394,6 +499,7 @@ void DevelopmentContract(const std::filesystem::path& source, const std::filesys
         << ",\"volume_mm3\":" << expected << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume
         << ",\"outside_distance_mm\":" << distance << ",\"reloaded_distance_mm\":" << queryDistance
         << ",\"archive_spline_to_extrusion_surfaces\":" << changes.extrusionSurfaces << ",\"archive_spline_to_linear_uv\":" << changes.linearUv
+        << ",\"archive_spline_to_plane_surfaces\":" << changes.planeSurfaces
         << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0}\n";
     Require(bool(checks), "development check receipt");
 }
@@ -410,6 +516,7 @@ int main(int argc, char** argv)
         Require(argc == 3, "fixture and local output directory required");
         GaugeContract();
         FinalTrimContract();
+        RationalContract(argv[1], argv[2]);
         LifecycleContract(argv[1], argv[2]);
     }
     catch (const std::exception& error)

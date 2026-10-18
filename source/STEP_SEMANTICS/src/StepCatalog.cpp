@@ -5,6 +5,7 @@
 #include "StepAp203GeneralCatalog.h"
 #include "StepAp214PresentationCatalog.h"
 #include "StepDateTimeCatalog.h"
+#include "StepRationalSplineCatalog.h"
 
 #include <algorithm>
 #include <functional>
@@ -520,6 +521,10 @@ Catalog::Catalog(ProfileKind profile)
     {
         AddDateTimeDeclarations(*this, profile);
         AddAp214RenderingDeclarations(*this);
+    }
+    if (profile != ProfileKind::Ap203e2Planar)
+    {
+        AddRationalSplineDeclarations(*this);
     }
     if (declarations.size() > TypeMembership{}.size())
     {

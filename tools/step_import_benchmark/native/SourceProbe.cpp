@@ -44,6 +44,24 @@ bench::Trial Run(const bench::Args& args)
         {
             auto options = step_import::Options::PlanarFixture();
             options.sourceLimits = SourceLimits(args.maximumInput);
+            if (args.quality == "Q-AP214-development-mm-01" || args.quality == "Q-AP214-tolerance-study-mm-01")
+            {
+                // This is the public general importer, including its required
+                // source checks, native validators, measured queries and report.
+                // The larger report cap changes capacity, not checked accuracy.
+                options.generalBrep = true;
+                options.quality = args.quality == "Q-AP214-development-mm-01" ? step_import::Quality::GeneralDevelopment() :
+                                                                                step_import::Quality::GeneralToleranceStudy();
+                options.sourceLimits.reportBytes = 256 * 1024 * 1024;
+                options.nativeLimits.reportBytes = options.sourceLimits.reportBytes;
+                options.nativeLimits.nativeCalls = 100000;
+                options.semanticLimits.dependencyVisits = 10000000;
+                options.semanticLimits.preservedDiagnostics = 16384;
+            }
+            if (args.sourcePolicy == "PreserveNonGeometric")
+            {
+                options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+            }
             options.execution.progress = [&](step_import::Progress progress)
             {
                 if (progress.phase != step_import::Phase::BeforeNativeCall)
@@ -62,19 +80,34 @@ bench::Trial Run(const bench::Args& args)
             }
             if (result.model)
             {
+                const auto infoStart = bench::Clock::now();
                 const auto info = result.model->Info();
+                row.timings["model_info_after_import"] = bench::Ms(infoStart);
                 std::ostringstream model;
                 model << "{\"faces\":" << info.faces << ",\"edges\":" << info.edges << ",\"vertices\":" << info.vertices
                       << ",\"area_mm2\":" << bench::N(info.areaMm2)
                       << ",\"volume_mm3\":" << (info.materialVolumeMm3 ? bench::N(*info.materialVolumeMm3) : "null") << '}';
                 row.model = model.str();
             }
+            const auto preserved = result.report.generalSource && result.report.generalSource->snapshot ?
+                                       result.report.generalSource->snapshot->PreservedDiagnostics().size() :
+                                       0;
             row.records = result.report.source ? result.report.source->Records().size() : 0;
-            row.extra = ",\"source_status\":" + bench::Q(result.report.sourceStatus) +
-                        ",\"semantic_status\":" + bench::Q(result.report.semanticStatus) +
-                        ",\"planar_status\":" + bench::Q(result.report.planarStatus) + ",\"source_sha256\":" + bench::Q(result.report.sourceSha256) +
-                        ",\"native_calls\":" + std::to_string(result.report.nativeCalls) +
-                        ",\"report_bytes\":" + std::to_string(result.report.json.size());
+            row.extra =
+                ",\"source_status\":" + bench::Q(result.report.sourceStatus) + ",\"semantic_status\":" + bench::Q(result.report.semanticStatus) +
+                ",\"planar_status\":" + bench::Q(result.report.planarStatus) + ",\"source_sha256\":" + bench::Q(result.report.sourceSha256) +
+                ",\"native_calls\":" + std::to_string(result.report.nativeCalls) + ",\"report_bytes\":" + std::to_string(result.report.json.size()) +
+                ",\"preserved_source_diagnostics\":" + std::to_string(preserved) + ",\"settings\":{\"quality_id\":" + bench::Q(options.quality.id) +
+                ",\"source_policy\":" + bench::Q(options.sourcePolicy == step_semantics::SourcePolicy::Strict ? "Strict" : "PreserveNonGeometric") +
+                ",\"general_brep\":" + (options.generalBrep ? "true" : "false") +
+                ",\"report_limit_bytes\":" + std::to_string(options.nativeLimits.reportBytes) +
+                ",\"native_call_limit\":" + std::to_string(options.nativeLimits.nativeCalls) + ",\"consistency_mm\":" +
+                bench::N(double(options.quality.consistencyMm.Numerator()) / double(options.quality.consistencyMm.Denominator())) +
+                ",\"derived_uv_mm\":" +
+                bench::N(double(options.quality.derivedUvMm.Numerator()) / double(options.quality.derivedUvMm.Denominator())) +
+                ",\"work_tolerance_mm\":" +
+                bench::N(double(options.quality.initialWorkToleranceMm.Numerator()) / double(options.quality.initialWorkToleranceMm.Denominator())) +
+                ",\"operation_scope\":\"public ImportFile including source validation, construction, postchecks, integrals, mandatory report and commit\"}";
             row.aliveMemory = bench::Memory();
             cleanup = bench::Clock::now();
         }

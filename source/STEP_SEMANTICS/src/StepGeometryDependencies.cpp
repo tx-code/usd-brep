@@ -105,6 +105,14 @@ public:
                 Direction(r, grid.children.size(), UDirection);
                 Direction(r, width, VDirection);
             }
+            if (IsA(r, "RATIONAL_B_SPLINE_CURVE"))
+            {
+                Weights(r, false);
+            }
+            if (IsA(r, "RATIONAL_B_SPLINE_SURFACE"))
+            {
+                Weights(r, true);
+            }
         }
     }
 
@@ -179,6 +187,69 @@ private:
         issue.responsibility = std::string(m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ? "N2635 " : "AP214E3_2010.exp ") +
                                std::string(clause);
         throw Stop{ std::move(issue) };
+    }
+    void Weights(std::size_t r, bool surface)
+    {
+        const auto& bound = Field(r, "weights_data");
+        const auto& data = *bound.declaration.value;
+        const auto& controls = *Field(r, "control_points_list").declaration.value;
+        const std::string prefix = surface ? "RATIONAL_B_SPLINE_SURFACE" : "RATIONAL_B_SPLINE_CURVE";
+        Count(data.span, PredicateKind::Entity);
+        if (data.children.size() != controls.children.size())
+        {
+            Fail(r, bound, data, prefix + ".WR1", std::to_string(controls.children.size()), std::to_string(data.children.size()));
+        }
+        if (surface)
+        {
+            for (std::size_t i = 0; i < data.children.size(); ++i)
+            {
+                const auto& row = data.children[i];
+                m_visit(row.span);
+                if (row.children.size() != controls.children[0].children.size())
+                {
+                    // WR1 compares the first row. Subsequent ragged rows also
+                    // cannot form the declared DERIVE array: reject, never pad,
+                    // truncate or transpose weights to match control points.
+                    Fail(
+                        r,
+                        bound,
+                        row,
+                        i ? prefix + ".weights DERIVE" : prefix + ".WR1",
+                        std::to_string(controls.children[0].children.size()),
+                        std::to_string(row.children.size()),
+                        { i + 1 },
+                        i != 0
+                    );
+                }
+            }
+        }
+        Count(data.span, PredicateKind::Entity);
+        const auto positive = [&](const Value& value, std::vector<std::size_t> path)
+        {
+            m_visit(value.span);
+            if (CompareSourceReals(value.text, "0.") <= 0)
+            {
+                Fail(r, bound, value, prefix + ".WR2", ">0", value.text, std::move(path));
+            }
+        };
+        // Both artifacts' *_weights_positive functions test each source REAL.
+        // Weights are dimensionless; do not round, rescale or turn signed zero
+        // into a positive value to let the target constructor accept it.
+        for (std::size_t i = 0; i < data.children.size(); ++i)
+        {
+            if (surface)
+            {
+                m_visit(data.children[i].span);
+                for (std::size_t j = 0; j < data.children[i].children.size(); ++j)
+                {
+                    positive(data.children[i].children[j], { i + 1, j + 1 });
+                }
+            }
+            else
+            {
+                positive(data.children[i], { i + 1 });
+            }
+        }
     }
     void Direction(std::size_t r, std::size_t controls, const SplineDirection& direction)
     {

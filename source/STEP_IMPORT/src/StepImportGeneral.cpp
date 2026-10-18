@@ -571,6 +571,7 @@ private:
             }
             auto mult = Multiplicities(g, "knot_multiplicities");
             auto knots = Numbers(g, "knots");
+            auto weights = SplineWeights(g, false, cp);
             SmBSplineCurve* curve = nullptr;
             Step(g);
             Good(
@@ -583,12 +584,20 @@ private:
                     mult,
                     knots,
                     SM_KT_UNSPECIFIED,
-                    nullptr,
+                    weights.GetSize() ? &weights : nullptr,
                     nullptr,
                     curve
                 )
             );
             c.native.reset(curve);
+            if (weights.GetSize())
+            {
+                Need(bool(curve), "GeneralCurveAllocation", g);
+                ULONG count = 0;
+                double* net = nullptr;
+                Good(curve->GetControlPointsPointer(count, net));
+                VerifyRationalNet(g, c.record, cp, weights, net, count, curve->IsRational());
+            }
         }
         else
         {
@@ -674,6 +683,112 @@ private:
             result.Add(Number(value));
         }
         return result;
+    }
+    SmTArray<double> SplineWeights(Index geometry, bool surface, const SmTArray<SmPoint3d>& control) const
+    {
+        SmTArray<double> result;
+        if (!Is(geometry, surface ? "RATIONAL_B_SPLINE_SURFACE" : "RATIONAL_B_SPLINE_CURVE"))
+        {
+            return result;
+        }
+        const auto& values = F(geometry, "weights_data");
+        const auto append = [&](const step_source::Value& value)
+        {
+            const double weight = Number(value);
+            Need(weight > 0, "GeneralWeightRangeUnestablished", geometry);
+            result.Add(weight);
+        };
+        // STEP Cartesian controls are Euclidean, weights dimensionless. Preserve
+        // source U rows / V entries and pass weights separately: CreateCanonical
+        // performs the one conversion to homogeneous coordinates itself.
+        for (const auto& value : values.children)
+        {
+            if (surface)
+            {
+                for (const auto& weight : value.children)
+                {
+                    append(weight);
+                }
+            }
+            else
+            {
+                append(value);
+            }
+        }
+        Need(result.GetSize() == control.GetSize(), "GeneralWeightNetShape", geometry);
+        for (ULONG i = 0; i < result.GetSize(); ++i)
+        {
+            for (const auto coordinate : P(control[i]))
+            {
+                const double homogeneous = coordinate * result[i];
+                Need(std::isfinite(homogeneous) && (coordinate == 0 || homogeneous != 0), "GeneralHomogeneousRangeUnestablished", geometry);
+            }
+        }
+        return result;
+    }
+    void VerifyRationalNet(
+        Index geometry,
+        Index sourceUse,
+        const SmTArray<SmPoint3d>& control,
+        const SmTArray<double>& weights,
+        const double* net,
+        ULONG count,
+        bool rational
+    ) const
+    {
+        Need(net && count == control.GetSize(), "GeneralRationalNetShapeChanged", geometry);
+        // Only an identical positive source weight at EVERY control can be
+        // cancelled to one without changing geometry or parameterization.
+        // Require literal equality as a sufficient exact source proof; binary64
+        // equality alone could hide distinct source decimals rounding together.
+        const auto& sourceWeights = F(geometry, "weights_data");
+        const bool surface = Is(geometry, "RATIONAL_B_SPLINE_SURFACE");
+        const auto& first = surface ? sourceWeights.children.front().children.front() : sourceWeights.children.front();
+        bool uniformSource = true;
+        for (const auto& value : sourceWeights.children)
+        {
+            if (surface)
+            {
+                for (const auto& child : value.children)
+                {
+                    uniformSource = uniformSource && child.text == first.text;
+                }
+            }
+            else
+            {
+                uniformSource = uniformSource && value.text == first.text;
+            }
+        }
+        bool cancelled = false;
+        // SMLib may also discard near-unity NONuniform surface weights. Reject
+        // that unqualified normalization; raw source weights remain unchanged.
+        // Stored nonrational W is a sentinel, so interpret it as exactly one.
+        for (ULONG i = 0; i < count; ++i)
+        {
+            const double actualWeight = rational ? net[4 * i + 3] : 1.;
+            if (actualWeight != weights[i])
+            {
+                Need(uniformSource && !rational && actualWeight == 1., "GeneralSourceWeightsChanged", geometry);
+                cancelled = true;
+            }
+            V actual{};
+            for (Index axis = 0; axis < 3; ++axis)
+            {
+                actual[axis] = net[4 * i + axis] / actualWeight;
+                Need(std::isfinite(actual[axis]), "GeneralHomogeneousRangeUnestablished", geometry);
+            }
+            Need(Norm(Sub(actual, P(control[i]))) <= Q(m_options.quality.definitionMm), "GeneralControlRoundtripUnestablished", geometry);
+        }
+        if (cancelled)
+        {
+            ParameterMapping trace;
+            trace.kind = "ExactUniformWeightCancellation";
+            trace.sourceGeometryId = Id(geometry);
+            trace.sourceUseId = Id(sourceUse);
+            trace.equation = "identical positive source weights cancel from numerator/denominator; source parameters and Euclidean controls unchanged";
+            trace.parameters = { { "source_uniform_weight", { weights[0] } }, { "native_uniform_weight", { 1. } } };
+            m_report.parameterMappings.push_back(std::move(trace));
+        }
     }
     std::optional<SeamPlan> MissingSeam(const Face& f) const
     {
@@ -1293,6 +1408,7 @@ private:
             }
             auto um = Multiplicities(g, "u_multiplicities"), vm = Multiplicities(g, "v_multiplicities");
             auto uk = Numbers(g, "u_knots"), vk = Numbers(g, "v_knots");
+            auto weights = SplineWeights(g, true, cp);
             SmBSplineSurface* surface = nullptr;
             Step(g);
             Good(
@@ -1307,12 +1423,26 @@ private:
                     uk,
                     vk,
                     SM_KT_UNSPECIFIED,
-                    nullptr,
+                    weights.GetSize() ? &weights : nullptr,
                     nullptr,
                     surface
                 )
             );
-            return std::unique_ptr<SmSurface>(surface);
+            std::unique_ptr<SmSurface> owned(surface);
+            if (weights.GetSize())
+            {
+                Need(bool(surface), "GeneralSurfaceAllocation", g);
+                ULONG u = 0, v = 0;
+                double* net = nullptr;
+                Good(surface->GetControlPointsPointer(u, v, net));
+                Need(
+                    u == F(g, "control_points_list").children.size() && v == F(g, "control_points_list").children[0].children.size(),
+                    "GeneralRationalNetShapeChanged",
+                    g
+                );
+                VerifyRationalNet(g, f.record, cp, weights, net, u * v, surface->IsRational());
+            }
+            return owned;
         }
         const auto frame = Placement(Ref(g, "position"));
         // Finite computational windows must cover the entire defining boundary,
