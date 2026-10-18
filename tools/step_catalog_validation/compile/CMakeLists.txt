@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+cmake_minimum_required(VERSION 3.20)
+project(StepCatalogCompileContracts LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+if(NOT CASE_MANIFEST OR NOT CATALOG_REPOSITORY)
+    message(FATAL_ERROR "Use the compile_contracts Python driver with an explicit manifest and repository")
+endif()
+file(READ "${CASE_MANIFEST}" manifest)
+get_filename_component(case_root "${CASE_MANIFEST}" DIRECTORY)
+string(JSON case_count LENGTH "${manifest}" cases)
+math(EXPR last_case "${case_count} - 1")
+foreach(index RANGE 0 ${last_case})
+    string(JSON name GET "${manifest}" cases ${index} name)
+    string(JSON source GET "${manifest}" cases ${index} source)
+    add_library(${name} OBJECT EXCLUDE_FROM_ALL "${case_root}/${source}")
+    target_include_directories(${name} PRIVATE
+        "${CATALOG_REPOSITORY}/source/STEP_SEMANTICS/src"
+        "${CATALOG_REPOSITORY}/source/STEP_SEMANTICS/inc"
+        "${CATALOG_REPOSITORY}/source/STEP_SOURCE/inc"
+        "${CATALOG_REPOSITORY}/third_party/microsoft-gsl/include")
+    string(JSON definition_count LENGTH "${manifest}" cases ${index} definitions)
+    if(definition_count GREATER 0)
+        math(EXPR last_definition "${definition_count} - 1")
+        foreach(d RANGE 0 ${last_definition})
+            string(JSON definition GET "${manifest}" cases ${index} definitions ${d})
+            target_compile_definitions(${name} PRIVATE "${definition}")
+        endforeach()
+    endif()
+    if(MSVC)
+        target_compile_options(${name} PRIVATE /W4 /WX /permissive- /utf-8)
+    else()
+        target_compile_options(${name} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endforeach()

@@ -1,0 +1,26 @@
+{
+  "format": "step-catalog-compile-cases.v1",
+  "scope": "Batch 1 driver controls and current catalog headers only. Production consteval validator cases belong to batch 2.",
+  "cases": [
+    {
+      "name": "catalog_header",
+      "source": "CatalogHeader.cpp",
+      "definitions": [],
+      "expect": "pass"
+    },
+    {
+      "name": "driver_control_pass",
+      "source": "DriverControl.cpp",
+      "definitions": [],
+      "expect": "pass"
+    },
+    {
+      "name": "driver_control_reject",
+      "source": "DriverControl.cpp",
+      "definitions": ["STEP_CATALOG_DRIVER_REJECT=1"],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_DRIVER_CONTROL: deliberate rejection",
+      "positive_control": "driver_control_pass"
+    }
+  ]
+}

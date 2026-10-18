@@ -1,0 +1,2 @@
+# Frozen payload hashes must survive Windows checkouts with core.autocrlf.
+baseline/*.json text eol=lf

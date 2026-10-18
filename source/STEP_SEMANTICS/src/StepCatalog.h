@@ -68,6 +68,11 @@ struct NamedBranches
     std::string_view name;
     std::span<const std::string_view> branches;
 };
+struct SiPrefix
+{
+    std::string_view name;
+    int power;
+};
 struct Catalog
 {
     std::vector<Declaration> declarations;
@@ -90,6 +95,10 @@ struct Catalog
     bool AdmitsMeasure(std::string_view type) const;
     int PrefixPower10(std::string_view prefix) const;
     std::string_view RedeclaredBy(const TypeMembership& types, const FieldBinding& binding) const;
+    // Read-only access to the same fixed facts used by queries, for complete
+    // refactoring snapshots; no second copy of the schema tables is maintained.
+    std::span<const SiPrefix> PrefixEntries() const noexcept;
+    std::span<const std::span<const std::string_view>> ExclusiveSubtypeGroups() const noexcept;
 };
 const Catalog& Schema(ProfileKind profile);
 

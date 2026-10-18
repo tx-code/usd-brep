@@ -65,11 +65,6 @@ constexpr std::string_view SurfaceForms[] = { "PLANE_SURF",    "CYLINDRICAL_SURF
                                               "QUADRIC_SURF",  "SURF_OF_LINEAR_EXTRUSION", "UNSPECIFIED" };
 constexpr std::string_view KnotTypes[] = { "UNIFORM_KNOTS", "QUASI_UNIFORM_KNOTS", "PIECEWISE_BEZIER_KNOTS", "UNSPECIFIED" };
 
-struct SiPrefix
-{
-    std::string_view name;
-    int power;
-};
 // Empty is the explicit absent-prefix interpretation, never a guessed source unit.
 constexpr SiPrefix Prefixes[] = { { "", 0 },       { "EXA", 18 },  { "PETA", 15 },  { "TERA", 12 },   { "GIGA", 9 },   { "MEGA", 6 },
                                   { "KILO", 3 },   { "HECTO", 2 }, { "DECA", 1 },   { "DECI", -1 },   { "CENTI", -2 }, { "MILLI", -3 },
@@ -701,6 +696,14 @@ std::string_view Catalog::RedeclaredBy(const TypeMembership& types, const FieldB
         }
     }
     return {};
+}
+std::span<const SiPrefix> Catalog::PrefixEntries() const noexcept
+{
+    return Prefixes;
+}
+std::span<const std::span<const std::string_view>> Catalog::ExclusiveSubtypeGroups() const noexcept
+{
+    return ExclusiveGroups;
 }
 const Catalog& Schema(ProfileKind profile)
 {
