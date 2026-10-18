@@ -2,7 +2,6 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 local function configure_sm_api_test_common()
-    use_usd_tbb()
     files { "src/*.cpp", "inc/*.h" }
     files { root.."/Examples/SM_API/boolean_bounds.cpp" }
     files { root.."/Examples/SMLib/step_derivatives.cpp" }

@@ -8,6 +8,7 @@ project "STEP_SEMANTICS"
     includedirs { root.."/source/STEP_SOURCE/inc", root.."/source/STEP_SEMANTICS/inc", root.."/source/STEP_SEMANTICS/src",
                   root.."/third_party/microsoft-gsl/include" }
     links { "STEP_SOURCE" }
+if smlib_with_validation then
 project "step_semantic_inspect"
     kind "ConsoleApp"
     cppdialect "C++20"
@@ -15,3 +16,5 @@ project "step_semantic_inspect"
     files { "app/*.cpp" }
     includedirs { root.."/source/STEP_SOURCE/inc", root.."/source/STEP_SEMANTICS/inc" }
     links { "STEP_SEMANTICS", "STEP_SOURCE" }
+
+end

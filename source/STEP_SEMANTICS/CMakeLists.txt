@@ -9,8 +9,11 @@ add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepAp203GeneralCatalo
 target_include_directories(STEP_SEMANTICS PUBLIC inc PRIVATE src)
 target_compile_features(STEP_SEMANTICS PUBLIC cxx_std_20)
 target_link_libraries(STEP_SEMANTICS PUBLIC STEP_SOURCE PRIVATE usd_brep_gsl)
-add_executable(step_semantic_inspect app/step_semantics.cpp)
-target_link_libraries(step_semantic_inspect PRIVATE STEP_SEMANTICS)
+option(STEP_BUILD_TOOLS "Build STEP inspection CLIs" ON)
+if(STEP_BUILD_TOOLS)
+    add_executable(step_semantic_inspect app/step_semantics.cpp)
+    target_link_libraries(step_semantic_inspect PRIVATE STEP_SEMANTICS)
+endif()
 
 option(STEP_SEMANTICS_BUILD_TESTS "Build source semantics contract tests" ON)
 if(STEP_SEMANTICS_BUILD_TESTS)

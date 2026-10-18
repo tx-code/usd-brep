@@ -4,7 +4,6 @@
 project "sm_api_boolean_bounds_example"
     kind "ConsoleApp"
     location (workspace_dir.."/%{prj.name}")
-    use_usd_tbb()
     files { "boolean_bounds.cpp", "boolean_bounds.h" }
     includedirs { root.."/source/SM_API/inc", root.."/source/SMLib/inc" }
     links { "SM_API", "SMLib" }

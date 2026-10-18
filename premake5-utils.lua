@@ -143,7 +143,7 @@ function macos_common_linkoptions()
     return { macos_arch_flags() }
 end
 
-function macos_usd_build_filters()
+function macos_sdk_build_filters()
     -- Do not add -fvisibility=hidden here: dylib targets that share header-instantiated
     -- types across library edges need default visibility for vtable linking on macOS.
     filter { "system:macosx" }

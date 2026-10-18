@@ -17,7 +17,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = REPO_ROOT / "source" / "SmPyLib" / "src"
 STUB_DIR = REPO_ROOT / "source" / "SmPyLib" / "stubs" / "usd_brep"
 MAIN_STUB = STUB_DIR / "__init__.pyi"
-USD_STUB = STUB_DIR / "usd.pyi"
 
 MODULE_BIND_RE = re.compile(r"\bm\.def\s*\(\s*\"([A-Za-z_][A-Za-z0-9_]*)\"", re.DOTALL)
 STUB_FUNCTION_RE = re.compile(r"^def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", re.MULTILINE)
@@ -39,7 +38,6 @@ class Binding:
     file: Path
     line: int
     has_wraps: bool
-    is_usd: bool
 
 
 def line_number(text: str, offset: int) -> int:
@@ -59,7 +57,6 @@ def parse_bindings(path: Path) -> list[Binding]:
                 file=path,
                 line=line_number(text, match.start()),
                 has_wraps="Wraps:" in block,
-                is_usd=path.name == "SmPyUsd.cpp",
             )
         )
     return bindings
@@ -93,16 +90,12 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     main_stub_functions = parse_stub_functions(MAIN_STUB)
-    usd_stub_functions = parse_stub_functions(USD_STUB)
     bindings = collect_bindings()
 
-    main_bindings = {binding.name: binding for binding in bindings if not binding.is_usd}
-    usd_bindings = {binding.name: binding for binding in bindings if binding.is_usd}
+    main_bindings = {binding.name: binding for binding in bindings}
 
     missing_main_stubs = sorted(set(main_bindings) - main_stub_functions)
-    missing_usd_stubs = sorted(set(usd_bindings) - usd_stub_functions)
     stale_main_stubs = sorted(main_stub_functions - set(main_bindings))
-    stale_usd_stubs = sorted(usd_stub_functions - set(usd_bindings))
     missing_wraps = [binding for binding in bindings if not binding.has_wraps]
 
     errors: list[str] = []
@@ -110,12 +103,8 @@ def main(argv: list[str]) -> int:
 
     if missing_main_stubs:
         errors.append("bindings missing from __init__.pyi: " + ", ".join(missing_main_stubs))
-    if missing_usd_stubs:
-        errors.append("USD bindings missing from usd.pyi: " + ", ".join(missing_usd_stubs))
     if stale_main_stubs:
         warnings.append("stub functions without module binding: " + ", ".join(stale_main_stubs))
-    if stale_usd_stubs:
-        warnings.append("USD stub functions without module binding: " + ", ".join(stale_usd_stubs))
     if missing_wraps:
         message = "bindings missing Wraps footer:\n" + "\n".join(f"  - {format_binding(item)}" for item in missing_wraps)
         if args.allow_missing_wraps:
@@ -124,7 +113,6 @@ def main(argv: list[str]) -> int:
             errors.append(message)
 
     print(f"checked {len(main_bindings)} module bindings against {MAIN_STUB.relative_to(REPO_ROOT)}")
-    print(f"checked {len(usd_bindings)} USD bindings against {USD_STUB.relative_to(REPO_ROOT)}")
 
     if warnings:
         print("\nwarnings:")

@@ -4,7 +4,6 @@
 project "smlib_step_derivatives_example"
     kind "ConsoleApp"
     location (workspace_dir.."/%{prj.name}")
-    use_usd_tbb()
     files { "step_derivatives.cpp", "step_derivatives.h" }
     includedirs { root.."/source/SMLib/inc" }
     links { "SMLib" }

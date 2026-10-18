@@ -5,7 +5,6 @@ project "prog_test"
     kind "SharedLib"
     location (workspace_dir.."/%{prj.name}")
     staticruntime "Off"
-    use_usd_tbb()
 
     -- source code to compile
     files { "src/*.cpp", "inc/*.h" }
@@ -33,7 +32,6 @@ project "prog_test_app"
     kind "ConsoleApp"
     location (workspace_dir.."/%{prj.name}")
     staticruntime "Off"
-    use_usd_tbb()
 
     -- source code to compile
     files { "src/prog_test_app.cpp" }

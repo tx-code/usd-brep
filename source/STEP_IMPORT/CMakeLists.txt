@@ -39,8 +39,11 @@ else()
     target_compile_options(STEP_IMPORT PRIVATE -fno-fast-math -ffp-contract=off)
 endif()
 
-add_executable(step_native_import app/step_import.cpp)
-target_link_libraries(step_native_import PRIVATE STEP_IMPORT)
+option(STEP_BUILD_TOOLS "Build STEP inspection CLIs" ON)
+if(STEP_BUILD_TOOLS)
+    add_executable(step_native_import app/step_import.cpp)
+    target_link_libraries(step_native_import PRIVATE STEP_IMPORT)
+endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)

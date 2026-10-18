@@ -8,8 +8,11 @@ add_library(STEP_SOURCE STATIC src/StepSource.cpp src/StepInspectJson.cpp src/St
 target_include_directories(STEP_SOURCE PUBLIC inc)
 target_compile_features(STEP_SOURCE PUBLIC cxx_std_20)
 target_link_libraries(STEP_SOURCE PRIVATE usd_brep_gsl)
-add_executable(step_inspect app/step_inspect.cpp)
-target_link_libraries(step_inspect PRIVATE STEP_SOURCE)
+option(STEP_BUILD_TOOLS "Build STEP inspection CLIs" ON)
+if(STEP_BUILD_TOOLS)
+    add_executable(step_inspect app/step_inspect.cpp)
+    target_link_libraries(step_inspect PRIVATE STEP_SOURCE)
+endif()
 
 option(STEP_SOURCE_BUILD_TESTS "Build standalone source contract tests" ON)
 if(STEP_SOURCE_BUILD_TESTS)

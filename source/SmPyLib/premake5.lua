@@ -12,17 +12,14 @@ project "_omni_solid"
 
     includedirs {
         root.."/source/SM_API/inc",
-        root.."/source/SM_API_USD/inc",
         root.."/source/SMLib/inc",
-        root.."/source/BREP_SM_USD/inc",
-        root.."/source/BREP_USD_DATA/inc",
     }
 
     externalincludedirs {
         root.."/_build/target-deps/pybind11/include",
     }
 
-    links { "SMLib", "SM_API", "SM_API_USD" }
+    links { "SMLib", "SM_API" }
 
     filter { "system:windows" }
         externalincludedirs { root.."/_build/target-deps/python/include" }

@@ -9,6 +9,7 @@ project "STEP_SOURCE"
     includedirs { root.."/source/STEP_SOURCE/inc", root.."/third_party/microsoft-gsl/include" }
     vpaths { [''] = "*.cpp" }
 
+if smlib_with_validation then
 project "step_inspect"
     kind "ConsoleApp"
     cppdialect "C++20"
@@ -16,3 +17,5 @@ project "step_inspect"
     files { "app/*.cpp" }
     includedirs { root.."/source/STEP_SOURCE/inc" }
     links { "STEP_SOURCE" }
+
+end

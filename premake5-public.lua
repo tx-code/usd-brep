@@ -37,7 +37,7 @@ repo_build.remove_vstudio_jmc()
 --   windows/linux -> 5.0.0-beta2+nv1
 --   macOS         -> 5.0.0-beta1+nv1-macos-universal
 -- beta1 does not expose externalincludedirs, but premake5-libraries.lua and this file
--- call it for USD/Python/MSVC paths. Map to includedirs on macOS only so gmake2
+-- call it for Python/MSVC paths. Map to includedirs on macOS only so gmake2
 -- generation succeeds; Linux/Windows keep the real API from beta2.
 if externalincludedirs == nil then
     externalincludedirs = includedirs

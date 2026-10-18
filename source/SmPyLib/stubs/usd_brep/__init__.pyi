@@ -666,9 +666,3 @@ def poly_brep_volume_via_api(poly_brep: PolyBrep) -> float: ...
 
 # Kernel Draw extraction (extract_draw_batches) and viewport_draw_* helpers now
 # live in the _smlib_dev module; see source/SmPyDevLib/stubs/smlib_dev/__init__.pyi.
-
-# ===================================================================
-#  USD submodule
-# ===================================================================
-
-from . import usd as usd

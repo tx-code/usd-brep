@@ -1,13 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Build a self-contained `usd-brep` wheel from an existing build tree.
-
-The wheel vendors OpenUSD rather than depending on a PyPI distribution of it.
-That is safe here because no `pxr` object crosses the pybind11 boundary -- every
-USD entry point takes a file path -- so a caller's own OpenUSD and this one never
-exchange objects. It is also necessary: no PyPI package ships OpenUSD 25.11.
-"""
+"""Build a geometry-only wheel from an existing SMLib build tree."""
 
 import argparse
 import glob
@@ -40,7 +34,7 @@ def _dependency_closure(start: str, search_dirs: List[str]) -> List[str]:
     """Every shared library `start` needs, restricted to what we ship.
 
     Read from the binaries themselves rather than from the premake link lists,
-    which cover direct links only and miss the transitive OpenUSD runtime.
+    which cover direct links only.
     """
     available: Dict[str, str] = {}
     for directory in search_dirs:
@@ -56,6 +50,10 @@ def _dependency_closure(start: str, search_dirs: List[str]) -> List[str]:
     while queue:
         for name in _referenced_libs(queue.pop()):
             key = name.lower()
+            # Reject stale extensions from the former build before packaging:
+            # a geometry wheel must not acquire a scene runtime transitively.
+            if "usd" in key:
+                raise RuntimeError(f"expected a geometry-only SDK; rebuild before packaging dependency {name}")
             if key in seen or key not in available or key in _EXCLUDED_LIBS:
                 continue
             seen.add(key)
@@ -82,11 +80,9 @@ def _patch_elf_binaries(libs: List[str]):
     The build tree links with `$ORIGIN/../lib`, which suits the packman layout
     (module in `python/`, libraries in `lib/`); the wheel is flat instead.
 
-    OpenUSD is built with Python support, so the stock libraries and our
-    first-party ones carry libpython3.12 in DT_NEEDED. Vendoring that would give
-    the process a second interpreter, and leaving it unresolved fails the import
-    outright -- the symbols come from the running interpreter, so the dependency
-    has to go.
+    Python symbols resolve from the running interpreter. Drop an explicit
+    libpython dependency if a toolchain adds one; the wheel must not vendor a
+    second interpreter or require its build-time absolute library location.
     """
     for lib in libs:
         subprocess.run(["patchelf", "--set-rpath", "$ORIGIN", lib], check=True)
@@ -105,15 +101,16 @@ def setup_repo_tool(parser: argparse.ArgumentParser, config: Dict) -> Callable:
 
     parser.description = "Build a self-contained wheel for the usd-brep Python bindings."
     omni.repo.man.add_config_arg(parser)
+    parser.add_argument("--build-dir", help="runtime directory from a CMake build (default: legacy build tree)")
 
     def run_repo_tool(options, config: Dict):
         tool_config = config["repo_py_package"]
         staging_dir = omni.repo.man.resolve_tokens(tool_config["staging_dir"])
         install_dir = omni.repo.man.resolve_tokens(tool_config["install_dir"])
 
-        build_dir = omni.repo.man.resolve_tokens("$root/_build/$platform/$config")
-        usd_dir = omni.repo.man.resolve_tokens("$root/_build/target-deps/usd/$config")
-        schema_dir = omni.repo.man.resolve_tokens("$root/_build/schema/omniSolid")
+        build_dir = os.path.abspath(options.build_dir) if options.build_dir else omni.repo.man.resolve_tokens(
+            "$root/_build/$platform/$config"
+        )
 
         # Match the suffix exactly; the build tree also holds .exp/.lib/.pdb.
         suffix = "*.pyd" if omni.repo.man.is_windows() else "*.so"
@@ -128,7 +125,7 @@ def setup_repo_tool(parser: argparse.ArgumentParser, config: Dict) -> Callable:
         os.makedirs(package_dir)
 
         shutil.copy2(module, package_dir)
-        libs = _dependency_closure(module, [build_dir, f"{usd_dir}/lib", f"{usd_dir}/bin"])
+        libs = _dependency_closure(module, [build_dir])
         if not libs:
             # Everything below still succeeds; the wheel just fails to import.
             raise RuntimeError(f"no dependent libraries resolved for {os.path.basename(module)}")
@@ -136,29 +133,10 @@ def setup_repo_tool(parser: argparse.ArgumentParser, config: Dict) -> Callable:
             shutil.copy2(lib, package_dir)
         omni.repo.man.logger.info(f"vendored {len(libs)} shared libraries")
 
-        # OpenUSD looks for plugInfo.json relative to the directory holding its
-        # libraries, so this tree has to sit beside them.
-        shutil.copytree(f"{usd_dir}/lib/usd", os.path.join(package_dir, "usd"))
-        shutil.copytree(schema_dir, os.path.join(package_dir, "omniSolid"))
-
-        # The vendored OpenUSD runtime must travel with its full license texts;
-        # THIRD_PARTY_NOTICES.md only summarizes them.
-        usd_licenses = f"{usd_dir}/PACKAGE-LICENSES"
-        if not os.path.isdir(usd_licenses):
-            raise RuntimeError(f"OpenUSD package has no PACKAGE-LICENSES directory: {usd_licenses}")
-        shutil.copytree(usd_licenses, os.path.join(staging_dir, "PACKAGE-LICENSES"))
-
         source_dir = omni.repo.man.resolve_tokens("$root/source/SmPyLib")
         shutil.copy2(f"{source_dir}/python/usd_brep/__init__.py", package_dir)
         for stub in glob.glob(f"{source_dir}/stubs/usd_brep/*"):
             shutil.copy2(stub, package_dir)
-
-        # The BrepArray schema rules, as a separate top-level package: importing it must not
-        # import usd_brep, which would load the vendored OpenUSD into the validator's process.
-        validator_dir = os.path.join(staging_dir, "brep_validator")
-        os.makedirs(validator_dir)
-        for source in glob.glob(omni.repo.man.resolve_tokens("$root/tools/brep_validator/*.py")):
-            shutil.copy2(source, validator_dir)
 
         if not omni.repo.man.is_windows():
             _patch_elf_binaries([os.path.join(package_dir, os.path.basename(p)) for p in [module] + libs])
@@ -194,8 +172,7 @@ def _write_project_files(staging_dir: str, version: str):
         handle.write(content)
     shutil.copy2(omni.repo.man.resolve_tokens("$root/tools/pyproject/setup.py"), staging_dir)
     shutil.copy2(omni.repo.man.resolve_tokens("$root/LICENSE"), staging_dir)
-    # The wheel redistributes OpenUSD and its runtime, so it has to carry the same
-    # attribution the packman package puts in PACKAGE-LICENSES.
+    # Preserve upstream and third-party attribution with the geometry libraries.
     shutil.copy2(omni.repo.man.resolve_tokens("$root/THIRD_PARTY_NOTICES.md"), staging_dir)
     # The repo README is a developer guide whose relative links do not resolve on
     # the package index, so the wheel carries its own.
@@ -208,8 +185,7 @@ def _retag_manylinux(uv: str, wheel: str, install_dir: str) -> str:
     auditwheel derives the glibc floor from the symbols actually referenced,
     which is stricter than assuming the repo's ABI token. Because the libraries
     are already vendored and rpath'd above it moves nothing and only retags --
-    relocating them into `usd_brep.libs` is precisely what would stop OpenUSD
-    finding its plugInfo.json tree.
+    the repair step also checks the resulting native dependency closure.
     """
     # --with patchelf: the runners carry 0.14.3 and auditwheel requires >= 0.14.5.
     # Our own patching above is already done, and works with the system copy.

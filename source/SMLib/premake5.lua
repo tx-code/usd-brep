@@ -4,7 +4,8 @@
 project "SMLib"
     kind "SharedLib"
     location (workspace_dir.."/%{prj.name}")
-    use_usd_tbb()
+    -- SM_USE_TBB and SM_USE_TBB_SCALABLE are disabled in the stock kernel.
+    -- Do not link an allocator/runtime from an unrelated scene-format SDK.
     
     -- Build PCH on Windows
     filter { "system:windows" }
@@ -25,14 +26,6 @@ project "SMLib"
     filter { "system:windows" }
         defines { "NL_DEBUG_CODE" }
         buildoptions {}
-    filter {"configurations:debug", "system:windows"}
-        links { "tbbmalloc_debug","tbb_debug"}
-    filter {"configurations:release", "system:windows"}
-        links { "tbbmalloc","tbb"}
-    filter {"configurations:debug", "system:linux"}
-        links { "tbbmalloc_debug","tbb_debug"}
-    filter {"configurations:release", "system:linux"}
-        links { "tbbmalloc","tbb"}
     filter { "system:macosx" }
         buildoptions (macos_common_buildoptions())
         linkoptions (macos_common_linkoptions())

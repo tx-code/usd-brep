@@ -162,9 +162,8 @@ py::tuple smpy_read_part_from_file(const std::string& filename, bool ascii);
 //  ``BoundModule`` is the small dual-target proxy used by those binders;
 //  ``m.def(name, ...)`` forwards to both ``flat`` and ``sub``.
 //
-//  Class/enum binders (types, enums, polybrep) and the USD binder (which
-//  manages its own submodule) take a plain ``py::module_&`` instead, since
-//  classes/enums must live in exactly one parent module.
+//  Class/enum binders (types, enums, polybrep) take a plain ``py::module_&``
+//  instead, since classes/enums must live in exactly one parent module.
 // ---------------------------------------------------------------------------
 struct BoundModule
 {
@@ -205,6 +204,5 @@ void bind_cut_project_trim(BoundModule& m);
 void bind_heal(BoundModule& m);
 void bind_poly_ops(BoundModule& m);
 void bind_tessellation(py::module_& m);
-void bind_usd(py::module_& m);
 
 #endif // __SmPyCommon_H__

@@ -2,7 +2,7 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 -- Dev-only Python bindings (_smlib_tests): in-process prog_test runner for the GUI.
--- No USD / SM_API_USD dependency — build on macOS without OpenUSD (like _smlib_dev).
+-- Built only when development bindings are explicitly enabled.
 
 project "_smlib_tests"
     kind "SharedLib"

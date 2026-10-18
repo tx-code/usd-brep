@@ -27,10 +27,17 @@ include("premake5-utils.lua")
 include("premake5-libraries.lua")
 
 ------------------------------------------------------------------------------------------------------------------------
-------------------                          The USDRT Workspace                                       ------------------
+------------------                          The Geometry SDK Workspace                                       ------------------
 ------------------------------------------------------------------------------------------------------------------------
 
 repo_build.setup_options()
+
+-- Tooling is opt-in so a production build contains only the geometry SDK.
+-- GUI picking uses the dev bindings; in-process test execution additionally
+-- needs prog_test, but neither is a dependency of the stable Python module.
+smlib_with_dev = os.getenv("SMLIB_WITH_DEV") == "1"
+smlib_with_validation = os.getenv("SMLIB_WITH_VALIDATION") == "1"
+smlib_with_examples = os.getenv("SMLIB_WITH_EXAMPLES") == "1"
 
 local smlib_no_debug_gfx_check = os.getenv("SMLIB_NO_DEBUG_GFX_CHECK") == "1"
 local smlib_target_dir = smlib_no_debug_gfx_check
@@ -57,7 +64,7 @@ workspace "usd-brep"
     -- set prebuild file
     repo_build.set_prebuild_file("_build/generated/prebuild.toml")
 
-    -- usd TBB allocator for linux and windows
+    -- Geometry SDK compile modes; keep topology layout identical in consumers.
     filter { "system:windows", "configurations:debug" }
         defines { "_DEBUG", "NOMINMAX" }
         if not smlib_no_debug_gfx_check then
@@ -119,7 +126,7 @@ workspace "usd-brep"
     -- Treat compiler warnings as errors on every platform (MSVC /WX, GCC/Clang -Werror).
     -- NOTE: this premake build emits externalincludedirs as plain -I (no -isystem) and has no
     -- externalwarnings API, so third-party headers are NOT auto-shielded. Warnings from external
-    -- SDKs (USD/OCCT/Python/TBB) are suppressed per-consumer via -Wno-*/wd* and defines; any
+    -- Python SDK warnings are suppressed per-consumer via -Wno-*/wd* and defines; any
     -- warning not so suppressed -- first- or third-party -- now fails the build.
     flags { "FatalCompileWarnings" }
 
@@ -136,9 +143,8 @@ workspace "usd-brep"
         -- -Wshadow=local mirrors MSVC C4456/C4457, already enforced by /W4 /WX. Not plain
         -- -Wshadow: members and globals add many hits, nearly all Foo(int x) : x(x).
         buildoptions { "-Wall", "-Wshadow=local", "-Wunused-parameter", "-D_GLIBCXX_USE_CXX11_ABI=1"}
-        -- ../extraLibs: the OpenUSD runtime bundled in the release package, so its bin/ tools and
-        -- lib/ libraries find it without LD_LIBRARY_PATH.
-        linkoptions { "-Wl,--disable-new-dtags", "-Wl,-rpath,'$$ORIGIN/../lib'", "-Wl,-rpath,'$$ORIGIN/../extraLibs'" }
+        -- Locate SDK libraries in the native package layout.
+        linkoptions { "-Wl,--disable-new-dtags", "-Wl,-rpath,'$$ORIGIN/../lib'" }
 	    runpathdirs { target_dir }
     filter { "system:macosx" }
         platforms { "universal" }
@@ -167,38 +173,20 @@ include("source/STEP_SOURCE/premake5.lua")
 include("source/STEP_SEMANTICS/premake5.lua")
 include("source/STEP_PLANAR/premake5.lua")
 include("source/STEP_IMPORT/premake5.lua")
-include("Examples/SM_API/premake5.lua")
-include("Examples/SMLib/premake5.lua")
-include("tests/SM_API_test/premake5.lua")
-include("tests/planar_regions/premake5.lua")
-include("tests/prog_test/premake5.lua")
-include("source/SmPyDevLib/premake5.lua")
-include("source/SmPyLib/premake5_tests.lua")
+include("source/SmPyLib/premake5.lua")
 
-local function include_usd_dependent_stack()
-    include("source/BREP_USD_DATA/premake5.lua")
-    include("source/USD_BREP_UTILS/premake5.lua")
-    include("tests/usd_brep_utils_test/premake5.lua")
-    include("source/BREP_STAGING/premake5.lua")
-    include("source/OCCT_BREP_IMPORT/premake5.lua")
-    include("source/OCCT_BREP_EXPORT/premake5.lua")
-    include("tools/occt_to_usd/premake5.lua")
-    include("tools/usd_to_occt/premake5.lua")
-    include("source/BREP_SM_USD/premake5.lua")
-    include("source/SM_API_USD/premake5.lua")
-    if usd_has_imaging() then
-        include("source/HYDRA_USD_BREP/premake5.lua")
-        include("tests/HYDRA_USD_BREP_test/premake5.lua")
-    end
-    include("tests/SM_API_USD_test/premake5.lua")
-    include("source/SmPyLib/premake5.lua")
-    include("tests/usd_test/premake5.lua")
-    include("tools/smtess_usd/premake5.lua")
-    include("tools/brep_geometry_validator/premake5.lua")
+if smlib_with_examples then
+    include("Examples/SM_API/premake5.lua")
+    include("Examples/SMLib/premake5.lua")
 end
-
--- USD/OCCT on macOS when local deps are staged (see setup-macos-local-deps.sh);
--- macos_usd_staged() returns true on non-macOS platforms.
-if macos_usd_staged() then
-    include_usd_dependent_stack()
+if smlib_with_dev or smlib_with_validation then
+    include("tests/prog_test/premake5.lua")
+end
+if smlib_with_dev then
+    include("source/SmPyDevLib/premake5.lua")
+    include("source/SmPyLib/premake5_tests.lua")
+end
+if smlib_with_validation then
+    include("tests/SM_API_test/premake5.lua")
+    include("tests/planar_regions/premake5.lua")
 end

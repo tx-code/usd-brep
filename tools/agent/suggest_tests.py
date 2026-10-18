@@ -20,30 +20,6 @@ class Recommendation:
     broader: tuple[str, ...]
 
 
-OCCT_IMPORT_TEST = (
-    'env OCCT_TO_USD="$PWD/_build/linux-x86_64/release/occt_to_usd" '
-    'USD_TEST_APP="$PWD/_build/linux-x86_64/release/usd_test_app" '
-    'OMNISOLID_PLUGIN_PATH="$PWD/_build/schema/omniSolid/resources" '
-    'LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:'
-    '$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" '
-    'PYTHONPATH="$PWD/_build/linux-x86_64/release:${PYTHONPATH:-}" '
-    './_build/target-deps/python/bin/python3 -m unittest discover '
-    '-s tools/occt_to_usd_test -p "test_*.py"'
-)
-
-OCCT_EXPORT_TEST = (
-    'env USD_TO_OCCT="$PWD/_build/linux-x86_64/release/usd_to_occt" '
-    'OCCT_TO_USD="$PWD/_build/linux-x86_64/release/occt_to_usd" '
-    'USD_TEST_APP="$PWD/_build/linux-x86_64/release/usd_test_app" '
-    'OMNISOLID_PLUGIN_PATH="$PWD/_build/schema/omniSolid/resources" '
-    'LD_LIBRARY_PATH="$PWD/_build/linux-x86_64/release:$PWD/_build/target-deps/usd/release/lib:'
-    '$PWD/_build/target-deps/python/lib:${LD_LIBRARY_PATH:-}" '
-    'PYTHONPATH="$PWD/_build/linux-x86_64/release:${PYTHONPATH:-}" '
-    './_build/target-deps/python/bin/python3 -m unittest discover '
-    '-s tools/usd_to_occt_test -p "test_*.py"'
-)
-
-
 RECOMMENDATIONS = (
     (
         "prog_test focused suites",
@@ -101,53 +77,6 @@ RECOMMENDATIONS = (
         ),
     ),
     (
-        "OCCT BRep import",
-        (
-            "source/OCCT_BREP_IMPORT/",
-            "tools/occt_to_usd_test/",
-        ),
-        Recommendation(
-            "OCCT BRep import",
-            ("./repo.sh build", OCCT_IMPORT_TEST),
-            (
-                OCCT_EXPORT_TEST,
-                "./tests/usd_test/usd_test.sh linux-x86_64",
-                "uv run --locked --group gui python tools/scripts/smlib_gui_occt_audit.py",
-            ),
-        ),
-    ),
-    (
-        "OCCT BRep export",
-        (
-            "source/OCCT_BREP_EXPORT/",
-            "tools/usd_to_occt_test/",
-        ),
-        Recommendation(
-            "OCCT BRep export",
-            ("./repo.sh build", OCCT_EXPORT_TEST),
-            (OCCT_IMPORT_TEST, "./tests/usd_test/usd_test.sh linux-x86_64"),
-        ),
-    ),
-    (
-        "USD bridge",
-        (
-            "source/SM_API_USD/",
-            "source/BREP_SM_USD/",
-            "source/BREP_USD_DATA/",
-            "source/schema/omniSolid/",
-            "tests/SM_API_USD_test/",
-            "tests/usd_test/",
-        ),
-        Recommendation(
-            "USD bridge",
-            ("./repo.sh build", "run a focused USD import/export repro"),
-            (
-                "./tests/SM_API_USD_test/SM_API_USD_test.sh linux-x86_64",
-                "./tests/usd_test/usd_test.sh linux-x86_64",
-            ),
-        ),
-    ),
-    (
         "SMLib kernel",
         (
             "source/SMLib/",
@@ -176,6 +105,7 @@ RECOMMENDATIONS = (
     (
         "Build / packaging",
         (
+            "CMakeLists.txt",
             "premake",
             "repo.toml",
             "repo.sh",

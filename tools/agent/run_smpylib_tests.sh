@@ -51,7 +51,7 @@ done
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "${script_dir}/../.." && pwd -P)"
-release_dir="${repo_root}/_build/${platform}/release"
+release_dir="${SMLIB_RUNTIME_DIR:-${repo_root}/_build/${platform}/release}"
 python_bin="${repo_root}/_build/target-deps/python/bin/python3"
 
 if ! find "${release_dir}" -maxdepth 1 -name '_omni_solid*' -print -quit 2>/dev/null | grep -q .; then
@@ -66,8 +66,7 @@ if [[ ! -x "${python_bin}" ]]; then
     exit 1
 fi
 
-export OMNISOLID_PLUGIN_PATH="${repo_root}/_build/schema/omniSolid/resources"
-export LD_LIBRARY_PATH="${release_dir}:${repo_root}/_build/target-deps/usd/release/lib:${repo_root}/_build/target-deps/python/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+export LD_LIBRARY_PATH="${release_dir}:${repo_root}/_build/target-deps/python/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
 cd "${repo_root}"
 
@@ -78,4 +77,6 @@ fi
 
 export PYTHONPATH="${release_dir}"
 "${python_bin}" -m unittest discover -s source/SmPyLib/tests -p "test_*.py" -v
-"${python_bin}" -m unittest discover -s source/SmPyDevLib/tests -p "test_*.py" -v
+if [[ "${SMLIB_WITH_DEV:-0}" == "1" ]]; then
+    "${python_bin}" -m unittest discover -s source/SmPyDevLib/tests -p "test_*.py" -v
+fi

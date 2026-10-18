@@ -15,6 +15,7 @@ project "STEP_IMPORT"
     filter { "system:linux or macosx" }
         buildoptions { "-fno-fast-math", "-ffp-contract=off" }
     filter {}
+if smlib_with_validation then
 project "step_native_import"
     kind "ConsoleApp"
     cppdialect "C++20"
@@ -23,3 +24,5 @@ project "step_native_import"
     includedirs { root.."/source/STEP_SOURCE/inc", root.."/source/STEP_SEMANTICS/inc", root.."/source/STEP_PLANAR/inc",
                   root.."/source/STEP_IMPORT/inc" }
     links { "STEP_IMPORT", "STEP_PLANAR", "STEP_SEMANTICS", "STEP_SOURCE", "SM_API", "SMLib" }
+
+end

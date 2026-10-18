@@ -39,7 +39,7 @@ SMPYLIB_OPNEW_ATTR void* SmPolyFace::operator new(size_t sz)    { return smos_Ma
 PYBIND11_MODULE(_omni_solid, m)
 {
     m.doc() =
-        "Python bindings for SMLib solid modeling (SM_API + SM_API_USD).\n"
+        "Python bindings for SMLib solid modeling (SM_API).\n"
         "\n"
         "Conventions\n"
         "-----------\n"
@@ -133,7 +133,6 @@ PYBIND11_MODULE(_omni_solid, m)
         "                so the flat ``sm.cut`` function stays usable\n"
         "  heal        - heal_brep\n"
         "  poly        - PolyBrep boolean ops, manifold / volume checks\n"
-        "  usd         - USD mesh and Brep import / export\n"
         "\n"
         "Top-level (no submodule): the entry points ``tessellate``,\n"
         "``tessellate_boundaries`` and ``tessellation_defaults``, the\n"
@@ -250,6 +249,4 @@ PYBIND11_MODULE(_omni_solid, m)
     bind_poly_ops(bm_poly);
     bind_tessellation(m);
 
-    // USD: managed as its own submodule entirely inside bind_usd.
-    bind_usd(m);
 }
