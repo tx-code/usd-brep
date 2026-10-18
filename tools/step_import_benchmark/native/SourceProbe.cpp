@@ -62,8 +62,39 @@ bench::Trial Run(const bench::Args& args)
             {
                 options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
             }
+            if (args.headerNamePolicy == "PreserveOpaqueBytes")
+            {
+                options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+            }
+            std::vector<std::pair<std::size_t, double>> intervals;
+            std::optional<std::pair<std::size_t, bench::Clock::time_point>> previous;
+            if (args.nativeBoundaryTiming.value_or(false))
+            {
+                intervals.reserve(options.nativeLimits.nativeCalls);
+            }
             options.execution.progress = [&](step_import::Progress progress)
             {
+                if (args.nativeBoundaryTiming.value_or(false) &&
+                    (progress.phase == step_import::Phase::BeforeNativeCall || progress.phase == step_import::Phase::NativeReady))
+                {
+                    const auto now = bench::Clock::now();
+                    if (previous && progress.nativeCalls > previous->first)
+                    {
+                        // These public counters describe completed calls at the
+                        // safe boundary, before the next charged operation. An
+                        // interval also includes intervening read-only work;
+                        // it is not a pure kernel-call timer or a new progress phase.
+                        intervals.emplace_back(previous->first + 1, std::chrono::duration<double, std::milli>(now - previous->second).count());
+                    }
+                    if (progress.phase == step_import::Phase::BeforeNativeCall)
+                    {
+                        previous = std::pair{ progress.nativeCalls, now };
+                    }
+                    else
+                    {
+                        previous.reset();
+                    }
+                }
                 if (progress.phase != step_import::Phase::BeforeNativeCall)
                 {
                     row.milestones.try_emplace(step_import::PhaseName(progress.phase), bench::Ms(begin));
@@ -108,6 +139,30 @@ bench::Trial Run(const bench::Args& args)
                 ",\"work_tolerance_mm\":" +
                 bench::N(double(options.quality.initialWorkToleranceMm.Numerator()) / double(options.quality.initialWorkToleranceMm.Denominator())) +
                 ",\"operation_scope\":\"public ImportFile including source validation, construction, postchecks, integrals, mandatory report and commit\"}";
+            if (!args.headerNamePolicy.empty())
+            {
+                row.extra += ",\"header_name_policy\":" + bench::Q(args.headerNamePolicy);
+            }
+            if (args.nativeBoundaryTiming.value_or(false))
+            {
+                std::ostringstream profile;
+                profile
+                    << ",\"native_boundary_profile\":{\"scope\":\"time between public native-call safe boundaries; includes read-only work and profiling overhead\","
+                       "\"complete\":"
+                    << (row.milestones.contains("NativeReady") ? "true" : "false") << ",\"intervals\":[";
+                bool first = true;
+                for (const auto& [call, elapsed] : intervals)
+                {
+                    if (!first)
+                    {
+                        profile << ',';
+                    }
+                    first = false;
+                    profile << "{\"call\":" << call << ",\"elapsed_ms\":" << bench::N(elapsed) << '}';
+                }
+                profile << "]}";
+                row.extra += profile.str();
+            }
             row.aliveMemory = bench::Memory();
             cleanup = bench::Clock::now();
         }

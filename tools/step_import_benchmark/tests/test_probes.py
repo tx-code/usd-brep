@@ -108,6 +108,26 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(("Accepted", True), (interop["status"], interop["has_model"]))
         self.assertEqual(1, interop["preserved_source_diagnostics"])
 
+    def test_boundary_profile_is_opt_in_and_keeps_public_import_results(self):
+        from tools.step_import_native_validation.tests.test_general import cylinder_source
+
+        with tempfile.TemporaryDirectory(prefix="step-native-profile-") as directory:
+            path = Path(directory) / "cylinder.step"
+            path.write_bytes(cylinder_source())
+            flags = ("--quality", "Q-AP214-development-mm-01")
+            plain, = self.invoke("native", "import", path, *flags)["trials"]
+            profiled, = self.invoke("native", "import", path, *flags, "--native-boundary-timing", "1")["trials"]
+        self.assertNotIn("native_boundary_profile", plain)
+        self.assertEqual("Accepted", profiled["status"])
+        for field in ("model", "source_sha256", "native_calls", "report_bytes", "settings"):
+            self.assertEqual(plain[field], profiled[field])
+        profile = profiled["native_boundary_profile"]
+        self.assertTrue(profile["complete"])
+        intervals = profile["intervals"]
+        self.assertEqual(list(range(1, profiled["native_calls"] + 1)), [x["call"] for x in intervals])
+        self.assertTrue(all(x["elapsed_ms"] >= 0 for x in intervals))
+        self.assertLessEqual(sum(x["elapsed_ms"] for x in intervals), profiled["operation_ms"])
+
     def test_other_readers_and_invalid_flags_cannot_silently_ignore_native_configuration(self):
         with tempfile.TemporaryDirectory(prefix="step-invalid-benchmark-") as directory:
             for engine, mode, flags in [
@@ -115,6 +135,13 @@ class ProbeTests(unittest.TestCase):
                 ("occt", "read", ["--source-policy", "PreserveNonGeometric"]),
                 ("native", "import", ["--quality", "unknown"]),
                 ("native", "import", ["--source-policy", "unknown"]),
+                ("source", "source", ["--native-boundary-timing", "1"]),
+                ("source", "source", ["--native-boundary-timing", "0"]),
+                ("occt", "read", ["--native-boundary-timing", "0", "--max-input-bytes", "1"]),
+                ("occt", "read", ["--header-name-policy", "PreserveOpaqueBytes"]),
+                ("native", "import", ["--native-boundary-timing", "2"]),
+                ("native", "import", ["--header-name-policy", "unknown"]),
+                ("native", "import", ["--header-name-policy", "PreserveOpaqueBytes"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

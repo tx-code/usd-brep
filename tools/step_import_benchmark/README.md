@@ -1,5 +1,14 @@
 # STEP 模型库画像与测量工具
 
+原生 import 探针可显式传 `--header-name-policy PreserveOpaqueBytes`，与通用质量和
+`--source-policy PreserveNonGeometric` 同时使用，保留原始 HEADER 文件名字节。
+错误组合在执行前拒绝；不会把此选项传给其他读取器。
+
+`--native-boundary-timing 1` 仅供原生 import 剖析，记录现有 progress 回调之间的区间，
+不增加导入检查点。区间包含对应收费操作及其后的只读工作，不能当作纯内核调用耗时。
+数据在 `native_boundary_profile`，每个收费序号从 1 起；`complete` 表示到达 NativeReady。
+该选项含额外计时和存储开销，正式耗时／内存对比应关闭；默认不生成这项观察。
+
 独立 C++20 probes 和 Python 批测入口，复用公共 `InspectFile` / `ImportFile`，
 并通过本机 OCCT `STEPControl_Reader` 读取同一原始文件。产品代码和读取规则不因测量而改变。
 模型库、绝对路径、日志、原始结果和 HTML 报告全部保留本地；仓库只存可复用工具和公共合同测试。
