@@ -6,6 +6,7 @@
 #include <SmApiIntersectors.h>
 #include <SmApiPlanarRegions.h>
 #include <SmBrep.h>
+#include <SmPlanarCurveTransfer.h>
 #include <SmCurve.h>
 #include <SmEdge.h>
 #include <SmFace.h>
@@ -101,25 +102,6 @@ bool validOptions(const SmPlanarRegionOptions& o)
 {
     return positive(o.joinTolerance) && positive(o.planeTolerance) && positive(o.chordTolerance) && positive(o.separationTolerance) &&
            std::isfinite(o.separationTolerance + 2 * o.chordTolerance + o.joinTolerance) && o.maxPoints >= 3 && o.maxPairTests > 0;
-}
-// Detach only our private clones before destroying a partial BRep. Some kernel
-// failure paths have already attached a prefix of the input array to edges.
-void detach(SmBrep* brep, const std::vector<std::unique_ptr<SmCurve>>& curves)
-{
-    SmTArray<SmEdge*> edges;
-    brep->GetEdges(edges);
-    std::set<const SmCurve*> owned;
-    for (const auto& c : curves)
-    {
-        owned.insert(c.get());
-    }
-    for (ULONG i = 0; i < edges.GetSize(); ++i)
-    {
-        if (owned.count(edges[i]->GetCurve()))
-        {
-            edges[i]->SetCurve(NULL, FALSE, FALSE, FALSE);
-        }
-    }
 }
 } // namespace
 
@@ -395,10 +377,17 @@ SmPlanarRegionStatus SmApiBuildPlanarRegions(
     brep->SetTolerance(o.joinTolerance, FALSE, FALSE);
 #endif
     SmTArray<SmFace*> faces;
-    r.kernelStatus = brep->CreatePlanarFacesWith3DCurves(nullptr, inputs, o.planeTolerance, faces);
+    SmPlanarCurveTransfer transfer(inputs);
+    try { r.kernelStatus = transfer.Create(*brep, nullptr, o.planeTolerance, faces); }
+    catch (...)
+    {
+        // Native attachment precedes ownership handoff from the clone guards.
+        transfer.DetachInputs();
+        throw;
+    }
     if (r.kernelStatus != SM_SUCCESS)
     {
-        detach(brep.get(), clones);
+        transfer.DetachInputs();
         return fail(r, SmPlanarRegionStatus::KernelFailure);
     }
     // The successful native call consumes all input curves. Transfer immediately,

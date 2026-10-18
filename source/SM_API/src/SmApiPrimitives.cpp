@@ -1117,9 +1117,22 @@ SmApiStatus SmApiCreateOffsetProfile
     SmObjsDelete<SmCurve*> sOwnedCopyCleanup( &sOwnedCurveCopies );
 
     SmTArray<SmBoolean> sInputOwnershipTransferred;
-    SmStatus eStat = SmPrimitiveCreation::OffsetProfile(
+    SmStatus eStat;
+    try
+    {
+        eStat = SmPrimitiveCreation::OffsetProfile(
         crContext, sCurveCopies, SM_ZONE_TOL_3D, dOffsetDistance, lOffsetType,
         bRoundCorners, bShellResult, rpResult, sInputOwnershipTransferred );
+    }
+    catch (...)
+    {
+        // The kernel updates its transfer report before later allocations. Its
+        // private candidate may already have deleted these copies on unwind.
+        const ULONG known = smos_Min(sInputOwnershipTransferred.GetSize(), sOwnedCurveCopies.GetSize());
+        for (ULONG i = 0; i < known; ++i)
+            if (sInputOwnershipTransferred[i]) sOwnedCurveCopies[i] = NULL;
+        throw;
+    }
 
     const ULONG lOwnershipCount = sInputOwnershipTransferred.GetSize();
     const ULONG lCopyCount = sOwnedCurveCopies.GetSize();
@@ -1284,8 +1297,20 @@ SmApiStatus SmApiCreateSkinPrimitive
     SmPrimitiveCreation sPC( pResult->GetInfiniteRegion() );
 
     SmTArray<SmBoolean> sInputOwnershipTransferred;
-    eStat = sPC.CreateSkinPrimitive(rCurvesInEachProfile, sCurveCopies, 0.0, lDegree, bCapEnds,
+    try
+    {
+        eStat = sPC.CreateSkinPrimitive(rCurvesInEachProfile, sCurveCopies, 0.0, lDegree, bCapEnds,
                                     sStartFaces, sSideFaces, sEndFaces, sInputOwnershipTransferred);
+    }
+    catch (...)
+    {
+        // The kernel updates its transfer report before later allocations. Its
+        // private candidate may already have deleted these copies on unwind.
+        const ULONG known = smos_Min(sInputOwnershipTransferred.GetSize(), sOwnedCurveCopies.GetSize());
+        for (ULONG i = 0; i < known; ++i)
+            if (sInputOwnershipTransferred[i]) sOwnedCurveCopies[i] = NULL;
+        throw;
+    }
 
     const ULONG lOwnershipCount = sInputOwnershipTransferred.GetSize();
     const ULONG lCopyCount = sOwnedCurveCopies.GetSize();

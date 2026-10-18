@@ -15,6 +15,7 @@ GENERAL NOTES:
 **********************************************************************/
 
 #include "StdAfx.h"
+#include <SmPlanarCurveTransfer.h>
 
 #include "SmApiTrimmedSurfaces.h"
 #include "SmApiGeneral.h"
@@ -223,33 +224,26 @@ SmBoolean bDebugMe = FALSE ;
     }
 #endif
 
+    SmPlanarCurveTransfer transfer(crPlanarCurves);
     SmBrep* pBrep = new (*SmApiGetOrCreateContext()) SmBrep();
     SmRegion* pRegion = pBrep->GetInfiniteRegion();
 
     double dTol = 0.01;
 
     SmTArray<SmFace*> sNewfaces;
-    const SmStatus eStat = pBrep->CreatePlanarFacesWith3DCurves( pRegion, crPlanarCurves, dTol, sNewfaces );
+    SmStatus eStat;
+    try { eStat = transfer.Create(*pBrep, pRegion, dTol, sNewfaces); }
+    catch (...)
+    {
+        transfer.DetachInputs();
+        delete pBrep;
+        throw;
+    }
     if( eStat != SM_SUCCESS )
     {
-        // Free the Brep so a failure does not leak it. A late kernel failure can
-        // leave some input curves already held by its edges, but the caller owns
-        // the curves on failure. Detach them without deleting them; SetCurve
-        // also clears their owner back-pointers. Skip geometry notifications
-        // because the entire partial Brep is about to be destroyed.
-        SmTArray<SmEdge*> sEdges;
-        pBrep->GetEdges( sEdges );
-        for( ULONG ii = 0; ii < sEdges.GetSize(); ++ii )
-        {
-            SmCurve* pEdgeCurve = sEdges[ii]->GetCurve();
-            for( ULONG jj = 0; jj < crPlanarCurves.GetSize(); ++jj )
-            {
-                if( pEdgeCurve != crPlanarCurves[jj] )
-                    continue;
-                sEdges[ii]->SetCurve( NULL, FALSE, FALSE, FALSE );
-                break;
-            }
-        }
+        // Return inputs before disposing the private failed candidate. The
+        // shared record knows the actual recipient of each transferred curve.
+        transfer.DetachInputs();
         delete pBrep;
         rpResult = NULL;
         SER( eStat );

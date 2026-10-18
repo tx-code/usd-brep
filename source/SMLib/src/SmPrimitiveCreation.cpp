@@ -7,6 +7,7 @@
 **********************************************************************/
 
 #include "StdAfx.h"
+#include <SmPlanarCurveTransfer.h>
 
 #include <nurbs.h>
 #include <SmPrimitiveCreation.h>
@@ -4541,30 +4542,11 @@ SmBoolean bDebugMe = FALSE ;
   // Make Planar face in pBrep - cleanup curves, make Plane, check planarity
 
   // GWC_NEEDS_WORK ONE_TOL_IS_BEING_USED_MULTIPLE_WAYS_IN_THE_FOLLOWING_CALL_STACK__ADD_MORE_TOL_ARGS GWC_LINE ;
-  SmTArray<SmObject*> sOwnersBefore;
-  for(ULONG iCurve=0; iCurve<r3DCurves.GetSize(); iCurve++)
-    {
-      sOwnersBefore.Add(r3DCurves[iCurve] ? r3DCurves[iCurve]->GetOwner() : NULL);
-    }
-
-  SmStatus ePlanarStat = pBrep->CreatePlanarFacesWith3DCurves
-                                (pBrep->GetInfiniteRegion(), // in : region to contain newFace-not checked. NULL=infinite region.
-                                 r3DCurves,                  // in : planar curves to bound newFace. Consumed when successful.
-                                 dAppoxTol3d,                // in : degen curve length, 3D distance to check for curve planarity = SmTol::GetXSectTol3d(this) ;
-                                 sNewFaces);                 // out: array of newFaces
-
-  // CreatePlanarFacesWith3DCurves installs curves one at a time and can fail
-  // after only a prefix has transferred. Record each transfer before pBrep's
-  // failure cleanup deletes its owned curves.
-  for(ULONG iCurve=0; iCurve<r3DCurves.GetSize(); iCurve++)
-    {
-      if(   ePlanarStat == SM_SUCCESS
-         || (   r3DCurves[iCurve] != NULL
-             && r3DCurves[iCurve]->GetOwner() != sOwnersBefore[iCurve] ) )
-        {
-          rInputOwnershipTransferred[iCurve] = TRUE;
-        }
-    }
+  SmPlanarCurveTransfer transfer(r3DCurves);
+  // The pre-sized report is updated at each actual attachment/return, so it
+  // also remains usable when a later allocation throws during construction.
+  SmStatus ePlanarStat = transfer.Create(*pBrep, pBrep->GetInfiniteRegion(), dAppoxTol3d, sNewFaces,
+                                       &rInputOwnershipTransferred);
   SER(ePlanarStat);
 
 #ifdef SM_DEBUG_CODE
@@ -6349,10 +6331,10 @@ SmStatus SmPrimitiveCreation::CreateSkinPrimitive
 PURPOSE: Shared skin implementation with optional input-ownership reporting.
 
 NOTES:
-  The legacy entry point supplies no report and retains its historical
-  behavior. The reporting entry point stops if a failed planar-profile
-  conversion has already transferred any curves, allowing its adapter to
-  reclaim only the private copies which remain unowned.
+  Both entry points stop when a failed planar-profile conversion has already
+  transferred curves. Only a failure with no retained transfers can take the
+  open-profile fallback. The optional report lets adapters reclaim private
+  copies which remain unowned.
 ***********************************************************************/
 static SmStatus sm_CreateSkinPrimitiveInternal
  (SmPrimitiveCreation   & rPrimitiveCreation,
@@ -6435,41 +6417,17 @@ static SmStatus sm_CreateSkinPrimitiveInternal
         {
           // see if next profile is a set of co-planar loops.
           // this call fails for non-planar geometry and open loops (plus degenerate curves, and spline points)
-          SmTArray<SmObject*> sOwnersBefore;
-          if(pOptInputOwnershipTransferred)
-            {
-              for(ULONG jj=lProfileStart; jj<lCount; jj++)
-                { sOwnersBefore.Add(r3DCurves[jj]->GetOwner()); }
-            }
-
-          SmStatus ePlanarStat = pTmpBrep->CreatePlanarFacesWith3DCurves
-                                           (pTmpBrep->GetInfiniteRegion(),
-                                            sProfileCurves,
-                                            dTol,
-                                            sProfileFaces);
-
-          // A lower-level error can occur after one or more curves have
-          // already transferred to lower-level topology. Record those
-          // transfers while their owner pointers are still live.
-          SmBoolean bPartialTransfer = FALSE;
-          if(pOptInputOwnershipTransferred)
-            {
-              for(ULONG jj=lProfileStart; jj<lCount; jj++)
-                {
-                  if(r3DCurves[jj]->GetOwner() != sOwnersBefore[jj-lProfileStart])
-                    {
-                      (*pOptInputOwnershipTransferred)[jj] = TRUE;
-                      bPartialTransfer = TRUE;
-                    }
-                }
-            }
+          SmPlanarCurveTransfer transfer(sProfileCurves);
+          SmStatus ePlanarStat = transfer.Create(*pTmpBrep, pTmpBrep->GetInfiniteRegion(), dTol, sProfileFaces,
+                                                pOptInputOwnershipTransferred, lProfileStart);
+          const SmBoolean bPartialTransfer = transfer.AnyTransferred() ? TRUE : FALSE;
 
           if(SM_SUCCESS != ePlanarStat)
             {
-              // The ownership-reporting path must not reinterpret a partially
+              // No path may reinterpret a partially
               // transferred closed profile as an open profile. The lower-level
               // operation owns those pointers, so the adapter must not reclaim them.
-              if(pOptInputOwnershipTransferred && bPartialTransfer)
+              if(bPartialTransfer)
                 SER(ePlanarStat);
 
               // if the first profile is not a set of co-planar loops
@@ -6484,16 +6442,7 @@ static SmStatus sm_CreateSkinPrimitiveInternal
                   SER(SM_ERR) ;
                 }
             } // end CreatePlanarFacesWith3DCurves failure branch
-          else
-            {
-              // CreatePlanarFacesWith3DCurves consumes every curve only when
-              // it succeeds. Record the transfer before any later error.
-              if(pOptInputOwnershipTransferred)
-                {
-                  for(ULONG jj=lProfileStart; jj<lCount; jj++)
-                    { (*pOptInputOwnershipTransferred)[jj] = TRUE; }
-                }
-            }
+
 
           // error - more than one face per profile
           if (sProfileFaces.GetSize() > 1) SER(SM_ERR);

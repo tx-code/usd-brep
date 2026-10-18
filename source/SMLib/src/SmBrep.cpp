@@ -12,6 +12,8 @@
 #include "StdAfx.h"
 
 #include <SmBrep.h>
+#include <SmPlanarCurveTransfer.h>
+#include <memory>
 #include <SmEdgeuse.h>
 #include <SmEdge.h>
 // Remove Composites
@@ -12401,15 +12403,48 @@ SmBoolean bDebugMe=FALSE;
   // 4 Edgeuses are needed because an edge is used twice on each side of the face.
   // let Edgeuse 1 & 2 = top Edgeuses and
   //     Edgeuse 3 & 4 = bottom Edgeuses.
-  SmEdge      * pNewE   = new (this) SmEdge();      NER(pNewE);
-  SmEdgeuse   * pNewEU1 = new (this) SmEdgeuse();   NER(pNewEU1);
-  SmEdgeuse   * pNewEU2 = new (this) SmEdgeuse();   NER(pNewEU2);
-  SmEdgeuse   * pNewEU3 = new (this) SmEdgeuse();   NER(pNewEU3);
-  SmEdgeuse   * pNewEU4 = new (this) SmEdgeuse();   NER(pNewEU4);
-  SmVertexuse * pNewVU1 = new (this) SmVertexuse(); NER(pNewVU1);
-  SmVertexuse * pNewVU2 = new (this) SmVertexuse(); NER(pNewVU2);
-  SmVertexuse * pNewVU3 = new (this) SmVertexuse(); NER(pNewVU3);
-  SmVertexuse * pNewVU4 = new (this) SmVertexuse(); NER(pNewVU4);
+  SmEdge* pNewE = new (this) SmEdge(); NER(pNewE);
+  SmEdgeuse *pNewEU1 = NULL, *pNewEU2 = NULL, *pNewEU3 = NULL, *pNewEU4 = NULL;
+  SmVertexuse *pNewVU1 = NULL, *pNewVU2 = NULL, *pNewVU3 = NULL, *pNewVU4 = NULL;
+  SmObject* pOriginalCurveOwner = p3DCurve->GetOwner();
+  // Before PostInsert the BRep cannot traverse these allocations. A late UV
+  // failure must return the input curve and dispose the unlinked topology.
+  // No vertexuse has entered an existing vertex list during this interval.
+  auto cleanupUnlinked = [&](SmEdge* edge)
+  {
+    if (edge->GetCurve() == p3DCurve)
+    {
+      edge->SetCurve(NULL, FALSE, FALSE, FALSE);
+      p3DCurve->SetOwner(pOriginalCurveOwner);
+      SmPlanarCurveTransfer::Returned(*this, p3DCurve, edge);
+    }
+    SmEdgeuse* uses[] = {pNewEU1, pNewEU2, pNewEU3, pNewEU4};
+    SmVertexuse* vertices[] = {pNewVU1, pNewVU2, pNewVU3, pNewVU4};
+    for (int i = 0; i < 4; ++i)
+    {
+      if (uses[i]) uses[i]->m_pVU = NULL;
+      if (vertices[i])
+      {
+        vertices[i]->m_pSorLUorEU = NULL;
+        delete vertices[i];
+      }
+      if (uses[i])
+      {
+        if (edge->IsInList(uses[i])) edge->Remove(uses[i]);
+        delete uses[i];
+      }
+    }
+    delete edge;
+  };
+  std::unique_ptr<SmEdge, decltype(cleanupUnlinked)> unlinked(pNewE, cleanupUnlinked);
+  pNewEU1 = new (this) SmEdgeuse(); NER(pNewEU1);
+  pNewEU2 = new (this) SmEdgeuse(); NER(pNewEU2);
+  pNewEU3 = new (this) SmEdgeuse(); NER(pNewEU3);
+  pNewEU4 = new (this) SmEdgeuse(); NER(pNewEU4);
+  pNewVU1 = new (this) SmVertexuse(); NER(pNewVU1);
+  pNewVU2 = new (this) SmVertexuse(); NER(pNewVU2);
+  pNewVU3 = new (this) SmVertexuse(); NER(pNewVU3);
+  pNewVU4 = new (this) SmVertexuse(); NER(pNewVU4);
 
   // Create UV Curve if it is not input
 // GWC:NOTE??? could this all be replaced with a call to SmEdgeuse::CreateUVTrimCurve
@@ -12514,6 +12549,7 @@ SmBoolean bDebugMe=FALSE;
   pNewE->SetCurve(p3DCurve, FALSE) ; // FALSE = don't delete preExisting Curve, only because pNewE->Curve == NULL
                                      // side effect: delete current pEdge->UVTrimCurves
   p3DCurve->SetOwner(pNewE);
+  SmPlanarCurveTransfer::Adopted(*this, p3DCurve, pNewE);
   pNewE->SetInterval(crInterval);
 
 #ifdef SM_DEBUG_CODE
@@ -12629,6 +12665,7 @@ SmBoolean bDebugMe=FALSE;
       // connect a copy of UVCurve to bottom Edgeuse
       SmCurve * pCopy = NULL;
       SER(pUVTrimCurve->Copy(*GetContext(),pCopy));
+      std::unique_ptr<SmCurve> pendingUvCopy(pCopy);
       SmBSplineCurve *pUVTrimCurveCopy = SM_CAST_PTR(SmBSplineCurve,pCopy);
       SmDropCurveFail * pUVDropCurveFailCopy = NULL ; 
       if(pUVDropCurveFail) { SER(pUVDropCurveFail->Copy(pUVDropCurveFailCopy)); }
@@ -12695,6 +12732,7 @@ SmBoolean bDebugMe=FALSE;
                                                    pUVTrimCurveCopy->SetOwner(pNewEU3) ;
                                                    pNewEU3->m_pDropCurveFail = pUVDropCurveFailCopy;
                                   }
+      pendingUvCopy.release(); // Now owned by the second mated edgeuse pair.
     } // end pUVTrimCurve existence check
 
   // let new Edge tolerance = max(uvCurve Project Distance (if any),
@@ -12702,6 +12740,11 @@ SmBoolean bDebugMe=FALSE;
   //                              input EdgeTolerance value)
   SM_OLDTOL_LINE double dDropDist = smos_Sqrt( dMaxDistToSurf*dMaxDistToSurf + dDeviation*dDeviation) ;
   SM_OLDTOL_LINE pNewE->m_sZoneTol3d = smos_3Max(dDropDist, (double)sCurveZoneTol3d, (double)GetTolerance());
+
+#ifdef SM_PLANAR_TRANSFER_TESTING
+  // Fault injection is compiled only into the dedicated ownership test build.
+  SER(SmPlanarCurveTransfer::BeforeLink(*this));
+#endif
 
   // Any errors beyond this point will result in invalid topology
   // The best we can do is an assertion failure.
@@ -12711,6 +12754,7 @@ SmBoolean bDebugMe=FALSE;
 
   // Add the edge to the brep
   SER(m_pEdgeListHead->PostInsert(pNewE));
+  unlinked.release(); // BRep traversal owns topology cleanup from here onward.
 
   // When MergeEdge connects the same loop - Split Loop and usually Split Face
   if (pStartLoop == pEndLoop)

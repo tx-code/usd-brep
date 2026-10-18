@@ -17,6 +17,10 @@ one of its holes.
 include internal contours and creases as well as exterior boundaries.
 _Avoid_: Footprint (unless the intended material boundary has been determined).
 
+**Curve transfer**: A change in which object owns a defining curve during construction.
+Individual curves can transfer before the complete operation succeeds; a returned curve is again owned by its previous owner.
+_Avoid_: Successful construction (when only curve ownership has changed).
+
 ## Imported models
 
 **Part definition**: The geometry and topology of a reusable part, independent of where that part is placed in an assembly.
