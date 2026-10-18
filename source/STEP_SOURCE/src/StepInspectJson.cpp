@@ -17,7 +17,16 @@ void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
     out.Add(",\"raw\":");
     out.String(source.Raw(value.span));
     out.Add(",\"text\":");
-    out.Utf8String(value.text);
+    if (value.kind == ValueKind::OpaqueString)
+    {
+        out.Add(
+            "null,\"interpretation\":\"Unestablished\",\"notice\":\"Nonstandard HEADER filename retained as original bytes; no code page inferred\""
+        );
+    }
+    else
+    {
+        out.Utf8String(value.text);
+    }
     out.Add(",\"children\":[");
     for (std::size_t i = 0; i < value.children.size(); ++i)
     {
@@ -55,6 +64,10 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
 {
     out.Add("{\"format_version\":\"step-source.v1\",\"scope\":\"SyntaxIndexReferences\",\"status\":");
     out.String(StatusName(result.status));
+    if (result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes)
+    {
+        out.Add(",\"header_name_policy\":\"PreserveOpaqueBytes\"");
+    }
     out.Add(",\"source_complete\":");
     out.Add(result.source ? "true" : "false");
     out.Add(",\"schema_validation\":\"NotRun\",\"native_build\":\"NotRun\",\"input\":{\"capture_complete\":");

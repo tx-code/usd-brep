@@ -113,6 +113,10 @@ int main(int argc, char** argv)
             {
                 options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
             }
+            else if (arg == "--preserve-opaque-header-name")
+            {
+                options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+            }
             else if (arg == "--write-native" && i + 1 < argc)
             {
                 nativeOutput = std::filesystem::path(argv[++i]);

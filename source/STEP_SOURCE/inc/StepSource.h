@@ -50,7 +50,14 @@ enum class ValueKind
     Unset,
     Derived,
     Aggregate,
-    Typed
+    Typed,
+    OpaqueString // Only FILE_NAME.name under the explicit preservation policy; no decoded text.
+};
+
+enum class HeaderNamePolicy
+{
+    StrictAscii,
+    PreserveOpaqueBytes // Nonstandard HEADER FILE_NAME.name only; never selects or guesses a code page.
 };
 
 struct Value
@@ -58,6 +65,7 @@ struct Value
     ValueKind kind = ValueKind::Unset;
     Span span;
     // Numbers: exact source lexeme, never double. Strings: decoded UTF-8.
+    // OpaqueString: text is unavailable (empty storage); use kind + owning Raw(span), not an empty filename.
     // Reference: canonical decimal ID (without '#'); typed value: type name.
     std::string text;
     std::vector<Value> children;
@@ -152,11 +160,12 @@ struct InspectOutcome
     Statistics statistics;
     Limits limits{};
     std::vector<Diagnostic> diagnostics;
+    HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii;
 };
 
 // Bytes are owned by value before parsing. Neither entry point consults a path after capture.
-InspectOutcome InspectBytes(std::string bytes, Limits limits);
-InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits);
+InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii);
+InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii);
 
 // Bounded internal JSON report. False clears output; never returns a truncated success document.
 bool InspectJson(const InspectOutcome& outcome, std::string& output);

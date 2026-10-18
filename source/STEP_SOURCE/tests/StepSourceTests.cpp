@@ -191,6 +191,22 @@ int main()
             "Diagnostic escaping must preserve arbitrary bytes and final LF"
         );
         ++checks;
+        {
+            auto legacy = File("#1=A('standard');\n");
+            const std::string name = "'legacy-\x81\\''name.stp'";
+            legacy.replace(legacy.find("'x'"), 3, name);
+            const auto strictName = InspectBytes(legacy, limits);
+            Require(!strictName.source && strictName.status == Status::Unsupported, "strict source must still reject raw high bytes");
+            auto opaque = InspectBytes(legacy, limits, HeaderNamePolicy::PreserveOpaqueBytes);
+            Require(opaque.status == Status::Inspected && opaque.source, "explicit opaque header name");
+            auto owner = opaque.source;
+            opaque = {};
+            const auto& value = owner->Header()[1].parameters[0];
+            Require(value.kind == ValueKind::OpaqueString && value.text.empty(), "opaque name must not fabricate Unicode text");
+            Require(owner->Raw(value.span) == name && owner->Bytes() == legacy, "owning opaque name lost original bytes/span");
+            Require(owner->Records()[0].components[0].parameters[0].text == "standard", "opaque name policy leaked to DATA");
+            ++checks;
+        }
         std::cout << "Passed " << checks << " native source contract groups\n";
         return 0;
     }

@@ -36,6 +36,7 @@ int main(int argc, char** argv)
                                                                              { "--max-report-bytes", &limits.reportBytes },
                                                                              { "--max-id-digits", &limits.idDigits } };
         bool selectedLimits = false;
+        auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
         std::string input;
         for (int i = 1; i < argc; ++i)
         {
@@ -43,6 +44,10 @@ int main(int argc, char** argv)
             if (argument == "--fixture-limits")
             {
                 selectedLimits = true;
+            }
+            else if (argument == "--preserve-opaque-header-name")
+            {
+                headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
             }
             else if (options.count(argument))
             {
@@ -73,7 +78,7 @@ int main(int argc, char** argv)
             std::cerr << "Usage: step_inspect --fixture-limits <input.step> [--max-... N]\n";
             return 64;
         }
-        const auto outcome = step_source::InspectFile(std::filesystem::path(input), limits);
+        const auto outcome = step_source::InspectFile(std::filesystem::path(input), limits, headerNamePolicy);
         std::string report;
         if (!step_source::InspectJson(outcome, report))
         {

@@ -110,6 +110,7 @@ struct Options
     ExecutionOptions execution;
     bool generalBrep = false; // Explicit native geometry path; never implies full AP/schema conformance.
     step_semantics::SourcePolicy sourcePolicy = step_semantics::SourcePolicy::Strict;
+    step_source::HeaderNamePolicy headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
     static Options PlanarFixture();
 };
 struct Statistics

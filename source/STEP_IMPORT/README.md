@@ -1,5 +1,12 @@
 # STEP_IMPORT（内部 C++20）
 
+显式通用互操作请求可另选 `Options.headerNamePolicy=PreserveOpaqueBytes`，仅保留
+文件头 `FILE_NAME.name` 的非标准原始字节。该字段是 `OpaqueString`，不生成解码后的
+名称，报告包含原 token、跨度及 `OpaqueHeaderFileName` 提示；不转换原始文件。
+DATA、其他文件头字段、协议绑定、类型、单位和几何检查均不放宽。单选质量配置或
+互操作策略不会启用此入口；严格／P0 请求不接受这一载体选项。原生 CLI 对应
+`--preserve-opaque-header-name --interop-nongeometric`，并须选择通用质量。
+
 新增显式的通用开发路径 `Options.generalBrep=true`，用于精确绑定的 AP214e3／AP203e2 单个普通
 `MANIFOLD_SOLID_BREP` 的 LINE、CIRCLE、ELLIPSE、显式节点 B 样条边，
 PLANE、CYLINDRICAL_SURFACE、CONICAL_SURFACE 和显式节点 B 样条曲面。

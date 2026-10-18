@@ -6,6 +6,21 @@ all reference occurrences. `Inspected` means this source-only work completed;
 AP/schema rules, types, units, geometry and native BRep construction remain unrun.
 The JSON field `native_build` means SMLib BRep construction, not C++ compilation.
 
+An explicit `HeaderNamePolicy::PreserveOpaqueBytes` (CLI
+`--preserve-opaque-header-name`) can retain nonstandard raw high bytes in exactly
+`HEADER.FILE_NAME.name`. It publishes that one value as `OpaqueString`, with
+`text: null`, original byte span/raw token and an `OpaqueHeaderFileName` notice.
+Its encoding and effective text remain unestablished: no locale, code-page,
+UTF-8 or Unicode normalization is guessed. Names without high bytes still use
+the existing Part21 decoder. The default remains strict ASCII.
+
+This exception does not admit high bytes in other HEADER fields, DATA, comments
+or identifiers; DEL/control bytes also remain unsupported. The complete carrier
+is checked against the single allowed token span before DATA parsing. Original
+string/record/input/report budgets still apply. The unknown name is retained
+metadata, not proof of standard string conformance; `Inspected` still means only
+completion of the explicitly selected source inspection.
+
 Standalone build, from the repository root:
 
 ```powershell

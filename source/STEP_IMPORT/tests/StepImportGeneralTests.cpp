@@ -377,6 +377,32 @@ void RationalContract(const std::filesystem::path& source, const std::filesystem
         }
     );
 }
+void OpaqueHeaderContract(const std::filesystem::path& source)
+{
+    std::ifstream input(source, std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    const std::string schema = "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}";
+    text.replace(text.find(schema), schema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+    const auto begin = text.find('\'', text.find("FILE_NAME("));
+    const auto end = text.find('\'', begin + 1);
+    const std::string name = "'legacy-\xc9\xa2\xc8\xc8.stp'";
+    text.replace(begin, end + 1 - begin, name);
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+    auto outcome = step_import::ImportBytes(text, options);
+    Require(outcome.status == step_import::Status::Accepted && outcome.model, "opaque header native import");
+    auto sourceOwner = outcome.report.source;
+    auto modelOwner = outcome.model;
+    outcome = {};
+    const auto& value = sourceOwner->Header()[1].parameters[0];
+    Require(value.kind == step_source::ValueKind::OpaqueString && sourceOwner->Raw(value.span) == name, "owning raw HEADER name");
+    Require(sourceOwner->Bytes() == text, "metadata preservation must not transcode the STEP carrier");
+    Near(*modelOwner->MaterialVolumeMm3(), 6000, 1e-5, "opaque metadata leaves exact box volume");
+    Require(modelOwner->CopyForModeling().model != nullptr, "opaque-source native copy after outcome release");
+}
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
     auto options = step_import::Options::PlanarFixture();
@@ -420,11 +446,15 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     model.reset();
     Require(!identity.empty() && std::isfinite(retained.Closest({ 20, 7, 20 }).distanceMm), "owning face view lifetime");
 }
-void DevelopmentContract(const std::filesystem::path& source, const std::filesystem::path& directory, bool study)
+void DevelopmentContract(const std::filesystem::path& source, const std::filesystem::path& directory, bool study, bool opaqueHeaderName)
 {
     auto options = step_import::Options::PlanarFixture();
     options.generalBrep = true;
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    if (opaqueHeaderName)
+    {
+        options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+    }
     options.quality = study ? step_import::Quality::GeneralToleranceStudy() : step_import::Quality::GeneralDevelopment();
     options.sourceLimits = { 67108864, 1000000, 2000000, 2000000, 128, 1048576, 16777216, 268435456, 1024 };
     options.semanticLimits.dependencyVisits = 10000000;
@@ -508,15 +538,17 @@ int main(int argc, char** argv)
 {
     try
     {
-        if (argc == 5 && std::string_view(argv[1]) == "--development-file")
+        if ((argc == 5 || argc == 6) && std::string_view(argv[1]) == "--development-file")
         {
-            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study");
+            Require(argc == 5 || std::string_view(argv[5]) == "--preserve-opaque-header-name", "explicit HEADER filename flag required");
+            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", argc == 6);
             return 0;
         }
         Require(argc == 3, "fixture and local output directory required");
         GaugeContract();
         FinalTrimContract();
         RationalContract(argv[1], argv[2]);
+        OpaqueHeaderContract(argv[1]);
         LifecycleContract(argv[1], argv[2]);
     }
     catch (const std::exception& error)

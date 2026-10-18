@@ -79,6 +79,14 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Explicit general geometry quality and source policy must match the selected import path");
     }
+    // Opaque metadata is an explicit interoperability choice, not a side effect
+    // of selecting a geometry quality. Strict/P0 requests never relax carriers.
+    if (options.headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii &&
+        (options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveOpaqueBytes || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");
+    }
 }
 void Diagnostic(Report& report, const detail::Failure& failure)
 {
@@ -118,6 +126,7 @@ Outcome Import(const Options& options, Capture capture)
     report.generalBrep = options.generalBrep;
     step_source::InspectOutcome raw;
     raw.limits = options.sourceLimits;
+    raw.headerNamePolicy = options.headerNamePolicy;
     detail::Execution execution(options, report);
     std::shared_ptr<detail::ModelData> candidate;
     std::shared_ptr<const ModelSnapshot> prepared;
@@ -291,7 +300,7 @@ Outcome ImportBytes(std::string bytes, const Options& options)
         frozen,
         [&]
         {
-            return step_source::InspectBytes(std::move(bytes), frozen.sourceLimits);
+            return step_source::InspectBytes(std::move(bytes), frozen.sourceLimits, frozen.headerNamePolicy);
         }
     );
 }
@@ -304,7 +313,7 @@ Outcome ImportFile(const std::filesystem::path& path, const Options& options)
         frozen,
         [&]
         {
-            return step_source::InspectFile(capturedPath, frozen.sourceLimits);
+            return step_source::InspectFile(capturedPath, frozen.sourceLimits, frozen.headerNamePolicy);
         }
     );
 }

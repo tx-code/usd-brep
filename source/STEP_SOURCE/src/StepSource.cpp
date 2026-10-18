@@ -8,6 +8,7 @@
 #include <fstream>
 #include <gsl/pointers>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -152,7 +153,8 @@ enum class TokenKind
     Semicolon,
     Unset,
     Derived,
-    End
+    End,
+    OpaqueString
 };
 struct Token
 {
@@ -184,7 +186,8 @@ public:
         for (std::size_t i = 0; i < input.size(); ++i)
         {
             const auto byte = static_cast<unsigned char>(input[i]);
-            if (byte >= 127 || (byte < 32 && byte != '\t' && byte != '\r' && byte != '\n'))
+            if (byte == 127 || (byte >= 128 && m_result.headerNamePolicy == HeaderNamePolicy::StrictAscii) ||
+                (byte < 32 && byte != '\t' && byte != '\r' && byte != '\n'))
             {
                 Fail("UnsupportedEncoding", "This reader slice accepts ASCII bytes only", { i, i + 1 }, Status::Unsupported);
             }
@@ -206,7 +209,26 @@ public:
             m_result.statistics.maxRecordBytes = std::max(m_result.statistics.maxRecordBytes, end - component.span.begin);
             CheckHeader(component);
         }
-        m_component.clear();
+        m_component.clear(); // The whole-carrier check has no parsed DATA owner.
+        // The opt-in exception belongs to one completed HEADER token only.
+        // Check every byte before DATA parsing, including skipped comments and
+        // all other HEADER fields; no encoding relaxation can reach geometry.
+        if (m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes)
+        {
+            for (std::size_t i = 0; i < input.size(); ++i)
+            {
+                if (static_cast<unsigned char>(input[i]) >= 128 &&
+                    (!m_opaqueHeaderName || i < m_opaqueHeaderName->begin || i >= m_opaqueHeaderName->end))
+                {
+                    Fail(
+                        "UnsupportedEncoding",
+                        "Non-ASCII bytes are allowed only in the opaque FILE_NAME.name token",
+                        { i, i + 1 },
+                        Status::Unsupported
+                    );
+                }
+            }
+        }
         if (Peek().text != "ENDSEC")
         {
             Fail("UnsupportedHeaderRecord", "Additional HEADER records are not supported in this slice", Peek().span, Status::Unsupported);
@@ -254,6 +276,8 @@ private:
     std::string m_recordId;
     std::string m_component;
     std::vector<std::size_t> m_path;
+    bool m_headerNameExpected = false;
+    std::optional<Span> m_opaqueHeaderName;
 
     [[noreturn]] void Fail(std::string key, std::string message, Span span, Status status = Status::Rejected, std::string stage = "D0")
     {
@@ -314,6 +338,60 @@ private:
             ++position;
         }
         return position;
+    }
+    std::optional<Token> OpaqueHeaderName(std::size_t start)
+    {
+        if (!m_headerNameExpected || m_result.headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes)
+        {
+            return {};
+        }
+        const auto saved = m_pos;
+        bool high = false;
+        while (m_pos < m_data->bytes->size())
+        {
+            const auto position = StringPosition(m_pos);
+            if (position == m_data->bytes->size())
+            {
+                break;
+            }
+            if (position - start + 1 > m_result.limits.stringBytes && !high)
+            {
+                // No opaque byte has been found within the allowed token budget.
+                // Let the ordinary decoder choose its original failure (e.g. a
+                // malformed directive before a later size limit), without an
+                // unbounded preliminary scan changing diagnostic precedence.
+                break;
+            }
+            const auto item = StringCharacter(start, start);
+            high = high || static_cast<unsigned char>(item) >= 128;
+            if (item == '\'')
+            {
+                const auto next = StringPosition(m_pos);
+                if (next < m_data->bytes->size() && (*m_data->bytes)[next] == '\'')
+                {
+                    if (next - start + 1 > m_result.limits.stringBytes && !high)
+                    {
+                        break;
+                    }
+                    StringCharacter(start, start);
+                }
+                else
+                {
+                    if (high)
+                    {
+                        // Decode neither legacy bytes nor escape directives in
+                        // this opaque value. A legacy multibyte trail may itself
+                        // be '\\'; its meaning cannot be inferred as P21 syntax.
+                        m_opaqueHeaderName = Span{ start, m_pos };
+                        m_result.statistics.maxStringBytes = std::max(m_result.statistics.maxStringBytes, m_pos - start);
+                        return Token{ TokenKind::OpaqueString, *m_opaqueHeaderName, {} };
+                    }
+                    break;
+                }
+            }
+        }
+        m_pos = saved; // Ordinary ASCII names retain the exact existing decoder and diagnostics.
+        return {};
     }
 
     char StringCharacter(std::size_t start, std::size_t directive)
@@ -486,6 +564,10 @@ private:
                 break;
             case '\'':
             {
+                if (const auto opaque = OpaqueHeaderName(start))
+                {
+                    return *opaque;
+                }
                 std::string decoded;
                 while (m_pos < text.size())
                 {
@@ -650,6 +732,7 @@ private:
             {
                 m_path.push_back(values.size() + 1);
                 values.push_back(ParseValue(depth + 1));
+                m_headerNameExpected = false;
                 m_path.pop_back();
                 if (Peek().kind != TokenKind::Comma)
                 {
@@ -680,6 +763,9 @@ private:
                 break;
             case TokenKind::String:
                 value.kind = ValueKind::String;
+                break;
+            case TokenKind::OpaqueString:
+                value.kind = ValueKind::OpaqueString;
                 break;
             case TokenKind::Enumeration:
                 value.kind = ValueKind::Enumeration;
@@ -728,6 +814,7 @@ private:
             Fail("SyntaxError", "Invalid entity keyword", name.span);
         }
         m_component = name.text;
+        m_headerNameExpected = m_recordId.empty() && m_data->header.size() == 1 && name.text == "FILE_NAME";
         auto values = Parameters(0);
         return { name.text, { name.span.begin, m_token.span.end }, std::move(values) };
     }
@@ -760,7 +847,7 @@ private:
             valid = p.size() == 7 && StringList(p[2]) && StringList(p[3]);
             for (std::size_t i : { std::size_t(0), std::size_t(1), std::size_t(4), std::size_t(5), std::size_t(6) })
             {
-                valid = valid && p[i].kind == ValueKind::String;
+                valid = valid && (p[i].kind == ValueKind::String || (i == 0 && p[i].kind == ValueKind::OpaqueString));
             }
         }
         else if (component.name == "FILE_SCHEMA")
@@ -925,10 +1012,15 @@ Location SourceSnapshot::Locate(std::size_t offset) const
     return { static_cast<std::size_t>(line), offset - m_data->lines[static_cast<std::size_t>(line) - 1] + 1 };
 }
 
-InspectOutcome InspectBytes(std::string bytes, Limits limits)
+InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy headerNamePolicy)
 {
+    if (headerNamePolicy != HeaderNamePolicy::StrictAscii && headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes)
+    {
+        throw std::invalid_argument("Unknown HEADER filename policy");
+    }
     InspectOutcome result{};
     result.limits = limits;
+    result.headerNamePolicy = headerNamePolicy;
     if (!ValidLimits(limits))
     {
         result.status = Status::ResourceLimit;
@@ -962,6 +1054,21 @@ InspectOutcome InspectBytes(std::string bytes, Limits limits)
         Parser(data, result).Parse();
         result.source = std::make_shared<const SourceSnapshot>(std::move(data));
         result.status = Status::Inspected;
+        const auto& name = result.source->Header()[1].parameters[0];
+        if (name.kind == ValueKind::OpaqueString)
+        {
+            result.diagnostics.push_back(
+                { "OpaqueHeaderFileName",
+                  "D0",
+                  "Nonstandard FILE_NAME.name retained as original bytes; text interpretation and encoding remain unestablished",
+                  name.span,
+                  {},
+                  {},
+                  "FILE_NAME",
+                  { 1 },
+                  {} }
+            );
+        }
     }
     catch (const Failure& failure)
     {
@@ -971,11 +1078,11 @@ InspectOutcome InspectBytes(std::string bytes, Limits limits)
     return result;
 }
 
-InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits)
+InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, HeaderNamePolicy headerNamePolicy)
 {
     if (!ValidLimits(limits))
     {
-        return InspectBytes({}, limits);
+        return InspectBytes({}, limits, headerNamePolicy);
     }
     std::ifstream input(path, std::ios::binary);
     std::string bytes;
@@ -989,17 +1096,18 @@ InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits)
             bytes.append(buffer.data(), static_cast<std::size_t>(input.gcount()));
             if (bytes.size() > limits.inputBytes)
             {
-                return InspectBytes(std::move(bytes), limits);
+                return InspectBytes(std::move(bytes), limits, headerNamePolicy);
             }
         }
         if (input.eof() && !input.bad())
         {
-            return InspectBytes(std::move(bytes), limits);
+            return InspectBytes(std::move(bytes), limits, headerNamePolicy);
         }
     }
     InspectOutcome result{};
     result.status = Status::IoFailure;
     result.limits = limits;
+    result.headerNamePolicy = headerNamePolicy;
     result.diagnostics.push_back({ "InputReadFailure", "Capture", "Input capture did not complete", {}, {}, {}, {}, {}, {} });
     return result;
 }
@@ -1043,6 +1151,8 @@ const char* ValueKindName(ValueKind kind)
             return "Aggregate";
         case ValueKind::Typed:
             return "Typed";
+        case ValueKind::OpaqueString:
+            return "OpaqueString";
     }
     return "Unknown";
 }
