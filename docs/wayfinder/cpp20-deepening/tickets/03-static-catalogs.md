@@ -26,3 +26,6 @@ STEP schema、规则、协议身份以及其他被证据基线识别出的固定
 [代码基线](../evidence/code-baseline.md)已确认各 profile 的目录按首次访问缓存。
 本机编译观察区分了临时 vector 计算、最终持久存储和 bitset 修改；不能将当前 Catalog 整体原样标为 constexpr。
 固定状态/协议登记也有具体线索，但是否与 schema 目录一同推进仍待本票取舍。
+
+[候选收益评估](../evidence/benefit-assessment.md)已按用户要求区分错误保障、首次构造工作的消除和未测的性能收益。
+本票取舍须说明新增保障，不能将已有规则校验、已完整的状态映射或仅更换容器语法计为新增收益。
