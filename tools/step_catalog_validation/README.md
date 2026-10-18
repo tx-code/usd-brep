@@ -51,14 +51,19 @@ Git HEAD 不代表未提交源内容，本地收据中的实际输入以源指�
 python -m tools.step_catalog_validation.compile_contracts --build-dir D:/Temp/catalog-compile-controls --config Release --generator "Visual Studio 18 2026" --architecture x64
 ```
 
-驱动按[case manifest](compile/cases.json)编译真实 object target，保存每例日志和 results.json。
+驱动按[case manifest](compile/cases.json)编译真实 object target，保存每例日志和 results.json；
+独立 owner/consumer 的正例另链接并运行可执行文件，确认静态视图可以跨翻译单元使用。
 负例必须有同环境通过的正对照、非零退出码，以及实际 compiler error 行上的指定标记。
 命令行/文件名/警告中的标记、缺头文件、错误期望和失效正对照不能算通过。
 每次重新配置/构建，不复用过去的退出码；独立 object target 避免把缺链接依赖算作编译拒绝。
 
-**本批只有驱动控制和当前产品头文件的编译检查。** 人为 static_assert 控制证明的是驱动识别拒绝的机制，
-不是未来目录校验器的保障。生产 consteval 构建器的真实 profile、菱形/容量正例与元数据负例，
-在第二批实现后加入同一 manifest 和生产头文件，不能先用另一份 validator 代替。
+编译矩阵使用生产 consteval 构建器，覆盖四个真实 profile、菱形继承/字段原序、derived override、
+嵌套 aggregate、membership 字边界及 256 类型正例；负例逐项注入重复登记、未知引用、继承环、257 类型、
+非法 complex/derived/聚合范围/前缀/覆盖目标。人为 static_assert 控制仅验证驱动机制，不算产品校验保障。
+生产头文件的两处公开 span 表示也有编译检查；没有维护测试专用 validator。
+
+分配 probe 对首次/重复目录取得和短名/长名/未知名查询强制零分配，仍要求八条已知分配正对照成功。
+正常库中的四份存储及视图均为 constexpr，不能靠把初始化移动到 main 前绕过该运行期检查。
 
 CTest 注册全量基线比较、工具破坏控制、编译驱动、四个分配 probe，以及既有源/语义合同。
 工具单测覆盖顺序、未被样例使用的字段、嵌套维度、祖先高位、字段来源、每类登记表、篡改 hash、

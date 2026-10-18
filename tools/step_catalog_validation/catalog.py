@@ -124,7 +124,8 @@ def read_baseline(directory):
 
 
 def source_fingerprints():
-    files = sorted((ROOT / "source/STEP_SEMANTICS/src").glob("*Catalog.*"))
+    source = ROOT / "source/STEP_SEMANTICS/src"
+    files = sorted([*source.glob("*Catalog*.h"), *source.glob("*Catalog*.cpp")])
     files += [ROOT / p for p in ("source/STEP_SEMANTICS/inc/StepSemantics.h", "source/STEP_SOURCE/inc/StepSource.h",
                                 "source/STEP_SOURCE/inc/StepSourceReport.h", "source/STEP_SOURCE/src/StepSource.cpp",
                                 "source/STEP_SOURCE/src/StepSourceReport.cpp")]

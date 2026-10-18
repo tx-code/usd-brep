@@ -3,6 +3,7 @@
 """Run real compiler cases; rejection needs a passing control and an error marker."""
 
 import argparse
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -36,6 +37,8 @@ def validate_cases(manifest):
     for case in cases:
         if case["expect"] not in ("pass", "fail"):
             raise ValueError("Unknown compile expectation")
+        if case.get("run") and (case["expect"] != "pass" or case.get("target_kind") != "executable"):
+            raise ValueError("Only a successfully compiled positive executable can be run")
         if case["expect"] == "fail":
             control = by_name.get(case.get("positive_control"))
             if not case.get("marker") or not control or control["expect"] != "pass":
@@ -53,7 +56,8 @@ def run(args):
     # leave a previous successful report looking current.
     (args.build_dir / "results.json").write_bytes(encoded(report))
     command = ["cmake", "-S", str(DEFAULT_MANIFEST.parent), "-B", str(args.build_dir),
-               f"-DCASE_MANIFEST={args.manifest.resolve()}", f"-DCATALOG_REPOSITORY={ROOT}"]
+               f"-DCASE_MANIFEST={args.manifest.resolve()}", f"-DCATALOG_REPOSITORY={ROOT}",
+               f"-DCMAKE_BUILD_TYPE={args.config}"]
     if args.generator:
         command += ["-G", args.generator]
     if args.architecture:
@@ -67,9 +71,16 @@ def run(args):
         completed = subprocess.run(["cmake", "--build", str(args.build_dir), "--config", args.config,
                                     "--target", case["name"]], capture_output=True, text=True, errors="replace")
         log = completed.stdout + completed.stderr
+        run_exit = None
+        if completed.returncode == 0 and case.get("run"):
+            executable = args.build_dir / "bin" / args.config / (case["name"] + (".exe" if os.name == "nt" else ""))
+            ran = subprocess.run([str(executable.resolve())], capture_output=True, text=True, errors="replace")
+            run_exit = ran.returncode
+            log += "\nRuntime control:\n" + ran.stdout + ran.stderr
         (args.build_dir / f"{case['name']}.log").write_text(log, encoding="utf-8")
         results.append({"name": case["name"], "expected": case["expect"], "exit_code": completed.returncode,
-                        "accepted": assess(case, completed.returncode, log)})
+                        "run_exit_code": run_exit,
+                        "accepted": assess(case, completed.returncode, log) and (run_exit is None or run_exit == 0)})
     by_name = {result["name"]: result for result in results}
     for case, result in zip(cases, results):
         if case["expect"] == "fail" and not by_name[case["positive_control"]]["accepted"]:

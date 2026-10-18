@@ -213,6 +213,11 @@ int main(int argc, char** argv)
                 &pointRef == &gridRaw.source->Find("134")->components[0].parameters[3].children[2].children[0],
             "Nested source grid must preserve rows, repeated identities and actual reference values"
         );
+        const auto indexedGrid = gridSnapshot->Attribute(surface, 0, 3);
+        Require(
+            grid.Declaration().nestedAggregates.data() == indexedGrid.nestedAggregates.data() && indexedGrid.nestedAggregates.size() == 1,
+            "Named and indexed views must borrow the same static dimension descriptors without vector copies"
+        );
         bool matrixFlatteningRefused = false;
         try
         {

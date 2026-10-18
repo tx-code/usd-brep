@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepDateTimeCatalog.h"
+#pragma once
+#include "StepCatalogBuilder.h"
 
-#include <stdexcept>
-
-namespace step_semantics
+namespace step_semantics::catalog_build::date_time
 {
 namespace
 {
@@ -20,12 +19,13 @@ constexpr std::string_view Ap214DateItems[] = { "PRODUCT",
                                                 "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION" };
 } // namespace
 
-void AddDateTimeDeclarations(Catalog& catalog, ProfileKind profile)
+constexpr void AddDateTimeDeclarations(Recipe& catalog, ProfileKind profile)
 {
     const bool ap203 = profile == ProfileKind::Ap203e2GeneralSource;
     if (!ap203 && !IsAp214SourceProfile(profile))
     {
-        throw std::logic_error("Date transport requires an explicit general source profile");
+        catalog.issue = Error::InvalidProfile;
+        return;
     }
     // Compared N2635 (c68dd022...) and AP214E3_2010.exp (71ab140f...): these
     // explicit field orders are shared. AP214 DERIVE descriptions/offsets are
@@ -81,4 +81,4 @@ void AddDateTimeDeclarations(Catalog& catalog, ProfileKind profile)
     }
     catalog.enumerations.push_back({ "AHEAD_OR_BEHIND", AheadBehind });
 }
-} // namespace step_semantics
+} // namespace step_semantics::catalog_build::date_time

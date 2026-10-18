@@ -1,29 +1,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepAp203GeneralCatalog.h"
+#pragma once
+#include "StepCatalogBuilder.h"
+#include "StepDateTimeCatalogData.h"
 
-#include "StepDateTimeCatalog.h"
-
-namespace step_semantics
+namespace step_semantics::catalog_build::ap203_general
 {
 namespace
 {
-Field Text(const char* name, bool optional = false, const char* type = "LABEL")
+constexpr Field Text(const char* name, bool optional = false, const char* type = "LABEL")
 {
     return { name, type, FieldKind::String, optional };
 }
-Field Ref(const char* name, const char* type)
+constexpr Field Ref(const char* name, const char* type)
 {
     return { name, type, FieldKind::Reference };
 }
-Field Set(const char* name, const char* type)
+constexpr Field Set(const char* name, const char* type)
 {
     Field result{ name, type, FieldKind::Aggregate };
     result.minimum = 1;
     result.unique = Unique::Set;
     return result;
 }
-Field OptionalNames(const char* name)
+constexpr Field OptionalNames(const char* name)
 {
     Field result{ name, "LABEL", FieldKind::Aggregate, true };
     result.elementKind = FieldKind::String;
@@ -43,7 +43,7 @@ constexpr std::string_view ConversionAngle[] = { "CONVERSION_BASED_UNIT", "NAMED
 constexpr std::string_view ShapeRelationship[] = { "REPRESENTATION_RELATIONSHIP", "SHAPE_REPRESENTATION_RELATIONSHIP" };
 } // namespace
 
-void AddAp203GeneralDeclarations(Catalog& catalog)
+constexpr void AddAp203GeneralDeclarations(Recipe& catalog)
 {
     // Fixed MBx N2635 (c68dd022...): transport fields and inverse attachment
     // declarations, not a general management WHERE/global-rule implementation.
@@ -94,7 +94,7 @@ void AddAp203GeneralDeclarations(Catalog& catalog)
             { "CC_DESIGN_SECURITY_CLASSIFICATION", { "SECURITY_CLASSIFICATION_ASSIGNMENT" }, { Set("items", "CC_CLASSIFIED_ITEM") }, true },
         }
     );
-    AddDateTimeDeclarations(catalog, ProfileKind::Ap203e2GeneralSource);
+    date_time::AddDateTimeDeclarations(catalog, ProfileKind::Ap203e2GeneralSource);
     catalog.referenceSelects.insert(
         catalog.referenceSelects.end(),
         { { "APPROVED_ITEM", Approved },
@@ -106,13 +106,7 @@ void AddAp203GeneralDeclarations(Catalog& catalog)
     );
     catalog.complexSignatures.push_back(ConversionAngle);
     catalog.complexSignatures.push_back(ShapeRelationship);
-    for (auto& declaration : catalog.declarations)
-    {
-        if (declaration.name == "PRODUCT_CATEGORY")
-        {
-            declaration.simple = true;
-        }
-    }
+    SetSimple(catalog, "PRODUCT_CATEGORY");
     // VRI retains its typed value and obtains its unit context from its owning
     // representation; no implicit unit is invented or converted during binding.
     catalog.measureBranches.insert(
@@ -120,4 +114,4 @@ void AddAp203GeneralDeclarations(Catalog& catalog)
         { "PLANE_ANGLE_MEASURE", "AREA_MEASURE", "VOLUME_MEASURE", "NUMERIC_MEASURE", "COUNT_MEASURE" }
     );
 }
-} // namespace step_semantics
+} // namespace step_semantics::catalog_build::ap203_general

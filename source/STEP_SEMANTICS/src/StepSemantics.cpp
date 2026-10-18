@@ -593,7 +593,7 @@ private:
         {
             Visit(records[r].span);
             std::vector<std::string> explicitTypes;
-            std::unordered_set<std::string> unique;
+            std::unordered_set<std::string_view> unique; // Borrows immutable source component names for this record only.
             for (std::size_t c = 0; c < records[r].components.size(); ++c)
             {
                 const auto& part = records[r].components[c];
@@ -696,7 +696,7 @@ private:
                             r,
                             0,
                             {},
-                            catalog.names[t],
+                            std::string(catalog.names[t]),
                             "absent",
                             "Part21 external mapping"
                         );
@@ -747,7 +747,7 @@ private:
                 r,
                 c,
                 path,
-                field.type,
+                std::string(field.type),
                 step_source::ValueKindName(value.kind),
                 SourceAuthority() + " explicit attribute"
             );
@@ -807,7 +807,7 @@ private:
                         r,
                         c,
                         path,
-                        field.type,
+                        std::string(field.type),
                         value.text,
                         "fixed " + SourceAuthority() + " enumeration"
                     );
@@ -850,7 +850,7 @@ private:
                             r,
                             c,
                             path,
-                            field.type,
+                            std::string(field.type),
                             Record(UnboundTarget(value)).components[0].name,
                             SourceAuthority() + " explicit reference type"
                         );
@@ -951,7 +951,7 @@ private:
         // Validate each declared LIST dimension without flattening source rows. The
         // outer field/member visit and error order is unchanged for existing AP203;
         // only nested fields recurse, adding their actual one-based source indices.
-        const auto* inner = depth ? &field.nestedAggregates.at(depth - 1) : nullptr;
+        const auto* inner = depth ? &CatalogAt(field.nestedAggregates, depth - 1) : nullptr;
         const auto minimum = inner ? inner->minimum : field.minimum;
         const auto maximum = inner ? inner->maximum.value_or(static_cast<std::size_t>(-1)) : field.maximum;
         const auto unique = inner ? inner->uniqueElements : field.unique != Unique::None;
@@ -1018,7 +1018,7 @@ private:
                         childPath,
                         "unique instance identity",
                         child.text,
-                        std::string(declaredIn) + "." + field.name
+                        std::string(declaredIn) + "." + std::string(field.name)
                     );
                 }
                 catch (Failure& failure)
@@ -1040,8 +1040,8 @@ private:
             for (std::size_t c = 0; c < record.components.size(); ++c)
             {
                 const auto& part = record.components[c];
-                const auto type = catalog.ids.at(part.name);
-                const auto count = record.complex ? catalog.declarations[type].fields.size() : catalog.flattened[type].size();
+                const auto type = catalog.RequireType(part.name);
+                const auto count = record.complex ? catalog.declarations[type].fields.size() : catalog.Flattened(type).size();
                 if (part.parameters.size() != count)
                 {
                     Fail(
@@ -1062,7 +1062,7 @@ private:
                 {
                     const auto view = AttributeAt(*m_data, r, c, p);
                     const auto& value = *view.value;
-                    const auto& field = record.complex ? catalog.declarations[type].fields[p] : *catalog.flattened[type][p].field;
+                    const auto& field = record.complex ? catalog.declarations[type].fields[p] : catalog.FieldOf(catalog.Flattened(type)[p]);
                     const std::vector<std::size_t> path{ p + 1 };
                     Visit(value.span);
                     auto& bound = m_data->fields[r];
@@ -1130,7 +1130,7 @@ private:
                                 r,
                                 c,
                                 path,
-                                field.type,
+                                std::string(field.type),
                                 "$",
                                 SourceAuthority() + " required attribute"
                             );
@@ -1186,7 +1186,7 @@ private:
 
     const std::vector<std::size_t>& Population(std::string_view name) const
     {
-        return m_data->populations[Schema(*m_data).ids.at(std::string(name))];
+        return m_data->populations[Schema(*m_data).RequireType(name)];
     }
     std::size_t One(std::string_view type)
     {
@@ -2867,7 +2867,7 @@ const std::vector<std::size_t>& Snapshot::UnattachedNonGeometricDeclarations() c
 {
     return m_data->unattachedNonGeometric;
 }
-const std::vector<std::string>& Snapshot::RegisteredTypes() const
+std::span<const std::string_view> Snapshot::RegisteredTypes() const
 {
     return Schema(*m_data).names;
 }
@@ -2892,7 +2892,7 @@ std::vector<std::string> Snapshot::TypesOf(std::size_t record) const
     {
         if (m_data->types.at(record).test(t))
         {
-            names.push_back(Schema(*m_data).names[t]);
+            names.emplace_back(Schema(*m_data).names[t]);
         }
     }
     return names;

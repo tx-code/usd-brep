@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepRationalSplineCatalog.h"
+#pragma once
+#include "StepCatalogBuilder.h"
 
-namespace step_semantics
+namespace step_semantics::catalog_build::rational_spline
 {
 namespace
 {
@@ -16,7 +17,7 @@ constexpr std::string_view Surface[] = {
 };
 } // namespace
 
-void AddRationalSplineDeclarations(Catalog& catalog)
+constexpr void AddRationalSplineDeclarations(Recipe& catalog)
 {
     // Compared fixed N2635 / AP214E3_2010.exp RATIONAL_B_SPLINE_* transport:
     // only weights_data is explicit; weights is DERIVE and has no P21 slot.
@@ -31,4 +32,4 @@ void AddRationalSplineDeclarations(Catalog& catalog)
     catalog.complexSignatures.push_back(Curve);
     catalog.complexSignatures.push_back(Surface);
 }
-} // namespace step_semantics
+} // namespace step_semantics::catalog_build::rational_spline

@@ -1,11 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepAp214PresentationCatalog.h"
+#pragma once
+#include "StepCatalogBuilder.h"
 
-#include <algorithm>
-#include <stdexcept>
-
-namespace step_semantics
+namespace step_semantics::catalog_build::ap214_presentation
 {
 namespace
 {
@@ -15,8 +13,12 @@ constexpr std::string_view Methods[] = { "CONSTANT_SHADING", "COLOUR_SHADING", "
 constexpr std::string_view CurveFonts[] = { "PRE_DEFINED_CURVE_FONT" };
 constexpr std::string_view PresentationStyles[] = { "SURFACE_STYLE_USAGE", "FILL_AREA_STYLE", "CURVE_STYLE" };
 
-void ReplaceSelect(Catalog& catalog, std::string_view name, std::span<const std::string_view> branches)
+constexpr void ReplaceSelect(Recipe& catalog, std::string_view name, std::span<const std::string_view> branches)
 {
+    if (!RequireTarget(catalog, catalog.referenceSelects, name))
+    {
+        return;
+    }
     const auto select = std::find_if(
         catalog.referenceSelects.begin(),
         catalog.referenceSelects.end(),
@@ -27,7 +29,8 @@ void ReplaceSelect(Catalog& catalog, std::string_view name, std::span<const std:
     );
     if (select == catalog.referenceSelects.end())
     {
-        throw std::logic_error("Presentation requires an existing SELECT: " + std::string(name));
+        catalog.issue = Error::OverlayTarget;
+        return;
     }
     // Change only this catalog's span. The generic declarations are also used
     // by N2635; changing their shared branch array would leak AP214-only types.
@@ -35,7 +38,7 @@ void ReplaceSelect(Catalog& catalog, std::string_view name, std::span<const std:
 }
 } // namespace
 
-void AddAp214RenderingDeclarations(Catalog& catalog)
+constexpr void AddAp214RenderingDeclarations(Recipe& catalog)
 {
     // Fixed AP214E3_2010.exp SURFACE_STYLE_RENDERING[_WITH_PROPERTIES] and
     // SURFACE_STYLE_TRANSPARENT. They are not RI/geometry definitions. The
@@ -60,7 +63,7 @@ void AddAp214RenderingDeclarations(Catalog& catalog)
     catalog.enumerations.push_back({ "SHADING_SURFACE_METHOD", Methods });
 }
 
-void AddAp214CurveStyleDeclarations(Catalog& catalog)
+constexpr void AddAp214CurveStyleDeclarations(Recipe& catalog)
 {
     // Pinned AP214E3_2010.exp, not the merged AP schema: all four style
     // attributes are REQUIRED. The outer font SELECT has no scaling branch.
@@ -87,4 +90,4 @@ void AddAp214CurveStyleDeclarations(Catalog& catalog)
     catalog.referenceSelects.push_back({ "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT", CurveFonts });
     ReplaceSelect(catalog, "PRESENTATION_STYLE_SELECT", PresentationStyles);
 }
-} // namespace step_semantics
+} // namespace step_semantics::catalog_build::ap214_presentation

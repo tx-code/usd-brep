@@ -4,9 +4,12 @@
 
 #include "StepSemantics.h"
 
-#include <bitset>
+#include <array>
+#include <bit>
+#include <cstdint>
 #include <gsl/pointers>
 #include <span>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace step_semantics
@@ -15,7 +18,56 @@ constexpr bool IsAp214SourceProfile(ProfileKind profile) noexcept
 {
     return profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap214MbxSource;
 }
-using TypeMembership = std::bitset<256>;
+inline constexpr std::size_t CatalogTypeCapacity = 256;
+class TypeMembership
+{
+public:
+
+    constexpr std::size_t size() const noexcept
+    {
+        return CatalogTypeCapacity;
+    }
+    constexpr void set(std::size_t id)
+    {
+        if (id >= size())
+        {
+            throw std::out_of_range("Catalog membership index");
+        }
+        m_words[id / 64] |= std::uint64_t{ 1 } << (id % 64);
+    }
+    constexpr bool test(std::size_t id) const
+    {
+        if (id >= size())
+        {
+            throw std::out_of_range("Catalog membership index");
+        }
+        return (m_words[id / 64] & (std::uint64_t{ 1 } << (id % 64))) != 0;
+    }
+    constexpr TypeMembership& operator|=(const TypeMembership& other) noexcept
+    {
+        for (std::size_t i = 0; i < m_words.size(); ++i)
+        {
+            m_words[i] |= other.m_words[i];
+        }
+        return *this;
+    }
+    constexpr std::size_t SharedCount(const TypeMembership& other) const noexcept
+    {
+        std::size_t count = 0;
+        for (std::size_t i = 0; i < m_words.size(); ++i)
+        {
+            count += std::popcount(m_words[i] & other.m_words[i]);
+        }
+        return count;
+    }
+    constexpr bool operator==(const TypeMembership&) const = default;
+
+private:
+
+    // Four words serve both generated ancestry and runtime source membership.
+    // Bounds precede shifts; the shift count is always in [0, 63].
+    std::array<std::uint64_t, CatalogTypeCapacity / 64> m_words{};
+};
 enum class FieldKind
 {
     String,
@@ -37,27 +89,27 @@ enum class Unique
 };
 struct Field
 {
-    std::string name;
-    std::string type;
+    std::string_view name;
+    std::string_view type;
     FieldKind kind;
     bool optional = false;
     FieldKind elementKind = FieldKind::Reference;
     std::size_t minimum = 0;
     std::size_t maximum = static_cast<std::size_t>(-1);
     Unique unique = Unique::None;
-    std::vector<AggregateDimension> nestedAggregates;
+    std::span<const AggregateDimension> nestedAggregates;
 };
 struct Declaration
 {
-    std::string name;
-    std::vector<std::string> parents;
-    std::vector<Field> fields;
+    std::string_view name;
+    std::span<const std::string_view> parents;
+    std::span<const Field> fields;
     bool simple = false;
 };
 struct FieldBinding
 {
-    gsl::not_null<const Field*> field;
-    std::string_view origin;
+    std::size_t origin, field; // Profile-local declaring type and local field index.
+    constexpr bool operator==(const FieldBinding&) const = default;
 };
 struct DerivedSlot
 {
@@ -73,20 +125,69 @@ struct SiPrefix
     std::string_view name;
     int power;
 };
+struct CatalogRange
+{
+    std::size_t offset = 0, count = 0;
+};
+struct NameId
+{
+    std::string_view name;
+    std::size_t id;
+};
+struct CompiledDerivedSlot
+{
+    std::size_t owner, origin, field;
+};
+template <class T>
+constexpr const T& CatalogAt(std::span<const T> values, std::size_t index)
+{
+    if (index >= values.size())
+    {
+        throw std::out_of_range("Catalog query index");
+    }
+    return values[index];
+}
+constexpr std::optional<std::size_t> LookupCatalogName(std::span<const NameId> names, std::string_view name)
+{
+    std::size_t first = 0, count = names.size();
+    while (count)
+    {
+        const auto half = count / 2, middle = first + half;
+        if (names[middle].name < name)
+        {
+            first = middle + 1;
+            count -= half + 1;
+        }
+        else
+        {
+            count = half;
+        }
+    }
+    return first < names.size() && names[first].name == name ? std::optional<std::size_t>(names[first].id) : std::nullopt;
+}
 struct Catalog
 {
-    std::vector<Declaration> declarations;
-    std::vector<std::string> names;
-    std::unordered_map<std::string, std::size_t> ids;
-    std::vector<TypeMembership> ancestors;
-    std::vector<std::vector<FieldBinding>> flattened;
-    std::vector<DerivedSlot> derivedSlots;
-    std::vector<NamedBranches> referenceSelects;
-    std::vector<NamedBranches> enumerations;
-    std::vector<std::span<const std::string_view>> complexSignatures;
-    std::vector<std::string_view> measureBranches;
-    explicit Catalog(ProfileKind profile);
+    std::span<const Declaration> declarations;
+    std::span<const std::string_view> names;
+    std::span<const NameId> nameIndex;
+    std::span<const TypeMembership> ancestors;
+    std::span<const FieldBinding> bindings;
+    std::span<const CatalogRange> flattenedRanges;
+    std::span<const DerivedSlot> derivedSlots;
+    std::span<const CompiledDerivedSlot> compiledDerivedSlots;
+    std::span<const NamedBranches> referenceSelects;
+    std::span<const TypeMembership> selectMasks;
+    std::span<const NamedBranches> enumerations;
+    std::span<const std::span<const std::string_view>> complexSignatures;
+    std::span<const std::string_view> measureBranches;
+    std::span<const std::span<const std::string_view>> exclusiveGroups;
+    std::span<const TypeMembership> exclusiveMasks;
+    std::span<const SiPrefix> prefixes;
     std::optional<std::size_t> Find(std::string_view name) const;
+    std::size_t RequireType(std::string_view name) const;
+    std::span<const FieldBinding> Flattened(std::size_t type) const;
+    const Field& FieldOf(FieldBinding binding) const;
+    std::string_view OriginOf(FieldBinding binding) const;
     bool HasField(std::size_t type, std::string_view field) const;
     bool AdmitsComplex(std::span<const std::string> facets) const;
     bool HasSubtypeConflict(const TypeMembership& types) const;

@@ -136,6 +136,14 @@ class CompilerControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "empty compile suite"):
             compile_contracts.validate_cases({"format": "step-catalog-compile-cases.v1", "cases": []})
 
+    def test_runtime_controls_require_positive_executable_targets(self):
+        manifest = catalog.loads(compile_contracts.DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+        for index in (0, -1):
+            changed = deepcopy(manifest)
+            changed["cases"][index]["run"] = True
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                compile_contracts.validate_cases(changed)
+
 
 if __name__ == "__main__":
     unittest.main()

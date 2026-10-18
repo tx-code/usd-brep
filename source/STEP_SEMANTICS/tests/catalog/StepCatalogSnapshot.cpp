@@ -159,21 +159,20 @@ void ProfileJson(Writer& out, const ProfileEntry& profile)
     out.Add(",\"name_index\":");
     // Only this derived lookup index is sorted. Declaration, parent, field and
     // registry order are observable and must survive the representation change.
-    std::vector<std::pair<std::string, std::size_t>> index(catalog.ids.begin(), catalog.ids.end());
-    std::sort(index.begin(), index.end());
+    const auto index = catalog.nameIndex;
     Array(
         out,
         index,
         [&](const auto& item)
         {
-            if (catalog.Find(item.first) != item.second)
+            if (catalog.Find(item.name) != item.id)
             {
                 throw std::logic_error("Find disagrees with name index");
             }
             out.Add("{\"name\":");
-            out.String(item.first);
+            out.String(item.name);
             out.Add(",\"id\":");
-            out.Number(item.second);
+            out.Number(item.id);
             out.Add("}");
         }
     );
@@ -208,7 +207,7 @@ void ProfileJson(Writer& out, const ProfileEntry& profile)
         // garbage membership beyond the last registered declaration.
         for (std::size_t bit = 0; bit < TypeMembership{}.size(); ++bit)
         {
-            if (!catalog.ancestors.at(id).test(bit))
+            if (!CatalogAt(catalog.ancestors, id).test(bit))
             {
                 continue;
             }
@@ -222,33 +221,22 @@ void ProfileJson(Writer& out, const ProfileEntry& profile)
         out.Add("],\"flattened\":");
         Array(
             out,
-            catalog.flattened.at(id),
+            catalog.Flattened(id),
             [&](const FieldBinding& binding)
             {
-                const auto origin = catalog.Find(binding.origin);
-                if (!origin)
-                {
-                    throw std::logic_error("Unknown flattened origin");
-                }
-                const auto& fields = catalog.declarations.at(*origin).fields;
-                const auto local = std::find_if(
-                    fields.begin(),
-                    fields.end(),
-                    [&](const Field& field)
-                    {
-                        return &field == binding.field;
-                    }
-                );
-                if (local == fields.end())
+                const auto origin = binding.origin;
+                const auto& fields = CatalogAt(catalog.declarations, origin).fields;
+                if (&catalog.FieldOf(binding) != &CatalogAt(fields, binding.field) ||
+                    catalog.OriginOf(binding) != CatalogAt(catalog.declarations, origin).name)
                 {
                     throw std::logic_error("Flattened field does not belong to its origin");
                 }
                 out.Add("{\"declaring_type\":");
-                out.String(binding.origin);
+                out.String(catalog.OriginOf(binding));
                 out.Add(",\"declaring_type_id\":");
-                out.Number(*origin);
+                out.Number(origin);
                 out.Add(",\"local_field_index\":");
-                out.Number(static_cast<std::size_t>(local - fields.begin()));
+                out.Number(binding.field);
                 out.Add("}");
             }
         );

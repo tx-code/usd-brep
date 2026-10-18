@@ -289,9 +289,9 @@ int main(int argc, char** argv)
             dimensions += field.nestedAggregates.size();
         }
     }
-    for (const auto& row : catalog.flattened)
+    for (std::size_t type = 0; type < catalog.names.size(); ++type)
     {
-        flattened += row.size();
+        flattened += catalog.Flattened(type).size();
     }
     for (const auto signature : catalog.complexSignatures)
     {
@@ -305,8 +305,8 @@ int main(int argc, char** argv)
     {
         enumLiterals += enumeration.branches.size();
     }
-    const std::string* shortest = &catalog.names.front();
-    const std::string* longest = shortest;
+    const std::string_view* shortest = &catalog.names.front();
+    const std::string_view* longest = shortest;
     for (const auto& name : catalog.names)
     {
         if (name.size() < shortest->size())
@@ -356,6 +356,12 @@ int main(int argc, char** argv)
         }
     }
     const auto unknownFind = measured::end();
+    // Fixed metadata must not move its construction to a later query. Known,
+    // unknown and repeated acquisitions all retain their zero-allocation gate.
+    if (first.calls || repeat.calls || shortFind.calls || longFind.calls || unknownFind.calls)
+    {
+        return 1;
+    }
     std::printf(
         "{\"profile\":\"%s\",\"types\":%zu,\"parents\":%zu,\"local_fields\":%zu,\"flattened_bindings\":%zu,\"nested_fields\":%zu,\"nested_dimensions\":%zu,\"complex_signatures\":%zu,\"signature_facets\":%zu,\"selects\":%zu,\"select_branches\":%zu,\"enumerations\":%zu,\"enum_literals\":%zu,\"derived_slots\":%zu,\"measure_branches\":%zu,",
         names[index],
@@ -382,12 +388,14 @@ int main(int argc, char** argv)
         repeat.bytes
     );
     std::printf(
-        "\"short_find_1000\":{\"name\":\"%s\",\"length\":%zu,\"allocations\":%zu,\"requested_bytes\":%zu},\"long_find_1000\":{\"name\":\"%s\",\"length\":%zu,\"allocations\":%zu,\"requested_bytes\":%zu},",
-        shortest->c_str(),
+        "\"short_find_1000\":{\"name\":\"%.*s\",\"length\":%zu,\"allocations\":%zu,\"requested_bytes\":%zu},\"long_find_1000\":{\"name\":\"%.*s\",\"length\":%zu,\"allocations\":%zu,\"requested_bytes\":%zu},",
+        static_cast<int>(shortest->size()),
+        shortest->data(),
         shortest->size(),
         shortFind.calls,
         shortFind.bytes,
-        longest->c_str(),
+        static_cast<int>(longest->size()),
+        longest->data(),
         longest->size(),
         longFind.calls,
         longFind.bytes

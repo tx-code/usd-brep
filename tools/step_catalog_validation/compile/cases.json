@@ -1,6 +1,6 @@
 {
   "format": "step-catalog-compile-cases.v1",
-  "scope": "Batch 1 driver controls and current catalog headers only. Production consteval validator cases belong to batch 2.",
+  "scope": "Production consteval builder: all four profiles, diamond/derived/nested/membership controls, linked consumer and single-fault metadata rejection cases.",
   "cases": [
     {
       "name": "catalog_header",
@@ -17,10 +17,375 @@
     {
       "name": "driver_control_reject",
       "source": "DriverControl.cpp",
-      "definitions": ["STEP_CATALOG_DRIVER_REJECT=1"],
+      "definitions": [
+        "STEP_CATALOG_DRIVER_REJECT=1"
+      ],
       "expect": "fail",
       "marker": "STEP_CATALOG_DRIVER_CONTROL: deliberate rejection",
       "positive_control": "driver_control_pass"
+    },
+    {
+      "name": "catalog_valid",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=0"
+      ],
+      "expect": "pass"
+    },
+    {
+      "name": "catalog_capacity_256",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=33"
+      ],
+      "expect": "pass"
+    },
+    {
+      "name": "catalog_real_profiles",
+      "source": "RealCatalogs.cpp",
+      "definitions": [],
+      "expect": "pass"
+    },
+    {
+      "name": "catalog_linked_consumer",
+      "source": "CatalogLinkOwner.cpp",
+      "extra_sources": [
+        "CatalogLinkConsumer.cpp"
+      ],
+      "target_kind": "executable",
+      "run": true,
+      "definitions": [],
+      "expect": "pass"
+    },
+    {
+      "name": "catalog_reject_duplicate_entity",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=1"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateDeclaration",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_missing_parent",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=2"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingParent",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_inheritance_cycle",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=3"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_Cycle",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_capacity_257",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=4"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_Capacity",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_unknown_reference",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=5"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingReference",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_unknown_select_branch",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=6"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingReference",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_missing_enum",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=7"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingEnumeration",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_complex_order",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=8"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ComplexOrder",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_facet",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=9"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ComplexOrder",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_missing_facet",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=10"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ComplexClosure",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_signature",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=11"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateComplex",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_derived_owner",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=12"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DerivedOwner",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_derived_origin_unknown",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=13"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DerivedOrigin",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_derived_origin_unrelated",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=14"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DerivedOrigin",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_derived_field",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=15"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DerivedField",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_local_field",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=16"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateField",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_select",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=17"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateRegistry",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_enum",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=18"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateRegistry",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_empty_select",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=19"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_EmptyBranches",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_select_branch",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=20"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateBranch",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_empty_enum",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=21"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_EmptyBranches",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_enum_value",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=22"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateBranch",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_aggregate_bounds",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=23"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_AggregateBounds",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_nested_bounds",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=24"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_AggregateBounds",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_missing_overlay_target",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=25"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_OverlayTarget",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_prefix_sentinel",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=26"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_PrefixSentinel",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_prefix",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=27"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_PrefixSentinel",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_unknown_exclusion_branch",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=28"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingReference",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_duplicate_exclusion_branch",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=29"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_DuplicateBranch",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_empty_catalog",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=30"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_EmptyCatalog",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_unknown_facet",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=31"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingReference",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_reject_empty_signature",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=32"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ComplexOrder",
+      "positive_control": "catalog_valid"
+    },
+    {
+      "name": "catalog_unknown_profile",
+      "source": "RealCatalogs.cpp",
+      "definitions": [
+        "STEP_CATALOG_UNKNOWN_PROFILE=1"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_InvalidProfile",
+      "positive_control": "catalog_real_profiles"
     }
   ]
 }

@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepAp214MbxCatalog.h"
+#pragma once
+#include "StepCatalogBuilder.h"
 
-namespace step_semantics
+namespace step_semantics::catalog_build::ap214_mbx
 {
-void AddAp214MbxDeclarations(Catalog& catalog)
+inline constexpr std::string_view derivedProperty[] = { "PROPERTY_DEFINITION" };
+inline constexpr std::string_view layeredItem[] = { "REPRESENTATION_ITEM" };
+constexpr void AddAp214MbxDeclarations(Recipe& catalog)
 {
     Field assignedItems{ "assigned_items", "LAYERED_ITEM", FieldKind::Aggregate };
     assignedItems.minimum = 1;
@@ -36,9 +39,7 @@ void AddAp214MbxDeclarations(Catalog& catalog)
               true },
         }
     );
-    static constexpr std::string_view derivedProperty[] = { "PROPERTY_DEFINITION" };
     catalog.referenceSelects.push_back({ "DERIVED_PROPERTY_SELECT", derivedProperty });
-    static constexpr std::string_view layeredItem[] = { "REPRESENTATION_ITEM" };
     catalog.referenceSelects.push_back({ "LAYERED_ITEM", layeredItem });
 }
-} // namespace step_semantics
+} // namespace step_semantics::catalog_build::ap214_mbx

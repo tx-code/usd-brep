@@ -7,6 +7,7 @@
 #include <array>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -102,7 +103,8 @@ struct AttributeView
     std::size_t minimum = 0;
     std::optional<std::size_t> maximum;
     bool uniqueElements = false;
-    std::vector<AggregateDimension> nestedAggregates; // Inner LIST bounds; source Value retains the actual row structure.
+    // Static descriptor storage; the actual source Value still borrows its snapshot.
+    std::span<const AggregateDimension> nestedAggregates;
     const step_source::Value* value = nullptr; // Borrowed from the immutable owning SourceSnapshot.
 };
 
@@ -218,7 +220,7 @@ public:
     const Units& UnitContext() const;
     const std::vector<Diagnostic>& PreservedDiagnostics() const;
     const std::vector<std::size_t>& UnattachedNonGeometricDeclarations() const;
-    const std::vector<std::string>& RegisteredTypes() const;
+    std::span<const std::string_view> RegisteredTypes() const;
     const std::vector<std::size_t>* Instances(std::string_view type) const; // Null: unregistered, not a proved empty set.
     bool IsA(std::size_t recordIndex, std::string_view type) const; // Unknown type is an error.
     std::vector<std::string> TypesOf(std::size_t recordIndex) const;

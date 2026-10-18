@@ -243,7 +243,7 @@ private:
     }
     bool Is(Index a, std::string_view type) const
     {
-        const auto& registered = m_source->RegisteredTypes();
+        const auto registered = m_source->RegisteredTypes();
         return std::find(registered.begin(), registered.end(), type) != registered.end() && m_source->IsA(a, type);
     }
     std::string Id(Index a) const
