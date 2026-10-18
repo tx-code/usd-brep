@@ -3,6 +3,7 @@
 #include "StepImportExecution.h"
 #include "StepImportNativeData.h"
 #include "StepImportPlan.h"
+#include "StepImportPublication.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -88,35 +89,6 @@ void Validate(const Options& options)
         throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");
     }
 }
-void Diagnostic(Report& report, const detail::Failure& failure)
-{
-    step_semantics::Diagnostic diagnostic;
-    diagnostic.source.key = failure.key;
-    diagnostic.source.stage = failure.stage;
-    diagnostic.source.message = failure.message;
-    diagnostic.classification = failure.status == Status::Cancelled     ? "Cancelled" :
-                                failure.status == Status::Unsupported   ? "TargetUnsupported" :
-                                failure.status == Status::ResourceLimit ? "ResourceLimit" :
-                                failure.status == Status::Indeterminate ? "Indeterminate" :
-                                                                          "NativeCandidateFailure";
-    if (failure.stage == "Execution" && failure.status == Status::Unsupported)
-    {
-        diagnostic.classification = "ExecutionUnsupported";
-    }
-    if (failure.stage == "Execution" && failure.status == Status::BuildFailure)
-    {
-        diagnostic.classification = "ExecutionFailure";
-    }
-    diagnostic.responsibility = failure.stage == "Execution" ? "in-process cooperative execution" :
-                                                               "native candidate preparation/construction/postcheck; Repair=None";
-    if (failure.record && report.source)
-    {
-        const auto& record = report.source->Records().at(*failure.record);
-        diagnostic.source.recordId = record.id;
-        diagnostic.source.primary = record.span;
-    }
-    report.diagnostics.push_back(std::move(diagnostic));
-}
 template <class Capture>
 Outcome Import(const Options& options, Capture capture)
 {
@@ -128,8 +100,7 @@ Outcome Import(const Options& options, Capture capture)
     raw.limits = options.sourceLimits;
     raw.headerNamePolicy = options.headerNamePolicy;
     detail::Execution execution(options, report);
-    std::shared_ptr<detail::ModelData> candidate;
-    std::shared_ptr<const ModelSnapshot> prepared;
+    detail::Publication publication(options, result, raw, execution);
     try
     {
         execution.Check(Phase::BeforeCapture);
@@ -164,17 +135,7 @@ Outcome Import(const Options& options, Capture capture)
                 throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
             }
             execution.Check(Phase::SemanticsChecked);
-            candidate = detail::BuildGeneral(checked.snapshot, options, report, execution);
-            prepared = detail::Access::Snapshot(std::move(candidate));
-            execution.Check(Phase::NativeReady);
-            result.status = Status::Accepted;
-            execution.Check(Phase::BeforeReport);
-            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
-            execution.Check(Phase::ReportReady);
-            execution.Check(Phase::BeforeCommit);
-            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
-            execution.Commit();
-            result.model = std::move(prepared);
+            publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
             return result;
         }
         auto semantics = step_semantics::Check(raw, options.semanticLimits);
@@ -225,24 +186,13 @@ Outcome Import(const Options& options, Capture capture)
             execution.Check(Phase::PlanarChecked);
             report.declarations = detail::DescribeSource(planar, options.quality);
             const auto plan = detail::MakePlan(planar);
-            candidate = detail::Build(plan, options, report, execution);
-            prepared = detail::Access::Snapshot(std::move(candidate));
-            execution.Check(Phase::NativeReady);
-            result.status = Status::Accepted;
-            execution.Check(Phase::BeforeReport);
-            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
-            execution.Check(Phase::ReportReady);
-            execution.Check(Phase::BeforeCommit);
-            detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
-            execution.Commit();
-            result.model = std::move(prepared); // No allocation, callback or native operation after the successful atomic commit.
+            publication.Accept(detail::Build(plan, options, report, execution));
             return result;
         }
     }
     catch (const detail::Failure& failure)
     {
-        result.status = failure.status;
-        Diagnostic(report, failure);
+        publication.Fail(failure);
     }
     catch (const std::bad_alloc&)
     {
@@ -254,41 +204,21 @@ Outcome Import(const Options& options, Capture capture)
     }
     catch (const std::overflow_error& error)
     {
-        result.status = Status::Indeterminate;
-        Diagnostic(report, { result.status, error.what(), "Bounded native numerical evidence is unestablished", {} });
+        publication.Fail({ Status::Indeterminate, error.what(), "Bounded native numerical evidence is unestablished", {} });
     }
     catch (const std::domain_error& error)
     {
-        result.status = Status::Indeterminate;
-        Diagnostic(report, { result.status, error.what(), "Native derived evidence is unestablished", {} });
+        publication.Fail({ Status::Indeterminate, error.what(), "Native derived evidence is unestablished", {} });
     }
     catch (const std::exception& error)
     {
-        result.status = Status::BuildFailure;
-        Diagnostic(report, { result.status, "NativeReturnOrConstructionFailure", error.what(), {} });
+        publication.Fail({ Status::BuildFailure, "NativeReturnOrConstructionFailure", error.what(), {} });
     }
     catch (...)
     {
-        result.status = Status::BuildFailure;
-        Diagnostic(report, { result.status, "UnknownImportFailure", "Unknown internal exception; no source-invalid claim", {}, "Execution" });
+        publication.Fail({ Status::BuildFailure, "UnknownImportFailure", "Unknown internal exception; no source-invalid claim", {}, "Execution" });
     }
-    const bool held = bool(candidate) || bool(prepared);
-    prepared.reset();
-    candidate.reset();
-    report.candidateDiscarded = report.candidateDiscarded || held;
-    try
-    {
-        detail::Serialize(result, options.quality, raw, std::min(options.nativeLimits.reportBytes, raw.limits.reportBytes), report.json);
-    }
-    catch (const detail::Failure& failure)
-    {
-        if (result.status != Status::Cancelled)
-        {
-            result.status = failure.status;
-        }
-        Diagnostic(report, failure);
-        report.json.clear();
-    }
+    publication.FinishFailure();
     return result;
 }
 } // namespace

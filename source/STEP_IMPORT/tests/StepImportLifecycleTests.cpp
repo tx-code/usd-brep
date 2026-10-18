@@ -276,6 +276,149 @@ void CapturedSource(const std::string& bytes)
         );
     }
 }
+void PublicationContracts(const std::string& bytes, const step_import::Options& base)
+{
+    using namespace step_import;
+    std::vector<Phase> trace;
+    auto observed = base;
+    observed.execution.progress = [&](Progress progress)
+    {
+        trace.push_back(progress.phase);
+    };
+    const auto accepted = ImportBytes(bytes, observed);
+    Require(accepted.status == Status::Accepted && accepted.model, "Publication fixture is accepted");
+    const std::vector publication{ Phase::NativeReady, Phase::BeforeReport, Phase::ReportReady, Phase::BeforeCommit };
+    Require(
+        trace.size() >= publication.size() && std::equal(publication.begin(), publication.end(), trace.end() - publication.size()),
+        "Publication checkpoints retain their observable order"
+    );
+    Require(
+        accepted.report.lastBoundary == Phase::BeforeCommit && accepted.report.checkpoints == trace.size(),
+        "Final report observes the last publication checkpoint"
+    );
+    for (const auto phase : publication)
+    {
+        for (const bool cancel : { false, true })
+        {
+            auto options = base;
+            options.execution.control = std::make_shared<ImportControl>();
+            options.execution.progress = [&](Progress progress)
+            {
+                if (progress.phase == phase)
+                {
+                    options.execution.control->RequestCancel();
+                    if (!cancel)
+                    {
+                        throw std::runtime_error("publication observer fault");
+                    }
+                }
+            };
+            const auto failed = ImportBytes(bytes, options);
+            Require(
+                failed.status == (cancel ? Status::Cancelled : Status::BuildFailure) && !failed.model && failed.report.candidateDiscarded &&
+                    !failed.report.json.empty(),
+                "Publication failure discards the candidate and retains a report"
+            );
+            Require(
+                failed.report.lastBoundary == phase && failed.report.nativeCalls == accepted.report.nativeCalls,
+                "Publication failure preserves the checkpoint and completed construction"
+            );
+            Require(
+                failed.report.diagnostics.back().source.key == (cancel ? "ImportCancelled" : "ExecutionCallbackFailure"),
+                "Observer failure takes precedence over pending cancellation"
+            );
+            Require(options.execution.control->RequestCancel() == CancelResult::AlreadyCompleted, "Failed publication closes the request");
+        }
+    }
+    // The final report includes checkpoint observations absent from the first
+    // serialization. Its exact byte count is the delivery budget, on both paths.
+    auto exact = base;
+    exact.nativeLimits.reportBytes = accepted.report.json.size();
+    const auto bounded = ImportBytes(bytes, exact);
+    Require(
+        bounded.status == Status::Accepted && bounded.model && bounded.report.json == accepted.report.json,
+        "Exact final report budget preserves every byte"
+    );
+    --exact.nativeLimits.reportBytes;
+    const auto overflow = ImportBytes(bytes, exact);
+    Require(
+        overflow.status == Status::ResourceLimit && !overflow.model && overflow.report.candidateDiscarded,
+        "One byte below the final report budget prevents publication"
+    );
+    auto cancelled = base;
+    cancelled.nativeLimits.reportBytes = 0;
+    cancelled.execution.control = std::make_shared<ImportControl>();
+    cancelled.execution.progress = [&](Progress progress)
+    {
+        if (progress.phase == Phase::BeforeReport)
+        {
+            cancelled.execution.control->RequestCancel();
+        }
+    };
+    const auto noReport = ImportBytes(bytes, cancelled);
+    Require(
+        noReport.status == Status::Cancelled && !noReport.model && noReport.report.candidateDiscarded && noReport.report.json.empty(),
+        "Failure-report overflow does not replace cancellation or publish partial JSON"
+    );
+    auto allocation = base;
+    allocation.execution.control = std::make_shared<ImportControl>();
+    allocation.execution.progress = [](Progress progress)
+    {
+        if (progress.phase == Phase::BeforeCommit)
+        {
+            throw std::bad_alloc();
+        }
+    };
+    bool propagated = false;
+    try
+    {
+        (void)ImportBytes(bytes, allocation);
+    }
+    catch (const std::bad_alloc&)
+    {
+        propagated = true;
+    }
+    Require(
+        propagated && allocation.execution.control->RequestCancel() == CancelResult::AlreadyCompleted,
+        "Unexpected publication allocation failure unwinds the request"
+    );
+    for (int attempt = 0; attempt < 8; ++attempt)
+    {
+        auto options = base;
+        options.execution.control = std::make_shared<ImportControl>();
+        std::binary_semaphore ready(0);
+        options.execution.progress = [&](Progress progress)
+        {
+            if (progress.phase == Phase::BeforeCommit)
+            {
+                ready.release();
+            }
+        };
+        CancelResult decision = CancelResult::AlreadyCompleted;
+        std::jthread canceller(
+            [&](std::stop_token stop)
+            {
+                while (!ready.try_acquire_for(std::chrono::milliseconds(5)))
+                {
+                    if (stop.stop_requested())
+                    {
+                        return;
+                    }
+                }
+                decision = options.execution.control->RequestCancel();
+            }
+        );
+        const auto raced = ImportBytes(bytes, options);
+        Require(raced.status == Status::Accepted || raced.status == Status::Cancelled, "Publication race reaches a terminal outcome");
+        canceller.join();
+        Require(
+            (raced.status == Status::Accepted && raced.model && decision == CancelResult::TooLate) ||
+                (raced.status == Status::Cancelled && !raced.model && raced.report.candidateDiscarded && decision == CancelResult::Requested),
+            "Both construction paths retain one cancellation/success arbiter"
+        );
+    }
+    Require(accepted.model->Info().faces > 0 && !accepted.report.json.empty(), "Later publication failures preserve the prior accepted snapshot");
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -312,6 +455,13 @@ int main(int argc, char** argv)
         CancellationBoundaries(bytes);
         LimitsAndFaults(bytes);
         CapturedSource(bytes);
+        PublicationContracts(bytes, step_import::Options::PlanarFixture());
+        auto general = step_import::Options::PlanarFixture();
+        general.generalBrep = true;
+        general.quality = step_import::Quality::GeneralDevelopment();
+        const auto generalSource = step_import::ImportFile(std::filesystem::path(argv[1]) / "S203-P04/input.step", general);
+        Require(generalSource.status == step_import::Status::Accepted && generalSource.report.source, "General publication fixture available");
+        PublicationContracts(generalSource.report.source->Bytes(), general);
         Require(
             prior.report.source->Bytes() == bytes && std::abs(prior.model->Closest({ 4.2, 9.6, 8 }).distanceMm - before.distanceMm) < 1e-7,
             "All later failures preserve the old published result and source"
