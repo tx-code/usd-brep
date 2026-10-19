@@ -276,6 +276,20 @@ static SmStatus sm_CheckPrecisePropertySelection(const SmFace* pFace, SmBoolean 
             return fullStat;
         }
 
+        // Independent area/volume frames must agree with the two legacy
+        // queries about those frames. Include all tensor components, opposite
+        // orientation, offsets and large world coordinates. The first-moment
+        // translation law supplies an independent check of the reference frame.
+        const SmPoint3d sAreaOrigin = sOrigin + SmVector3d(0.23, -0.19, 0.47);
+        double dLocalArea = 0.0, dLocalVolume = 0.0;
+        SmTArray<SmVector3d> sLocalMoments;
+        SER(pFace->ComputePreciseProperties(eOrientation, dAccuracy, sAreaOrigin,
+            dEstimate, dThickness, dLocalArea, dLocalVolume, sLocalMoments));
+        const SmVector3d sTranslated = sFullMoments[0] - (sAreaOrigin - sOrigin) * dFullArea;
+        if ((sLocalMoments[0] - sTranslated).Length() >
+            1.0e-8 * smos_Max(1.0, std::fabs(dFullArea) * smos_Max(1.0, dSize)))
+            return SM_ERR;
+
         for (ULONG lFlags = 1; lFlags <= SM_PPF_ALL; ++lFlags)
         {
             // Exhaust all 63 layouts at 1e-3 with zero thickness, in both
@@ -340,6 +354,73 @@ static SmStatus sm_CheckPrecisePropertySelection(const SmFace* pFace, SmBoolean 
             }
         }
 
+        const ULONG aFrameSelections[] = {
+            SM_PPF_ALL,
+            SM_PPF_AREA | SM_PPF_AREA_FIRST_MOMENTS | SM_PPF_VOLUME | SM_PPF_VOLUME_FIRST_MOMENTS,
+            SM_PPF_AREA_FIRST_MOMENTS, SM_PPF_AREA_SECOND_MOMENTS,
+            SM_PPF_VOLUME_FIRST_MOMENTS, SM_PPF_VOLUME_SECOND_MOMENTS
+        };
+        for (ULONG lFlags : aFrameSelections)
+        {
+            double dArea = -37.0, dVolume = -37.0;
+            SmTArray<SmVector3d> sMoments;
+            SER(pFace->ComputePreciseProperties(eOrientation, dAccuracy, sOrigin, sAreaOrigin,
+                dEstimate, dThickness, dArea, dVolume, sMoments, lFlags));
+            if (dArea != (lFlags & SM_PPF_AREA ? dFullArea : 0.0)
+                || dVolume != (lFlags & SM_PPF_VOLUME ? dFullVolume : 0.0)
+                || sMoments.GetSize() != 8)
+                return SM_ERR;
+            for (ULONG ii = 0; ii < 8; ++ii)
+            {
+                const SmVector3d sExpected = !(lFlags & aMomentFlags[ii]) ? SmVector3d(0, 0, 0)
+                    : ii < 4 ? sLocalMoments[ii] : sFullMoments[ii];
+                if (sMoments[ii] != sExpected)
+                {
+                    std::printf("Independent frame mismatch: flags=%lu moment=%lu\n", lFlags, ii);
+                    return SM_ERR;
+                }
+            }
+        }
+
+        if (dThickness == 0.0 && eOrientation == SM_OT_SAME && dAccuracy == 1.0e-3)
+        {
+            // A small face can be far from the model-wide volume origin. Its
+            // local area moments must not suffer a large first-moment shift
+            // after integration. Compare against a direct local-frame query.
+            const SmPoint3d sFarOrigin = sOrigin + SmVector3d(1.0e9, -2.0e9, 3.0e9);
+            constexpr double dFarAccuracy = 1.0e-5;
+            double dReferenceArea = 0.0, dReferenceVolume = 0.0;
+            SmTArray<SmVector3d> sReferenceMoments;
+            SER(pFace->ComputePreciseProperties(eOrientation, dFarAccuracy, sAreaOrigin,
+                dEstimate, 0.0, dReferenceArea, dReferenceVolume, sReferenceMoments));
+            double dFarArea = 0.0, dFarVolume = 0.0;
+            SmTArray<SmVector3d> sFarMoments;
+            const ULONG lVolumeGroups = SM_PPF_VOLUME | SM_PPF_VOLUME_FIRST_MOMENTS;
+            SER(pFace->ComputePreciseProperties(eOrientation, dFarAccuracy, sFarOrigin,
+                dEstimate, 0.0, dFarArea, dFarVolume, sFarMoments, lVolumeGroups));
+            double dArea = 0.0, dVolume = 0.0;
+            SmTArray<SmVector3d> sMoments;
+            SER(pFace->ComputePreciseProperties(eOrientation, dFarAccuracy, sFarOrigin, sAreaOrigin,
+                dEstimate, 0.0, dArea, dVolume, sMoments,
+                lVolumeGroups | SM_PPF_AREA | SM_PPF_AREA_FIRST_MOMENTS));
+            // At extreme volume origins the finite SM_BIG_DOUBLE scales can
+            // make volume moments refine the shared adaptive partition too.
+            // Use a summed, dimensionally scaled comparison budget for the
+            // two requested-accuracy integrations. This test budget is not a
+            // new production tolerance or a proven error bound.
+            const double dAreaTolerance = 2.0 * dFarAccuracy * std::fabs(dReferenceArea);
+            const double dFirstTolerance = dAreaTolerance * smos_Max(1.0, dSize);
+            if (std::fabs(dArea - dReferenceArea) > dAreaTolerance
+                || (sMoments[0] - sReferenceMoments[0]).Length() > dFirstTolerance
+                || dVolume != dFarVolume || sMoments[4] != sFarMoments[4])
+            {
+                std::printf("Far-frame area=%.17g reference=%.17g differences: area=%.17g areaFirst=%.17g volume=%.17g volumeFirst=%.17g\n",
+                    dArea, dReferenceArea, dArea - dReferenceArea, (sMoments[0] - sReferenceMoments[0]).Length(),
+                    dVolume - dFarVolume, (sMoments[4] - sFarMoments[4]).Length());
+                return SM_ERR;
+            }
+        }
+
         // Check the API's area+first-moment selection against full integration.
         if (dThickness == 0.0 && eOrientation == SM_OT_SAME && dAccuracy == 1.0e-3)
         {
@@ -363,6 +444,12 @@ static SmStatus sm_CheckPrecisePropertySelection(const SmFace* pFace, SmBoolean 
         sMoments[0].Set(1.0, 2.0, 3.0);
         if (pFace->ComputePreciseProperties(SM_OT_SAME, 1.0e-3, sOrigin,
             dEstimate, 0.0, dArea, dVolume, sMoments, lFlags) != SM_ERR_INVALID_INPUT
+            || dArea != -37.0 || dVolume != -37.0 || sMoments.GetSize() != 1
+            || sMoments[0].x != 1.0 || sMoments[0].y != 2.0 || sMoments[0].z != 3.0)
+            return SM_ERR;
+        if (pFace->ComputePreciseProperties(SM_OT_SAME, 1.0e-3, sOrigin,
+            sOrigin + SmVector3d(1, 2, 3), dEstimate, 0.0, dArea, dVolume, sMoments, lFlags)
+                != SM_ERR_INVALID_INPUT
             || dArea != -37.0 || dVolume != -37.0 || sMoments.GetSize() != 1
             || sMoments[0].x != 1.0 || sMoments[0].y != 2.0 || sMoments[0].z != 3.0)
             return SM_ERR;
@@ -449,6 +536,11 @@ SmStatus TestSmPrecisePropertySelection()
                 const SmStatus selectedStat = sFaces[0]->ComputePreciseProperties(SM_OT_SAME,
                     1.0e-4, sBox.GetMid(), 0.0, 0.0, dArea, dVolume, sMoments, lFlags);
                 if (selectedStat != fullStat || dArea != -37.0 || dVolume != -37.0)
+                    return SM_ERR;
+                const SmStatus frameStat = sFaces[0]->ComputePreciseProperties(SM_OT_SAME,
+                    1.0e-4, sBox.GetMid(), sBox.GetMid() + SmVector3d(1, 2, 3),
+                    0.0, 0.0, dArea, dVolume, sMoments, lFlags);
+                if (frameStat != fullStat || dArea != -37.0 || dVolume != -37.0)
                     return SM_ERR;
             }
 

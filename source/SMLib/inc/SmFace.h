@@ -252,6 +252,17 @@ public:
     ULONG                  lPropertyFlags         // in : Nonempty combination of SmPrecisePropertyFlags
   ) const;
 
+    // Selected groups with independent reference frames: moments [0..3] are
+    // about crAreaOriginOfComputation; [4..7] are about crOriginOfComputation.
+    // This lets one integration retain a local frame for a small face's area
+    // centroid while using a common volume frame across a closed boundary.
+    // The existing overloads use the same origin for both groups. Accuracy,
+    // area-derived error control, retries and invalid-mask behavior are unchanged.
+    SmStatus ComputePreciseProperties(SmOrientType eOrientation, double dDesiredAccuracy,
+        const SmPoint3d& crOriginOfComputation, const SmPoint3d& crAreaOriginOfComputation,
+        double dEstimatedArea, double dFaceThickness, double& rdDeltaArea, double& rdDeltaVolume,
+        SmTArray<SmVector3d>& rDeltaMoments, ULONG lPropertyFlags) const;
+
   // Compute face properties (area, delta volume properties) using triangular tessellation and summation
   SmStatus ComputeProperties
   (

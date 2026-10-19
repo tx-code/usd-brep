@@ -5657,19 +5657,21 @@ private:
     double             m_dIsoCurveAccuracy;
     SmTArray<double> * m_pYScale;
     SmPoint3d          m_vOriginOfComputation;
+    SmPoint3d          m_vAreaOriginOfComputation;
     double             m_dFaceThickness;
     const SmPrecisePropertyLayout & m_crLayout;
 public:
     SmODEAreaIFEO(const SmSurface & crSurface,
         const SmCurve & crUVCurve, double dMinV,
         double dIsoCurveAccuracy, SmTArray<double> * pYScale,
-        const SmPoint3d & crOriginOfComputation,
+        const SmPoint3d & crOriginOfComputation, const SmPoint3d & crAreaOriginOfComputation,
         double dFaceThickness, const SmPrecisePropertyLayout & crLayout)
         : m_crSurface(crSurface), m_crUVCurve(crUVCurve),
           m_dMinV(dMinV),
           m_dIsoCurveAccuracy(dIsoCurveAccuracy),
           m_pYScale(pYScale),
           m_vOriginOfComputation(crOriginOfComputation),
+          m_vAreaOriginOfComputation(crAreaOriginOfComputation),
           m_dFaceThickness(dFaceThickness), m_crLayout(crLayout)
     {}
     virtual SmStatus Evaluate(double dT,                             // in : 
@@ -5689,14 +5691,19 @@ private:
     const SmSurface & m_crSurface;
     double            m_dUIsoValue;
     SmPoint3d         m_vOriginOfComputation;
+    SmPoint3d         m_vAreaOriginOfComputation;
+    bool              m_bSeparateOrigins;
     double            m_dFaceThickness;
     const SmPrecisePropertyLayout & m_crLayout;
 public:
     SmODEIsoCurveLengthIFEO(const SmSurface & crSurface,double dUIsoValue,
-        const SmPoint3d & crOriginOfComputation,
+        const SmPoint3d & crOriginOfComputation, const SmPoint3d & crAreaOriginOfComputation,
         double dFaceThickness, const SmPrecisePropertyLayout & crLayout)
         : m_crSurface(crSurface), m_dUIsoValue(dUIsoValue),
-        m_vOriginOfComputation(crOriginOfComputation), m_dFaceThickness(dFaceThickness),
+        m_vOriginOfComputation(crOriginOfComputation), m_vAreaOriginOfComputation(crAreaOriginOfComputation),
+        m_bSeparateOrigins(crOriginOfComputation.x != crAreaOriginOfComputation.x ||
+                           crOriginOfComputation.y != crAreaOriginOfComputation.y ||
+                           crOriginOfComputation.z != crAreaOriginOfComputation.z), m_dFaceThickness(dFaceThickness),
         m_crLayout(crLayout)
     {}
     virtual SmStatus Evaluate(double dT,                             // in :
@@ -5755,7 +5762,14 @@ SmStatus SmODEIsoCurveLengthIFEO::Evaluate
             SER(sOffset.EvaluateSimple(sUVPnt,1,1,TRUE,TRUE,TRUE,sPV[0]));
         }
 
+        // Form area moments directly in their own frame, before shifting the
+        // volume point. Translating an already shifted first moment afterwards
+        // would add cancellation for a small face far from the model origin.
+        // The legacy same-origin path reuses the original shifted point.
+        SmPoint3d sAreaIPnt;
+        if (m_bSeparateOrigins) sAreaIPnt = sPV[0][0] - m_vAreaOriginOfComputation;
         sPV[0][0] = sPV[0][0] - m_vOriginOfComputation;
+        if (!m_bSeparateOrigins) sAreaIPnt = sPV[0][0];
         // already done: sPV2[0][0] = sPV2[0][0] - m_vOriginOfComputation;
 #ifdef SM_DEBUG_CODE
 SmBoolean bDebugMe = FALSE;
@@ -5784,27 +5798,27 @@ SmBoolean bDebugMe = FALSE;
         // Compute area static moments
         ULONG lIndex = m_crLayout.m_aMoments[0];
         if (lIndex) {
-            rDyDxValues[lIndex]   += sIPnt.x * dAreaDelta;
-            rDyDxValues[lIndex+1] += sIPnt.y * dAreaDelta;
-            rDyDxValues[lIndex+2] += sIPnt.z * dAreaDelta;
+            rDyDxValues[lIndex]   += sAreaIPnt.x * dAreaDelta;
+            rDyDxValues[lIndex+1] += sAreaIPnt.y * dAreaDelta;
+            rDyDxValues[lIndex+2] += sAreaIPnt.z * dAreaDelta;
         }
 
         lIndex = m_crLayout.m_aMoments[1];
         if (lIndex) {
             // Compute area Ixx, Iyy, Izz
-            rDyDxValues[lIndex]   += (sIPnt.x*sIPnt.x) * dAreaDelta;
-            rDyDxValues[lIndex+1] += (sIPnt.y*sIPnt.y) * dAreaDelta;
-            rDyDxValues[lIndex+2] += (sIPnt.z*sIPnt.z) * dAreaDelta;
+            rDyDxValues[lIndex]   += (sAreaIPnt.x*sAreaIPnt.x) * dAreaDelta;
+            rDyDxValues[lIndex+1] += (sAreaIPnt.y*sAreaIPnt.y) * dAreaDelta;
+            rDyDxValues[lIndex+2] += (sAreaIPnt.z*sAreaIPnt.z) * dAreaDelta;
 
             // Compute area Iyz, Izx, Ixy
-            rDyDxValues[lIndex+3] += (sIPnt.y*sIPnt.z) * dAreaDelta;
-            rDyDxValues[lIndex+4] += (sIPnt.z*sIPnt.x) * dAreaDelta;
-            rDyDxValues[lIndex+5] += (sIPnt.x*sIPnt.y) * dAreaDelta;
+            rDyDxValues[lIndex+3] += (sAreaIPnt.y*sAreaIPnt.z) * dAreaDelta;
+            rDyDxValues[lIndex+4] += (sAreaIPnt.z*sAreaIPnt.x) * dAreaDelta;
+            rDyDxValues[lIndex+5] += (sAreaIPnt.x*sAreaIPnt.y) * dAreaDelta;
 
             // Compute area second moments Ixx, Iyy, Izz about coordinate axes
-            rDyDxValues[lIndex+6] += (sIPnt.y*sIPnt.y + sIPnt.z*sIPnt.z) * dAreaDelta;
-            rDyDxValues[lIndex+7] += (sIPnt.x*sIPnt.x + sIPnt.z*sIPnt.z) * dAreaDelta;
-            rDyDxValues[lIndex+8] += (sIPnt.x*sIPnt.x + sIPnt.y*sIPnt.y) * dAreaDelta;
+            rDyDxValues[lIndex+6] += (sAreaIPnt.y*sAreaIPnt.y + sAreaIPnt.z*sAreaIPnt.z) * dAreaDelta;
+            rDyDxValues[lIndex+7] += (sAreaIPnt.x*sAreaIPnt.x + sAreaIPnt.z*sAreaIPnt.z) * dAreaDelta;
+            rDyDxValues[lIndex+8] += (sAreaIPnt.x*sAreaIPnt.x + sAreaIPnt.y*sAreaIPnt.y) * dAreaDelta;
         }
 
         // Volume moments need the local volume contribution, but not its total
@@ -5933,7 +5947,7 @@ SmStatus SmODEAreaIFEO::Evaluate
     SmPoint3d sPV[2];
     SER(m_crUVCurve.Evaluate(dT,1,TRUE,sPV));
 
-    SmODEIsoCurveLengthIFEO sEval(m_crSurface,sPV[0].x,m_vOriginOfComputation,m_dFaceThickness,m_crLayout);
+    SmODEIsoCurveLengthIFEO sEval(m_crSurface,sPV[0].x,m_vOriginOfComputation,m_vAreaOriginOfComputation,m_dFaceThickness,m_crLayout);
     SmODEIntegrator sIntegrator(sEval);
 
 #ifdef SM_DEBUG_CODE
@@ -6037,6 +6051,24 @@ SmStatus SmFace::ComputePreciseProperties
   ULONG                  lPropertyFlags         // in : Nonempty SmPrecisePropertyFlags mask
 ) const
 {
+    return ComputePreciseProperties(eOrientation,dDesiredAccuracy,crOriginOfComputation,crOriginOfComputation,
+        dEstimatedArea,dFaceThickness,rdDeltaArea,rdDeltaVolume,rDeltaMoments,lPropertyFlags);
+}
+
+SmStatus SmFace::ComputePreciseProperties
+(
+  SmOrientType           eOrientation,           // in :
+  double                 dDesiredAccuracy,       // in :
+  const SmPoint3d      & crOriginOfComputation,
+  const SmPoint3d      & crAreaOriginOfComputation,  // in :
+  double                 dEstimatedArea,         // in :
+  double                 dFaceThickness,         // in :
+  double               & rdDeltaArea,            // out:
+  double               & rdDeltaVolume,          // out:
+  SmTArray<SmVector3d> & rDeltaMoments,          // out:
+  ULONG                  lPropertyFlags         // in : Nonempty SmPrecisePropertyFlags mask
+) const
+{
     if (!lPropertyFlags || (lPropertyFlags & ~ULONG(SM_PPF_ALL))) return SM_ERR_INVALID_INPUT;
 
     // accuracy should not be zero.
@@ -6091,7 +6123,7 @@ SmBoolean bDebugMe = FALSE;
             yscale[0] = dEstimatedArea/10.0;
 
             SmODEAreaIFEO sAreaEval(*this->GetSurface(),*pBSC,GetUVDomain().GetMin().y,
-                dDesiredAccuracy/10.0,&yscale,crOriginOfComputation,dFaceThickness,sLayout);
+                dDesiredAccuracy/10.0,&yscale,crOriginOfComputation,crAreaOriginOfComputation,dFaceThickness,sLayout);
             SmODEIntegrator sODE(sAreaEval);
             SmTArray<double> dY(lNumComponents,NULL,lNumComponents);
             SmExtent1d sIvl = pBSC->GetNaturalInterval();
