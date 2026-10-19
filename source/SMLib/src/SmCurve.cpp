@@ -7,6 +7,7 @@
 **********************************************************************/
 
 #include "StdAfx.h"
+#include "SmConicBounds.h"
 #include <SmCurve.h>
 #include <SmSurface.h>
 #include <SmCurveCache.h>
@@ -9981,7 +9982,9 @@ NOTES:
       of the curve's sample points as computed to ensure a good bounding box
       (or by the Tessellate call, if the first algorithm does not succeed).
 
-  CalculateTightBoundingBox() is very expensive, it requires 6 SM_SR_ALL global curve calls per edge.
+  Supported concrete circles/ellipses use a bounded coefficient calculation.
+  The general fallback requires three global coordinate-extremum calls per edge
+  and can be very expensive.
 
   BoundingBoxes are intended to be a cheap and dirty method to help other algorithms to
   run faster by culling geometry that is far from an area of interest.
@@ -10250,6 +10253,17 @@ SmStatus SmCurve::CalculateTightBoundingBox
 
   // init output
   pBBox->Init();
+  // Bound the actual quadratic conic coefficients in the requested native
+  // interval. Unsupported bases, arithmetic and registered derived evaluators
+  // retain the general property solver below; a native failure stays a failure.
+  SmExtent3d conicBox;
+  const auto conic = sm_conic_bounds::Try(*this, crInterval, conicBox);
+  if (conic.handled)
+    {
+      if (conic.status == SM_SUCCESS) *pBBox = conicBox;
+      return conic.status;
+    }
+
 
   SmExtent3d sTightBox;
 
