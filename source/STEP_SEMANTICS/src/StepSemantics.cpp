@@ -613,13 +613,13 @@ private:
 
     void CheckForeignDeclarations()
     {
-        constexpr std::string_view contexts[] = { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT", "REAL_REPRESENTATION_ITEM" };
+        constexpr std::string_view mbxForeignDeclarations[] = { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT", "REAL_REPRESENTATION_ITEM" };
         const bool n916 = m_data->profile.kind == ProfileKind::Ap203N916Source;
         if (m_data->profile.kind != ProfileKind::Ap214MbxSource && !n916)
         {
             return;
         }
-        const auto foreign = n916 ? std::span<const std::string_view>(ap203_n916::ForeignDeclarations) : std::span<const std::string_view>(contexts);
+        const auto foreign = n916 ? std::span<const std::string_view>(ap203_n916::ForeignDeclarations) : std::span<const std::string_view>(mbxForeignDeclarations);
         for (const auto name : foreign)
         {
             for (const auto record : Population(name))
