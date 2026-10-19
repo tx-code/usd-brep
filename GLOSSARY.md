@@ -28,6 +28,12 @@ _Avoid_: Successful construction (when only curve ownership has changed).
 **Part occurrence**: One use of a part definition in an assembly, with its own placement and assembly relationship. Multiple occurrences can refer to the same definition.
 _Avoid_: Part copy (when the geometry is shared).
 
+**Independent curve definition**: A source curve definition selected through a wireframe or supporting representation.
+Shared source uses retain its identity; selection through these roles does not make it a material boundary.
+
+**Independent point definition**: A source point selected through a wireframe or supporting representation.
+Equal positions do not make distinct source identities equivalent.
+
 **Strict import**: Acceptance of a supported source model only when its required geometry, topology, and assembly dependencies are accounted for. Missing or unsupported required content is an import failure.
 
 **Bounded repair**: A change to an imported model constrained by an explicit allowance for geometric, tolerance, and topological changes, with the original model retained.
