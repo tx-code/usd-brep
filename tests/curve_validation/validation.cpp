@@ -16,6 +16,62 @@
 
 namespace
 {
+constexpr SM_TYPE forwardingCurveType = 19999;
+
+// Use the kernel's normal runtime type registration. Forward the evaluator
+// unchanged so the fixture remains a consistent NURBS curve; its call count
+// observes the real AssertValid fallback without inventing mismatched geometry.
+class ForwardingCurve final : public SmBSplineCurve
+{
+public:
+
+    using SmBSplineCurve::SmBSplineCurve;
+    mutable ULONG higherDerivativeCalls = 0;
+
+    SmStatus Evaluate(double parameter, ULONG derivatives, SmBoolean fromLeft, SmVector3d output[], SmBoolean nonZeroTangents = FALSE) const override
+    {
+        if (derivatives >= 2)
+        {
+            ++higherDerivativeCalls;
+        }
+        return SmBSplineCurve::Evaluate(parameter, derivatives, fromLeft, output, nonZeroTangents);
+    }
+
+    SM_COMMON(ForwardingCurve, SmBSplineCurve, forwardingCurveType);
+};
+
+SmBoolean ForwardingCurve::IsKindOf(SM_TYPE type) const
+{
+    return type == forwardingCurveType || SmBSplineCurve::IsKindOf(type);
+}
+
+void ForwardingCurve::Dump() const
+{
+    SmBSplineCurve::Dump(FALSE);
+}
+
+bool checkDerivedEvaluator(SmContext& context, ULONG dimension)
+{
+    gw_CPOINT points[] = { { 0, 0, 0, NL_NOW }, { .5, .25, 0, NL_NOW }, { 1, 0, 0, NL_NOW } };
+    double knots[] = { 0, 0, 0, 1, 1, 1 };
+    ForwardingCurve curve(dimension, 2, 5, 2, points, knots, &context);
+    const SmCurve& dispatched = curve;
+    SmAssertArray reports;
+    const bool valid = dispatched.AssertValid(&reports, SM_LEVEL_2, SM_NO_WALK) != FALSE;
+    if (!valid || reports.GetSize() != 0 || curve.higherDerivativeCalls == 0)
+    {
+        std::printf(
+            "derived dim=%lu valid=%d reports=%lu higher_derivative_calls=%lu\n",
+            dimension,
+            valid,
+            reports.GetSize(),
+            curve.higherDerivativeCalls
+        );
+        return false;
+    }
+    return true;
+}
+
 bool checkEllipse(SmContext& context, ULONG dimension, double minorRadius, double parameterLength, bool expectedValid, bool selectRadius = true)
 {
     const double weight = std::sqrt(0.5);
@@ -211,6 +267,7 @@ int main()
     bool passed = true;
     for (ULONG dimension : { 2UL, 3UL })
     {
+        passed &= checkDerivedEvaluator(context, dimension);
         passed &= checkEllipse(context, dimension, 1.0, 1.0, true);
         passed &= checkEllipse(context, dimension, 0.5, 1.0, true);
         passed &= checkEllipse(context, dimension, 0.009, 1.0, false);

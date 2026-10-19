@@ -643,7 +643,9 @@ static       ULONG lFoundItem ;
 
       // Only the concrete B-spline evaluator is certified by its control data;
       // derived curve types may implement different parameter/evaluation rules.
-      const RegularityProof proof = GetClassType() == SmBSplineCurve_TYPE
+      // SM_COMMON supplies the virtual runtime identity through GetType().
+      // GetClassType() is static and always names this declaring class here.
+      const RegularityProof proof = GetType() == SmBSplineCurve_TYPE
                                         ? proveBezierRegularity(m_pNurb, GetDim(), dTol)
                                         : RegularityProof{};
       SmSolutionArray rSolutionArray;

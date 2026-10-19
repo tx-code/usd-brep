@@ -35,10 +35,17 @@ knot multiplicity fallback. An anomalous curve tagged 2D with nonzero stored Z
 must retain the real evaluator's radius failure. SSE FTZ/DAZ mode also exercises
 fallback without changing the caller's arithmetic mode inside the validator.
 
+A registered derived curve forwards `Evaluate` unchanged and counts requests
+for second and higher derivatives. Calls through `SmCurve::AssertValid` in both
+2D and 3D must consult that evaluator via the existing GPA fallback. This catches
+the former static `GetClassType` gate through the real validation interface;
+it does not manufacture a disagreement between control data and geometry.
+
 ## Conservative early pass
 
 The validator can prove speed and radius thresholds from the stored homogeneous
-control data of the concrete B-spline type. It supports positive rational weights
+control data of the concrete B-spline type, identified by the virtual `GetType`
+from the kernel's existing `SM_COMMON` runtime identity convention. It supports positive rational weights
 or consistent NLib `NL_NOW` polynomial data, degree 1..3, at most 16 clamped Bezier
 spans with full internal knot multiplicity. It does not insert knots or change the
 curve. Existing knot, continuity, endpoint and internal-pole checks still run.
