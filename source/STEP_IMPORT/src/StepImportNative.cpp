@@ -43,7 +43,8 @@ std::recursive_mutex& NativeMutex()
 ModelData::~ModelData()
 {
     std::lock_guard lock(NativeMutex());
-    wireCurves.clear();
+    // Empty the move-only storage while the lock and allocating context live.
+    curvePointDefinitions = OwnedCurvePointDefinitions{};
     supportingSurfaces.clear();
     brep.reset();
     context.reset();

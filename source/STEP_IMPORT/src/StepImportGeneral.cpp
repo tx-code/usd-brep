@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportCurvePointDefinitions.h"
 #include "StepImportCylinderChart.h"
 #include "StepImportExecution.h"
 #include "StepImportGeneralMeasurements.h"
+#include "StepImportGeometryConstruction.h"
 #include "StepImportNativeData.h"
 #include "StepImportTrimMeasurement.h"
 
@@ -47,94 +49,7 @@ namespace step_import::detail
 {
 namespace
 {
-using Index = std::size_t;
-using V = Point;
-V Add(V a, V b)
-{
-    for (Index i = 0; i < 3; ++i)
-    {
-        a[i] += b[i];
-    }
-    return a;
-}
-V Sub(V a, V b)
-{
-    for (Index i = 0; i < 3; ++i)
-    {
-        a[i] -= b[i];
-    }
-    return a;
-}
-V Mul(V a, double b)
-{
-    for (auto& x : a)
-    {
-        x *= b;
-    }
-    return a;
-}
-double Dot(V a, V b)
-{
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-V Cross(V a, V b)
-{
-    return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
-}
-double Norm(V a)
-{
-    return std::hypot(a[0], a[1], a[2]);
-}
-V Unit(V a)
-{
-    const double n = Norm(a);
-    if (!(n > 0) || !std::isfinite(n))
-    {
-        throw std::domain_error("GeneralDegenerateFrame");
-    }
-    return Mul(a, 1 / n);
-}
-SmPoint3d P(V a)
-{
-    return { a[0], a[1], a[2] };
-}
-SmVector3d D(V a)
-{
-    return { a[0], a[1], a[2] };
-}
-V P(const SmPoint3d& a)
-{
-    return { a.x, a.y, a.z };
-}
-double Q(Fraction a)
-{
-    return double(a.Numerator()) / double(a.Denominator());
-}
-std::array<double, 2> FullPeriodDegrees(double startRadians)
-{
-    // Kernel analytic angles are degrees. Converting both radian endpoints
-    // independently can produce a span one ulp above 360, outside the native
-    // full-revolution constructor's range. Convert the phase once and add the
-    // native period; this only chooses the computational chart. Source angles,
-    // coefficients, topology and the later mm error budgets remain unchanged.
-    const double startDegrees = startRadians * 180 / std::numbers::pi;
-    return { startDegrees, startDegrees + 360.0 };
-}
-void Good(SmStatus a)
-{
-    if (a != SM_SUCCESS)
-    {
-        throw std::runtime_error("GeneralNativeReturn:" + std::to_string(a));
-    }
-}
-struct Frame
-{
-    V o, x, y, z;
-    SmAxis2Placement Native() const
-    {
-        return { P(o), D(x), D(y) };
-    }
-};
+using namespace construction;
 struct Curve
 {
     Index record = 0, geometry = 0, v0 = 0, v1 = 0;
@@ -168,12 +83,12 @@ struct SeamPlan
     double angle;
 };
 
-class GeneralBuilder
+class GeneralBuilder : private GeometryConstruction
 {
 public:
 
     GeneralBuilder(std::shared_ptr<const step_semantics::Snapshot> source, const Options& options, Report& report, Execution& execution)
-        : m_source(std::move(source)), m_options(options), m_report(report), m_execution(execution), m_model(std::make_shared<ModelData>())
+        : GeometryConstruction(std::move(source), options, report, execution), m_model(std::make_shared<ModelData>())
     {
         m_model->source = m_source;
         m_model->queryTolerance = Q(m_options.quality.queryMm);
@@ -189,6 +104,7 @@ public:
         Prepare();
         Step(shape);
         m_model->context = std::make_unique<SmContext>();
+        m_context = m_model->context.get();
         // All native candidates belong to this context and remain private until
         // the caller's existing bounded-report and cancellation commit point.
         SmBrepConstructor c;
@@ -232,20 +148,21 @@ public:
         Validate();
         ObserveTolerances();
         Measure();
-        BuildWireframes(); // The same unpublished candidate owns every selected representation.
-        BuildSupportingGeometry();
+        if (wireframeRepresentation || supportingRepresentation)
+        {
+            // Local ownership unwinds before m_model/context on every failure.
+            CurvePointDefinitions definitions(*this);
+            BuildWireframes(definitions);
+            BuildSupportingGeometry(definitions);
+            m_model->curvePointDefinitions = std::move(definitions).Finish();
+        }
         return m_model;
     }
 
 private:
 
-    std::shared_ptr<const step_semantics::Snapshot> m_source;
-    const Options& m_options;
-    Report& m_report;
-    Execution& m_execution;
     std::shared_ptr<ModelData> m_model;
     Index shape = 0, shell = 0;
-    double scale = 0;
     std::vector<Index> vertices;
     std::vector<V> points;
     std::map<Index, Index> vi, ei;
@@ -255,126 +172,9 @@ private:
     std::vector<Index> derivedEdgeFaces;
     std::optional<Index> wireframeRepresentation;
     std::optional<Index> supportingRepresentation;
-    struct DetachedCurveData
-    {
-        WireframeCurveInfo info;
-        std::optional<double> sourceResidualMm, endpointResidualMm;
-    };
-    std::map<Index, DetachedCurveData> detachedCurveInfo;
-    std::map<Index, WireframePointInfo> detachedPointInfo;
     double Tol() const
     {
         return Q(m_options.quality.initialWorkToleranceMm);
-    }
-    bool Is(Index a, std::string_view type) const
-    {
-        const auto registered = m_source->RegisteredTypes();
-        return std::find(registered.begin(), registered.end(), type) != registered.end() && m_source->IsA(a, type);
-    }
-    std::string Id(Index a) const
-    {
-        return m_source->Source().Records().at(a).id;
-    }
-    [[noreturn]] void Fail(const char* key, Index a, Status status = Status::PostcheckFailure) const
-    {
-        throw Failure{ status, key, "General source-to-native contract is unestablished", a, "GeneralBrep" };
-    }
-    void Need(bool b, const char* key, Index a) const
-    {
-        if (!b)
-        {
-            Fail(key, a);
-        }
-    }
-    void Step(Index a)
-    {
-        m_execution.Check(Phase::BeforeNativeCall);
-        if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
-        {
-            Fail("NativeCallLimit", a, Status::ResourceLimit);
-        }
-        ++m_report.nativeCalls;
-    }
-    const step_source::Value& F(Index a, std::string_view name) const
-    {
-        return m_source->Field(a, name).Value();
-    }
-    Index Ref(Index a, std::string_view name) const
-    {
-        return m_source->Field(a, name).ReferenceTarget();
-    }
-    std::vector<Index> Refs(Index a, std::string_view name) const
-    {
-        return m_source->Field(a, name).ReferenceTargets();
-    }
-    bool B(Index a, std::string_view name) const
-    {
-        return F(a, name).text == "T";
-    }
-    double Number(const step_source::Value& v) const
-    {
-        std::string_view t = v.text;
-        if (t.starts_with('+'))
-        {
-            t.remove_prefix(1);
-        }
-        double n = 0;
-        auto parsed = std::from_chars(t.data(), t.data() + t.size(), n, std::chars_format::general);
-        if (parsed.ec != std::errc{} || parsed.ptr != t.data() + t.size() || !std::isfinite(n))
-        {
-            throw std::domain_error("GeneralNumericRangeUnestablished");
-        }
-        return n; // Source lexemes remain owned by the immutable snapshot.
-    }
-    double N(Index a, std::string_view name) const
-    {
-        return Number(F(a, name));
-    }
-    V Triple(const step_source::Value& v) const
-    {
-        if (v.children.size() != 3)
-        {
-            throw std::domain_error("GeneralRequires3DGeometry");
-        }
-        return { Number(v.children[0]), Number(v.children[1]), Number(v.children[2]) };
-    }
-    V Position(Index a) const
-    {
-        const auto point = Mul(Triple(F(a, "coordinates")), scale);
-        for (const auto value : point)
-        {
-            if (!std::isfinite(value))
-            {
-                throw std::domain_error("GeneralLengthRangeUnestablished");
-            }
-        }
-        return point;
-    }
-    V Direction(Index a) const
-    {
-        return Unit(Triple(F(a, "direction_ratios")));
-    }
-    Frame Placement(Index a) const
-    {
-        Frame f;
-        f.o = Position(Ref(a, "location"));
-        f.z = F(a, "axis").kind == step_source::ValueKind::Unset ? V{ 0, 0, 1 } : Direction(Ref(a, "axis"));
-        V x;
-        if (F(a, "ref_direction").kind != step_source::ValueKind::Unset)
-        {
-            x = Direction(Ref(a, "ref_direction"));
-        }
-        else
-        {
-            x = f.z[1] != 0 || f.z[2] != 0 ? V{ 1, 0, 0 } : V{ 0, 1, 0 };
-        }
-        // STEP build_axes projects the reference direction onto the normal
-        // plane. Ratios are dimensionless; arbitrary source magnitudes are not scales.
-        // AP214E3_2010.exp FIRST_PROJ_AXIS defaults to X unless exactly
-        // parallel to it. The double cross avoids cancellation near parallel.
-        f.x = Unit(Cross(f.z, Cross(x, f.z)));
-        f.y = Unit(Cross(f.z, f.x));
-        return f;
     }
     Index Role(std::string_view name) const
     {
@@ -565,357 +365,13 @@ private:
             }
         }
     }
-    struct ConicTrim
-    {
-        double first, last, low, high;
-        bool full;
-        std::optional<double> angleScale;
-    };
-    ConicTrim TrimmedConic(Index wrapper, const Frame& frame, double rx, double ry, double& measuredConsistency)
-    {
-        constexpr double tau = 2 * std::numbers::pi;
-        const auto evaluate = [&](double t)
-        {
-            return Add(frame.o, Add(Mul(frame.x, rx * std::cos(t)), Mul(frame.y, ry * std::sin(t))));
-        };
-        const auto angle = [&](V p)
-        {
-            const auto d = Sub(p, frame.o);
-            return std::atan2(Dot(d, frame.y) / ry, Dot(d, frame.x) / rx);
-        };
-        std::optional<double> angleScale;
-        const auto preferred = F(wrapper, "master_representation").text;
-        const auto cut = [&](std::string_view field)
-        {
-            std::optional<double> parameter, pointAngle;
-            std::optional<V> point;
-            for (const auto& value : F(wrapper, field).children)
-            {
-                if (value.kind == step_source::ValueKind::Reference)
-                {
-                    point = Position(m_source->ReferenceTarget(value));
-                    pointAngle = angle(*point);
-                    const auto gap = Norm(Sub(evaluate(*pointAngle), *point));
-                    measuredConsistency = std::max(measuredConsistency, gap);
-                    Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedPointOffBasis", wrapper);
-                }
-                else
-                {
-                    if (!angleScale)
-                    {
-                        for (const auto& unit : m_source->UnitContext().siDefinitions)
-                        {
-                            if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
-                            {
-                                angleScale = std::pow(10., unit.canonicalPower10);
-                            }
-                        }
-                        if (!angleScale || !std::isfinite(*angleScale) || !(*angleScale > 0))
-                        {
-                            Fail("GeneralTrimmedAngleUnitUnestablished", wrapper, Status::Unsupported);
-                        }
-                    }
-                    parameter = Number(value.children.at(0)) * *angleScale;
-                    // Limit argument reduction to a small, explicit native
-                    // development range. This is not an EXPRESS restriction.
-                    if (!std::isfinite(*parameter) || std::abs(*parameter) > 2 * tau)
-                    {
-                        Fail("GeneralTrimmedAngleRangeUnestablished", wrapper, Status::Unsupported);
-                    }
-                }
-            }
-            if (parameter && point)
-            {
-                // Master preference chooses the defining cut but does not
-                // excuse a conflicting second representation (4.4.40 IP1/IP2).
-                const auto gap = Norm(Sub(evaluate(*parameter), *point));
-                measuredConsistency = std::max(measuredConsistency, gap);
-                Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedRepresentationsConflict", wrapper);
-            }
-            // With UNSPECIFIED and two consistent forms, deterministically
-            // retain the supplied parameter. With one form, use that form.
-            return preferred == "CARTESIAN" && pointAngle ? *pointAngle : parameter ? *parameter : pointAngle.value();
-        };
-        double first = cut("trim_1"), last = cut("trim_2");
-        const bool same = B(wrapper, "sense_agreement");
-        double extent = same ? last - first : first - last;
-        if (extent < 0 && extent > -tau)
-        {
-            if (same)
-            {
-                last += tau;
-            }
-            else
-            {
-                first += tau;
-            }
-            extent += tau;
-        }
-        // Only binary64 conversion roundoff can identify one period here;
-        // consistencyMm is never used to turn a short arc into a closed circle.
-        const double roundoff = 32 * std::numeric_limits<double>::epsilon() * tau;
-        if (!(extent > 0) || extent > tau + roundoff)
-        {
-            Fail("GeneralTrimmedConicExtentUnestablished", wrapper, Status::Unsupported);
-        }
-        return { first, last, std::min(first, last), std::max(first, last), std::abs(extent - tau) <= roundoff, angleScale };
-    }
-    std::unique_ptr<SmCurve> MakeConic(Index geometry, const Frame& frame, double rx, double ry, const SmExtent1d& domain, bool checked)
-    {
-        const bool circle = Is(geometry, "CIRCLE");
-        std::unique_ptr<SmCurve> result;
-        Step(geometry);
-        if (checked)
-        {
-            SmStatus status;
-            if (circle)
-            {
-                SmCircle* curve = nullptr;
-                status = SmCircle::CreateCanonical(*m_model->context, frame.Native(), rx, curve, &domain);
-                result.reset(curve);
-            }
-            else
-            {
-                SmEllipse* curve = nullptr;
-                status = SmEllipse::CreateCanonical(*m_model->context, frame.Native(), rx, ry, curve, &domain);
-                result.reset(curve);
-            }
-            Good(status); // Own even a nonnull failure result before propagating.
-        }
-        else if (circle)
-        {
-            result.reset(new (*m_model->context) SmCircle(P(frame.o), D(frame.x), D(frame.y), domain, rx, 3, m_model->context.get()));
-        }
-        else
-        {
-            result.reset(new (*m_model->context) SmEllipse(P(frame.o), D(frame.x), D(frame.y), domain, rx, ry, 3, m_model->context.get()));
-        }
-        return result;
-    }
-    std::unique_ptr<SmCurve> MakeSplineCurve(Index geometry, Index use)
-    {
-        SmTArray<SmPoint3d> cp;
-        for (const auto control : Refs(geometry, "control_points_list"))
-        {
-            cp.Add(P(Position(control)));
-        }
-        auto mult = Multiplicities(geometry, "knot_multiplicities");
-        auto knots = Numbers(geometry, "knots");
-        auto weights = SplineWeights(geometry, false, cp);
-        SmBSplineCurve* raw = nullptr;
-        Step(geometry);
-        const auto status = SmBSplineCurve::CreateCanonical(
-            *m_model->context,
-            3,
-            Degree(geometry, "degree"),
-            cp,
-            SM_CF_UNSPECIFIED,
-            mult,
-            knots,
-            SM_KT_UNSPECIFIED,
-            weights.GetSize() ? &weights : nullptr,
-            nullptr,
-            raw
-        );
-        std::unique_ptr<SmCurve> result(raw);
-        Good(status);
-        if (weights.GetSize())
-        {
-            Need(bool(raw), "GeneralCurveAllocation", geometry);
-            ULONG count = 0;
-            double* net = nullptr;
-            Good(raw->GetControlPointsPointer(count, net));
-            VerifyRationalNet(geometry, use, cp, weights, net, count, raw->IsRational());
-        }
-        return result;
-    }
-    DetachedCurveData AddDetachedCurve(Index record, bool supporting)
-    {
-        const bool trimmed = Is(record, "TRIMMED_CURVE");
-        const auto basis = trimmed ? Ref(record, "basis_curve") : record;
-        double sourceConsistency = 0, definitionEndpoints = 0;
-        const auto hasPointCut = [&](std::string_view name)
-        {
-            const auto& cuts = F(record, name).children;
-            return std::any_of(
-                cuts.begin(),
-                cuts.end(),
-                [](const auto& cut)
-                {
-                    return cut.kind == step_source::ValueKind::Reference;
-                }
-            );
-        };
-        const bool measuredSourceTrim = trimmed && (hasPointCut("trim_1") || hasPointCut("trim_2"));
-        WireframeCurveInfo info{ Id(record), Id(basis), m_model->wireCurves.size(), {}, !trimmed || B(record, "sense_agreement") };
-        std::unique_ptr<SmCurve> curve;
-        ParameterMapping mapping;
-        mapping.sourceGeometryId = Id(record);
-        mapping.sourceBasisGeometryId = Id(basis);
-        mapping.sourceUseId = Id(record);
-        mapping.targetCurveIndex = info.nativeIndex;
-        std::optional<std::array<V, 2>> expectedEnds;
-        if (Is(basis, "LINE"))
-        {
-            // ISO 10303-42:2003 4.4.40 trim parameters follow the basis LINE:
-            // P(t)=origin+t*magnitude*normalized_direction. t is dimensionless;
-            // scale the VECTOR length once, never scale t by the length unit.
-            const auto origin = Position(Ref(basis, "pnt"));
-            const auto vector = Ref(basis, "dir");
-            const auto direction = Direction(Ref(vector, "orientation"));
-            const auto magnitude = N(vector, "magnitude") * scale;
-            Need(std::isfinite(magnitude) && magnitude > 0, "GeneralWireLineMagnitude", record);
-            const auto evaluate = [&](double t)
-            {
-                return Add(origin, Mul(direction, magnitude * t));
-            };
-            const auto preferred = F(record, "master_representation").text;
-            const auto cut = [&](std::string_view field)
-            {
-                std::optional<double> parameter, pointParameter;
-                std::optional<V> point;
-                for (const auto& value : F(record, field).children)
-                {
-                    if (value.kind == step_source::ValueKind::Reference)
-                    {
-                        point = Position(m_source->ReferenceTarget(value));
-                        pointParameter = Dot(Sub(*point, origin), direction) / magnitude;
-                        const auto gap = Norm(Sub(evaluate(*pointParameter), *point));
-                        sourceConsistency = std::max(sourceConsistency, gap);
-                        Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralWireTrimPointOffBasis", record);
-                    }
-                    else
-                    {
-                        parameter = Number(value.children.at(0));
-                    }
-                }
-                if (parameter && point)
-                {
-                    const auto gap = Norm(Sub(evaluate(*parameter), *point));
-                    sourceConsistency = std::max(sourceConsistency, gap);
-                    Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedRepresentationsConflict", record);
-                }
-                return preferred == "CARTESIAN" && pointParameter ? *pointParameter : parameter ? *parameter : pointParameter.value();
-            };
-            const auto first = cut("trim_1"), last = cut("trim_2");
-            Need(info.sourceForwardInNative ? last > first : first > last, "GeneralWireLineTrimOrder", record);
-            const auto low = std::min(first, last), high = std::max(first, last);
-            expectedEnds = std::array{ evaluate(low), evaluate(high) };
-            for (const auto& point : *expectedEnds)
-            {
-                Need(
-                    std::all_of(
-                        point.begin(),
-                        point.end(),
-                        [](double v)
-                        {
-                            return std::isfinite(v);
-                        }
-                    ),
-                    "GeneralWireLineRange",
-                    record
-                );
-            }
-            SmLine* raw = nullptr;
-            Step(record);
-            const auto status = SmLine::CreateLineSegment(*m_model->context, 3, P((*expectedEnds)[0]), P((*expectedEnds)[1]), raw);
-            curve.reset(raw);
-            Good(status);
-            mapping.kind = supporting ? "SupportingTrimmedLine" : "WireframeTrimmedLine";
-            mapping.equation = "basis_t=lerp(basis_range,(native_t-native_begin)/(native_end-native_begin)); source_s=sign*(basis_t-trim_1)";
-            mapping.parameters = { { "basis_trim_parameters", { first, last } },
-                                   { "basis_range", { low, high } },
-                                   { "vector_magnitude_mm", { magnitude } } };
-        }
-        else if (Is(basis, "CIRCLE") || Is(basis, "ELLIPSE"))
-        {
-            const auto frame = Placement(Ref(basis, "position"));
-            const bool circle = Is(basis, "CIRCLE");
-            const auto rx = N(basis, circle ? "radius" : "semi_axis_1") * scale;
-            const auto ry = circle ? rx : N(basis, "semi_axis_2") * scale;
-            Need(std::isfinite(rx) && std::isfinite(ry) && rx > SM_EFF_ZERO && ry > SM_EFF_ZERO, "GeneralWireConicRadiusRange", record);
-            constexpr double tau = 2 * std::numbers::pi;
-            const auto trim = trimmed ? TrimmedConic(record, frame, rx, ry, sourceConsistency) : ConicTrim{ 0, tau, 0, tau, true, {} };
-            double low = trim.low, high = trim.high;
-            const auto shift = tau * std::floor(low / tau);
-            low -= shift;
-            high -= shift;
-            if (high > tau)
-            {
-                low -= tau;
-                high -= tau;
-            }
-            const auto degrees = trim.full ? FullPeriodDegrees(low) :
-                                             std::array<double, 2>{ low * 180 / std::numbers::pi, high * 180 / std::numbers::pi };
-            Need(degrees[1] > degrees[0] && degrees[0] >= -360 && degrees[1] <= 360, "GeneralWireConicAngleRange", record);
-            curve = MakeConic(basis, frame, rx, ry, SmExtent1d(degrees[0], degrees[1]), true);
-            const auto evaluate = [&](double angle)
-            {
-                return Add(frame.o, Add(Mul(frame.x, rx * std::cos(angle)), Mul(frame.y, ry * std::sin(angle))));
-            };
-            expectedEnds = std::array{ evaluate(trim.low), evaluate(trim.high) };
-            mapping.kind = supporting ? "SupportingConicRationalParameter" : "WireframeConicRationalParameter";
-            mapping.equation =
-                "basis_angle_rad=atan2(dot(P(native_t)-origin,y)/ry,dot(P(native_t)-origin,x)/rx),unwrapped_to_basis_range_rad; native_t_is_not_angle";
-            mapping.parameters = { { "basis_trim_rad", { trim.first, trim.last } },     { "basis_range_rad", { trim.low, trim.high } },
-                                   { "native_chart_range_rad", { low, high } },         { "radii_mm", { rx, ry } },
-                                   { "origin_mm", { frame.o.begin(), frame.o.end() } }, { "x", { frame.x.begin(), frame.x.end() } },
-                                   { "y", { frame.y.begin(), frame.y.end() } } };
-            if (trim.angleScale)
-            {
-                mapping.parameters.push_back({ "angle_parameter_to_rad", { *trim.angleScale } });
-            }
-        }
-        else
-        {
-            curve = MakeSplineCurve(basis, record);
-            mapping.kind = supporting ? "SupportingSplineIdentity" : "WireframeSplineIdentity";
-            mapping.equation = "source_t=native_t; entire_source_natural_interval; defining_coefficients_unchanged";
-        }
-        Need(bool(curve) && curve->GetDim() == 3, "GeneralWireCurveAllocation", record);
-        const auto domain = curve->GetNaturalInterval();
-        info.parameterDomain = { domain.GetMin(), domain.GetMax() };
-        Need(std::isfinite(domain.GetMin()) && std::isfinite(domain.GetMax()) && domain.GetMax() > domain.GetMin(), "GeneralWireNativeDomain", record);
-        if (expectedEnds)
-        {
-            for (Index i = 0; i < 2; ++i)
-            {
-                SmPoint3d actual;
-                Step(record);
-                Good(curve->EvaluatePoint(info.parameterDomain[i], actual));
-                const auto gap = Norm(Sub(P(actual), (*expectedEnds)[i]));
-                definitionEndpoints = std::max(definitionEndpoints, gap);
-                Need(std::isfinite(gap) && gap <= Q(m_options.quality.definitionMm), "GeneralWireDefinitionEndpointGap", record);
-            }
-        }
-        mapping.parameters.push_back({ "native_natural_interval", { domain.GetMin(), domain.GetMax() } });
-        mapping.parameters.push_back({ "source_forward_in_native", { info.sourceForwardInNative ? 1. : -1. } });
-        m_report.parameterMappings.push_back(std::move(mapping));
-        m_model->wireCurves.push_back(std::move(curve));
-        return { std::move(info),
-                 measuredSourceTrim ? std::optional<double>(sourceConsistency) : std::nullopt,
-                 expectedEnds ? std::optional<double>(definitionEndpoints) : std::nullopt };
-    }
-    const DetachedCurveData& DetachedCurve(Index geometry, bool supporting)
-    {
-        if (const auto found = detachedCurveInfo.find(geometry); found != detachedCurveInfo.end())
-        {
-            return found->second;
-        }
-        // A shared native definition retains its measurements as well as its
-        // mapping. Every source role must aggregate the same observed residual;
-        // cache reuse cannot turn a nonzero observation into zero. Absence
-        // means this constructor ran no applicable measurement, not zero error.
-        return detachedCurveInfo.emplace(geometry, AddDetachedCurve(geometry, supporting)).first->second;
-    }
-    void BuildWireframes()
+    void BuildWireframes(CurvePointDefinitions& definitions)
     {
         if (!wireframeRepresentation)
         {
             return;
         }
-        auto& pointInfo = detachedPointInfo;
-        double sourceConsistency = 0, definitionEndpoints = 0;
+        WireframeEvidence evidence;
         for (const auto set : Refs(*wireframeRepresentation, "items"))
         {
             if (!Is(set, "GEOMETRIC_CURVE_SET"))
@@ -926,58 +382,23 @@ private:
             group.representationId = Id(*wireframeRepresentation);
             group.relationshipId = Id(Role("wireframe_shape_relationship"));
             group.setId = Id(set);
-            bool first = true;
-            const auto include = [&](const Bounds& bounds)
-            {
-                for (Index axis = 0; axis < 3; ++axis)
-                {
-                    Need(
-                        std::isfinite(bounds[0][axis]) && std::isfinite(bounds[1][axis]) && bounds[0][axis] <= bounds[1][axis],
-                        "GeneralWireFiniteBounds",
-                        set
-                    );
-                    group.boundsMm[0][axis] = first ? bounds[0][axis] : std::min(group.boundsMm[0][axis], bounds[0][axis]);
-                    group.boundsMm[1][axis] = first ? bounds[1][axis] : std::max(group.boundsMm[1][axis], bounds[1][axis]);
-                }
-                first = false;
-            };
             for (const auto geometry : Refs(set, "elements"))
             {
                 m_execution.Check(Phase::BeforeNativeCall);
-                if (Is(geometry, "CARTESIAN_POINT"))
-                {
-                    if (!pointInfo.contains(geometry))
-                    {
-                        WireframePointInfo point{ Id(geometry), m_model->wirePoints.size(), Position(geometry) };
-                        m_model->wirePoints.push_back(point);
-                        pointInfo.emplace(geometry, std::move(point));
-                    }
-                    const auto& point = pointInfo.at(geometry);
-                    group.points.push_back(point);
-                    include({ point.pointMm, point.pointMm });
-                }
-                else
-                {
-                    const auto& definition = DetachedCurve(geometry, false);
-                    const auto& info = definition.info;
-                    sourceConsistency = std::max(sourceConsistency, definition.sourceResidualMm.value_or(0));
-                    definitionEndpoints = std::max(definitionEndpoints, definition.endpointResidualMm.value_or(0));
-                    group.curves.push_back(info);
-                    SmExtent3d box;
-                    Step(geometry);
-                    Good(m_model->wireCurves.at(info.nativeIndex)
-                             ->CalculateTightBoundingBox(SmExtent1d(info.parameterDomain[0], info.parameterDomain[1]), &box));
-                    include({ P(box.GetMin()), P(box.GetMax()) });
-                }
+                definitions.Append(SourceRecord{ geometry }, group, evidence);
             }
-            Need(!first, "GeneralWireEmptySet", set);
+            Need(!group.curves.empty() || !group.points.empty(), "GeneralWireEmptySet", set);
             m_model->wireframes.push_back(std::move(group));
         }
         m_report.wireframes = m_model->wireframes;
-        m_report.tolerances.push_back({ "Postcheck", "MeasuredWireframeSourceTrimResidual", Id(*wireframeRepresentation), sourceConsistency });
-        m_report.tolerances.push_back({ "Postcheck", "MeasuredWireframeDefinitionEndpointError", Id(*wireframeRepresentation), definitionEndpoints });
+        m_report.tolerances.push_back(
+            { "Postcheck", "MeasuredWireframeSourceTrimResidual", Id(*wireframeRepresentation), evidence.SourceResidualMm() }
+        );
+        m_report.tolerances.push_back(
+            { "Postcheck", "MeasuredWireframeDefinitionEndpointError", Id(*wireframeRepresentation), evidence.EndpointResidualMm() }
+        );
     }
-    void BuildSupportingGeometry()
+    void BuildSupportingGeometry(CurvePointDefinitions& definitions)
     {
         if (!supportingRepresentation)
         {
@@ -986,21 +407,11 @@ private:
         SupportingGeometryInfo group;
         group.representationId = Id(*supportingRepresentation);
         group.relationshipId = Id(Role("construction_relationship"));
-        std::optional<double> sourceConsistency, definitionEndpoints;
+        SupportingEvidence evidence;
         for (const auto geometry : Refs(*supportingRepresentation, "items"))
         {
             m_execution.Check(Phase::BeforeNativeCall);
-            if (Is(geometry, "CARTESIAN_POINT"))
-            {
-                if (!detachedPointInfo.contains(geometry))
-                {
-                    WireframePointInfo point{ Id(geometry), m_model->wirePoints.size(), Position(geometry) };
-                    m_model->wirePoints.push_back(point);
-                    detachedPointInfo.emplace(geometry, std::move(point));
-                }
-                group.points.push_back(detachedPointInfo.at(geometry));
-            }
-            else if (Is(geometry, "AXIS2_PLACEMENT_3D") || Is(geometry, "PLANE"))
+            if (definitions.Append(SourceRecord{ geometry }, group, evidence) == SupportingAppendResult::ExistingPlacement)
             {
                 const bool plane = Is(geometry, "PLANE");
                 const auto position = plane ? Ref(geometry, "position") : geometry;
@@ -1044,27 +455,14 @@ private:
                 }
                 m_model->supportingSurfaces.push_back(std::move(owned));
             }
-            else
-            {
-                const auto& definition = DetachedCurve(geometry, true);
-                if (definition.sourceResidualMm)
-                {
-                    sourceConsistency = std::max(sourceConsistency.value_or(0), *definition.sourceResidualMm);
-                }
-                if (definition.endpointResidualMm)
-                {
-                    definitionEndpoints = std::max(definitionEndpoints.value_or(0), *definition.endpointResidualMm);
-                }
-                group.curves.push_back(definition.info);
-            }
         }
         m_model->supportingGeometry.push_back(std::move(group));
         m_report.supportingGeometry = m_model->supportingGeometry;
-        if (sourceConsistency)
+        if (const auto sourceConsistency = evidence.SourceResidualMm())
         {
             m_report.tolerances.push_back({ "Postcheck", "MeasuredSupportingSourceTrimResidual", Id(*supportingRepresentation), *sourceConsistency });
         }
-        if (definitionEndpoints)
+        if (const auto definitionEndpoints = evidence.EndpointResidualMm())
         {
             m_report.tolerances.push_back(
                 { "Postcheck", "MeasuredSupportingDefinitionEndpointError", Id(*supportingRepresentation), *definitionEndpoints }
@@ -1291,138 +689,6 @@ private:
         Good(curve.DropPoint(curve.GetNaturalInterval(), P(point), nullptr, m_model->queryTolerance, nullptr, success, t, distance));
         Need(success && distance <= Q(m_options.quality.consistencyMm), "GeneralSplineEndpointInversion", record);
         return t;
-    }
-    ULONG Degree(Index a, std::string_view name) const
-    {
-        const double n = N(a, name);
-        Need(n >= 1 && n <= 32 && std::floor(n) == n, "GeneralSplineDegree", a);
-        return static_cast<ULONG>(n);
-    }
-    SmTArray<ULONG> Multiplicities(Index a, std::string_view name) const
-    {
-        SmTArray<ULONG> result;
-        for (const auto& value : F(a, name).children)
-        {
-            const auto n = Number(value);
-            Need(n >= 1 && n <= 33 && std::floor(n) == n, "GeneralKnotMultiplicity", a);
-            result.Add(static_cast<ULONG>(n));
-        }
-        return result;
-    }
-    SmTArray<double> Numbers(Index a, std::string_view name) const
-    {
-        SmTArray<double> result;
-        for (const auto& value : F(a, name).children)
-        {
-            result.Add(Number(value));
-        }
-        return result;
-    }
-    SmTArray<double> SplineWeights(Index geometry, bool surface, const SmTArray<SmPoint3d>& control) const
-    {
-        SmTArray<double> result;
-        if (!Is(geometry, surface ? "RATIONAL_B_SPLINE_SURFACE" : "RATIONAL_B_SPLINE_CURVE"))
-        {
-            return result;
-        }
-        const auto& values = F(geometry, "weights_data");
-        const auto append = [&](const step_source::Value& value)
-        {
-            const double weight = Number(value);
-            Need(weight > 0, "GeneralWeightRangeUnestablished", geometry);
-            result.Add(weight);
-        };
-        // STEP Cartesian controls are Euclidean, weights dimensionless. Preserve
-        // source U rows / V entries and pass weights separately: CreateCanonical
-        // performs the one conversion to homogeneous coordinates itself.
-        for (const auto& value : values.children)
-        {
-            if (surface)
-            {
-                for (const auto& weight : value.children)
-                {
-                    append(weight);
-                }
-            }
-            else
-            {
-                append(value);
-            }
-        }
-        Need(result.GetSize() == control.GetSize(), "GeneralWeightNetShape", geometry);
-        for (ULONG i = 0; i < result.GetSize(); ++i)
-        {
-            for (const auto coordinate : P(control[i]))
-            {
-                const double homogeneous = coordinate * result[i];
-                Need(std::isfinite(homogeneous) && (coordinate == 0 || homogeneous != 0), "GeneralHomogeneousRangeUnestablished", geometry);
-            }
-        }
-        return result;
-    }
-    void VerifyRationalNet(
-        Index geometry,
-        Index sourceUse,
-        const SmTArray<SmPoint3d>& control,
-        const SmTArray<double>& weights,
-        const double* net,
-        ULONG count,
-        bool rational
-    ) const
-    {
-        Need(net && count == control.GetSize(), "GeneralRationalNetShapeChanged", geometry);
-        // Only an identical positive source weight at EVERY control can be
-        // cancelled to one without changing geometry or parameterization.
-        // Require literal equality as a sufficient exact source proof; binary64
-        // equality alone could hide distinct source decimals rounding together.
-        const auto& sourceWeights = F(geometry, "weights_data");
-        const bool surface = Is(geometry, "RATIONAL_B_SPLINE_SURFACE");
-        const auto& first = surface ? sourceWeights.children.front().children.front() : sourceWeights.children.front();
-        bool uniformSource = true;
-        for (const auto& value : sourceWeights.children)
-        {
-            if (surface)
-            {
-                for (const auto& child : value.children)
-                {
-                    uniformSource = uniformSource && child.text == first.text;
-                }
-            }
-            else
-            {
-                uniformSource = uniformSource && value.text == first.text;
-            }
-        }
-        bool cancelled = false;
-        // SMLib may also discard near-unity NONuniform surface weights. Reject
-        // that unqualified normalization; raw source weights remain unchanged.
-        // Stored nonrational W is a sentinel, so interpret it as exactly one.
-        for (ULONG i = 0; i < count; ++i)
-        {
-            const double actualWeight = rational ? net[4 * i + 3] : 1.;
-            if (actualWeight != weights[i])
-            {
-                Need(uniformSource && !rational && actualWeight == 1., "GeneralSourceWeightsChanged", geometry);
-                cancelled = true;
-            }
-            V actual{};
-            for (Index axis = 0; axis < 3; ++axis)
-            {
-                actual[axis] = net[4 * i + axis] / actualWeight;
-                Need(std::isfinite(actual[axis]), "GeneralHomogeneousRangeUnestablished", geometry);
-            }
-            Need(Norm(Sub(actual, P(control[i]))) <= Q(m_options.quality.definitionMm), "GeneralControlRoundtripUnestablished", geometry);
-        }
-        if (cancelled)
-        {
-            ParameterMapping trace;
-            trace.kind = "ExactUniformWeightCancellation";
-            trace.sourceGeometryId = Id(geometry);
-            trace.sourceUseId = Id(sourceUse);
-            trace.equation = "identical positive source weights cancel from numerator/denominator; source parameters and Euclidean controls unchanged";
-            trace.parameters = { { "source_uniform_weight", { weights[0] } }, { "native_uniform_weight", { 1. } } };
-            m_report.parameterMappings.push_back(std::move(trace));
-        }
     }
     std::optional<SeamPlan> MissingSeam(const Face& f) const
     {

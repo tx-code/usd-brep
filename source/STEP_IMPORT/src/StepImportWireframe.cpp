@@ -163,7 +163,7 @@ Point WireframeView::EvaluateCurve(std::size_t curve, double parameter) const
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPoint3d point;
-    Good(m_data->wireCurves.at(info.nativeIndex)->EvaluatePoint(parameter, point));
+    Good(m_data->curvePointDefinitions.CurveAt(detail::CurveIndex{ info.nativeIndex }).EvaluatePoint(parameter, point));
     const auto result = Coordinates(point);
     FinitePoint(result);
     return result;
@@ -197,7 +197,7 @@ ClosestPoint WireframeView::Closest(const Point& point) const
     }
     for (const auto& info : set.curves)
     {
-        const auto& curve = *m_data->wireCurves.at(info.nativeIndex);
+        const auto& curve = m_data->curvePointDefinitions.CurveAt(detail::CurveIndex{ info.nativeIndex });
         SmBoolean found = FALSE;
         double parameter = 0, distance = 0;
         // No guess selects the native global search, and no snapping vector is
@@ -261,7 +261,7 @@ Point SupportingGeometryView::EvaluateCurve(std::size_t curve, double parameter)
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPoint3d point;
-    Good(m_data->wireCurves.at(info.nativeIndex)->EvaluatePoint(parameter, point));
+    Good(m_data->curvePointDefinitions.CurveAt(detail::CurveIndex{ info.nativeIndex }).EvaluatePoint(parameter, point));
     const auto result = Coordinates(point);
     FinitePoint(result);
     return result;
@@ -328,10 +328,11 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     SmTArray<SmSurface*> surfaces;
     SmTArray<long> trees;
     SmTArray<SmBrep*> breps;
-    for (const auto& source : model.wireCurves)
+    for (std::size_t i = 0; i < model.curvePointDefinitions.CurveCount(); ++i)
     {
+        const auto& source = model.curvePointDefinitions.CurveAt(CurveIndex{ i });
         SmCurve* raw = nullptr;
-        const auto status = source->Copy(*context, raw);
+        const auto status = source.Copy(*context, raw);
         std::unique_ptr<SmCurve> copy(raw);
         Good(status);
         Require(copy && copy->GetContext() == context.get(), "Linked archive curve copy context mismatch");
@@ -352,7 +353,7 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     brepOwners.push_back(std::move(body)); // Own before any vector growth can fail.
     Require(brepOwners.back()->GetContext() == context.get(), "Linked archive BRep copy context mismatch");
     breps.Add(brepOwners.back().get());
-    for (const auto& point : model.wirePoints)
+    for (const auto& point : model.curvePointDefinitions.Points())
     {
         std::unique_ptr<SmBrep> ownedAdapter(new (*context) SmBrep());
         auto& adapter = *ownedAdapter;
@@ -383,7 +384,7 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     for (ULONG i = 0; i < curves.GetSize(); ++i)
     {
         Require(read.curves[i], "Linked archive curve missing");
-        CompareCurve(*model.wireCurves[i], *read.curves[i], archiveToleranceMm);
+        CompareCurve(model.curvePointDefinitions.CurveAt(CurveIndex{ i }), *read.curves[i], archiveToleranceMm);
     }
     for (ULONG i = 0; i < surfaces.GetSize(); ++i)
     {
@@ -404,7 +405,7 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
             read.breps[i]->GetFaces(faces);
             Require(vertices.GetSize() == 1 && edges.GetSize() == 0 && faces.GetSize() == 0, "Linked point adapter topology changed");
             Require(
-                Distance(Coordinates(vertices[0]->GetPoint()), model.wirePoints[i - 1].pointMm) <= archiveToleranceMm,
+                Distance(Coordinates(vertices[0]->GetPoint()), model.curvePointDefinitions.Points()[i - 1].pointMm) <= archiveToleranceMm,
                 "Linked archive point changed"
             );
         }

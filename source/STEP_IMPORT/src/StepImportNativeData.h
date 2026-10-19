@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImport.h"
+#include "StepImportCurvePointDefinitions.h"
 
 #include <SmBrep.h>
 #include <SmContext.h>
@@ -39,8 +40,7 @@ struct ModelData
     std::vector<SmVertex*> vertices;
     std::vector<SmEdge*> edges;
     std::vector<SmLine*> curves; // Legacy affine verifier only; native edges own all defining curves.
-    std::vector<std::unique_ptr<SmCurve>> wireCurves; // Detached definitions shared across wire/support roles; clear before context under NativeMutex.
-    std::vector<WireframePointInfo> wirePoints; // Shared source points, not source vertices or connections to the material BRep.
+    OwnedCurvePointDefinitions curvePointDefinitions; // Shared source definitions, never material topology; clear before context under NativeMutex.
     std::vector<WireframeInfo> wireframes;
     // Includes canonical plane adapters for coordinate frames. No adapter is
     // inserted into the material BRep or presented as a source PLANE.
