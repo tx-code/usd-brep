@@ -10674,7 +10674,9 @@
         "RATIONAL_B_SPLINE_SURFACE",
         "TOROIDAL_SURFACE",
         "TRIMMED_CURVE",
-        "PLANE_ANGLE_MEASURE_WITH_UNIT"
+        "PLANE_ANGLE_MEASURE_WITH_UNIT",
+        "PRE_DEFINED_COLOUR",
+        "DRAUGHTING_PRE_DEFINED_COLOUR"
       ],
       "name_index": [
         {
@@ -10824,6 +10826,10 @@
         {
           "name": "DIRECTION",
           "id": 5
+        },
+        {
+          "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+          "id": 118
         },
         {
           "name": "DRAUGHTING_PRE_DEFINED_CURVE_FONT",
@@ -10980,6 +10986,10 @@
         {
           "name": "PRESENTATION_STYLE_ASSIGNMENT",
           "id": 73
+        },
+        {
+          "name": "PRE_DEFINED_COLOUR",
+          "id": 117
         },
         {
           "name": "PRE_DEFINED_CURVE_FONT",
@@ -16423,6 +16433,50 @@
               "local_field_index": 1
             }
           ]
+        },
+        {
+          "id": 117,
+          "name": "PRE_DEFINED_COLOUR",
+          "parents": [
+            "PRE_DEFINED_ITEM",
+            "COLOUR"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            79,
+            108,
+            117
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 108,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 118,
+          "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+          "parents": [
+            "PRE_DEFINED_COLOUR"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            79,
+            108,
+            117,
+            118
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 108,
+              "local_field_index": 0
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16945,7 +16999,9 @@
         "RATIONAL_B_SPLINE_SURFACE",
         "TOROIDAL_SURFACE",
         "TRIMMED_CURVE",
-        "PLANE_ANGLE_MEASURE_WITH_UNIT"
+        "PLANE_ANGLE_MEASURE_WITH_UNIT",
+        "PRE_DEFINED_COLOUR",
+        "DRAUGHTING_PRE_DEFINED_COLOUR"
       ],
       "name_index": [
         {
@@ -17099,6 +17155,10 @@
         {
           "name": "DIRECTION",
           "id": 5
+        },
+        {
+          "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+          "id": 124
         },
         {
           "name": "DRAUGHTING_PRE_DEFINED_CURVE_FONT",
@@ -17275,6 +17335,10 @@
         {
           "name": "PRESENTATION_STYLE_ASSIGNMENT",
           "id": 75
+        },
+        {
+          "name": "PRE_DEFINED_COLOUR",
+          "id": 123
         },
         {
           "name": "PRE_DEFINED_CURVE_FONT",
@@ -23025,6 +23089,50 @@
               "declaring_type": "MEASURE_WITH_UNIT",
               "declaring_type_id": 65,
               "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 123,
+          "name": "PRE_DEFINED_COLOUR",
+          "parents": [
+            "PRE_DEFINED_ITEM",
+            "COLOUR"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            81,
+            110,
+            123
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 110,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 124,
+          "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+          "parents": [
+            "PRE_DEFINED_COLOUR"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            81,
+            110,
+            123,
+            124
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 110,
+              "local_field_index": 0
             }
           ]
         }

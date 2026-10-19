@@ -419,6 +419,13 @@ private:
     }
     bool NonGeometricStyle(std::size_t record) const
     {
+        // The fixed AP214 colour leaf carries only a palette name. It may join
+        // the existing explicitly diagnosed nonphysical residue policy, never
+        // create a geometry/part role. Keep other profiles' policy unchanged.
+        if (IsAp214SourceProfile(m_data->profile.kind) && IsA(*m_data, record, "PRE_DEFINED_COLOUR"))
+        {
+            return true;
+        }
         // Closed declarations whose outgoing references stay in the style chain.
         // STYLED_ITEM is deliberately absent: it references a geometric RI and
         // must still pass the existing selected-body attachment proof.
@@ -2329,6 +2336,36 @@ private:
         }
     }
 
+    void CheckAp214PredefinedColourValues()
+    {
+        // AP214E3_2010.exp (71ab140f...), DRAUGHTING_PRE_DEFINED_COLOUR.WR1.
+        // The decoded STRING is a case-sensitive palette discriminator, not a
+        // display label. Typing has already required the inherited LABEL; no
+        // missing/opaque-name exception, RGB conversion or default is allowed.
+        constexpr std::string_view names[] = { "red", "green", "blue", "yellow", "magenta", "cyan", "black", "white" };
+        for (const auto colour : Population("DRAUGHTING_PRE_DEFINED_COLOUR"))
+        {
+            const auto& name = FieldValue(colour, "name");
+            Visit(name.span);
+            if (std::find(std::begin(names), std::end(names), name.text) == std::end(names))
+            {
+                FieldFailure(
+                    "SourceRuleViolation:DRAUGHTING_PRE_DEFINED_COLOUR.WR1",
+                    "D3",
+                    "Unknown predefined draughting-colour name",
+                    name.span,
+                    Status::Rejected,
+                    colour,
+                    "name",
+                    FieldDetail::AttributePath,
+                    "eight exact draughting colour names",
+                    name.text,
+                    "AP214E3_2010.exp DRAUGHTING_PRE_DEFINED_COLOUR.WR1"
+                );
+            }
+        }
+    }
+
     void CheckAp214CurveStyleValues()
     {
         // These source checks never turn an appearance dependency into a body
@@ -2555,6 +2592,7 @@ private:
         if (IsAp214SourceProfile(m_data->profile.kind))
         {
             CheckAp214CurveStyleValues();
+            CheckAp214PredefinedColourValues();
             CheckAp214RenderingValues();
         }
         std::vector<std::size_t> seeds;

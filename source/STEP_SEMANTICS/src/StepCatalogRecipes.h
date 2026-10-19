@@ -488,6 +488,9 @@ constexpr Recipe Describe(ProfileKind profile)
         declarations.push_back({ "PLANE_ANGLE_MEASURE_WITH_UNIT", { "MEASURE_WITH_UNIT" }, {}, true });
         measureBranches.push_back("PLANE_ANGLE_MEASURE");
         complexSignatures.push_back(ConversionPlaneAngle);
+        // Append new declarations after existing entries to retain every prior
+        // type identity in both fixed AP214 catalogs.
+        ap214_presentation::AddAp214PredefinedColourDeclarations(recipe);
     }
     return recipe;
 }

@@ -132,8 +132,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 134/117 declarations respectively;
-the separate MBx general catalog contains 123 declarations;
+transport slot. The general catalogs contain 134/119 declarations respectively;
+the separate MBx general catalog contains 125 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 
@@ -147,6 +147,25 @@ custom, external and font-scaling extensions. Curve-style RGB dependencies,
 same-type curve-style duplicates in `PRESENTATION_STYLE_ASSIGNMENT.WR1`, and
 `styled_curve.WR1` assignment counts are checked; this is not full AP214 global
 validation or a promise that a viewer renders these styles.
+
+Both AP214 bindings also admit `DRAUGHTING_PRE_DEFINED_COLOUR` from the same
+fixed `AP214E3_2010.exp`. Its `PRE_DEFINED_COLOUR` parent inherits
+`PRE_DEFINED_ITEM` before `COLOUR`; the leaf transmits exactly one required
+`PRE_DEFINED_ITEM.name: LABEL` and no derived slots or RGB channels. WR1 checks
+the decoded STRING against the exact case-sensitive names `red`, `green`,
+`blue`, `yellow`, `magenta`, `cyan`, `black`, `white`. Missing, opaque or invalid
+names stay failures even under interoperability; no colour is synthesized.
+Existing fill, rendering and curve-style `COLOUR` references retain their
+declared types and source identities. Bare parents and additional complex
+mappings stay unsupported. Existing type IDs are preserved by appending the
+two declarations after prior entries; the other three catalogs are unchanged.
+
+This does not establish full global-rule conformance or certify an unregistered
+OID. Strict orphan colours keep the existing ownership failure; explicit AP214
+interoperability may retain proven nonphysical appearance residue with that
+original diagnostic, without a fabricated part or geometry role. The dependent-
+instantiable and subtype global RULEs are not newly advertised as executed.
+RGB names and channel rules remain independent of the predefined palette.
 
 Only explicit general-BRep nongeometric interoperability may retain an invalid
 STRING width with its original `AttributeTypeMismatch`. It remains a STRING;

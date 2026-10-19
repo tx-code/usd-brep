@@ -90,4 +90,20 @@ constexpr void AddAp214CurveStyleDeclarations(Recipe& catalog)
     catalog.referenceSelects.push_back({ "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT", CurveFonts });
     ReplaceSelect(catalog, "PRESENTATION_STYLE_SELECT", PresentationStyles);
 }
+
+constexpr void AddAp214PredefinedColourDeclarations(Recipe& catalog)
+{
+    // Pinned AP214E3_2010.exp (71ab140f...), PRE_DEFINED_COLOUR inherits
+    // PRE_DEFINED_ITEM before COLOUR. Reuse the font chain's original LABEL
+    // slot exactly once; this branch has no RGB channels or derived slots.
+    // Only the draughting leaf is admitted. No arbitrary complex mapping or
+    // extra SELECT branch follows from this multiple inheritance.
+    catalog.declarations.insert(
+        catalog.declarations.end(),
+        {
+            { "PRE_DEFINED_COLOUR", { "PRE_DEFINED_ITEM", "COLOUR" }, {} },
+            { "DRAUGHTING_PRE_DEFINED_COLOUR", { "PRE_DEFINED_COLOUR" }, {}, true },
+        }
+    );
+}
 } // namespace step_semantics::catalog_build::ap214_presentation
