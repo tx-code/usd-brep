@@ -262,12 +262,20 @@ private:
     std::optional<Phase> m_phase;
     std::array<Progress, 7> m_progress{};
 
-    std::string SourceAuthority() const
+    bool BorrowedForeignLayer(std::size_t owner) const
+    {
+        return m_data->profile.kind == ProfileKind::Ap203N916Source && IsA(*m_data, owner, "PRESENTATION_LAYER_ASSIGNMENT");
+    }
+    std::string SourceAuthority(std::optional<std::size_t> owner = {}) const
     {
         // Used only after binding: attribute failures belong to the snapshot's pinned
         // source declarations, not the downstream rule profile or project restrictions.
         // Keep the existing AP203 labels so its diagnostic contract remains unchanged.
         Expects(m_data->catalog.has_value());
+        if (owner && BorrowedForeignLayer(*owner))
+        {
+            return "N2635 borrowed foreign-layer transport (not a N916 declaration)";
+        }
         return SourceArtifactName(m_data->profile.kind);
     }
     Progress& State(Phase phase)
@@ -346,6 +354,18 @@ private:
         std::string responsibility = {}
     )
     {
+        if (status == Status::Rejected && owner && BorrowedForeignLayer(*owner))
+        {
+            // A malformed foreign field prevents the compatibility proof. Its
+            // borrowed N2635 transport requirement is not a N916 source rule.
+            // Keep the field/key/location while refusing this profile exception.
+            status = Status::Unsupported;
+            stage = "D2";
+            if (responsibility.find("N2635 borrowed foreign-layer transport") == std::string::npos)
+            {
+                responsibility = "N2635 borrowed foreign-layer transport (not a N916 declaration): " + responsibility;
+            }
+        }
         if (m_phase)
         {
             State(*m_phase) = FailureProgress(status);
@@ -676,7 +696,7 @@ private:
                         {},
                         "compatible partial types",
                         "ONEOF conflict",
-                        SourceAuthority() + " audited subtype groups"
+                        SourceAuthority(r) + " audited subtype groups"
                     );
                 }
                 if (!std::is_sorted(explicitTypes.begin(), explicitTypes.end()))
@@ -764,7 +784,7 @@ private:
                 path,
                 std::string(field.type),
                 step_source::ValueKindName(value.kind),
-                SourceAuthority() + " explicit attribute"
+                SourceAuthority(r) + " explicit attribute"
             );
         };
         switch (kind)
@@ -839,7 +859,7 @@ private:
                         path,
                         "BOOLEAN T/F",
                         std::string(m_data->source->Raw(value.span)),
-                        SourceAuthority() + " BOOLEAN"
+                        SourceAuthority(r) + " BOOLEAN"
                     );
                 }
                 break;
@@ -854,7 +874,7 @@ private:
                     Fail(
                         "EnumerationValueInvalid",
                         "D1",
-                        "Enumeration token is absent from the fixed " + SourceAuthority() + " type",
+                        "Enumeration token is absent from the fixed " + SourceAuthority(r) + " type",
                         value.span,
                         Status::Rejected,
                         r,
@@ -862,7 +882,7 @@ private:
                         path,
                         std::string(field.type),
                         value.text,
-                        "fixed " + SourceAuthority() + " enumeration"
+                        "fixed " + SourceAuthority(r) + " enumeration"
                     );
                 }
                 break;
@@ -881,7 +901,7 @@ private:
                         path,
                         "LOGICAL T/F/U",
                         std::string(m_data->source->Raw(value.span)),
-                        SourceAuthority() + " LOGICAL"
+                        SourceAuthority(r) + " LOGICAL"
                     );
                 }
                 break;
@@ -905,7 +925,7 @@ private:
                             path,
                             std::string(field.type),
                             Record(UnboundTarget(value)).components[0].name,
-                            SourceAuthority() + " explicit reference type"
+                            SourceAuthority(r) + " explicit reference type"
                         );
                     }
                     catch (Failure& failure)
@@ -1037,7 +1057,7 @@ private:
                 path,
                 "aggregate",
                 step_source::ValueKindName(value.kind),
-                SourceAuthority() + " aggregate"
+                SourceAuthority(r) + " aggregate"
             );
         }
         if (value.children.size() < minimum || value.children.size() > maximum)
@@ -1053,7 +1073,7 @@ private:
                 path,
                 "declared bounds",
                 std::to_string(value.children.size()),
-                SourceAuthority() + " aggregate"
+                SourceAuthority(r) + " aggregate"
             );
         }
         std::unordered_map<std::string, Span> members;
@@ -1147,7 +1167,7 @@ private:
                         {},
                         std::to_string(count),
                         std::to_string(part.parameters.size()),
-                        SourceAuthority() + " attribute layout"
+                        SourceAuthority(r) + " attribute layout"
                     );
                 }
                 for (std::size_t p = 0; p < count; ++p)
@@ -1224,7 +1244,7 @@ private:
                                 path,
                                 std::string(field.type),
                                 "$",
-                                SourceAuthority() + " required attribute"
+                                SourceAuthority(r) + " required attribute"
                             );
                         }
                         catch (Failure& failure)

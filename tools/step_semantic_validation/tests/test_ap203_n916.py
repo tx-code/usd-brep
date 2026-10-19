@@ -105,11 +105,36 @@ class Ap203N916Tests(unittest.TestCase):
         self.assertEqual(2, run.returncode)
         self.assertEqual("UnsupportedAdministrativeAttachment", result["diagnostics"][0]["key"])
         self.assertIsNone(result["snapshot"])
-        data = layer_source().replace(b"#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));",
-                                      b"#10=(LENGTH_UNIT() NAMED_UNIT(#900));")
+
+        data = layer_source().replace(
+            b"#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));",
+            b"#10=(CONVERSION_BASED_UNIT('source length',#902) LENGTH_UNIT() NAMED_UNIT(#900));")
+        data = append_records(data, b"""#901=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));
+#902=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.),#901);
+""")
         run, result = self.invoke(data, "--general-brep-source", "--interop-nongeometric")
-        self.assertNotEqual(0, run.returncode)
+        self.assertEqual(1, run.returncode)
+        self.assertEqual("ReferenceTypeMismatch", result["diagnostics"][0]["key"])
+        self.assertEqual("SourceInvalid", result["diagnostics"][0]["classification"])
+        self.assertIn("STEPcode modified N916", result["diagnostics"][0]["responsibility"])
         self.assertIsNone(result["snapshot"])
+
+    def test_foreign_layer_transport_failures_are_not_n916_source_rules(self):
+        for old, new, key in (
+            (b"'source description'", b"$", "RequiredAttributeMissing"),
+            (b"'source description',(#21)", b"(#21)", "AttributeCountMismatch"),
+            (b"(#21));", b"(#21,#21));", "SetDuplicateMember"),
+        ):
+            with self.subTest(key=key):
+                data = layer_source().replace(old, new)
+                run, result = self.invoke(data, "--general-brep-source", "--interop-nongeometric")
+                self.assertEqual(2, run.returncode)
+                self.assertIsNone(result["snapshot"])
+                issue, = result["diagnostics"]
+                self.assertEqual(key, issue["key"])
+                self.assertEqual("ProfileUnsupported", issue["classification"])
+                self.assertIn("N2635 borrowed foreign-layer transport", issue["responsibility"])
+                self.assertNotIn("STEPcode modified N916 required attribute", issue["responsibility"])
 
     def test_borrowed_descriptors_do_not_admit_other_foreign_entities(self):
         for entity in (b"DERIVED_UNIT", b"MEASURE_REPRESENTATION_ITEM", b"STYLED_ITEM"):

@@ -20,7 +20,10 @@ and `IsA` do not prove source conformance: every explicitly instantiated foreign
 type is refused. Only `PRESENTATION_LAYER_ASSIGNMENT` may survive explicit
 nongeometric interoperability, with its original `UnsupportedEntityType`, after
 all fields, selected-part attachment and physical-dependency exclusion pass.
-It cannot create a geometry root, unit or inferred part owner. The same explicit
+It cannot create a geometry root, unit or inferred part owner.
+Malformed foreign-layer fields fail the borrowed N2635 transport prerequisite
+as `ProfileUnsupported`; they are not labelled N916 source-rule violations.
+The same explicit
 policy may retain the failed single-APD guard for zero APDs after the remaining
 unique product chain and units complete; no APD, role, year or claim is fabricated.
 Strict requests and multiple APDs keep their original failure behavior.
