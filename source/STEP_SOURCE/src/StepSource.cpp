@@ -321,6 +321,10 @@ private:
     std::optional<Span> m_opaqueHeaderName;
     bool m_inData = false;
     std::vector<Span> m_opaqueDataStrings;
+    // The parser alone may extend this receipt before returning. Public
+    // outcomes/snapshots share const owners; no mutation survives publication.
+    std::shared_ptr<CarrierAssumption> m_carrierBuilder;
+    std::optional<std::size_t> m_activeStringHex;
 
     Diagnostic ErrorDiagnostic(std::string key, std::string message, Span span, std::string stage = "D0") const
     {
@@ -336,6 +340,10 @@ private:
     }
     [[noreturn]] void Fail(std::string key, std::string message, Span span, Status status = Status::Rejected, std::string stage = "D0")
     {
+        if (m_activeStringHex)
+        {
+            m_carrierBuilder->stringHexInterpretations[*m_activeStringHex].tokenSpan.end = m_pos;
+        }
         throw Failure{ status, ErrorDiagnostic(std::move(key), std::move(message), span, std::move(stage)) };
     }
 
@@ -478,11 +486,29 @@ private:
         for (int digit = 0; digit < digits; ++digit)
         {
             const char c = StringCharacter(start, directive);
-            if (!(Digit(c) || (c >= 'A' && c <= 'F')))
+            const bool lowercase = c >= 'a' && c <= 'f';
+            const bool interpreted = lowercase && m_inData && m_carrierBuilder &&
+                                     m_carrierBuilder->interpretation == CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
+            if (!(Digit(c) || (c >= 'A' && c <= 'F') || interpreted))
             {
                 Fail("InvalidStringEncoding", "Expected uppercase hexadecimal digits", { directive, m_pos });
             }
-            value = value * 16 + static_cast<unsigned>(Digit(c) ? c - '0' : c - 'A' + 10);
+            if (interpreted)
+            {
+                // Table2 HEX in the fixed N304 reference is uppercase. This
+                // explicit alternative interprets numeric digits only; it is
+                // neither a rewritten token nor an arbitrary escape recovery.
+                auto& evidence = m_carrierBuilder->stringHexInterpretations;
+                if (!m_activeStringHex)
+                {
+                    Bound(evidence.size() + 1, m_result.limits.values, "ValueLimit", { start, m_pos });
+                    evidence.push_back({ { start, m_pos }, { directive, m_pos }, 0, false });
+                    m_activeStringHex = evidence.size() - 1;
+                }
+                ++evidence[*m_activeStringHex].lowercaseDigits;
+                evidence[*m_activeStringHex].tokenSpan.end = m_pos;
+            }
+            value = value * 16 + static_cast<unsigned>(Digit(c) ? c - '0' : c - (lowercase ? 'a' : 'A') + 10);
         }
         return value;
     }
@@ -621,6 +647,7 @@ private:
                 break;
             case '\'':
             {
+                Expects(!m_activeStringHex);
                 if (const auto opaque = OpaqueString(start))
                 {
                     return *opaque;
@@ -644,6 +671,13 @@ private:
                         else
                         {
                             m_result.statistics.maxStringBytes = std::max(m_result.statistics.maxStringBytes, m_pos - start);
+                            if (m_activeStringHex)
+                            {
+                                auto& evidence = m_carrierBuilder->stringHexInterpretations[*m_activeStringHex];
+                                evidence.tokenSpan = { start, m_pos };
+                                evidence.complete = true;
+                                m_activeStringHex.reset();
+                            }
                             return { TokenKind::String, { start, m_pos }, std::move(decoded) };
                         }
                     }
@@ -901,7 +935,7 @@ private:
             if (valid && p[1].text != "2;1")
             {
                 constexpr auto message = "Only FILE_DESCRIPTION implementation level 2;1 is supported";
-                if (p[1].text != "1" || m_result.requestedCarrierInterpretation != CarrierInterpretation::Level1AsCorrectedEncoding)
+                if (p[1].text != "1" || !IsExplicitCarrierInterpretation(m_result.requestedCarrierInterpretation))
                 {
                     Fail("UnsupportedImplementationLevel", message, p[1].span, Status::Unsupported);
                 }
@@ -916,7 +950,8 @@ private:
                 assumption->declaredSpan = p[1].span;
                 assumption->originalDiagnostics.push_back(ErrorDiagnostic("UnsupportedImplementationLevel", message, p[1].span));
                 m_result.carrierAssumption = assumption;
-                m_data->carrierAssumption = std::move(assumption);
+                m_data->carrierAssumption = assumption;
+                m_carrierBuilder = std::move(assumption);
             }
         }
         else if (component.name == "FILE_NAME")
@@ -1101,6 +1136,8 @@ const char* CarrierInterpretationName(CarrierInterpretation interpretation)
             return "DeclaredOnly";
         case CarrierInterpretation::Level1AsCorrectedEncoding:
             return "Level1AsCorrectedEncoding";
+        case CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex:
+            return "Level1AsCorrectedEncodingWithLowercaseHex";
     }
     return "Unknown";
 }
@@ -1120,7 +1157,7 @@ InspectOutcome InspectBytes(
     {
         throw std::invalid_argument("Unknown DATA string policy");
     }
-    if (carrierInterpretation != CarrierInterpretation::DeclaredOnly && carrierInterpretation != CarrierInterpretation::Level1AsCorrectedEncoding)
+    if (carrierInterpretation != CarrierInterpretation::DeclaredOnly && !IsExplicitCarrierInterpretation(carrierInterpretation))
     {
         throw std::invalid_argument("Unknown carrier interpretation");
     }
@@ -1212,7 +1249,7 @@ InspectOutcome InspectFile(
     {
         throw std::invalid_argument("Unknown DATA string policy");
     }
-    if (carrierInterpretation != CarrierInterpretation::DeclaredOnly && carrierInterpretation != CarrierInterpretation::Level1AsCorrectedEncoding)
+    if (carrierInterpretation != CarrierInterpretation::DeclaredOnly && !IsExplicitCarrierInterpretation(carrierInterpretation))
     {
         throw std::invalid_argument("Unknown carrier interpretation");
     }

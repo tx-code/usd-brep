@@ -16,6 +16,26 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_lowercase_hex_is_an_independent_explicit_carrier_policy(self):
+        from tools.step_import_native_validation.tests.test_lowercase_hex import hex_box
+
+        with tempfile.TemporaryDirectory(prefix="step-lowerhex-probe-") as directory:
+            source = Path(directory) / "source.step"
+            source.write_bytes(hex_box())
+            flags = ("--quality", "Q-AP214-development-mm-01", "--source-policy", "PreserveNonGeometric")
+            (old,) = self.invoke(
+                "native", "import", source, *flags, "--carrier-interpretation", "Level1AsCorrectedEncoding"
+            )["trials"]
+            self.assertFalse(old["has_model"])
+            (trial,) = self.invoke(
+                "native", "import", source, *flags, "--carrier-interpretation",
+                "Level1AsCorrectedEncodingWithLowercaseHex"
+            )["trials"]
+            self.assertEqual("AcceptedUnderInterpretation", trial["status"])
+            self.assertFalse(trial["source_carrier_verified"])
+            self.assertTrue(trial["carrier_interpretation_applied"])
+            self.assertAlmostEqual(6000, trial["model"]["volume_mm3"], delta=1e-5)
+
     def test_name_only_policy_is_distinct_from_the_eight_arc_policy(self):
         from tools.step_semantic_validation.tests.test_name_only_interpretation import name_only_box
 
@@ -255,6 +275,9 @@ class ProbeTests(unittest.TestCase):
                 ("source", "source", ["--schema-interpretation", "Ap214NameOnlyAs2010"]),
                 ("occt", "transfer", ["--schema-interpretation", "Ap214NameOnlyAs2010"]),
                 ("native", "import", ["--schema-interpretation", "Ap214NameOnlyAs2010"]),
+                ("source", "source", ["--carrier-interpretation", "Level1AsCorrectedEncodingWithLowercaseHex"]),
+                ("occt", "transfer", ["--carrier-interpretation", "Level1AsCorrectedEncodingWithLowercaseHex"]),
+                ("native", "import", ["--carrier-interpretation", "Level1AsCorrectedEncodingWithLowercaseHex"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

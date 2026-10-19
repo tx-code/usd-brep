@@ -1192,6 +1192,23 @@ void CarrierContract(const std::filesystem::path& fixture, const std::filesystem
         refused = true;
     }
     Require(refused, "unknown carrier policy cannot become a default");
+    const std::string caption = "'P0 analytic fixture'";
+    const auto captionAt = text.find(caption);
+    Require(captionAt != std::string::npos, "public lowercase caption fixture");
+    text.replace(captionAt, caption.size(), "'\\X2\\4e2d\\X0\\'");
+    options.carrierInterpretation = CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
+    result = step_import::ImportBytes(text, options);
+    Require(
+        result.status == step_import::Status::AcceptedUnderInterpretation && result.model,
+        "complete native result retains extended carrier qualification"
+    );
+    held = result.model->Face();
+    Require(
+        held.AppliedCarrierAssumption() && held.AppliedCarrierAssumption()->stringHexInterpretations.at(0).complete,
+        "native owning view exposes completed DATA interpretation evidence"
+    );
+    result = {};
+    Require(held.AppliedCarrierAssumption()->stringHexInterpretations[0].lowercaseDigits == 2, "extended carrier evidence survives outcome disposal");
 }
 void InterpretationContract(const std::filesystem::path& fixture)
 {
@@ -1291,7 +1308,8 @@ void DevelopmentContract(
     bool restrictSupport = false,
     bool workStudy = false,
     bool carrier = false,
-    bool nameOnly = false
+    bool nameOnly = false,
+    bool lowercaseHex = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1314,6 +1332,11 @@ void DevelopmentContract(
     if (carrier)
     {
         options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+    }
+    if (lowercaseHex)
+    {
+        Require(!carrier, "choose one carrier interpretation");
+        options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
     }
     options.sourceLimits = { 67108864, 1000000, 2000000, 2000000, 128, 1048576, 16777216, 268435456, 1024 };
     options.semanticLimits.dependencyVisits = 10000000;
@@ -1437,7 +1460,9 @@ void DevelopmentContract(
     }
     if (carrierAssumed)
     {
-        checks << ",\"carrier_interpretation\":\"Level1AsCorrectedEncoding\",\"source_carrier_verified\":false";
+        checks << ",\"carrier_interpretation\":\""
+               << step_source::CarrierInterpretationName(result.model->Source()->Source().AppliedCarrierAssumption()->interpretation)
+               << "\",\"source_carrier_verified\":false";
     }
     checks
         << ",\"source_sha256\":\"" << result.report.sourceSha256 << "\",\"quality_id\":\"" << options.quality.id << "\",\"faces\":" << info.faces
@@ -1473,7 +1498,8 @@ int main(int argc, char** argv)
     {
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
-            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false;
+            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
+                 lowercaseHex = false;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
@@ -1481,7 +1507,7 @@ int main(int argc, char** argv)
                     flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
                         flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
-                        flag == "--interpret-ap214-name-only-as-2010",
+                        flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex",
                     "unknown explicit source flag"
                 );
                 if (flag == "--interpret-unregistered-ap214-2010")
@@ -1504,6 +1530,10 @@ int main(int argc, char** argv)
                 {
                     nameOnly = true;
                 }
+                else if (flag == "--interpret-level1-with-lowercase-hex")
+                {
+                    lowercaseHex = true;
+                }
                 else
                 {
                     (flag == "--preserve-opaque-header-name" ? header : data) = true;
@@ -1519,7 +1549,8 @@ int main(int argc, char** argv)
                 restrictSupport,
                 workStudy,
                 carrier,
-                nameOnly
+                nameOnly,
+                lowercaseHex
             );
             return 0;
         }

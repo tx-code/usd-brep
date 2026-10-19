@@ -55,6 +55,10 @@ bench::Trial Run(const bench::Args& args)
             {
                 options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
             }
+            else if (args.carrierInterpretation == "Level1AsCorrectedEncodingWithLowercaseHex")
+            {
+                options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
+            }
             options.sourceLimits = SourceLimits(args.maximumInput);
             if (bench::GeneralQuality(args.quality))
             {

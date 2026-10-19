@@ -141,7 +141,21 @@ int main(int argc, char** argv)
             }
             else if (arg == "--interpret-level1-as-corrected")
             {
+                if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+                    options.carrierInterpretation != step_source::CarrierInterpretation::Level1AsCorrectedEncoding)
+                {
+                    throw std::invalid_argument("Choose one carrier interpretation");
+                }
                 options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+            }
+            else if (arg == "--interpret-level1-with-lowercase-hex")
+            {
+                if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+                    options.carrierInterpretation != step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex)
+                {
+                    throw std::invalid_argument("Choose one carrier interpretation");
+                }
+                options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
             }
             else if (arg == "--preserve-opaque-header-name")
             {

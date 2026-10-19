@@ -209,7 +209,7 @@ artifact's own responsibility labels. Complete management/date TYPE predicates,
 WHERE/global-rule conformance and native angular conversion remain unqualified.
 Native construction keeps its separate geometry, tolerance and publication gates.
 
-Explicit general interoperability may preserve unavailable DATA text in exactly
+Explicit general interoperability may preserve unavailable DATA text in
 `PRODUCT.id`, `PRODUCT.name` and
 `PRESENTATION_LAYER_ASSIGNMENT.name`. Source capture must separately select its
 raw DATA-string policy. Typing retains `OpaqueDataTextUnestablished` as
@@ -220,6 +220,21 @@ unsupported when opaque: the current profile consults that name for special
 representation-purpose exclusions, which unknown text cannot silently satisfy.
 Other fields, protocol
 claims, property-rule names, units and unapproved owners remain unsupported.
+Additional field-specific proofs admit singleton selected PD/PDF identifiers,
+the selected MANIFOLD_SOLID_BREP's inherited RI caption, and attached
+APPROVAL.level / PERSON.id labels. PD/PDF preservation requires one definition
+and formation; administrative labels need actual selected attachment and complete
+physical exclusion. The MSB proof applies only to its caption: all shell/geometry
+fields remain required. No text, revision, name or locale is invented.
+
+In explicit general interoperability, distinct application contexts and their
+APDs may follow the unique selected PC/PDC reference chain. Every context and
+APD must be used by that chain, with at most one APD per selected application;
+orphan/conflicting associations remain unsupported. Source identities are not
+merged by text. Product-associated APD values retain the existing scalar view,
+and separate definition-application roles preserve the other actual references.
+The original singleton-profile refusals remain diagnostics. These metadata
+associations never supply physical representation units or select a schema year.
 `CheckedWithDiagnostics` and owning `OpaqueString` values expose this limitation;
 the source bytes, field roles, scope and all other checks remain intact. Strict
 semantics and P0 do not gain this exception. Both source policy flags are exposed

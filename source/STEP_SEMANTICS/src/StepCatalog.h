@@ -262,6 +262,11 @@ struct SemanticData
         MissingApplicationProtocol,
         CurveStyleWidth,
         OpaqueDisplayText,
+        OpaquePartIdentity,
+        OpaqueShapeCaption,
+        OpaqueAdministrativeLabel,
+        DistinctApplicationContexts,
+        ContextApplicationProtocols,
         ForeignRealItem
     };
     struct PendingIssue

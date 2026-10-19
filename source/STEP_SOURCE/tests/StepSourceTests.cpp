@@ -432,6 +432,54 @@ int main()
             Require(invalid, "unknown carrier request rejected before IO");
             ++checks;
         }
+        {
+            auto input = File("#1=A('\\X2\\4e2d\\X0\\',+1.2500E-2);\n");
+            input.replace(input.find("'2;1'"), 5, "'1'");
+            auto interpreted = InspectBytes(
+                input,
+                limits,
+                HeaderNamePolicy::StrictAscii,
+                DataStringPolicy::StrictAscii,
+                CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex
+            );
+            Require(interpreted.source && interpreted.status == Status::Inspected, "explicit lowercase payload admission");
+            auto owner = interpreted.source;
+            const auto receipt = owner->AppliedCarrierAssumption();
+            Require(receipt && receipt->stringHexInterpretations.size() == 1, "source owns per-string interpretation evidence");
+            const auto& evidence = receipt->stringHexInterpretations[0];
+            const auto& value = owner->Records()[0].components[0].parameters[0];
+            Require(
+                value.text == "\xE4\xB8\xAD" && evidence.complete && evidence.lowercaseDigits == 2,
+                "numeric hex interpretation has independent Unicode truth"
+            );
+            Require(
+                owner->Raw(evidence.tokenSpan) == "'\\X2\\4e2d\\X0\\'" && owner->Raw(evidence.firstStrictSpan) == "\\X2\\4e",
+                "whole original token and first strict refusal location retained"
+            );
+            interpreted.requestedCarrierInterpretation = CarrierInterpretation::DeclaredOnly;
+            interpreted.carrierAssumption.reset();
+            Require(
+                InspectJson(interpreted, json) && json.find("string_hex_interpretations") != std::string::npos,
+                "mutable outcome cannot hide source-owned string evidence"
+            );
+            interpreted = {};
+            Require(owner->AppliedCarrierAssumption() == receipt && owner->Bytes() == input, "immutable string evidence lifetime");
+            auto bad = input;
+            bad.replace(bad.find("4e2d"), 4, "4e2dGGGG");
+            const auto rejected = InspectBytes(
+                bad,
+                limits,
+                HeaderNamePolicy::StrictAscii,
+                DataStringPolicy::StrictAscii,
+                CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex
+            );
+            Require(
+                !rejected.source && rejected.carrierAssumption && rejected.carrierAssumption->stringHexInterpretations.size() == 1 &&
+                    !rejected.carrierAssumption->stringHexInterpretations[0].complete,
+                "later invalid payload keeps incomplete evidence without a partial graph"
+            );
+            ++checks;
+        }
         ReportWriterContract();
         ++checks;
         std::cout << "Passed " << checks << " native source contract groups\n";

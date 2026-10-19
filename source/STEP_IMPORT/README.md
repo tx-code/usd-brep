@@ -1,5 +1,13 @@
 # STEP_IMPORT（内部 C++20）
 
+声明 1 的 DATA 十六进制转义可另选
+CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex／CLI
+--interpret-level1-with-lowercase-hex；仍须显式通用质量与非几何互操作。
+仅解释 X/X2/X4 payload 中的小写数字，原 token、严格失败位置和逐值完成状态随 owning
+载体见证保存。旧标志、严格模式、HEADER 和其他声明不放宽；坏 Unicode、非 hex、
+不完整 payload、限额和下游错误仍拒绝。成功仍为 AcceptedUnderInterpretation，CLI 11。
+这不猜文字编码、改写原件或认证源声明；失败／取消仍不交付部分模型。
+
 裸 `AUTOMOTIVE_DESIGN` 可另选 `SchemaInterpretation::Ap214NameOnlyAs2010`／CLI
 `--interpret-ap214-name-only-as-2010`，并显式选择通用质量和非几何互操作策略。
 它只选择固定 2010 兼容子集，不从裸名、APD 或年份认证源版次；原裸名、空 OID 和原拒绝

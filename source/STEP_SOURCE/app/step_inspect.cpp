@@ -57,7 +57,21 @@ int main(int argc, char** argv)
             }
             else if (argument == "--interpret-level1-as-corrected")
             {
+                if (carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+                    carrierInterpretation != step_source::CarrierInterpretation::Level1AsCorrectedEncoding)
+                {
+                    throw std::invalid_argument("Choose one carrier interpretation");
+                }
                 carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+            }
+            else if (argument == "--interpret-level1-with-lowercase-hex")
+            {
+                if (carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+                    carrierInterpretation != step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex)
+                {
+                    throw std::invalid_argument("Choose one carrier interpretation");
+                }
+                carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
             }
             else if (options.count(argument))
             {

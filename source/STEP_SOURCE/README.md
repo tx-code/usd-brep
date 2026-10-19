@@ -1,5 +1,21 @@
 # STEP source inspection (ticket 02)
 
+The separate Level1AsCorrectedEncodingWithLowercaseHex interpretation (CLI
+--interpret-level1-with-lowercase-hex) permits lowercase a–f only in DATA
+X/X2/X4 payloads after a declaration-1 assumption has been established. HEADER
+strings and declarations other than 1 retain their existing decoding; the old
+option and strict defaults remain unchanged. This is a recorded application
+interpretation, not standard-conformance repair or an inferred character set.
+
+Each affected quoted value has immutable byte-span evidence in its carrier
+receipt: complete token (or consumed prefix), first strict failure span,
+lowercase digit count and completion status. The first original carrier refusal
+is retained. Unicode scalar, group-width, terminator, string/value/report and
+reference checks still apply. A later failure retains incomplete evidence but
+withholds the source graph. Opaque legacy-byte strings are never partially
+decoded by this policy. The compact evidence count is bounded by the configured
+value limit. Rebuild consumers for the extended CarrierAssumption layout.
+
 An internal C++20 source layer with no SMLib, OCCT, USD or third-party parser link.
 It captures input bytes, parses raw values, indexes all DATA records and resolves
 all reference occurrences. `Inspected` means this source-only work completed;

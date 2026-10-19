@@ -68,8 +68,14 @@ enum class DataStringPolicy
 enum class CarrierInterpretation
 {
     DeclaredOnly,
-    Level1AsCorrectedEncoding // Explicit unverified assumption; not support for original 1994 SELECT encoding.
+    Level1AsCorrectedEncoding, // Explicit unverified assumption; not support for original 1994 SELECT encoding.
+    Level1AsCorrectedEncodingWithLowercaseHex // Additionally interprets a-f in DATA X/X2/X4 payloads, only after a level1 assumption.
 };
+constexpr bool IsExplicitCarrierInterpretation(CarrierInterpretation interpretation)
+{
+    return interpretation == CarrierInterpretation::Level1AsCorrectedEncoding ||
+           interpretation == CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
+}
 
 struct Value
 {
@@ -121,12 +127,20 @@ struct Diagnostic
     std::string targetId;
 };
 
+struct StringHexInterpretation
+{
+    Span tokenSpan; // Complete quoted token, or consumed prefix when complete=false.
+    Span firstStrictSpan; // Original strict InvalidStringEncoding at the first lowercase hex digit.
+    std::size_t lowercaseDigits = 0;
+    bool complete = false;
+};
 struct CarrierAssumption
 {
     CarrierInterpretation interpretation = CarrierInterpretation::DeclaredOnly;
     std::string declaredLevel;
     Span declaredSpan;
     std::vector<Diagnostic> originalDiagnostics;
+    std::vector<StringHexInterpretation> stringHexInterpretations; // Source-byte identity; no copied or normalized token.
 };
 
 struct Statistics

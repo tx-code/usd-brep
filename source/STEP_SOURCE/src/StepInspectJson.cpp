@@ -151,7 +151,30 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
                 DiagnosticJson(out, result, assumption->originalDiagnostics[i]);
             }
         }
-        out.Add("]}");
+        out.Add("]");
+        if (assumption && !assumption->stringHexInterpretations.empty())
+        {
+            out.Add(",\"string_hex_interpretations\":[");
+            for (std::size_t i = 0; i < assumption->stringHexInterpretations.size(); ++i)
+            {
+                if (i)
+                {
+                    out.Add(",");
+                }
+                const auto& evidence = assumption->stringHexInterpretations[i];
+                out.Add("{\"token_span\":");
+                out.Range(evidence.tokenSpan);
+                out.Add(",\"first_strict_span\":");
+                out.Range(evidence.firstStrictSpan);
+                out.Add(",\"strict_key\":\"InvalidStringEncoding\",\"lowercase_digits\":");
+                out.Number(evidence.lowercaseDigits);
+                out.Add(",\"complete\":");
+                out.Bool(evidence.complete);
+                out.Add("}");
+            }
+            out.Add("]");
+        }
+        out.Add("}");
     }
     out.Add(",\"source_complete\":");
     out.Add(result.source ? "true" : "false");

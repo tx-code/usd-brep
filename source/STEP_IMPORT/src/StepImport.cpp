@@ -115,7 +115,7 @@ void Validate(const Options& options)
         throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
     }
     if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
-        (options.carrierInterpretation != step_source::CarrierInterpretation::Level1AsCorrectedEncoding || !options.generalBrep ||
+        (!step_source::IsExplicitCarrierInterpretation(options.carrierInterpretation) || !options.generalBrep ||
          options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
     {
         throw std::invalid_argument("Unverified carrier interpretation requires explicit general interoperability");

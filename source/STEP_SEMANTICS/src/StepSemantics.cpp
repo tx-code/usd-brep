@@ -914,11 +914,22 @@ private:
                         // text cannot silently satisfy that check as "".
                         const bool display = (issue.declaredIn == "PRODUCT" && (issue.field == "id" || issue.field == "name")) ||
                                              (issue.declaredIn == "PRESENTATION_LAYER_ASSIGNMENT" && issue.field == "name");
-                        if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep || !display || path.size() != 1)
+                        const bool partIdentity = issue.field == "id" &&
+                                                  (issue.declaredIn == "PRODUCT_DEFINITION_FORMATION" || issue.declaredIn == "PRODUCT_DEFINITION");
+                        const bool shapeCaption = issue.declaredIn == "REPRESENTATION_ITEM" && issue.field == "name" &&
+                                                  IsA(*m_data, r, "MANIFOLD_SOLID_BREP");
+                        const bool administrative = (issue.declaredIn == "APPROVAL" && issue.field == "level") ||
+                                                    (issue.declaredIn == "PERSON" && issue.field == "id");
+                        if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                            !(display || partIdentity || shapeCaption || administrative) || path.size() != 1)
                         {
                             throw;
                         }
-                        Preserve(std::move(failure), SemanticData::PreservationProof::OpaqueDisplayText);
+                        const auto proof = display      ? SemanticData::PreservationProof::OpaqueDisplayText :
+                                           partIdentity ? SemanticData::PreservationProof::OpaquePartIdentity :
+                                           shapeCaption ? SemanticData::PreservationProof::OpaqueShapeCaption :
+                                                          SemanticData::PreservationProof::OpaqueAdministrativeLabel;
+                        Preserve(std::move(failure), proof);
                     }
                     break;
                 }
@@ -1816,29 +1827,105 @@ private:
     }
     void Product()
     {
-        const auto ac = One("APPLICATION_CONTEXT");
+        std::optional<std::size_t> singleApplication;
+        std::optional<Failure> distinctApplications;
+        try
+        {
+            singleApplication = One("APPLICATION_CONTEXT");
+        }
+        catch (Failure& failure)
+        {
+            if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep || Population("APPLICATION_CONTEXT").size() < 2)
+            {
+                throw;
+            }
+            distinctApplications = std::move(failure); // Approval waits for the actual selected reference graph.
+        }
         std::optional<std::size_t> apd;
+        std::optional<std::size_t> definitionProtocol;
         try
         {
             apd = One("APPLICATION_PROTOCOL_DEFINITION");
         }
         catch (Failure& failure)
         {
-            // Binding already selected this source implementation. An
-            // absent administrative APD is not a replacement geometry root.
-            // Keep the exact strict guard diagnostic; do not invent its year,
-            // status or schema claim from HEADER/application text.
-            if (!CanPreserveMissingApplicationProtocol() || !Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                !Population("APPLICATION_PROTOCOL_DEFINITION").empty())
+            if (Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep && Population("APPLICATION_PROTOCOL_DEFINITION").size() > 1)
             {
-                throw;
+                // Select by the existing PC/PDC application references, never
+                // by APD text, year or array order. Two metadata applications
+                // need not share an APD; each must have exactly one association.
+                const auto productContext = One("PRODUCT_CONTEXT");
+                const auto definitionContext = One("PRODUCT_DEFINITION_CONTEXT");
+                const auto productApplication = Target(FieldValue(productContext, "frame_of_reference"));
+                const auto definitionApplication = Target(FieldValue(definitionContext, "frame_of_reference"));
+                for (const auto protocol : Population("APPLICATION_PROTOCOL_DEFINITION"))
+                {
+                    const auto application = Target(FieldValue(protocol, "application"));
+                    if (application == productApplication)
+                    {
+                        if (apd)
+                        {
+                            throw std::move(failure);
+                        }
+                        apd = protocol;
+                    }
+                    if (application == definitionApplication)
+                    {
+                        if (definitionProtocol)
+                        {
+                            throw std::move(failure);
+                        }
+                        definitionProtocol = protocol;
+                    }
+                    if (application != productApplication && application != definitionApplication)
+                    {
+                        throw std::move(failure);
+                    }
+                }
+                if (!apd || !definitionProtocol)
+                {
+                    throw std::move(failure);
+                }
+                Preserve(std::move(failure), SemanticData::PreservationProof::ContextApplicationProtocols);
             }
-            m_data->part.applicationProtocolPresent = false;
-            Preserve(std::move(failure), SemanticData::PreservationProof::MissingApplicationProtocol);
+            else
+            {
+                // Binding already selected this source implementation. An
+                // absent administrative APD is not a replacement geometry root.
+                // Keep the exact strict guard diagnostic; do not invent its year,
+                // status or schema claim from HEADER/application text.
+                if (!CanPreserveMissingApplicationProtocol() || !Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                    !Population("APPLICATION_PROTOCOL_DEFINITION").empty())
+                {
+                    throw;
+                }
+                m_data->part.applicationProtocolPresent = false;
+                Preserve(std::move(failure), SemanticData::PreservationProof::MissingApplicationProtocol);
+            }
         }
         const auto pc = One("PRODUCT_CONTEXT");
         const auto pdc = One("PRODUCT_DEFINITION_CONTEXT"), product = One("PRODUCT"), formation = One("PRODUCT_DEFINITION_FORMATION");
         const auto pd = One("PRODUCT_DEFINITION"), pds = One("PRODUCT_DEFINITION_SHAPE"), sdr = One("SHAPE_DEFINITION_REPRESENTATION");
+        const auto productApplication = distinctApplications ? Target(FieldValue(pc, "frame_of_reference")) : *singleApplication;
+        const auto definitionApplication = distinctApplications ? Target(FieldValue(pdc, "frame_of_reference")) : *singleApplication;
+        const auto protocolApplication = distinctApplications && apd ? Target(FieldValue(*apd, "application")) : productApplication;
+        const auto ac = singleApplication.value_or(protocolApplication);
+        if (distinctApplications)
+        {
+            // Application contexts are source identities, not physical unit
+            // contexts. Do not merge them by application text or select an
+            // arbitrary first instance. Every admitted context must actually
+            // occur on this unique PC/PDC/APD chain.
+            const std::array selected{ productApplication, definitionApplication, protocolApplication };
+            for (const auto context : Population("APPLICATION_CONTEXT"))
+            {
+                if (std::find(selected.begin(), selected.end(), context) == selected.end())
+                {
+                    throw std::move(*distinctApplications);
+                }
+            }
+            Preserve(std::move(*distinctApplications), SemanticData::PreservationProof::DistinctApplicationContexts);
+        }
         std::size_t definitionRepresentation = 0;
         std::optional<std::size_t> shapeRelationship;
         std::optional<std::size_t> wireframeRelationship;
@@ -1874,9 +1961,18 @@ private:
                                { "shape_definition_representation", sdr },
                                { "representation", m_representation },
                                { "unit_context", m_context } };
+        if (distinctApplications)
+        {
+            m_data->part.roles.push_back({ "product_application_context", productApplication });
+            m_data->part.roles.push_back({ "definition_application_context", definitionApplication });
+        }
         if (apd)
         {
             m_data->part.roles.insert(m_data->part.roles.begin() + 1, { "application_protocol", *apd });
+        }
+        if (definitionProtocol && definitionProtocol != apd)
+        {
+            m_data->part.roles.push_back({ "definition_application_protocol", *definitionProtocol });
         }
         if (shapeRelationship)
         {
@@ -1897,10 +1993,10 @@ private:
         }
         if (apd)
         {
-            Link(*apd, "application", ac);
+            Link(*apd, "application", distinctApplications ? protocolApplication : ac);
         }
-        Link(pc, "frame_of_reference", ac);
-        Link(pdc, "frame_of_reference", ac);
+        Link(pc, "frame_of_reference", distinctApplications ? productApplication : ac);
+        Link(pdc, "frame_of_reference", distinctApplications ? definitionApplication : ac);
         if (FieldValue(product, "frame_of_reference").children.size() != 1)
         {
             FieldFailure(
@@ -3434,6 +3530,7 @@ private:
         const auto physical = Reach(std::move(physicalRoots), false);
         std::optional<std::vector<unsigned char>> presentationUse;
         std::optional<std::vector<unsigned char>> propertyUse;
+        std::optional<std::vector<unsigned char>> selectedUse;
         std::vector<std::size_t> propertyItems;
         std::vector<unsigned char> metadata(m_data->types.size());
         for (const auto& attachment : m_data->part.propertyAttachments)
@@ -3472,6 +3569,125 @@ private:
             }
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (issue.proof == SemanticData::PreservationProof::ContextApplicationProtocols)
+            {
+                const auto selectedProtocol = [&](std::size_t protocol)
+                {
+                    return std::any_of(
+                        m_data->part.roles.begin(),
+                        m_data->part.roles.end(),
+                        [&](const auto& role)
+                        {
+                            return role.recordIndex == protocol &&
+                                   (role.name == "application_protocol" || role.name == "definition_application_protocol");
+                        }
+                    );
+                };
+                if (m_data->geometryScope != GeometryScope::GeneralBrep || !std::all_of(
+                                                                               Population("APPLICATION_PROTOCOL_DEFINITION").begin(),
+                                                                               Population("APPLICATION_PROTOCOL_DEFINITION").end(),
+                                                                               [&](auto protocol)
+                                                                               {
+                                                                                   return selectedProtocol(protocol) && !physical[protocol];
+                                                                               }
+                                                                           ))
+                {
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
+            if (issue.proof == SemanticData::PreservationProof::DistinctApplicationContexts)
+            {
+                // The original singleton profile refusal remains a diagnostic.
+                // Both descriptive application identities are retained; neither
+                // can become a physical geometry/unit dependency or a new part.
+                const auto selectedContext = [&](std::size_t context)
+                {
+                    return std::any_of(
+                        m_data->part.roles.begin(),
+                        m_data->part.roles.end(),
+                        [&](const auto& role)
+                        {
+                            return role.recordIndex == context && (role.name == "application_context" || role.name == "product_application_context" ||
+                                                                   role.name == "definition_application_context");
+                        }
+                    );
+                };
+                if (m_data->geometryScope != GeometryScope::GeneralBrep || !std::all_of(
+                                                                               Population("APPLICATION_CONTEXT").begin(),
+                                                                               Population("APPLICATION_CONTEXT").end(),
+                                                                               [&](auto context)
+                                                                               {
+                                                                                   return selectedContext(context) && !physical[context];
+                                                                               }
+                                                                           ))
+                {
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
+            if (issue.proof == SemanticData::PreservationProof::OpaquePartIdentity ||
+                issue.proof == SemanticData::PreservationProof::OpaqueShapeCaption ||
+                issue.proof == SemanticData::PreservationProof::OpaqueAdministrativeLabel)
+            {
+                const auto& field = issue.diagnostic.field;
+                const auto& owner = issue.diagnostic.declaredIn;
+                const auto selected = [&](std::string_view name)
+                {
+                    return std::any_of(
+                        m_data->part.roles.begin(),
+                        m_data->part.roles.end(),
+                        [&](const auto& role)
+                        {
+                            return role.name == name && role.recordIndex == record;
+                        }
+                    );
+                };
+                bool approved = false;
+                if (issue.proof == SemanticData::PreservationProof::OpaquePartIdentity)
+                {
+                    // Pinned N2635/AP214 PD/PDF identifiers label the selected
+                    // reference graph. They do not choose a revision/view in
+                    // this singleton subset. Keep unknown text unavailable;
+                    // multiple definitions/formations must not gain this proof.
+                    approved = field == "id" && Population("PRODUCT_DEFINITION").size() == 1 &&
+                               Population("PRODUCT_DEFINITION_FORMATION").size() == 1 && !physical[record] &&
+                               ((owner == "PRODUCT_DEFINITION" && selected("definition")) ||
+                                (owner == "PRODUCT_DEFINITION_FORMATION" && selected("formation")));
+                }
+                else if (issue.proof == SemanticData::PreservationProof::OpaqueShapeCaption)
+                {
+                    // MSB's inherited RI.name is a caption, not a shell, role,
+                    // unit or selector. This is deliberately field-level: its
+                    // owner IS physical, while every defining field must still
+                    // pass. REPRESENTATION/PDS purpose names remain excluded.
+                    approved = owner == "REPRESENTATION_ITEM" && field == "name" && IsA(*m_data, record, "MANIFOLD_SOLID_BREP") && selected("shape");
+                }
+                else
+                {
+                    if (!selectedUse)
+                    {
+                        std::vector<std::size_t> roots;
+                        for (const auto& role : m_data->part.roles)
+                        {
+                            roots.push_back(role.recordIndex);
+                        }
+                        selectedUse = Reach(std::move(roots), false);
+                    }
+                    // Administrative attachment already proved ALL assignment
+                    // targets. Do not attach orphan labels by spelling/type.
+                    approved = !physical[record] && (*selectedUse)[record] &&
+                               ((owner == "APPROVAL" && field == "level" && IsA(*m_data, record, "APPROVAL")) ||
+                                (owner == "PERSON" && field == "id" && IsA(*m_data, record, "PERSON")));
+                }
+                if (m_data->geometryScope != GeometryScope::GeneralBrep || FieldValue(record, field).kind != ValueKind::OpaqueString || !approved)
+                {
+                    State(Phase::Types) = FailureProgress(issue.status);
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
             if (issue.proof == SemanticData::PreservationProof::OpaqueDisplayText)
             {
                 // These THREE fields are labels/identifiers, not geometry or

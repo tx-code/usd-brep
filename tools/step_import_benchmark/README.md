@@ -1,5 +1,10 @@
 # STEP 模型库画像与测量工具
 
+原生探针可另选 --carrier-interpretation Level1AsCorrectedEncodingWithLowercaseHex，
+与显式通用质量及 PreserveNonGeometric 配合。它只作用于已解释声明 1 的 DATA 转义，
+完成结果保持单列解释资格；旧策略及其他声明不变，其他引擎／模式拒绝该原生参数。
+读取、字符、值、诊断、原生限额及报告／提交条件继续适用。
+
 原生探针可另传 `--schema-interpretation Ap214NameOnlyAs2010`，与显式通用质量及
 `PreserveNonGeometric` 配合，仅为裸 `AUTOMOTIVE_DESIGN` 选择固定源解释。源版次未验证，
 完成模型仍为 `AcceptedUnderInterpretation`。旧八段标识策略与它的适用身份互不替代；

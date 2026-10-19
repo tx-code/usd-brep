@@ -242,7 +242,8 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                 (!args.schemaInterpretation.empty() && args.schemaInterpretation != "DeclaredOnly" &&
                  args.schemaInterpretation != "UnregisteredAp214As2010" && args.schemaInterpretation != "Ap214NameOnlyAs2010") ||
                 (!args.carrierInterpretation.empty() && args.carrierInterpretation != "DeclaredOnly" &&
-                 args.carrierInterpretation != "Level1AsCorrectedEncoding"))
+                 args.carrierInterpretation != "Level1AsCorrectedEncoding" &&
+                 args.carrierInterpretation != "Level1AsCorrectedEncodingWithLowercaseHex"))
             {
                 throw std::invalid_argument("Unknown explicit native quality or source policy");
             }
@@ -256,7 +257,8 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
             {
                 throw std::invalid_argument("Schema interpretation requires explicit general interoperability");
             }
-            if (args.carrierInterpretation == "Level1AsCorrectedEncoding" &&
+            if ((args.carrierInterpretation == "Level1AsCorrectedEncoding" ||
+                 args.carrierInterpretation == "Level1AsCorrectedEncodingWithLowercaseHex") &&
                 (args.sourcePolicy != "PreserveNonGeometric" || !GeneralQuality(args.quality)))
             {
                 throw std::invalid_argument("Carrier interpretation requires explicit general interoperability");
