@@ -110,6 +110,16 @@ double Q(Fraction a)
 {
     return double(a.Numerator()) / double(a.Denominator());
 }
+std::array<double, 2> FullPeriodDegrees(double startRadians)
+{
+    // Kernel analytic angles are degrees. Converting both radian endpoints
+    // independently can produce a span one ulp above 360, outside the native
+    // full-revolution constructor's range. Convert the phase once and add the
+    // native period; this only chooses the computational chart. Source angles,
+    // coefficients, topology and the later mm error budgets remain unchanged.
+    const double startDegrees = startRadians * 180 / std::numbers::pi;
+    return { startDegrees, startDegrees + 360.0 };
+}
 void Good(SmStatus a)
 {
     if (a != SM_SUCCESS)
@@ -739,7 +749,9 @@ private:
                                    { "origin_mm", { frame.o.begin(), frame.o.end() } },
                                    { "x", { frame.x.begin(), frame.x.end() } },
                                    { "y", { frame.y.begin(), frame.y.end() } } };
-            const SmExtent1d domain(t0 * 180 / std::numbers::pi, t1 * 180 / std::numbers::pi);
+            const auto degrees = c.v0 == c.v1 ? FullPeriodDegrees(t0) :
+                                                std::array<double, 2>{ t0 * 180 / std::numbers::pi, t1 * 180 / std::numbers::pi };
+            const SmExtent1d domain(degrees[0], degrees[1]);
             if (trimmed && (!(domain.GetMax() > domain.GetMin()) || domain.GetMin() < -360 || domain.GetMax() > 360))
             {
                 Fail("GeneralTrimmedNativeAngleRangeUnestablished", c.geometry, Status::Unsupported);
@@ -1043,7 +1055,7 @@ private:
         if (const auto seam = MissingSeam(f))
         {
             const double start = seam->angle > 0 ? seam->angle - tau : seam->angle;
-            return { start * 180 / std::numbers::pi, (start + tau) * 180 / std::numbers::pi };
+            return FullPeriodDegrees(start);
         }
         // STEP may already represent a periodic seam by two opposite uses of
         // one generatrix. Align the analytic domain to that exact source edge;
@@ -1069,7 +1081,7 @@ private:
                     continue;
                 }
                 const double start = t0 > 0 ? t0 - tau : t0;
-                return { start * 180 / std::numbers::pi, (start + tau) * 180 / std::numbers::pi };
+                return FullPeriodDegrees(start);
             }
         }
         bool splineBoundary = false;
@@ -1114,7 +1126,7 @@ private:
             if (maximumRadius > 0 && spread * maximumRadius <= Q(m_options.quality.derivedUvMm) / 4)
             {
                 const double start = center > 0 ? center - tau : center;
-                return { start * 180 / std::numbers::pi, (start + tau) * 180 / std::numbers::pi };
+                return FullPeriodDegrees(start);
             }
         }
         std::vector<std::pair<double, double>> cover;
@@ -2259,8 +2271,15 @@ private:
             origin[axis] = std::midpoint(info.boundsMm[0][axis], info.boundsMm[1][axis]);
         }
         GeneralSolidIntegrals integrals;
-        Good(IntegrateGeneralSolid(*m_model, origin,
-            [&](Index face) { Step(faces[face].record); }, integrals));
+        Good(IntegrateGeneralSolid(
+            *m_model,
+            origin,
+            [&](Index face)
+            {
+                Step(faces[face].record);
+            },
+            integrals
+        ));
         info.areaMm2 = integrals.areaMm2;
         const double volume = integrals.volumeMm3;
         Need(std::isfinite(volume) && volume > 0 && std::isfinite(info.areaMm2) && info.areaMm2 > 0, "GeneralSolidMeasures", shape);
@@ -2293,7 +2312,9 @@ private:
             Good(std::abs(integral.areaMm2) >= SM_EFF_ZERO ? SM_SUCCESS : SM_ERR_INVALID_INPUT);
             f.info.areaMm2 = std::abs(integral.areaMm2);
             for (Index axis = 0; axis < 3; ++axis)
+            {
                 f.info.centroidMm[axis] = integral.areaOriginMm[axis] + integral.areaFirstMomentMm3[axis] / integral.areaMm2;
+            }
             std::set<Index> faceEdges, faceVertices;
             for (const auto& loop : faces[i].loops)
             {
