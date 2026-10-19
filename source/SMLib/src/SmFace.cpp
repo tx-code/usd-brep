@@ -6,28 +6,29 @@
 * PURPOSE: Source file for SmFace class methods.
 **********************************************************************/
 
+#include "SmFaceIntegralSpans.h"
 #include "SmMath.h"
 #include "StdAfx.h"
 
-#include <nurbs.h>
-#include <SmFace.h>
-#include <SmVertex.h>
-#include <SmSurface.h>
-#include <SmEdge.h>
 #include <SmBSplineSurface.h>
-#include <SmTArray.h>
-#include <SmTrimSrfCache.h>
-#include <SmGeomUtility.h>
-#include <SmCrvOnSurf.h>
+#include <SmBrep.h>
 #include <SmCompositeCurve.h>
+#include <SmCrvOnSurf.h>
+#include <SmEdge.h>
+#include <SmFace.h>
+#include <SmGeomUtility.h>
+#include <SmGraphicsOutput.h>
 #include <SmIntegrator.h>
 #include <SmIsoCurve.h>
-#include <SmOffsetSurface.h>
 #include <SmLine.h>
-#include <SmTrimmingTools.h>
 #include <SmLoop.h>
-#include <SmBrep.h>
-#include <SmGraphicsOutput.h>
+#include <SmOffsetSurface.h>
+#include <SmSurface.h>
+#include <SmTArray.h>
+#include <SmTrimSrfCache.h>
+#include <SmTrimmingTools.h>
+#include <SmVertex.h>
+#include <nurbs.h>
 // Remove Composites
 // #include <SmCFace.h>
 // Remove Composites
@@ -5660,19 +5661,32 @@ private:
     SmPoint3d          m_vAreaOriginOfComputation;
     double             m_dFaceThickness;
     const SmPrecisePropertyLayout & m_crLayout;
+    const sm_face_integrals::Span* m_cpNativeSpan;
+
 public:
-    SmODEAreaIFEO(const SmSurface & crSurface,
-        const SmCurve & crUVCurve, double dMinV,
-        double dIsoCurveAccuracy, SmTArray<double> * pYScale,
-        const SmPoint3d & crOriginOfComputation, const SmPoint3d & crAreaOriginOfComputation,
-        double dFaceThickness, const SmPrecisePropertyLayout & crLayout)
-        : m_crSurface(crSurface), m_crUVCurve(crUVCurve),
+
+    SmODEAreaIFEO(
+        const SmSurface& crSurface,
+        const SmCurve& crUVCurve,
+        double dMinV,
+        double dIsoCurveAccuracy,
+        SmTArray<double>* pYScale,
+        const SmPoint3d& crOriginOfComputation,
+        const SmPoint3d& crAreaOriginOfComputation,
+        double dFaceThickness,
+        const SmPrecisePropertyLayout& crLayout,
+        const sm_face_integrals::Span* cpNativeSpan = nullptr
+    )
+        : m_crSurface(crSurface),
+          m_crUVCurve(crUVCurve),
           m_dMinV(dMinV),
           m_dIsoCurveAccuracy(dIsoCurveAccuracy),
           m_pYScale(pYScale),
           m_vOriginOfComputation(crOriginOfComputation),
           m_vAreaOriginOfComputation(crAreaOriginOfComputation),
-          m_dFaceThickness(dFaceThickness), m_crLayout(crLayout)
+          m_dFaceThickness(dFaceThickness),
+          m_crLayout(crLayout),
+          m_cpNativeSpan(cpNativeSpan)
     {}
     virtual SmStatus Evaluate(double dT,                             // in : 
                               SmTArray<double> & rYValues,           // NotUsed: out: 
@@ -5945,7 +5959,13 @@ SmStatus SmODEAreaIFEO::Evaluate
 {
   SM_REF1(rYValues) ;
     SmPoint3d sPV[2];
-    SER(m_crUVCurve.Evaluate(dT,1,TRUE,sPV));
+    if (m_cpNativeSpan && (!std::isfinite(dT) || dT < 0.0 || dT > 1.0))
+    {
+        return SM_ERR_INVALID_INPUT;
+    }
+    const double dNativeT = m_cpNativeSpan ? m_cpNativeSpan->Parameter(dT) : dT;
+    const SmBoolean bFromLeft = m_cpNativeSpan ? m_cpNativeSpan->FromLeft(dNativeT) : TRUE;
+    SER(m_crUVCurve.Evaluate(dNativeT, 1, bFromLeft, sPV));
 
     SmODEIsoCurveLengthIFEO sEval(m_crSurface,sPV[0].x,m_vOriginOfComputation,m_vAreaOriginOfComputation,m_dFaceThickness,m_crLayout);
     SmODEIntegrator sIntegrator(sEval);
@@ -5978,9 +5998,20 @@ SmBoolean bDebugMe = FALSE;
         rDyDxValues.ReSet();
         rDyDxValues.Add(0.0);
         rDyDxValues.Append(dY);
+        // The outer solver uses [0,1] only for split spans. Apply the native
+        // parameter Jacobian before the product; the UV/3D definitions and the
+        // original native-derivative cutoff above remain unchanged.
+        const double dDu = m_cpNativeSpan ? sPV[1].x * m_cpNativeSpan->Length() : sPV[1].x;
         for (ULONG i=1; i<rDyDxValues.GetSize(); i++) {
-            rDyDxValues[i] = rDyDxValues[i] * sPV[1].x * -1.0;
+            rDyDxValues[i] = rDyDxValues[i] * dDu * -1.0;
         }
+    }
+    else if (m_cpNativeSpan)
+    {
+        // Every normalized-span evaluation must assign its derivative, also
+        // at vertical UV tangents after a previous nonzero RK stage.
+        rDyDxValues.SetSize(m_pYScale->GetSize() + 1);
+        rDyDxValues.SetAll(0.0);
     }
 
     return SM_SUCCESS;
@@ -6029,15 +6060,17 @@ SmStatus SmFace::ComputePreciseProperties
         dEstimatedArea,dFaceThickness,rdDeltaArea,rdDeltaVolume,rDeltaMoments,SM_PPF_ALL);
 }
 
-/*******************************************************************//**
-PURPOSE: Compute selected groups of precise face properties in one integration.
+/*******************************************************************/ /**
+ PURPOSE: Compute selected groups of precise face properties in one integration.
 
-NOTES: Groups are independent. Both nested integrations retain the historical
-  area-derived error control, accuracy scales, and retry policy. Unrequested
-  properties are not integrated and their outputs are zero on success. Moments
-  retain the eight-vector layout documented above; second-moment groups include
-  the products and axial inertia vectors. Existing callers request ALL.
-***********************************************************************/
+ NOTES: Groups are independent. Both nested integrations retain area-derived
+   error control and the retry policy. Clamped concrete B-spline UV boundaries
+   are partitioned at actual knots, with the numerical control fraction shared
+   between spans; this does not establish a certified global error bound. Unrequested
+   properties are not integrated and their outputs are zero on success. Moments
+   retain the eight-vector layout documented above; second-moment groups include
+   the products and axial inertia vectors. Existing callers request ALL.
+ ***********************************************************************/
 SmStatus SmFace::ComputePreciseProperties
 (
   SmOrientType           eOrientation,           // in :
@@ -6122,35 +6155,59 @@ SmBoolean bDebugMe = FALSE;
 #endif // SM_DEBUG_CODE
             yscale[0] = dEstimatedArea/10.0;
 
-            SmODEAreaIFEO sAreaEval(*this->GetSurface(),*pBSC,GetUVDomain().GetMin().y,
-                dDesiredAccuracy/10.0,&yscale,crOriginOfComputation,crAreaOriginOfComputation,dFaceThickness,sLayout);
-            SmODEIntegrator sODE(sAreaEval);
             SmTArray<double> dY(lNumComponents,NULL,lNumComponents);
+            dY.SetAll(0.0);
             SmExtent1d sIvl = pBSC->GetNaturalInterval();
-            double dSpan = sIvl.GetMax() - sIvl.GetMin();
-            ULONG lNumOK, lNumBad;
-
-            // A coarse first Runge-Kutta step can trip the integrator's abort
-            // guard for one traversal direction, so a reversed cap loop fails
-            // where its twin succeeds. Try the historical span/2 step first
-            // (already-converged integrations stay unchanged), then fall back
-            // to finer steps; adaptive control converges to the same value.
-            static constexpr double kInitStepDivs[] = { 2.0, 8.0, 64.0, 512.0, 4096.0 };
-            SmStatus rkStat = SM_ERR;
-            for (ULONG iDiv = 0; iDiv < sizeof(kInitStepDivs)/sizeof(kInitStepDivs[0]); iDiv++)
+            sm_face_integrals::Partition partition;
+            SER(sm_face_integrals::MakePartition(*pBSC, sIvl, partition));
+            const double accuracy = sm_face_integrals::SpanAccuracy(dDesiredAccuracy / 10.0, partition.Size());
+            if (!(accuracy > 0.0) || !std::isfinite(accuracy))
             {
-                // Zero the accumulator each try; a failed integrate leaves
-                // partial sums in dY that would double-count on the next retry.
-                dY.SetAll(0.0);
-                rkStat = sODE.RungeKuttaODEIntegrate(dY,sIvl.GetMin(), sIvl.GetMax(),
-                    dDesiredAccuracy/10.0, dSpan/kInitStepDivs[iDiv], 0.0, lNumOK, lNumBad,
-                    &yscale);
-                if (rkStat == SM_SUCCESS) { break; }
+                return SM_ERR_INVALID_INPUT;
             }
-            // Propagate failure instead of dropping the boundary: a silent skip
-            // would return SM_SUCCESS with zero/partial properties, hiding a
-            // numerical failure as a valid zero.
-            SER(rkStat);
+            // RK error estimates across a knot can accept a coarse step even
+            // when the two basis pieces have different derivatives. Integrate
+            // every actual positive span separately. Normalizing its parameter
+            // avoids the integrator's small-native-interval early return.
+            for (ULONG segment = 0; segment < partition.Size(); ++segment)
+            {
+                const auto span = partition.IsSplit() ? partition[segment] : sm_face_integrals::Span{ sIvl.GetMin(), sIvl.GetMax() };
+                SmODEAreaIFEO evaluator(
+                    *this->GetSurface(),
+                    *pBSC,
+                    GetUVDomain().GetMin().y,
+                    accuracy,
+                    &yscale,
+                    crOriginOfComputation,
+                    crAreaOriginOfComputation,
+                    dFaceThickness,
+                    sLayout,
+                    partition.IsSplit() ? &span : nullptr
+                );
+                SmODEIntegrator integrator(evaluator);
+                SmTArray<double> partial(lNumComponents, NULL, lNumComponents);
+                const double min = partition.IsSplit() ? 0.0 : span.min;
+                const double max = partition.IsSplit() ? 1.0 : span.max;
+                SmStatus status = SM_ERR;
+                for (double divisor : sm_face_integrals::initialStepDivisors)
+                {
+                    // Discard partial values on each retry, and commit this
+                    // curve only after all spans succeed. Keep the legacy
+                    // initial-step sequence and propagate every final failure.
+                    partial.SetAll(0.0);
+                    ULONG good, bad;
+                    status = integrator.RungeKuttaODEIntegrate(partial, min, max, accuracy, (max - min) / divisor, 0.0, good, bad, &yscale);
+                    if (status == SM_SUCCESS)
+                    {
+                        break;
+                    }
+                }
+                SER(status);
+                for (ULONG component = 0; component < lNumComponents; ++component)
+                {
+                    dY[component] += partial[component];
+                }
+            }
 
             // ODE evaluator indices are one-based; the result array is zero-based.
             if (sLayout.m_lArea) dTotalArea += dY[sLayout.m_lArea-1];

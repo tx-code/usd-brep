@@ -47,11 +47,3 @@ Near a surface pole, for example the apex of a cone, dropping a curve onto a sur
 On solids filleted with `circular_fillet`, `tessellate()` can wind some triangles against their face's normal, so they render inside out. Seen on cylinder caps and on cones next to fillets.
 
 **Workaround:** a `surface_angle_tolerance_deg` of 15° avoided every case found.
-
-## Measurement
-
-### Area, volume and mass properties of faces bounded by circles
-
-Face area, Brep area and volume, and mass properties (`Face.area()`, `Brep.area()`, `Brep.volume()` and the matching `SmApi*` functions) can be inaccurate for faces whose trim curves have interior knots, such as rational circles. Measured relative area errors were up to about 1.4% at the default `relative_accuracy` of 1e-3, and up to 20% at 1e-1.
-
-**Workaround:** use a smaller `relative_accuracy`. The error fell as the accuracy was tightened in every measured case.
