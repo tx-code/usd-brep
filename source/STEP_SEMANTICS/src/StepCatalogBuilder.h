@@ -460,14 +460,31 @@ constexpr Layout ComputeLayout(const Recipe& recipe)
         const auto overlaps = [&](std::string_view otherOwner)
         {
             const auto other = typeId(otherOwner);
-            return other && std::any_of(
-                                layout.ancestors.begin(),
-                                layout.ancestors.end(),
-                                [&](const auto& membership)
-                                {
-                                    return membership.test(*owner) && membership.test(*other);
-                                }
-                            );
+            if (!other)
+            {
+                return false;
+            }
+            if (std::any_of(
+                    layout.ancestors.begin(),
+                    layout.ancestors.end(),
+                    [&](const auto& membership)
+                    {
+                        return membership.test(*owner) && membership.test(*other);
+                    }
+                ))
+            {
+                return true;
+            }
+            // An admitted complex instance may combine sibling facets without
+            // a named joint subtype. Its effective field must be unique too.
+            return std::any_of(
+                recipe.complexSignatures.begin(),
+                recipe.complexSignatures.end(),
+                [&](const auto signature)
+                {
+                    return Contains(signature, slot.recordType) && Contains(signature, otherOwner);
+                }
+            );
         };
         for (std::size_t previous = 0; previous < i; ++previous)
         {

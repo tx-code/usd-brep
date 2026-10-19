@@ -88,6 +88,35 @@ class ForeignRealItemTests(unittest.TestCase):
         self.assertEqual("Unset", next(x for x in report["source"]["records"] if x["id"] == "903")
                          ["components"][0]["parameters"][0]["kind"])
 
+    def test_property_unit_context_does_not_assign_units_or_scale_the_bare_real(self):
+        data = real_item_source(b"1.25").replace(
+            b"#904=REPRESENTATION_CONTEXT('property context','source metadata');",
+            b"#904=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#911,#11)) "
+            b"REPRESENTATION_CONTEXT('property context','source metadata'));\n"
+            b"#911=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.));")
+        report = self.checked(data)
+        self.assertEqual("12", report["snapshot"]["part"]["roles"]["unit_context"])
+        self.assertEqual({"kind": "rational", "num": "1", "den": "1"},
+                         report["snapshot"]["units"]["length_scale_mm"])
+        number = next(x for x in report["source"]["records"] if x["id"] == "903")
+        self.assertEqual("1.25", number["components"][0]["parameters"][1]["text"])
+
+    def test_two_proven_property_links_can_share_the_same_raw_item(self):
+        data = append_records(real_item_source(), b"""#910=PROPERTY_DEFINITION('another scalar',$,#8);
+#911=PROPERTY_DEFINITION_REPRESENTATION(#910,#912);
+#912=REPRESENTATION('same raw scalar',(#903),#904);
+""")
+        report = self.checked(data)
+        self.assertEqual(2, len(report["snapshot"]["part"]["property_attachments"]))
+        self.assertEqual(1, len(report["preserved_diagnostics"]))
+
+    def test_a_property_item_reused_by_the_body_is_not_approved_as_nonphysical(self):
+        data = real_item_source().replace(b"(#21),#12", b"(#21,#903),#12")
+        self.assertNotEqual(data, real_item_source())
+        run, report = self.invoke(data, *INTEROP)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["snapshot"])
+
     def test_only_explicit_general_interoperability_in_the_mbx_profile_can_admit_it(self):
         for flags in ((), ("--general-brep-source",), ("--interop-nongeometric",)):
             run, report = self.invoke(real_item_source(), *flags)

@@ -494,6 +494,16 @@
       "expect": "fail",
       "marker": "STEP_CATALOG_INVALID_ExplicitOrigin",
       "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_complex_conflict",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=10"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitConflict",
+      "positive_control": "explicit_valid"
     }
   ]
 }

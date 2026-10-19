@@ -90,6 +90,10 @@ class Ap214Tests(unittest.TestCase):
         self.assertEqual([], populations.pop("DESIGN_CONTEXT"))
         for name in ("GENERAL_PROPERTY", "GENERAL_PROPERTY_ASSOCIATION", "OVER_RIDING_STYLED_ITEM", "PRESENTATION_LAYER_ASSIGNMENT"):
             self.assertEqual([], populations.pop(name))
+        for name in ("GENERIC_EXPRESSION", "EXPRESSION", "NUMERIC_EXPRESSION", "SIMPLE_GENERIC_EXPRESSION",
+                     "GENERIC_LITERAL", "SIMPLE_NUMERIC_EXPRESSION", "LITERAL_NUMBER", "REAL_LITERAL",
+                     "REAL_REPRESENTATION_ITEM"):
+            self.assertEqual([], populations.pop(name))
         self.assertEqual(old["snapshot"]["type_populations"], populations)
         self.assertEqual(old["statistics"]["dependency_visits"], result["statistics"]["dependency_visits"])
 

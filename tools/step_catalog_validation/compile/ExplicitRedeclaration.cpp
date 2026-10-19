@@ -4,6 +4,7 @@
 
 using namespace step_semantics;
 using namespace step_semantics::catalog_build;
+[[maybe_unused]] constexpr std::string_view JointFacets[] = { "BASE", "NARROW", "SIBLING" };
 #ifndef STEP_EXPLICIT_CASE
 #    define STEP_EXPLICIT_CASE 0
 #endif
@@ -55,6 +56,12 @@ constexpr Recipe Description()
     if constexpr (STEP_EXPLICIT_CASE == 9)
     {
         recipe.explicitRedeclarations[0].recordType = "BASE";
+    }
+    if constexpr (STEP_EXPLICIT_CASE == 10)
+    {
+        recipe.declarations.push_back({ "SIBLING", { "BASE" }, {} });
+        recipe.explicitRedeclarations.push_back({ "SIBLING", "BASE", "the_value", "REAL", FieldKind::Real });
+        recipe.complexSignatures.push_back(JointFacets);
     }
     return recipe;
 }
