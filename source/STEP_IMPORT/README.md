@@ -1,10 +1,28 @@
 # STEP_IMPORT（内部 C++20）
 
 源层可在显式通用范围中保留 BRep 与独立关联线框，具体图、角色与必要规则见
-[源检查合同](../STEP_SEMANTICS/README.md)。原生构建尚未实现该线框的完整对象、查询和存档路径；
-遇到 `wireframe_representation` 时，在任何原生调用前返回
-`GeneralLinkedWireframeUnsupported`，不发布只含 BRep 的部分模型。
-类型识别或源检查成功不授予这种组合的原生导入资格。
+[源检查合同](../STEP_SEMANTICS/README.md)。原生通用路径分别持有材料 BRep、独立曲线和点，
+不从关联关系推断合并、变换或材料边界。线框支持 CARTESIAN_POINT、单层 LINE／CIRCLE／ELLIPSE
+裁剪、完整 CIRCLE／ELLIPSE 和显式节点 B 样条（含已登记有理复合类型）；嵌套裁剪等其余构建
+明确 Unsupported。LINE 裁剪参数无量纲，VECTOR 长度只缩放一次；圆锥曲线沿已有角单位、
+主表示、双表示一致性和方向合同解释。源点、集合成员、共享定义及每条关联身份保持，
+同坐标的不同源点不合并。全部必需几何、检查与报告完成后才经原有提交点整体发布。
+
+`Wireframes()` 返回按源曲线集分组的 owning `WireframeView`。`Info()` 含原表示／关系／集合／
+成员身份、独立点坐标、实际原生曲线参数域和方向对应；`EvaluateCurve()` 先拒绝域外参数。
+视图保活模型、context 及源解释资格。`Closest()` 只查询本集合；必要成员求解失败就拒绝答案，
+已知精确重合的零距离可直接裁决。求解与原生包围盒仍是开发量测，不授予连续全段定义误差、
+已认证最近距离界或任意线程安全。原生定义端点误差和源裁剪残差分别按其独立预算检查与报告。
+
+`ModelSnapshot::Info()`、`Closest()` 和材料分类／体积针对所选 BRep 边界；独立线框不参与
+材料内外判定。含线框时 `CopyForModeling()` 返回 Unsupported，避免隐式丢掉关联几何；
+调用者可明确选择 `CopyBrepForModeling()` 取得独立的 BRep 建模副本。
+`WriteNative()` 保存完整 part：独立曲线数组、材料 BRep，以及每个独立点对应的无边无面
+vertex-only 适配 BRep。该适配不表示源文件声明了 VERTEX_POINT；其索引对应保存在报告中。
+原生容器不自动保存 STEP 身份或关联语义，须同时保留原报告／源快照。
+写出使用私有副本并读回核对完整数量、曲线类／节点／权重／控制网、点和 BRep；
+不能只用顶层 writer 的成功状态证明完整保存。读回保留原生存档记录的工作容差，
+不套用外部数据转换的坐标尺度推断。失败和取消在 context 前释放所有未发布曲线与 BRep。
 
 通用开发请求可显式设置 `Options.schemaInterpretation=UnregisteredAp214As2010`，
 并同时选择通用质量与非几何互操作策略。它只为未登记的八段 AP214 标识选择固定源解释，

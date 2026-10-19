@@ -1550,7 +1550,13 @@ SmStatus SmBrepData::ReadPartFromDB
 
         // Build Brep Model from BrepData
         //   FALSE: do not force creation of uv trim curves.
-        SER(rBreps[k]->MakeTopologyFromData(pBrepData,sAttributes,FALSE));
+        // This is a native part archive, not an external translator. Preserve
+        // its stored work tolerance (SmBrep.h: bForceSameTol); the default
+        // external-data policy clamps tolerance to a coordinate-size estimate.
+        // That turns a valid origin-point BRep's tolerance into zero and can
+        // enlarge the tolerance of a distant point. Keep recognition/healing
+        // options unchanged and do not modify the serialized geometry.
+        SER(rBreps[k]->MakeTopologyFromData(pBrepData,sAttributes,FALSE,TRUE,TRUE));
 
         // clean up
         SM_ASSERT(pBrepData != NULL) ; delete pBrepData ; pBrepData = NULL ;

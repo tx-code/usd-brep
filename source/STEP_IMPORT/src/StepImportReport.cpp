@@ -415,6 +415,11 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                         w.Add(",\"source_basis_geometry\":");
                         w.String(*map.sourceBasisGeometryId);
                     }
+                    if (map.targetCurveIndex)
+                    {
+                        w.Add(",\"target_curve_index\":");
+                        w.Number(*map.targetCurveIndex);
+                    }
                     w.Add(",\"source_use\":");
                     w.String(map.sourceUseId);
                     w.Add(",\"equation\":");
@@ -471,7 +476,70 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                     w.String(report.classifiedOuterBounds[i].second);
                     w.Add(",\"method\":\"NativePlanarCurveIntersectionContainment\",\"source_rewritten\":false}");
                 }
-                w.Add("]}");
+                w.Add("]");
+                if (!report.wireframes.empty())
+                {
+                    w.Add(",\"linked_wireframes\":[");
+                    for (std::size_t i = 0; i < report.wireframes.size(); ++i)
+                    {
+                        if (i)
+                        {
+                            w.Add(",");
+                        }
+                        const auto& group = report.wireframes[i];
+                        w.Add("{\"source_representation\":");
+                        w.String(group.representationId);
+                        w.Add(",\"source_relationship\":");
+                        w.String(group.relationshipId);
+                        w.Add(",\"source_set\":");
+                        w.String(group.setId);
+                        w.Add(",\"role\":\"IndependentAssociatedWireframe\",\"material_boundary\":false,\"bounds_mm\":[");
+                        PointJson(w, group.boundsMm[0]);
+                        w.Add(",");
+                        PointJson(w, group.boundsMm[1]);
+                        w.Add("],\"curves\":[");
+                        for (std::size_t j = 0; j < group.curves.size(); ++j)
+                        {
+                            if (j)
+                            {
+                                w.Add(",");
+                            }
+                            const auto& curve = group.curves[j];
+                            w.Add("{\"source_id\":");
+                            w.String(curve.sourceId);
+                            w.Add(",\"source_basis\":");
+                            w.String(curve.basisId);
+                            w.Add(",\"native_curve_index\":");
+                            w.Number(curve.nativeIndex);
+                            w.Add(",\"native_parameter_domain\":[");
+                            Number(w, curve.parameterDomain[0]);
+                            w.Add(",");
+                            Number(w, curve.parameterDomain[1]);
+                            w.Add("],\"source_forward_in_native\":");
+                            w.Bool(curve.sourceForwardInNative);
+                            w.Add("}");
+                        }
+                        w.Add("],\"points\":[");
+                        for (std::size_t j = 0; j < group.points.size(); ++j)
+                        {
+                            if (j)
+                            {
+                                w.Add(",");
+                            }
+                            const auto& point = group.points[j];
+                            w.Add("{\"source_id\":");
+                            w.String(point.sourceId);
+                            w.Add(",\"archive_point_brep_index\":");
+                            w.Number(point.nativeIndex + 1);
+                            w.Add(",\"point_mm\":");
+                            PointJson(w, point.pointMm);
+                            w.Add("}");
+                        }
+                        w.Add("]}");
+                    }
+                    w.Add("]");
+                }
+                w.Add("}");
                 return;
             }
             w.Add("{\"format_version\":\"step-native-import.v2\",\"scope\":\"PlanarNativeImport\",\"status\":");

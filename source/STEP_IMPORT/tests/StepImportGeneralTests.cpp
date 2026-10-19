@@ -20,6 +20,7 @@
 #include <SmPlane.h>
 #include <SmRegion.h>
 #include <SmShell.h>
+#include <SmVertex.h>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -27,6 +28,7 @@
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <set>
 #include <stdexcept>
 
 namespace
@@ -116,8 +118,10 @@ struct ReloadedNative
 {
     std::unique_ptr<SmContext> context;
     std::unique_ptr<SmBrep> brep;
+    std::vector<std::unique_ptr<SmCurve>> curves;
+    std::vector<std::unique_ptr<SmBrep>> pointAdapters;
 };
-ReloadedNative ReloadNative(const std::filesystem::path& archive)
+ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vector<step_import::WireframeView>& wireframes = {})
 {
     ReloadedNative result;
     result.context = std::make_unique<SmContext>();
@@ -125,15 +129,77 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive)
     SmTArray<SmSurface*> surfaces;
     SmTArray<long> trees;
     SmTArray<SmBrep*> breps;
+    SmObjsDelete<SmCurve*> deleteCurves(&curves);
+    SmObjsDelete<SmSurface*> deleteSurfaces(&surfaces);
+    SmObjsDelete<SmBrep*> deleteBreps(&breps);
     Require(
         SmBrepData::ReadPartFromFile(*result.context, archive.c_str(), curves, surfaces, trees, breps, SM_BINARY) == SM_SUCCESS,
         "native archive reload"
     );
-    Require(breps.GetSize() == 1 && curves.GetSize() == 0 && surfaces.GetSize() == 0, "archive root inventory");
+    std::set<std::size_t> curveIndices, pointIndices;
+    for (const auto& view : wireframes)
+    {
+        const auto info = view.Info();
+        for (const auto& curve : info.curves)
+        {
+            curveIndices.insert(curve.nativeIndex);
+        }
+        for (const auto& point : info.points)
+        {
+            pointIndices.insert(point.nativeIndex);
+        }
+    }
+    Require(
+        breps.GetSize() == 1 + pointIndices.size() && curves.GetSize() == curveIndices.size() && surfaces.GetSize() == 0 && trees.GetSize() == 0,
+        "archive complete selected root inventory"
+    );
     result.brep.reset(breps[0]);
+    breps[0] = nullptr;
+    for (ULONG i = 0; i < curves.GetSize(); ++i)
+    {
+        result.curves.emplace_back(curves[i]);
+        curves[i] = nullptr;
+    }
+    for (ULONG i = 1; i < breps.GetSize(); ++i)
+    {
+        result.pointAdapters.emplace_back(breps[i]);
+        breps[i] = nullptr;
+    }
     SmAssertArray pointers, deep;
     Require(result.brep->ValidatePointers(&pointers) == SM_SUCCESS && pointers.GetSize() == 0, "reloaded pointers");
     Require(result.brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0, "reloaded level2");
+    for (const auto& view : wireframes)
+    {
+        const auto info = view.Info();
+        for (const auto& point : info.points)
+        {
+            SmTArray<SmVertex*> vertices;
+            auto& adapter = *result.pointAdapters.at(point.nativeIndex);
+            adapter.GetVertices(vertices);
+            Require(vertices.GetSize() == 1, "reloaded standalone source point");
+            const auto actual = vertices[0]->GetPoint();
+            Near(actual.DistanceBetween(SmPoint3d(point.pointMm[0], point.pointMm[1], point.pointMm[2])), 0, 1e-9, "archive point position");
+        }
+        for (std::size_t index = 0; index < info.curves.size(); ++index)
+        {
+            const auto& curve = info.curves[index];
+            const auto& read = *result.curves.at(curve.nativeIndex);
+            Require(
+                read.GetNaturalInterval().GetMin() == curve.parameterDomain[0] && read.GetNaturalInterval().GetMax() == curve.parameterDomain[1],
+                "reloaded linked native parameter interval"
+            );
+            // Additional read/evaluate observations, not a continuous error
+            // proof. The production mixed writer also compares complete nets.
+            for (unsigned sample = 0; sample <= 8; ++sample)
+            {
+                const auto parameter = std::lerp(curve.parameterDomain[0], curve.parameterDomain[1], double(sample) / 8);
+                const auto expected = view.EvaluateCurve(index, parameter);
+                SmPoint3d actual;
+                Require(read.EvaluatePoint(parameter, actual) == SM_SUCCESS, "reloaded linked curve evaluation");
+                Near(actual.DistanceBetween(SmPoint3d(expected[0], expected[1], expected[2])), 0, 1e-9, "reloaded linked curve sample");
+            }
+        }
+    }
     return result;
 }
 double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::Point, 2>& bounds)
@@ -783,7 +849,7 @@ void DevelopmentContract(
     {
         Require(std::isfinite(value), "development surface evaluation");
     }
-    auto editable = result.model->CopyForModeling();
+    auto editable = result.model->CopyBrepForModeling();
     Require(editable.status == step_import::Status::Accepted && bool(editable.model), "development independent modeling copy");
     double copiedVolume = 0;
     editable.model->Edit(
@@ -799,7 +865,22 @@ void DevelopmentContract(
     Near(copiedVolume, expected, std::max(1e-6, expected * 2e-4), "copy numerical volume agreement");
     const auto archive = directory / "model.smb";
     result.model->WriteNative(archive);
-    auto loaded = ReloadNative(archive);
+    const auto wireframes = result.model->Wireframes();
+    for (const auto& wireframe : wireframes)
+    {
+        const auto group = wireframe.Info();
+        for (const auto& point : group.points)
+        {
+            Near(wireframe.Closest(point.pointMm).distanceMm, 0, 1e-9, "development whole-set point query");
+        }
+        if (!group.curves.empty())
+        {
+            const auto curveDomain = group.curves[0].parameterDomain;
+            const auto sample = wireframe.EvaluateCurve(0, std::midpoint(curveDomain[0], curveDomain[1]));
+            Near(wireframe.Closest(sample).distanceMm, 0, 1e-5, "development whole-set curve query");
+        }
+    }
+    auto loaded = ReloadNative(archive, wireframes);
     SmTArray<SmFace*> faces;
     SmTArray<SmEdge*> edges;
     SmTArray<SmVertex*> vertices;
@@ -838,7 +919,14 @@ void DevelopmentContract(
         << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume << ",\"outside_distance_mm\":" << distance
         << ",\"reloaded_distance_mm\":" << queryDistance << ",\"archive_spline_to_extrusion_surfaces\":" << changes.extrusionSurfaces
         << ",\"archive_spline_to_linear_uv\":" << changes.linearUv << ",\"archive_spline_to_plane_surfaces\":" << changes.planeSurfaces
-        << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0}\n";
+        << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0";
+    if (!wireframes.empty())
+    {
+        checks << ",\"linked_sets\":" << wireframes.size() << ",\"linked_curves\":" << loaded.curves.size()
+               << ",\"linked_points\":" << loaded.pointAdapters.size()
+               << ",\"linked_archive_inventory_and_queries_checked\":true,\"linked_curve_reload_samples_per_curve\":9";
+    }
+    checks << "}\n";
     Require(bool(checks), "development check receipt");
 }
 } // namespace

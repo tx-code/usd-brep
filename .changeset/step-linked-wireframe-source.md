@@ -4,8 +4,8 @@ change: feature
 
 General STEP source inspection retains one explicitly associated bounded wireframe
 alongside its selected BRep, preserving separate source roles and checking the
-admitted curve-set members and wireframe prerequisites. Native import explicitly
-rejects this combination until all linked geometry can be constructed and published.
+admitted curve-set members and wireframe prerequisites. Native construction has
+its own geometry, quality and complete-publication gates.
 
 ## Scope
 

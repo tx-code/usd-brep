@@ -5,6 +5,7 @@
 
 #include <SmBrep.h>
 #include <SmContext.h>
+#include <SmCurve.h>
 #include <mutex>
 
 class SmEdge;
@@ -37,15 +38,20 @@ struct ModelData
     std::vector<SmVertex*> vertices;
     std::vector<SmEdge*> edges;
     std::vector<SmLine*> curves; // Legacy affine verifier only; native edges own all defining curves.
+    std::vector<std::unique_ptr<SmCurve>> wireCurves; // Detached definitions; must be destroyed before context, under NativeMutex.
+    std::vector<WireframePointInfo> wirePoints; // Coordinates do not imply source vertices or connection to the material BRep.
+    std::vector<WireframeInfo> wireframes;
     SmRegion* material = nullptr;
     SmRegion* bounded = nullptr;
     SmShell* outside = nullptr;
     SmShell* inside = nullptr;
     double queryTolerance = 0;
+    double definitionToleranceMm = 0; // General defining-geometry budget, also bounds linked archive readback.
     Fraction queryBudget;
     Statistics info;
     mutable std::mutex mutex;
 };
+void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path);
 std::shared_ptr<ModelData> BuildGeneral(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const Options& options,

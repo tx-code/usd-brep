@@ -132,6 +132,42 @@ struct ClosestPoint
     Point pointMm{};
     double distanceMm = 0;
 };
+struct WireframeCurveInfo
+{
+    std::string sourceId, basisId;
+    std::size_t nativeIndex = 0; // Detached curve index in the native part archive; not a topological edge.
+    std::array<double, 2> parameterDomain{}; // Actual native evaluator parameters, not STEP analytic angles.
+    bool sourceForwardInNative = true;
+};
+struct WireframePointInfo
+{
+    std::string sourceId;
+    std::size_t nativeIndex = 0; // Archive point adapter BRep follows the material BRep at index nativeIndex+1.
+    Point pointMm{};
+};
+struct WireframeInfo
+{
+    std::string representationId, relationshipId, setId;
+    std::vector<WireframeCurveInfo> curves;
+    std::vector<WireframePointInfo> points;
+    Bounds boundsMm{};
+};
+class WireframeView
+{
+public:
+
+    WireframeInfo Info() const;
+    step_semantics::SchemaInterpretation AppliedSourceInterpretation() const;
+    Point EvaluateCurve(std::size_t curve, double parameter) const;
+    ClosestPoint Closest(const Point& pointMm) const; // Only this source set; neither material classification nor a certified global error bound.
+
+private:
+
+    friend class ModelSnapshot;
+    explicit WireframeView(std::shared_ptr<detail::ModelData> data, std::size_t set);
+    std::shared_ptr<detail::ModelData> m_data;
+    std::size_t m_set = 0;
+};
 struct EditableCopyOutcome;
 enum class PointClass
 {
@@ -175,12 +211,14 @@ public:
     Statistics Info() const;
     FaceView Face(std::size_t index = 0) const; // Source face order; owning view retains the model and context.
     std::vector<FaceView> Faces() const;
-    ClosestPoint Closest(const Point& pointMm) const; // Whole boundary, never implicitly the first face.
+    std::vector<WireframeView> Wireframes() const; // Separate associated source sets; no connectivity or composition inferred.
+    ClosestPoint Closest(const Point& pointMm) const; // Whole selected BRep boundary; associated wireframes have separate queries.
     std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
     void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
-    EditableCopyOutcome CopyForModeling() const;
+    EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; linked geometry requires an explicit body-copy choice.
+    EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated wireframes are outside this scope.
 
 private:
 
@@ -265,6 +303,7 @@ struct ParameterMapping
     std::optional<std::size_t> targetEdgeIndex, targetFaceIndex;
     std::vector<std::pair<std::string, std::vector<double>>> parameters;
     std::optional<std::string> sourceBasisGeometryId; // Trim wrapper and defining basis keep distinct source identities.
+    std::optional<std::size_t> targetCurveIndex; // Detached linked geometry, never an invented EDGE_CURVE.
 };
 struct Report
 {
@@ -273,6 +312,7 @@ struct Report
     std::vector<std::pair<std::string, std::string>> classifiedOuterBounds; // Derived face/bound IDs, never source relabeling.
     std::vector<RepresentationNormalization> normalizations;
     std::vector<ParameterMapping> parameterMappings; // Derived native maps; never changes source parameters or entities.
+    std::vector<WireframeInfo> wireframes; // Owning values/source identities only, never native owners.
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
     std::optional<step_semantics::SchemaSelection> sourceSchema; // Owning HEADER identity, including unsupported profile selection.
     std::shared_ptr<const step_source::SourceSnapshot> source;

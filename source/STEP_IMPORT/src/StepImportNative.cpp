@@ -43,6 +43,7 @@ std::recursive_mutex& NativeMutex()
 ModelData::~ModelData()
 {
     std::lock_guard lock(NativeMutex());
+    wireCurves.clear();
     brep.reset();
     context.reset();
 }
@@ -1432,6 +1433,14 @@ void EditableBrep::Edit(const std::function<void(SmBrep&)>& edit)
 }
 EditableCopyOutcome ModelSnapshot::CopyForModeling() const
 {
+    if (!m_data->wireframes.empty())
+    {
+        return { Status::Unsupported, {}, "LinkedGeometryRequiresExplicitBrepCopy", "Select CopyBrepForModeling for the material boundary only" };
+    }
+    return CopyBrepForModeling();
+}
+EditableCopyOutcome ModelSnapshot::CopyBrepForModeling() const
+{
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     try
@@ -1504,6 +1513,13 @@ void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
+    if (!m_data->wireframes.empty())
+    {
+        // Linked geometry has its own complete part writer; body-only archives
+        // keep their existing representation and bytes.
+        detail::WriteWireframeArchive(*m_data, path);
+        return;
+    }
     SmTArray<SmCurve*> curves;
     SmTArray<SmSurface*> surfaces;
     SmTArray<long> trees;

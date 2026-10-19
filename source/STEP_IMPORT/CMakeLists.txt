@@ -23,7 +23,7 @@ if(NOT TARGET SMLib OR NOT TARGET SM_API)
     endforeach()
 endif()
 
-add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportGeneral.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportReport.cpp)
+add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportWireframe.cpp src/StepImportGeneral.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
@@ -52,6 +52,16 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_integral_contracts COMMAND step_import_integral_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/annular_solid.step")
     set_tests_properties(step_import_integral_contracts PROPERTIES TIMEOUT 120)
+    add_executable(step_import_wireframe_tests tests/StepImportWireframeTests.cpp)
+    target_link_libraries(step_import_wireframe_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_wireframe_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_wireframe_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_wireframe_contracts COMMAND step_import_wireframe_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/linked_wireframe.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/wireframe-contract-output")
+    set_tests_properties(step_import_wireframe_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_conic_bounds_tests tests/StepImportConicBoundsTests.cpp)
     target_link_libraries(step_import_conic_bounds_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_conic_bounds_contracts COMMAND step_import_conic_bounds_tests
