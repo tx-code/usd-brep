@@ -3595,7 +3595,9 @@
         "TRIMMED_CURVE",
         "GEOMETRIC_SET",
         "GEOMETRIC_CURVE_SET",
-        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+        "COMPOSITE_CURVE",
+        "COMPOSITE_CURVE_SEGMENT"
       ],
       "name_index": [
         {
@@ -3713,6 +3715,14 @@
         {
           "name": "COLOUR_SPECIFICATION",
           "id": 82
+        },
+        {
+          "name": "COMPOSITE_CURVE",
+          "id": 137
+        },
+        {
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "id": 138
         },
         {
           "name": "CONIC",
@@ -10249,6 +10259,126 @@
               "local_field_index": 2
             }
           ]
+        },
+        {
+          "id": 137,
+          "name": "COMPOSITE_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "segments",
+              "type": "COMPOSITE_CURVE_SEGMENT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "self_intersect",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            137
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 137,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 137,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 138,
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "transition",
+              "type": "TRANSITION_CODE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "same_sense",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "parent_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            138
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 138,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 138,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 138,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -10477,6 +10607,15 @@
             "CARTESIAN",
             "PARAMETER",
             "UNSPECIFIED"
+          ]
+        },
+        {
+          "name": "TRANSITION_CODE",
+          "branches": [
+            "DISCONTINUOUS",
+            "CONTINUOUS",
+            "CONT_SAME_GRADIENT",
+            "CONT_SAME_GRADIENT_SAME_CURVATURE"
           ]
         }
       ],
@@ -10810,7 +10949,9 @@
         "POINT_STYLE",
         "PRE_DEFINED_MARKER",
         "PRE_DEFINED_SYMBOL",
-        "PRE_DEFINED_POINT_MARKER_SYMBOL"
+        "PRE_DEFINED_POINT_MARKER_SYMBOL",
+        "COMPOSITE_CURVE",
+        "COMPOSITE_CURVE_SEGMENT"
       ],
       "name_index": [
         {
@@ -10892,6 +11033,14 @@
         {
           "name": "COLOUR_SPECIFICATION",
           "id": 80
+        },
+        {
+          "name": "COMPOSITE_CURVE",
+          "id": 132
+        },
+        {
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "id": 133
         },
         {
           "name": "CONIC",
@@ -17135,6 +17284,126 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 132,
+          "name": "COMPOSITE_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "segments",
+              "type": "COMPOSITE_CURVE_SEGMENT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "self_intersect",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            89,
+            132
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 132,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 132,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 133,
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "transition",
+              "type": "TRANSITION_CODE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "same_sense",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "parent_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            67,
+            133
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 133,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 133,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 133,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -17371,6 +17640,15 @@
             "RING",
             "SQUARE",
             "TRIANGLE"
+          ]
+        },
+        {
+          "name": "TRANSITION_CODE",
+          "branches": [
+            "DISCONTINUOUS",
+            "CONTINUOUS",
+            "CONT_SAME_GRADIENT",
+            "CONT_SAME_GRADIENT_SAME_CURVATURE"
           ]
         }
       ],
@@ -17749,7 +18027,9 @@
         "POINT_STYLE",
         "PRE_DEFINED_MARKER",
         "PRE_DEFINED_SYMBOL",
-        "PRE_DEFINED_POINT_MARKER_SYMBOL"
+        "PRE_DEFINED_POINT_MARKER_SYMBOL",
+        "COMPOSITE_CURVE",
+        "COMPOSITE_CURVE_SEGMENT"
       ],
       "name_index": [
         {
@@ -17831,6 +18111,14 @@
         {
           "name": "COLOUR_SPECIFICATION",
           "id": 82
+        },
+        {
+          "name": "COMPOSITE_CURVE",
+          "id": 147
+        },
+        {
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "id": 148
         },
         {
           "name": "CONIC",
@@ -24628,6 +24916,126 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 147,
+          "name": "COMPOSITE_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "segments",
+              "type": "COMPOSITE_CURVE_SEGMENT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "self_intersect",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            147
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 147,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 147,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 148,
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "transition",
+              "type": "TRANSITION_CODE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "same_sense",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "parent_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            148
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 148,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 148,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 148,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -24877,6 +25285,15 @@
             "RING",
             "SQUARE",
             "TRIANGLE"
+          ]
+        },
+        {
+          "name": "TRANSITION_CODE",
+          "branches": [
+            "DISCONTINUOUS",
+            "CONTINUOUS",
+            "CONT_SAME_GRADIENT",
+            "CONT_SAME_GRADIENT_SAME_CURVATURE"
           ]
         }
       ],
@@ -25256,7 +25673,9 @@
         "TRIMMED_CURVE",
         "GEOMETRIC_SET",
         "GEOMETRIC_CURVE_SET",
-        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+        "COMPOSITE_CURVE",
+        "COMPOSITE_CURVE_SEGMENT"
       ],
       "name_index": [
         {
@@ -25374,6 +25793,14 @@
         {
           "name": "COLOUR_SPECIFICATION",
           "id": 82
+        },
+        {
+          "name": "COMPOSITE_CURVE",
+          "id": 137
+        },
+        {
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "id": 138
         },
         {
           "name": "CONIC",
@@ -31910,6 +32337,126 @@
               "local_field_index": 2
             }
           ]
+        },
+        {
+          "id": 137,
+          "name": "COMPOSITE_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "segments",
+              "type": "COMPOSITE_CURVE_SEGMENT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "self_intersect",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            137
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 137,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE",
+              "declaring_type_id": 137,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 138,
+          "name": "COMPOSITE_CURVE_SEGMENT",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "transition",
+              "type": "TRANSITION_CODE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "same_sense",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "parent_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            138
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 138,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 138,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "COMPOSITE_CURVE_SEGMENT",
+              "declaring_type_id": 138,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -32137,6 +32684,15 @@
             "CARTESIAN",
             "PARAMETER",
             "UNSPECIFIED"
+          ]
+        },
+        {
+          "name": "TRANSITION_CODE",
+          "branches": [
+            "DISCONTINUOUS",
+            "CONTINUOUS",
+            "CONT_SAME_GRADIENT",
+            "CONT_SAME_GRADIENT_SAME_CURVATURE"
           ]
         }
       ],

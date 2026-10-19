@@ -1,5 +1,31 @@
 # STEP source semantics: ticket 03
 
+All four general source catalogs admit ordinary `COMPOSITE_CURVE` and
+`COMPOSITE_CURVE_SEGMENT`, compared against the fixed AP214, N2635 and modified
+N916 artifacts below. P0 remains unchanged. Ordered, repeated LIST occurrences,
+segment direction, unknown `self_intersect` LOGICAL, original trim parameters
+and units remain in the owning source. Derived segment count/closed declaration
+and inverse uses do not add transmitted fields. Reparametrised and surface
+composite subtypes remain unsupported.
+
+CC.WR1 checks the last transition and discontinuous-use count; CCS.WR1 requires
+BOUNDED_CURVE, so bare LINE/CIRCLE/ELLIPSE parents are invalid even where a
+separate wireframe predicate accepts conics. The inverse using_curves BAG must
+contain at least one occurrence. Its failure anchors the real parent field,
+without inventing a P21 parameter for the inverse attribute. Shared/repeated
+uses count separately and cannot become an orphan interoperability exception.
+
+An iterative, budgeted forward-definition traversal checks mixed
+composite/trimmed cycles as a project dependency prerequisite. Memoized
+postorder evaluates the registered wireframe predicate without recursively
+expanding shared DAGs. Existing trim-only visits/diagnostics stay unchanged.
+This establishes neither geometric joint/gradient/curvature continuity nor
+self-intersection, composite parameter domains, explicit parent-context
+natural-language conformance or full founded-item/global rules. Existing
+selected-part/context/unit and ownership checks still apply. Native composite
+conversion remains explicitly Unsupported before construction; no joining,
+new material role or partial model publication is authorized by source success.
+
 The fixed AP214 profiles admit `VALUE_REPRESENTATION_ITEM`: inherited RI.name
 and `value_component:MEASURE_VALUE`, with no explicit unit slot. The fixed
 AP214E3_2010.exp (`71ab140f...`) SELECT has 22 scalar alternatives: count/numeric
@@ -197,8 +223,9 @@ categories and at least one curve set. WR3/WR4 use the fixed-source curve/point
 predicates restricted to registered branches; WR5 checks direct conic placement.
 Bare LINE is not a bounded wireframe member; a TRIMMED_CURVE with LINE basis
 is. Trimmed dependency cycles fail before evaluating the wireframe predicates.
-MAPPED_ITEM, POLYLINE, replicas and composite curves remain unsupported at typed
-binding, so their WR6/WR7 branches are not executed or claimed as checked.
+MAPPED_ITEM, POLYLINE and replicas remain unsupported at typed binding, so their
+WR6/WR7 branches are not executed or claimed as checked. Ordinary composite
+curves use the finite forward-definition graph and all-parent predicate above.
 These checks establish source prerequisites, not geometric trim consistency,
 continuous numerical bounds or complete AP/AIC conformance.
 

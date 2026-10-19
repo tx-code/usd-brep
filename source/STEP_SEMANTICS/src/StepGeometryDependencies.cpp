@@ -139,7 +139,17 @@ public:
                 }
             }
         }
-        TrimmedClosure(trimmed);
+        const auto composite = Schema(m_data).Find("COMPOSITE_CURVE");
+        const auto segment = Schema(m_data).Find("COMPOSITE_CURVE_SEGMENT");
+        if (composite && segment && (!m_data.populations[*composite].empty() || !m_data.populations[*segment].empty()))
+        {
+            CompositeChecks(m_data.populations[*composite], m_data.populations[*segment]);
+            CompositeClosure(trimmed, m_data.populations[*composite]);
+        }
+        else
+        {
+            TrimmedClosure(trimmed); // Preserve existing no-composite charges and diagnostics.
+        }
         WireframeChecks();
     }
 
@@ -148,12 +158,182 @@ private:
     const SemanticData& m_data;
     const std::function<void(Span)>& m_visit;
     GeometryDependencyCounts& m_checks;
+    std::vector<std::size_t> m_curvePostorder;
+    bool m_compositeWirePrepared = false;
     enum class PredicateKind
     {
         Dependency,
         Entity,
         Type
     };
+    void CompositeChecks(std::span<const std::size_t> composites, std::span<const std::size_t> segments)
+    {
+        std::vector<std::size_t> uses(m_data.types.size(), 0);
+        for (const auto curve : composites)
+        {
+            const auto& bound = Field(curve, "segments");
+            const auto& value = *bound.declaration.value;
+            Count(value.span);
+            std::size_t discontinuities = 0;
+            bool lastDiscontinuous = false;
+            for (const auto& occurrence : value.children)
+            {
+                m_visit(occurrence.span);
+                const auto segment = m_data.referenceTargets.at(&occurrence);
+                ++uses[segment]; // Inverse BAG counts uses, not unique records or owners.
+                const auto& transition = *Field(segment, "transition").declaration.value;
+                m_visit(transition.span);
+                lastDiscontinuous = transition.text == "DISCONTINUOUS";
+                discontinuities += lastDiscontinuous;
+            }
+            // Fixed CC.WR1 derives closed from the LAST transition. This is a
+            // declaration check, not a proof of geometric joints or material closure.
+            if (discontinuities != std::size_t(lastDiscontinuous))
+            {
+                Fail(curve, bound, value, "COMPOSITE_CURVE.WR1", "only an optional final discontinuous transition", std::to_string(discontinuities));
+            }
+        }
+        for (const auto segment : segments)
+        {
+            const auto& bound = Field(segment, "parent_curve");
+            const auto& value = *bound.declaration.value;
+            Count(value.span);
+            if (!IsA(m_data.referenceTargets.at(&value), "BOUNDED_CURVE"))
+            {
+                // A full CIRCLE/ELLIPSE passes the wireframe predicate but is
+                // not BOUNDED_CURVE. Keep its explicit TRIMMED_CURVE wrapper.
+                Fail(segment, bound, value, "COMPOSITE_CURVE_SEGMENT.WR1", "BOUNDED_CURVE", "other CURVE");
+            }
+            Count(value.span, PredicateKind::Dependency);
+            if (!uses[segment])
+            {
+                // INVERSE is not a transmitted slot. Anchor its lower-bound
+                // failure at this segment's real parent field, without inventing
+                // a P21 parameter path for using_curves.
+                Fail(segment, bound, value, "COMPOSITE_CURVE_SEGMENT.using_curves", "BAG[1:?] inverse use", "0");
+            }
+        }
+    }
+    void CompositeClosure(std::span<const std::size_t> trimmed, std::span<const std::size_t> composites)
+    {
+        struct Frame
+        {
+            std::size_t record, next;
+        };
+        std::vector<unsigned char> state(m_data.types.size(), 0);
+        std::vector<Frame> stack;
+        const auto walk = [&](std::size_t root)
+        {
+            if (state[root] == 2)
+            {
+                return;
+            }
+            state[root] = 1;
+            stack.push_back({ root, 0 });
+            while (!stack.empty())
+            {
+                auto& frame = stack.back();
+                const BoundAttribute* bound = nullptr;
+                std::size_t owner = frame.record;
+                std::optional<Span> throughSegment;
+                if (IsA(frame.record, "TRIMMED_CURVE") && !frame.next)
+                {
+                    ++frame.next;
+                    bound = &Field(frame.record, "basis_curve");
+                }
+                else if (IsA(frame.record, "COMPOSITE_CURVE"))
+                {
+                    const auto& occurrences = Field(frame.record, "segments").declaration.value->children;
+                    if (frame.next < occurrences.size())
+                    {
+                        const auto& occurrence = occurrences[frame.next++];
+                        m_visit(occurrence.span);
+                        owner = m_data.referenceTargets.at(&occurrence);
+                        bound = &Field(owner, "parent_curve");
+                        throughSegment = occurrence.span;
+                    }
+                }
+                if (!bound)
+                {
+                    state[frame.record] = 2;
+                    m_curvePostorder.push_back(frame.record);
+                    stack.pop_back();
+                    continue;
+                }
+                const auto& value = *bound->declaration.value;
+                Count(value.span, PredicateKind::Dependency);
+                const auto target = m_data.referenceTargets.at(&value);
+                if (state[target] == 1)
+                {
+                    // Only forward definition edges belong in this iterative
+                    // DFS. Inverse users would create a false cycle for every
+                    // ordinary segment. Memoized completion preserves shared
+                    // DAGs/repeated occurrences without expanding their paths.
+                    std::vector<Span> related;
+                    if (throughSegment)
+                    {
+                        related.push_back(*throughSegment);
+                    }
+                    Fail(
+                        owner,
+                        *bound,
+                        value,
+                        "curve definition",
+                        "finite curve definition graph",
+                        "cycle",
+                        {},
+                        true,
+                        "project necessary geometry dependency closure",
+                        std::move(related)
+                    );
+                }
+                if (state[target] == 0)
+                {
+                    state[target] = 1;
+                    stack.push_back({ target, 0 });
+                }
+            }
+        };
+        for (const auto root : trimmed)
+        {
+            walk(root);
+        }
+        for (const auto root : composites)
+        {
+            walk(root);
+        }
+    }
+    void PrepareCompositeWireValidity(std::vector<signed char>& memo)
+    {
+        // Fixed valid_geometrically_bounded_wf_curve evaluated in the proven
+        // definition postorder. Every LIST use is charged, but shared child
+        // definitions are evaluated once; source depth never consumes C++ stack.
+        for (const auto record : m_curvePostorder)
+        {
+            m_visit(m_data.source->Records()[record].span);
+            bool valid = IsA(record, "B_SPLINE_CURVE") || IsA(record, "CIRCLE") || IsA(record, "ELLIPSE");
+            if (IsA(record, "TRIMMED_CURVE"))
+            {
+                const auto& basis = *Field(record, "basis_curve").declaration.value;
+                m_visit(basis.span);
+                const auto target = m_data.referenceTargets.at(&basis);
+                valid = IsA(target, "LINE") || memo[target] == 1;
+            }
+            if (IsA(record, "COMPOSITE_CURVE"))
+            {
+                valid = true;
+                for (const auto& occurrence : Field(record, "segments").declaration.value->children)
+                {
+                    m_visit(occurrence.span);
+                    const auto& parent = *Field(m_data.referenceTargets.at(&occurrence), "parent_curve").declaration.value;
+                    m_visit(parent.span);
+                    valid = (memo[m_data.referenceTargets.at(&parent)] == 1) && valid;
+                }
+            }
+            memo[record] = valid ? 1 : 0;
+        }
+        m_compositeWirePrepared = true;
+    }
     void TrimmedClosure(std::span<const std::size_t> roots)
     {
         if (roots.empty())
@@ -273,6 +453,10 @@ private:
     }
     bool ValidWireCurve(std::size_t record, std::vector<signed char>& memo)
     {
+        if (!m_curvePostorder.empty() && !m_compositeWirePrepared)
+        {
+            PrepareCompositeWireValidity(memo);
+        }
         // Fixed valid_geometrically_bounded_wf_curve, restricted to registered
         // branches. TrimmedClosure has already established a finite basis graph.
         // A LINE is valid as a TRIMMED_CURVE basis, not as a bare set element.
@@ -363,7 +547,7 @@ private:
             {
                 Fail(record, bound, value, std::string(prefix) + "WR2", "at least one GEOMETRIC_CURVE_SET", "placements only");
             }
-            // MAPPED_ITEM, POLYLINE and replicated/composite geometry are not
+            // MAPPED_ITEM, POLYLINE and replicated geometry are not
             // registered here. Their WR6/WR7 branches cannot bypass the closed
             // type guard. Direct conics already require a 3D placement in the
             // bound SELECT; still check their actual WR5 below.
