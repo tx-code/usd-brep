@@ -1,5 +1,13 @@
 # STEP_IMPORT（内部 C++20）
 
+`ModelSnapshot::ClassifyMaterial` 先执行点与面／边／顶点的原生相交检查，
+再确定材料区域。区域射线若击中边或顶点，可能属于擦边退化情况，不能直接采用该次
+区域答案；实现按固定方向最多尝试 7 条射线，采用面命中或成功的无限区域无交点结果。
+证据用尽时返回 `Indeterminate`，不从包围盒推断内外，也不增加查询／工作容差。
+实际位于边界的点仍通过原最近点误差预算验证，保持面／边／顶点分类。
+该查询沿用原生求解器能力，不构成连续距离界或任意几何的正确性证书；
+源数据、模型、导入检查、报告和发布流程不受此重试影响。
+
 声明 1 的 DATA 十六进制转义可另选
 CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex／CLI
 --interpret-level1-with-lowercase-hex；仍须显式通用质量与非几何互操作。

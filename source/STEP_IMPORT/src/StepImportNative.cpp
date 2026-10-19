@@ -3,6 +3,7 @@
 #include "StepImportExecution.h"
 #include "StepImportInterval.h"
 #include "StepImportNativeData.h"
+#include "StepImportPointClassification.h"
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
@@ -1669,7 +1670,7 @@ std::optional<MaterialPointClass> ModelSnapshot::ClassifyMaterial(const Point& p
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPointClassification classification(m_data->queryTolerance, m_data->context.get());
-    detail::Good(m_data->brep->Point3DClassify(detail::Native(point), m_data->queryTolerance, TRUE, classification));
+    detail::Good(detail::ClassifySnapshotPoint(*m_data->brep, detail::Native(point), m_data->queryTolerance, classification));
     const auto kind = classification.GetPointClass();
     if (kind == SM_PC_REGION)
     {

@@ -5,6 +5,7 @@
 #include "StepImportDerivedUv.h"
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportNativeData.h"
+#include "StepImportPointClassification.h"
 #include "StepImportTrimMeasurement.h"
 
 #include <SmApiQueries.h>
@@ -1019,6 +1020,84 @@ void MeasurementContract(ReloadedNative native)
         );
     }
 }
+void RegionRayContract(SmBrep& brep)
+{
+    using namespace step_import::detail;
+    SmTArray<SmRegion*> regions;
+    brep.GetRegions(regions);
+    auto outside = brep.GetInfiniteRegion();
+    SmRegion* material = nullptr;
+    for (const auto region : regions)
+    {
+        if (region != outside)
+        {
+            material = region;
+        }
+    }
+    Require(outside && material && regions.GetSize() == 2, "synthetic box has two distinct regions");
+    // Replay the observed failure pattern without retaining customer geometry:
+    // successful edge/vertex rays report the material region for an exterior
+    // query; a subsequent clear miss reports the infinite region. These are
+    // actual borrowed regions of the live synthetic box, never fake pointers.
+    for (const auto contact : { RegionRayContact::Edge, RegionRayContact::Vertex })
+    {
+        std::size_t calls = 0;
+        const auto selected = RegionFromStableRays(
+            [&](const auto& direction)
+            {
+                ++calls;
+                if (calls == 1)
+                {
+                    Require(direction == std::array<double, 3>{ 1, 0, 0 }, "first region ray is deterministic");
+                    return RegionRayResult{ contact, material };
+                }
+                Require(direction == std::array<double, 3>{ -1, 0, 0 }, "retry uses the opposite ray");
+                return RegionRayResult{ RegionRayContact::ClearMiss, outside };
+            }
+        );
+        Require(selected == outside && calls == 2, "grazing boundary hit cannot establish a material region");
+    }
+    for (const auto expected : { outside, material })
+    {
+        std::size_t calls = 0;
+        Require(
+            RegionFromStableRays(
+                [&](const auto&)
+                {
+                    ++calls;
+                    return RegionRayResult{ RegionRayContact::Face, expected };
+                }
+            ) == expected &&
+                calls == 1,
+            "face evidence is lazy and preserves either region"
+        );
+    }
+    for (const auto contact : { RegionRayContact::Failed, RegionRayContact::Edge, RegionRayContact::Vertex })
+    {
+        std::size_t calls = 0;
+        Require(
+            !RegionFromStableRays(
+                [&](const auto&)
+                {
+                    ++calls;
+                    return RegionRayResult{ contact, material };
+                }
+            ) && calls == 7,
+            "exhausted degenerate rays are bounded and do not invent a region"
+        );
+    }
+    std::size_t calls = 0;
+    Require(
+        !RegionFromStableRays(
+            [&](const auto&)
+            {
+                ++calls;
+                return RegionRayResult{ RegionRayContact::Face, nullptr };
+            }
+        ) && calls == 7,
+        "a successful contact with no region is not evidence"
+    );
+}
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1032,6 +1111,18 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     Near(closest.distanceMm, 8, 1e-6, "independent boundary query");
     Near(closest.pointMm[0], 12, 1e-6, "independent boundary coordinate");
     Require(model->ClassifyMaterial({ 7, 7, 20 }) == step_import::MaterialPointClass::Inside, "independent interior query");
+    // Independent analytic truth for the source box [2,12] x [-3,17] x [5,35].
+    // Boundary queries must still precede rays; excluding ray edge hits must
+    // never exclude points that actually lie on an edge or vertex.
+    for (const auto& [point, expected] : std::array<std::pair<step_import::Point, step_import::MaterialPointClass>, 5>{
+             { { { -40, -3, 5 }, step_import::MaterialPointClass::Outside },
+               { { -40, -3, 20 }, step_import::MaterialPointClass::Outside },
+               { { 2, 7, 20 }, step_import::MaterialPointClass::Face },
+               { { 2, -3, 20 }, step_import::MaterialPointClass::Edge },
+               { { 2, -3, 5 }, step_import::MaterialPointClass::Vertex } } })
+    {
+        Require(model->ClassifyMaterial(point) == expected, "independent general box boundary/exterior truth");
+    }
     auto copy = model->CopyForModeling();
     Require(copy.status == step_import::Status::Accepted && bool(copy.model), "independent editable copy");
     copy.model->Edit(
@@ -1040,6 +1131,7 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
             double volume = 0;
             Require(SmApiBrepComputeVolume(&brep, 1e-4, volume) == SM_SUCCESS, "copy volume query");
             Near(volume, 6000, 1e-5, "copy geometry");
+            RegionRayContract(brep);
         }
     );
     std::filesystem::create_directories(directory);
