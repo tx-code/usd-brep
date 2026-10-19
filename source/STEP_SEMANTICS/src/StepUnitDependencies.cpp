@@ -111,13 +111,14 @@ public:
                     if (state[edge.target] == 1)
                     {
                         Fail(
-                            Status::Rejected,
+                            m_data.profile.kind == ProfileKind::Ap203N916Source ? Status::Unsupported : Status::Rejected,
                             edge.owner,
                             *edge.field,
                             "SourceUnitDependencyCycle",
                             "finite dimensional dependency graph",
                             Record(m_nodes[edge.target].record).id,
-                            "source dimensional dependency graph"
+                            m_data.profile.kind == ProfileKind::Ap203N916Source ? "project finite conversion dependency prerequisite" :
+                                                                                  "source dimensional dependency graph"
                         );
                     }
                     if (!state[edge.target])
@@ -241,7 +242,9 @@ private:
         const auto& field = bound.declaration;
         issue.source.key = std::move(key);
         issue.source.stage = status == Status::Unsupported ? "D2" : "D3";
-        issue.source.message = m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ?
+        issue.source.message = m_data.profile.kind == ProfileKind::Ap203N916Source ?
+                                   "Selected modified N916 unit dependency or dimension check did not complete" :
+                               m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ?
                                    "Selected N2635 unit dependency or dimension check did not complete" :
                                    "Selected AP214 unit dependency or dimension check did not complete";
         issue.source.primary = field.value->span;
@@ -268,7 +271,7 @@ private:
             "SourceRuleViolation:" + std::string(clause),
             "declared dimensional/source predicate",
             std::string(m_data.source->Raw(field.declaration.value->span)),
-            std::string(m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ? "N2635 " : "AP214E3_2010.exp ") + std::string(clause)
+            std::string(SourceArtifactName(m_data.profile.kind)) + " " + std::string(clause)
         );
     }
     [[noreturn]] void Capacity(std::size_t r, const BoundAttribute& field)
@@ -447,10 +450,11 @@ private:
                     }
                 }
             }
-            if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource)
+            if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource || m_data.profile.kind == ProfileKind::Ap203N916Source)
             {
-                // N2635 keeps explicit NAMED_UNIT.dimensions, unlike AP214's
-                // redeclared marker. Its CBU.WR1 must agree with the factor unit.
+                // N2635 and modified N916 transmit explicit dimensions, unlike
+                // AP214's marker. Only N2635 specifies CBU.WR1; the N916 factor
+                // coherence/positive-scale prerequisites below are project guards.
                 const auto& bound = Field(r, "dimensions");
                 const auto sourceDimensions = Target(*bound.declaration.value);
                 Dimensions explicitDimensions;
@@ -461,7 +465,28 @@ private:
                 Count(bound.declaration.value->span);
                 if (explicitDimensions != node.dimensions)
                 {
+                    if (m_data.profile.kind == ProfileKind::Ap203N916Source)
+                    {
+                        // Fixed N916 CBU has NO WHERE clause; its dimensions
+                        // are transmitted explicitly. The factor must agree
+                        // before this project can establish a physical scale.
+                        Fail(
+                            Status::Unsupported,
+                            r,
+                            bound,
+                            "SourceConversionDimensionsUnestablished",
+                            "explicit dimensions coherent with the conversion factor",
+                            "different dimensional vectors",
+                            "project physical conversion prerequisite; not a N916 CBU WHERE rule"
+                        );
+                    }
                     Rule(r, bound, "CONVERSION_BASED_UNIT.WR1");
+                }
+                if (m_data.profile.kind == ProfileKind::Ap203N916Source)
+                {
+                    // N916 derive_dimensional_exponents returns x.dimensions.
+                    // Publish the source-explicit vector, never an inferred replacement.
+                    node.dimensions = explicitDimensions;
                 }
                 const auto factor = Target(*Field(r, "conversion_factor").declaration.value);
                 const auto& value = Field(factor, "value_component");
@@ -469,7 +494,7 @@ private:
                 if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
                 {
                     Fail(
-                        Status::Rejected,
+                        m_data.profile.kind == ProfileKind::Ap203N916Source ? Status::Unsupported : Status::Rejected,
                         factor,
                         value,
                         "SourceUnitScaleNonPositive",

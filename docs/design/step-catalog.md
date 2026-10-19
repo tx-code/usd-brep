@@ -4,6 +4,13 @@ This records the implemented design for the fixed STEP_SEMANTICS catalogs and
 the acceptance requirements for further changes. Current source acceptance
 remains owned by [STEP_SEMANTICS](../../source/STEP_SEMANTICS/README.md).
 
+The original four-profile migration now has a fifth, separately instantiated
+modified-N916 general source catalog. The original four descriptors and IDs stay
+unchanged. Its borrowed diagnostic transport never grants source admission;
+the source checker owns that boundary. Snapshot v2 covers all five catalogs;
+the reader retains v1's exact four-profile meaning for historical inputs.
+No historical per-run evidence is migrated or overwritten by adding this catalog.
+
 ## Scope and intended benefit
 
 Migrate all four profiles: AP203 planar, AP203 general source, AP214e3 source,

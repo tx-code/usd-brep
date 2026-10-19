@@ -139,7 +139,7 @@ SchemaIdentifier Identify(const step_source::Value& value)
 }
 } // namespace
 
-SchemaSelection SelectSchema(const step_source::SourceSnapshot& source)
+SchemaSelection SelectSchema(const step_source::SourceSnapshot& source, GeometryScope scope)
 {
     // An owning SourceSnapshot is published only after the raw HEADER shape checks.
     Expects(source.Header().size() == 3);
@@ -163,6 +163,20 @@ SchemaSelection SelectSchema(const step_source::SourceSnapshot& source)
         // Only the same audited declaration subset is selected. This publisher-backed
         // binding does not certify an ISO edition or enable the AP203 planar rules.
         selection.qualified = QualifiedSchemaProfile{ "ap214-mbx-2010", Ap214MbxSourceProfile, Ap214SchemaSha256, ProfileKind::Ap214MbxSource };
+    }
+    else if (
+        scope == GeometryScope::GeneralBrep && selection.identifiers.size() == 1 && selection.identifiers.front().name == "CONFIG_CONTROL_DESIGN" &&
+        selection.identifiers.front().match == SchemaMatch::NameOnly
+    )
+    {
+        // Select a fixed source-check implementation only in explicit general
+        // scope. The bare HEADER still identifies a family: leave NameOnly,
+        // empty OID/registry and raw span intact; no edition/APD-year inference.
+        // Publication still requires all declared source and native checks.
+        selection.qualified = QualifiedSchemaProfile{ "ap203-nameonly-n916-source",
+                                                      Ap203N916SourceProfile,
+                                                      Ap203N916SchemaSha256,
+                                                      ProfileKind::Ap203N916Source };
     }
     return selection;
 }

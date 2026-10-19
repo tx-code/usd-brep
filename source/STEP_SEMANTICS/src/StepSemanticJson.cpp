@@ -185,6 +185,10 @@ void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelecti
         out.String(selection->qualified->profile);
         out.Add(",\"express_sha256\":");
         out.String(selection->qualified->expressSha256);
+        if (selection->qualified->kind == ProfileKind::Ap203N916Source)
+        {
+            out.Add(",\"binding_basis\":\"NameOnlyGeneralSourceSubset\",\"header_edition_verified\":false");
+        }
         if (selection->qualified->kind != ProfileKind::Ap203e2Planar)
         {
             out.Add(",\"scope\":\"SourceDeclarationsPartUnitsOnly\"");

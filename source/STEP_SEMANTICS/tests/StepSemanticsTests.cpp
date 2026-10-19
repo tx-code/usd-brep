@@ -129,6 +129,40 @@ int main(int argc, char** argv)
         );
         ++groups;
 
+        // Synthetic legacy carrier: N916's required description must coexist
+        // with the old optional N2635 slot in independent owning field views.
+        auto legacyText = Read(corpus / "S203-P04/input.step");
+        legacyText.replace(legacyText.find(originalSchema), originalSchema.size(), "CONFIG_CONTROL_DESIGN");
+        const std::string legacyClaim = "'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011";
+        legacyText.replace(legacyText.find(legacyClaim), legacyClaim.size(), "'config_control_design',2000");
+        for (const auto& [from, to] : { std::pair{ "'P0 analytic fixture',$,", "'P0 analytic fixture',''," },
+                                        std::pair{ "FORMATION('A',$,", "FORMATION('A',''," },
+                                        std::pair{ "DEFINITION('D1',$,", "DEFINITION('D1',''," },
+                                        std::pair{ "SHAPE('',$,", "SHAPE('',''," } })
+        {
+            const auto at = legacyText.find(from);
+            Require(at != std::string::npos, "Synthetic N916 carrier description slot");
+            legacyText.replace(at, std::char_traits<char>::length(from), to);
+        }
+        auto legacyRaw = step_source::InspectBytes(legacyText, step_source::Limits::PlanarFixtures());
+        auto legacyResult = Check(legacyRaw, Limits{}, SourcePolicy::Strict, GeometryScope::GeneralBrep);
+        Require(
+            legacyResult.snapshot && legacyResult.snapshot->SelectedProfile().kind == ProfileKind::Ap203N916Source,
+            "Explicit general scope selects the independent modified N916 implementation"
+        );
+        auto legacyDescription = legacyResult.snapshot->Field(Index(*legacyResult.snapshot, "4"), "description");
+        auto oldDescription = snapshot->Field(Index(*snapshot, "4"), "description");
+        Require(&legacyDescription.Value() == &legacyRaw.source->Find("4")->components[0].parameters[2], "N916 field borrows original source bytes");
+        legacyRaw = {};
+        legacyResult = {};
+        Require(
+            !legacyDescription.Declaration().optional && legacyDescription.Value().kind == step_source::ValueKind::String &&
+                legacyDescription.Value().text.empty() && oldDescription.Declaration().optional &&
+                oldDescription.Value().kind == step_source::ValueKind::Unset,
+            "Legacy field lifetime and requiredness must not mutate an existing N2635 descriptor"
+        );
+        ++groups;
+
         auto presentationText = Read(corpus / "S203-P01/input.step");
         presentationText.replace(presentationText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
         const std::string sdrLink = "SHAPE_DEFINITION_REPRESENTATION(#8,#20)";

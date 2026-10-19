@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepAp203GeneralCatalogData.h"
+#include "StepAp203N916CatalogData.h"
 #include "StepAp214MbxCatalogData.h"
 #include "StepAp214PresentationCatalogData.h"
 #include "StepCatalogBuilder.h"
@@ -132,6 +133,10 @@ constexpr Field Logical(const char* name)
 constexpr Recipe Describe(ProfileKind profile)
 {
     using namespace common;
+    if (profile == ProfileKind::Ap203N916Source)
+    {
+        return ap203_n916::Apply(Describe(ProfileKind::Ap203e2GeneralSource));
+    }
     Recipe recipe;
     if (profile != ProfileKind::Ap203e2Planar && profile != ProfileKind::Ap203e2GeneralSource && profile != ProfileKind::Ap214e3Source &&
         profile != ProfileKind::Ap214MbxSource)

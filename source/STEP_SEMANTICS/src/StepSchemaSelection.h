@@ -7,5 +7,5 @@
 namespace step_semantics
 {
 // Private selection module. Recognition and permission to use the existing catalog are distinct.
-SchemaSelection SelectSchema(const step_source::SourceSnapshot& source);
+SchemaSelection SelectSchema(const step_source::SourceSnapshot& source, GeometryScope scope);
 } // namespace step_semantics

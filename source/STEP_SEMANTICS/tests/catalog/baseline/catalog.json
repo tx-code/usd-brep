@@ -1,5 +1,5 @@
 {
-  "format": "step-catalog-snapshot.v1",
+  "format": "step-catalog-snapshot.v2",
   "profiles": [
     {
       "kind": "Ap203e2Planar",
@@ -23342,6 +23342,7101 @@
         },
         {
           "record_type": "CONVERSION_BASED_UNIT",
+          "declared_in": "NAMED_UNIT",
+          "field": "dimensions"
+        }
+      ],
+      "exclusive_groups": [
+        [
+          "SI_UNIT",
+          "CONVERSION_BASED_UNIT"
+        ],
+        [
+          "LENGTH_UNIT",
+          "PLANE_ANGLE_UNIT",
+          "SOLID_ANGLE_UNIT",
+          "MASS_UNIT"
+        ],
+        [
+          "PRODUCT_CONTEXT",
+          "PRODUCT_DEFINITION_CONTEXT"
+        ]
+      ],
+      "si_prefixes": [
+        {
+          "name": "",
+          "power": 0
+        },
+        {
+          "name": "EXA",
+          "power": 18
+        },
+        {
+          "name": "PETA",
+          "power": 15
+        },
+        {
+          "name": "TERA",
+          "power": 12
+        },
+        {
+          "name": "GIGA",
+          "power": 9
+        },
+        {
+          "name": "MEGA",
+          "power": 6
+        },
+        {
+          "name": "KILO",
+          "power": 3
+        },
+        {
+          "name": "HECTO",
+          "power": 2
+        },
+        {
+          "name": "DECA",
+          "power": 1
+        },
+        {
+          "name": "DECI",
+          "power": -1
+        },
+        {
+          "name": "CENTI",
+          "power": -2
+        },
+        {
+          "name": "MILLI",
+          "power": -3
+        },
+        {
+          "name": "MICRO",
+          "power": -6
+        },
+        {
+          "name": "NANO",
+          "power": -9
+        },
+        {
+          "name": "PICO",
+          "power": -12
+        },
+        {
+          "name": "FEMTO",
+          "power": -15
+        },
+        {
+          "name": "ATTO",
+          "power": -18
+        }
+      ]
+    },
+    {
+      "kind": "Ap203N916Source",
+      "profile": "203-N916-Source-0.1",
+      "schema_sha256": "020b4d25dbd0b6ee7d15099b978e3448f6699a72cb862d381e416e32187562f1",
+      "membership_capacity": 256,
+      "registered_types": [
+        "REPRESENTATION_ITEM",
+        "GEOMETRIC_REPRESENTATION_ITEM",
+        "TOPOLOGICAL_REPRESENTATION_ITEM",
+        "POINT",
+        "CARTESIAN_POINT",
+        "DIRECTION",
+        "VECTOR",
+        "PLACEMENT",
+        "AXIS2_PLACEMENT_3D",
+        "CURVE",
+        "LINE",
+        "SURFACE",
+        "ELEMENTARY_SURFACE",
+        "PLANE",
+        "VERTEX",
+        "VERTEX_POINT",
+        "EDGE",
+        "EDGE_CURVE",
+        "ORIENTED_EDGE",
+        "LOOP",
+        "PATH",
+        "EDGE_LOOP",
+        "FACE_BOUND",
+        "FACE_OUTER_BOUND",
+        "FACE",
+        "FACE_SURFACE",
+        "ADVANCED_FACE",
+        "CONNECTED_FACE_SET",
+        "OPEN_SHELL",
+        "CLOSED_SHELL",
+        "SOLID_MODEL",
+        "MANIFOLD_SOLID_BREP",
+        "SHELL_BASED_SURFACE_MODEL",
+        "REPRESENTATION",
+        "SHAPE_REPRESENTATION",
+        "ADVANCED_BREP_SHAPE_REPRESENTATION",
+        "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+        "APPLICATION_CONTEXT",
+        "APPLICATION_CONTEXT_ELEMENT",
+        "APPLICATION_PROTOCOL_DEFINITION",
+        "PRODUCT_CONTEXT",
+        "MECHANICAL_CONTEXT",
+        "PRODUCT_DEFINITION_CONTEXT",
+        "DESIGN_CONTEXT",
+        "PRODUCT",
+        "PRODUCT_DEFINITION_FORMATION",
+        "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE",
+        "PRODUCT_DEFINITION",
+        "PROPERTY_DEFINITION",
+        "PRODUCT_DEFINITION_SHAPE",
+        "PROPERTY_DEFINITION_REPRESENTATION",
+        "SHAPE_DEFINITION_REPRESENTATION",
+        "PRODUCT_CATEGORY",
+        "PRODUCT_RELATED_PRODUCT_CATEGORY",
+        "REPRESENTATION_CONTEXT",
+        "GEOMETRIC_REPRESENTATION_CONTEXT",
+        "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+        "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+        "NAMED_UNIT",
+        "SI_UNIT",
+        "LENGTH_UNIT",
+        "PLANE_ANGLE_UNIT",
+        "SOLID_ANGLE_UNIT",
+        "CONVERSION_BASED_UNIT",
+        "DIMENSIONAL_EXPONENTS",
+        "MEASURE_WITH_UNIT",
+        "LENGTH_MEASURE_WITH_UNIT",
+        "UNCERTAINTY_MEASURE_WITH_UNIT",
+        "MASS_UNIT",
+        "FOUNDED_ITEM",
+        "DERIVED_UNIT",
+        "DERIVED_UNIT_ELEMENT",
+        "MASS_MEASURE_WITH_UNIT",
+        "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION",
+        "STYLED_ITEM",
+        "PRESENTATION_STYLE_ASSIGNMENT",
+        "SURFACE_STYLE_USAGE",
+        "SURFACE_SIDE_STYLE",
+        "SURFACE_STYLE_FILL_AREA",
+        "FILL_AREA_STYLE",
+        "FILL_AREA_STYLE_COLOUR",
+        "COLOUR",
+        "COLOUR_SPECIFICATION",
+        "COLOUR_RGB",
+        "REPRESENTATION_RELATIONSHIP",
+        "SHAPE_REPRESENTATION_RELATIONSHIP",
+        "CONIC",
+        "CIRCLE",
+        "ELLIPSE",
+        "CYLINDRICAL_SURFACE",
+        "CONICAL_SURFACE",
+        "BOUNDED_CURVE",
+        "B_SPLINE_CURVE",
+        "B_SPLINE_CURVE_WITH_KNOTS",
+        "BOUNDED_SURFACE",
+        "B_SPLINE_SURFACE",
+        "B_SPLINE_SURFACE_WITH_KNOTS",
+        "MEASURE_REPRESENTATION_ITEM",
+        "DESCRIPTIVE_REPRESENTATION_ITEM",
+        "VALUE_REPRESENTATION_ITEM",
+        "PLANE_ANGLE_MEASURE_WITH_UNIT",
+        "PRESENTATION_LAYER_ASSIGNMENT",
+        "PRE_DEFINED_ITEM",
+        "PRE_DEFINED_COLOUR",
+        "DRAUGHTING_PRE_DEFINED_COLOUR",
+        "APPROVAL_STATUS",
+        "APPROVAL",
+        "APPROVAL_ASSIGNMENT",
+        "CC_DESIGN_APPROVAL",
+        "APPROVAL_ROLE",
+        "APPROVAL_PERSON_ORGANIZATION",
+        "APPROVAL_DATE_TIME",
+        "PERSON",
+        "ORGANIZATION",
+        "PERSON_AND_ORGANIZATION",
+        "PERSON_AND_ORGANIZATION_ROLE",
+        "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+        "CC_DESIGN_PERSON_AND_ORGANIZATION_ASSIGNMENT",
+        "SECURITY_CLASSIFICATION_LEVEL",
+        "SECURITY_CLASSIFICATION",
+        "SECURITY_CLASSIFICATION_ASSIGNMENT",
+        "CC_DESIGN_SECURITY_CLASSIFICATION",
+        "DATE",
+        "CALENDAR_DATE",
+        "DATE_AND_TIME",
+        "LOCAL_TIME",
+        "COORDINATED_UNIVERSAL_TIME_OFFSET",
+        "DATE_TIME_ROLE",
+        "DATE_AND_TIME_ASSIGNMENT",
+        "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
+        "RATIONAL_B_SPLINE_CURVE",
+        "RATIONAL_B_SPLINE_SURFACE",
+        "TOROIDAL_SURFACE",
+        "TRIMMED_CURVE"
+      ],
+      "name_index": [
+        {
+          "name": "ADVANCED_BREP_SHAPE_REPRESENTATION",
+          "id": 35
+        },
+        {
+          "name": "ADVANCED_FACE",
+          "id": 26
+        },
+        {
+          "name": "APPLICATION_CONTEXT",
+          "id": 37
+        },
+        {
+          "name": "APPLICATION_CONTEXT_ELEMENT",
+          "id": 38
+        },
+        {
+          "name": "APPLICATION_PROTOCOL_DEFINITION",
+          "id": 39
+        },
+        {
+          "name": "APPROVAL",
+          "id": 106
+        },
+        {
+          "name": "APPROVAL_ASSIGNMENT",
+          "id": 107
+        },
+        {
+          "name": "APPROVAL_DATE_TIME",
+          "id": 111
+        },
+        {
+          "name": "APPROVAL_PERSON_ORGANIZATION",
+          "id": 110
+        },
+        {
+          "name": "APPROVAL_ROLE",
+          "id": 109
+        },
+        {
+          "name": "APPROVAL_STATUS",
+          "id": 105
+        },
+        {
+          "name": "AXIS2_PLACEMENT_3D",
+          "id": 8
+        },
+        {
+          "name": "BOUNDED_CURVE",
+          "id": 91
+        },
+        {
+          "name": "BOUNDED_SURFACE",
+          "id": 94
+        },
+        {
+          "name": "B_SPLINE_CURVE",
+          "id": 92
+        },
+        {
+          "name": "B_SPLINE_CURVE_WITH_KNOTS",
+          "id": 93
+        },
+        {
+          "name": "B_SPLINE_SURFACE",
+          "id": 95
+        },
+        {
+          "name": "B_SPLINE_SURFACE_WITH_KNOTS",
+          "id": 96
+        },
+        {
+          "name": "CALENDAR_DATE",
+          "id": 123
+        },
+        {
+          "name": "CARTESIAN_POINT",
+          "id": 4
+        },
+        {
+          "name": "CC_DESIGN_APPROVAL",
+          "id": 108
+        },
+        {
+          "name": "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
+          "id": 129
+        },
+        {
+          "name": "CC_DESIGN_PERSON_AND_ORGANIZATION_ASSIGNMENT",
+          "id": 117
+        },
+        {
+          "name": "CC_DESIGN_SECURITY_CLASSIFICATION",
+          "id": 121
+        },
+        {
+          "name": "CIRCLE",
+          "id": 87
+        },
+        {
+          "name": "CLOSED_SHELL",
+          "id": 29
+        },
+        {
+          "name": "COLOUR",
+          "id": 81
+        },
+        {
+          "name": "COLOUR_RGB",
+          "id": 83
+        },
+        {
+          "name": "COLOUR_SPECIFICATION",
+          "id": 82
+        },
+        {
+          "name": "CONIC",
+          "id": 86
+        },
+        {
+          "name": "CONICAL_SURFACE",
+          "id": 90
+        },
+        {
+          "name": "CONNECTED_FACE_SET",
+          "id": 27
+        },
+        {
+          "name": "CONVERSION_BASED_UNIT",
+          "id": 63
+        },
+        {
+          "name": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+          "id": 126
+        },
+        {
+          "name": "CURVE",
+          "id": 9
+        },
+        {
+          "name": "CYLINDRICAL_SURFACE",
+          "id": 89
+        },
+        {
+          "name": "DATE",
+          "id": 122
+        },
+        {
+          "name": "DATE_AND_TIME",
+          "id": 124
+        },
+        {
+          "name": "DATE_AND_TIME_ASSIGNMENT",
+          "id": 128
+        },
+        {
+          "name": "DATE_TIME_ROLE",
+          "id": 127
+        },
+        {
+          "name": "DERIVED_UNIT",
+          "id": 70
+        },
+        {
+          "name": "DERIVED_UNIT_ELEMENT",
+          "id": 71
+        },
+        {
+          "name": "DESCRIPTIVE_REPRESENTATION_ITEM",
+          "id": 98
+        },
+        {
+          "name": "DESIGN_CONTEXT",
+          "id": 43
+        },
+        {
+          "name": "DIMENSIONAL_EXPONENTS",
+          "id": 64
+        },
+        {
+          "name": "DIRECTION",
+          "id": 5
+        },
+        {
+          "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+          "id": 104
+        },
+        {
+          "name": "EDGE",
+          "id": 16
+        },
+        {
+          "name": "EDGE_CURVE",
+          "id": 17
+        },
+        {
+          "name": "EDGE_LOOP",
+          "id": 21
+        },
+        {
+          "name": "ELEMENTARY_SURFACE",
+          "id": 12
+        },
+        {
+          "name": "ELLIPSE",
+          "id": 88
+        },
+        {
+          "name": "FACE",
+          "id": 24
+        },
+        {
+          "name": "FACE_BOUND",
+          "id": 22
+        },
+        {
+          "name": "FACE_OUTER_BOUND",
+          "id": 23
+        },
+        {
+          "name": "FACE_SURFACE",
+          "id": 25
+        },
+        {
+          "name": "FILL_AREA_STYLE",
+          "id": 79
+        },
+        {
+          "name": "FILL_AREA_STYLE_COLOUR",
+          "id": 80
+        },
+        {
+          "name": "FOUNDED_ITEM",
+          "id": 69
+        },
+        {
+          "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "id": 55
+        },
+        {
+          "name": "GEOMETRIC_REPRESENTATION_ITEM",
+          "id": 1
+        },
+        {
+          "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+          "id": 57
+        },
+        {
+          "name": "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "id": 56
+        },
+        {
+          "name": "LENGTH_MEASURE_WITH_UNIT",
+          "id": 66
+        },
+        {
+          "name": "LENGTH_UNIT",
+          "id": 60
+        },
+        {
+          "name": "LINE",
+          "id": 10
+        },
+        {
+          "name": "LOCAL_TIME",
+          "id": 125
+        },
+        {
+          "name": "LOOP",
+          "id": 19
+        },
+        {
+          "name": "MANIFOLD_SOLID_BREP",
+          "id": 31
+        },
+        {
+          "name": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+          "id": 36
+        },
+        {
+          "name": "MASS_MEASURE_WITH_UNIT",
+          "id": 72
+        },
+        {
+          "name": "MASS_UNIT",
+          "id": 68
+        },
+        {
+          "name": "MEASURE_REPRESENTATION_ITEM",
+          "id": 97
+        },
+        {
+          "name": "MEASURE_WITH_UNIT",
+          "id": 65
+        },
+        {
+          "name": "MECHANICAL_CONTEXT",
+          "id": 41
+        },
+        {
+          "name": "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION",
+          "id": 73
+        },
+        {
+          "name": "NAMED_UNIT",
+          "id": 58
+        },
+        {
+          "name": "OPEN_SHELL",
+          "id": 28
+        },
+        {
+          "name": "ORGANIZATION",
+          "id": 113
+        },
+        {
+          "name": "ORIENTED_EDGE",
+          "id": 18
+        },
+        {
+          "name": "PATH",
+          "id": 20
+        },
+        {
+          "name": "PERSON",
+          "id": 112
+        },
+        {
+          "name": "PERSON_AND_ORGANIZATION",
+          "id": 114
+        },
+        {
+          "name": "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+          "id": 116
+        },
+        {
+          "name": "PERSON_AND_ORGANIZATION_ROLE",
+          "id": 115
+        },
+        {
+          "name": "PLACEMENT",
+          "id": 7
+        },
+        {
+          "name": "PLANE",
+          "id": 13
+        },
+        {
+          "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+          "id": 100
+        },
+        {
+          "name": "PLANE_ANGLE_UNIT",
+          "id": 61
+        },
+        {
+          "name": "POINT",
+          "id": 3
+        },
+        {
+          "name": "PRESENTATION_LAYER_ASSIGNMENT",
+          "id": 101
+        },
+        {
+          "name": "PRESENTATION_STYLE_ASSIGNMENT",
+          "id": 75
+        },
+        {
+          "name": "PRE_DEFINED_COLOUR",
+          "id": 103
+        },
+        {
+          "name": "PRE_DEFINED_ITEM",
+          "id": 102
+        },
+        {
+          "name": "PRODUCT",
+          "id": 44
+        },
+        {
+          "name": "PRODUCT_CATEGORY",
+          "id": 52
+        },
+        {
+          "name": "PRODUCT_CONTEXT",
+          "id": 40
+        },
+        {
+          "name": "PRODUCT_DEFINITION",
+          "id": 47
+        },
+        {
+          "name": "PRODUCT_DEFINITION_CONTEXT",
+          "id": 42
+        },
+        {
+          "name": "PRODUCT_DEFINITION_FORMATION",
+          "id": 45
+        },
+        {
+          "name": "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE",
+          "id": 46
+        },
+        {
+          "name": "PRODUCT_DEFINITION_SHAPE",
+          "id": 49
+        },
+        {
+          "name": "PRODUCT_RELATED_PRODUCT_CATEGORY",
+          "id": 53
+        },
+        {
+          "name": "PROPERTY_DEFINITION",
+          "id": 48
+        },
+        {
+          "name": "PROPERTY_DEFINITION_REPRESENTATION",
+          "id": 50
+        },
+        {
+          "name": "RATIONAL_B_SPLINE_CURVE",
+          "id": 130
+        },
+        {
+          "name": "RATIONAL_B_SPLINE_SURFACE",
+          "id": 131
+        },
+        {
+          "name": "REPRESENTATION",
+          "id": 33
+        },
+        {
+          "name": "REPRESENTATION_CONTEXT",
+          "id": 54
+        },
+        {
+          "name": "REPRESENTATION_ITEM",
+          "id": 0
+        },
+        {
+          "name": "REPRESENTATION_RELATIONSHIP",
+          "id": 84
+        },
+        {
+          "name": "SECURITY_CLASSIFICATION",
+          "id": 119
+        },
+        {
+          "name": "SECURITY_CLASSIFICATION_ASSIGNMENT",
+          "id": 120
+        },
+        {
+          "name": "SECURITY_CLASSIFICATION_LEVEL",
+          "id": 118
+        },
+        {
+          "name": "SHAPE_DEFINITION_REPRESENTATION",
+          "id": 51
+        },
+        {
+          "name": "SHAPE_REPRESENTATION",
+          "id": 34
+        },
+        {
+          "name": "SHAPE_REPRESENTATION_RELATIONSHIP",
+          "id": 85
+        },
+        {
+          "name": "SHELL_BASED_SURFACE_MODEL",
+          "id": 32
+        },
+        {
+          "name": "SI_UNIT",
+          "id": 59
+        },
+        {
+          "name": "SOLID_ANGLE_UNIT",
+          "id": 62
+        },
+        {
+          "name": "SOLID_MODEL",
+          "id": 30
+        },
+        {
+          "name": "STYLED_ITEM",
+          "id": 74
+        },
+        {
+          "name": "SURFACE",
+          "id": 11
+        },
+        {
+          "name": "SURFACE_SIDE_STYLE",
+          "id": 77
+        },
+        {
+          "name": "SURFACE_STYLE_FILL_AREA",
+          "id": 78
+        },
+        {
+          "name": "SURFACE_STYLE_USAGE",
+          "id": 76
+        },
+        {
+          "name": "TOPOLOGICAL_REPRESENTATION_ITEM",
+          "id": 2
+        },
+        {
+          "name": "TOROIDAL_SURFACE",
+          "id": 132
+        },
+        {
+          "name": "TRIMMED_CURVE",
+          "id": 133
+        },
+        {
+          "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
+          "id": 67
+        },
+        {
+          "name": "VALUE_REPRESENTATION_ITEM",
+          "id": 99
+        },
+        {
+          "name": "VECTOR",
+          "id": 6
+        },
+        {
+          "name": "VERTEX",
+          "id": 14
+        },
+        {
+          "name": "VERTEX_POINT",
+          "id": 15
+        }
+      ],
+      "declarations": [
+        {
+          "id": 0,
+          "name": "REPRESENTATION_ITEM",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 1,
+          "name": "GEOMETRIC_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "TOPOLOGICAL_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            2
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "POINT",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            3
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "CARTESIAN_POINT",
+          "parents": [
+            "POINT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "coordinates",
+              "type": "LENGTH_MEASURE",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 1,
+              "maximum": 3,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            3,
+            4
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CARTESIAN_POINT",
+              "declaring_type_id": 4,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "DIRECTION",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "direction_ratios",
+              "type": "REAL",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 2,
+              "maximum": 3,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            5
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DIRECTION",
+              "declaring_type_id": 5,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "name": "VECTOR",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "orientation",
+              "type": "DIRECTION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "magnitude",
+              "type": "LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            6
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "VECTOR",
+              "declaring_type_id": 6,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "VECTOR",
+              "declaring_type_id": 6,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "name": "PLACEMENT",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "location",
+              "type": "CARTESIAN_POINT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            7
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PLACEMENT",
+              "declaring_type_id": 7,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "name": "AXIS2_PLACEMENT_3D",
+          "parents": [
+            "PLACEMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "axis",
+              "type": "DIRECTION",
+              "kind": "Reference",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "ref_direction",
+              "type": "DIRECTION",
+              "kind": "Reference",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            7,
+            8
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PLACEMENT",
+              "declaring_type_id": 7,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "AXIS2_PLACEMENT_3D",
+              "declaring_type_id": 8,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "AXIS2_PLACEMENT_3D",
+              "declaring_type_id": 8,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "name": "CURVE",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            9
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "name": "LINE",
+          "parents": [
+            "CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "pnt",
+              "type": "CARTESIAN_POINT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "dir",
+              "type": "VECTOR",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            10
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "LINE",
+              "declaring_type_id": 10,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "LINE",
+              "declaring_type_id": 10,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "name": "SURFACE",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            11
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "name": "ELEMENTARY_SURFACE",
+          "parents": [
+            "SURFACE"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "position",
+              "type": "AXIS2_PLACEMENT_3D",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "name": "PLANE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            13
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "name": "VERTEX",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            2,
+            14
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "name": "VERTEX_POINT",
+          "parents": [
+            "VERTEX",
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "vertex_geometry",
+              "type": "POINT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            2,
+            14,
+            15
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "VERTEX_POINT",
+              "declaring_type_id": 15,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "name": "EDGE",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "edge_start",
+              "type": "VERTEX",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "edge_end",
+              "type": "VERTEX",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            2,
+            16
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE",
+              "declaring_type_id": 16,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE",
+              "declaring_type_id": 16,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "name": "EDGE_CURVE",
+          "parents": [
+            "EDGE",
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "edge_geometry",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "same_sense",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            2,
+            16,
+            17
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE",
+              "declaring_type_id": 16,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE",
+              "declaring_type_id": 16,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "EDGE_CURVE",
+              "declaring_type_id": 17,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE_CURVE",
+              "declaring_type_id": 17,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 18,
+          "name": "ORIENTED_EDGE",
+          "parents": [
+            "EDGE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "edge_element",
+              "type": "EDGE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "orientation",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            2,
+            16,
+            18
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE",
+              "declaring_type_id": 16,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "EDGE",
+              "declaring_type_id": 16,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "ORIENTED_EDGE",
+              "declaring_type_id": 18,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ORIENTED_EDGE",
+              "declaring_type_id": 18,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 19,
+          "name": "LOOP",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            2,
+            19
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 20,
+          "name": "PATH",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "edge_list",
+              "type": "ORIENTED_EDGE",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "List",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            2,
+            20
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PATH",
+              "declaring_type_id": 20,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 21,
+          "name": "EDGE_LOOP",
+          "parents": [
+            "LOOP",
+            "PATH"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            2,
+            19,
+            20,
+            21
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PATH",
+              "declaring_type_id": 20,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 22,
+          "name": "FACE_BOUND",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "bound",
+              "type": "LOOP",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "orientation",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            2,
+            22
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_BOUND",
+              "declaring_type_id": 22,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_BOUND",
+              "declaring_type_id": 22,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 23,
+          "name": "FACE_OUTER_BOUND",
+          "parents": [
+            "FACE_BOUND"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            2,
+            22,
+            23
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_BOUND",
+              "declaring_type_id": 22,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_BOUND",
+              "declaring_type_id": 22,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 24,
+          "name": "FACE",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "bounds",
+              "type": "FACE_BOUND",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            2,
+            24
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE",
+              "declaring_type_id": 24,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 25,
+          "name": "FACE_SURFACE",
+          "parents": [
+            "FACE",
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "face_geometry",
+              "type": "SURFACE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "same_sense",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            2,
+            24,
+            25
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE",
+              "declaring_type_id": 24,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_SURFACE",
+              "declaring_type_id": 25,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_SURFACE",
+              "declaring_type_id": 25,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 26,
+          "name": "ADVANCED_FACE",
+          "parents": [
+            "FACE_SURFACE"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            2,
+            24,
+            25,
+            26
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE",
+              "declaring_type_id": 24,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_SURFACE",
+              "declaring_type_id": 25,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FACE_SURFACE",
+              "declaring_type_id": 25,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 27,
+          "name": "CONNECTED_FACE_SET",
+          "parents": [
+            "TOPOLOGICAL_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "cfs_faces",
+              "type": "FACE",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            2,
+            27
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONNECTED_FACE_SET",
+              "declaring_type_id": 27,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 28,
+          "name": "OPEN_SHELL",
+          "parents": [
+            "CONNECTED_FACE_SET"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            2,
+            27,
+            28
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONNECTED_FACE_SET",
+              "declaring_type_id": 27,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 29,
+          "name": "CLOSED_SHELL",
+          "parents": [
+            "CONNECTED_FACE_SET"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            2,
+            27,
+            29
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONNECTED_FACE_SET",
+              "declaring_type_id": 27,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 30,
+          "name": "SOLID_MODEL",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            30
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 31,
+          "name": "MANIFOLD_SOLID_BREP",
+          "parents": [
+            "SOLID_MODEL"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "outer",
+              "type": "CLOSED_SHELL",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            30,
+            31
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MANIFOLD_SOLID_BREP",
+              "declaring_type_id": 31,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 32,
+          "name": "SHELL_BASED_SURFACE_MODEL",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "sbsm_boundary",
+              "type": "SHELL",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            32
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SHELL_BASED_SURFACE_MODEL",
+              "declaring_type_id": 32,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 33,
+          "name": "REPRESENTATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "items",
+              "type": "REPRESENTATION_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "context_of_items",
+              "type": "REPRESENTATION_CONTEXT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            33
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 34,
+          "name": "SHAPE_REPRESENTATION",
+          "parents": [
+            "REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 35,
+          "name": "ADVANCED_BREP_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            35
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 36,
+          "name": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            36
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 37,
+          "name": "APPLICATION_CONTEXT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "application",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            37
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_CONTEXT",
+              "declaring_type_id": 37,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 38,
+          "name": "APPLICATION_CONTEXT_ELEMENT",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "frame_of_reference",
+              "type": "APPLICATION_CONTEXT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            38
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 39,
+          "name": "APPLICATION_PROTOCOL_DEFINITION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "status",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "application_interpreted_model_schema_name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "application_protocol_year",
+              "type": "YEAR_NUMBER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "application",
+              "type": "APPLICATION_CONTEXT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            39
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_PROTOCOL_DEFINITION",
+              "declaring_type_id": 39,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPLICATION_PROTOCOL_DEFINITION",
+              "declaring_type_id": 39,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "APPLICATION_PROTOCOL_DEFINITION",
+              "declaring_type_id": 39,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "APPLICATION_PROTOCOL_DEFINITION",
+              "declaring_type_id": 39,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 40,
+          "name": "PRODUCT_CONTEXT",
+          "parents": [
+            "APPLICATION_CONTEXT_ELEMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "discipline_type",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            38,
+            40
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_CONTEXT",
+              "declaring_type_id": 40,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 41,
+          "name": "MECHANICAL_CONTEXT",
+          "parents": [
+            "PRODUCT_CONTEXT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            38,
+            40,
+            41
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_CONTEXT",
+              "declaring_type_id": 40,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 42,
+          "name": "PRODUCT_DEFINITION_CONTEXT",
+          "parents": [
+            "APPLICATION_CONTEXT_ELEMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "life_cycle_stage",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            38,
+            42
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_CONTEXT",
+              "declaring_type_id": 42,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 43,
+          "name": "DESIGN_CONTEXT",
+          "parents": [
+            "PRODUCT_DEFINITION_CONTEXT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            38,
+            42,
+            43
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPLICATION_CONTEXT_ELEMENT",
+              "declaring_type_id": 38,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_CONTEXT",
+              "declaring_type_id": 42,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 44,
+          "name": "PRODUCT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "id",
+              "type": "IDENTIFIER",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "frame_of_reference",
+              "type": "PRODUCT_CONTEXT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            44
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT",
+              "declaring_type_id": 44,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT",
+              "declaring_type_id": 44,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT",
+              "declaring_type_id": 44,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "PRODUCT",
+              "declaring_type_id": 44,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 45,
+          "name": "PRODUCT_DEFINITION_FORMATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "id",
+              "type": "IDENTIFIER",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "of_product",
+              "type": "PRODUCT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            45
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION",
+              "declaring_type_id": 45,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION",
+              "declaring_type_id": 45,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION",
+              "declaring_type_id": 45,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 46,
+          "name": "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE",
+          "parents": [
+            "PRODUCT_DEFINITION_FORMATION"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "make_or_buy",
+              "type": "SOURCE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            45,
+            46
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION",
+              "declaring_type_id": 45,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION",
+              "declaring_type_id": 45,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION",
+              "declaring_type_id": 45,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE",
+              "declaring_type_id": 46,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 47,
+          "name": "PRODUCT_DEFINITION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "id",
+              "type": "IDENTIFIER",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "formation",
+              "type": "PRODUCT_DEFINITION_FORMATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "frame_of_reference",
+              "type": "PRODUCT_DEFINITION_CONTEXT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            47
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_DEFINITION",
+              "declaring_type_id": 47,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION",
+              "declaring_type_id": 47,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION",
+              "declaring_type_id": 47,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "PRODUCT_DEFINITION",
+              "declaring_type_id": 47,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 48,
+          "name": "PROPERTY_DEFINITION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "definition",
+              "type": "CHARACTERIZED_DEFINITION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            48
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PROPERTY_DEFINITION",
+              "declaring_type_id": 48,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PROPERTY_DEFINITION",
+              "declaring_type_id": 48,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PROPERTY_DEFINITION",
+              "declaring_type_id": 48,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 49,
+          "name": "PRODUCT_DEFINITION_SHAPE",
+          "parents": [
+            "PROPERTY_DEFINITION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            48,
+            49
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PROPERTY_DEFINITION",
+              "declaring_type_id": 48,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PROPERTY_DEFINITION",
+              "declaring_type_id": 48,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PROPERTY_DEFINITION",
+              "declaring_type_id": 48,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 50,
+          "name": "PROPERTY_DEFINITION_REPRESENTATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "definition",
+              "type": "PROPERTY_DEFINITION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "used_representation",
+              "type": "REPRESENTATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            50
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PROPERTY_DEFINITION_REPRESENTATION",
+              "declaring_type_id": 50,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PROPERTY_DEFINITION_REPRESENTATION",
+              "declaring_type_id": 50,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 51,
+          "name": "SHAPE_DEFINITION_REPRESENTATION",
+          "parents": [
+            "PROPERTY_DEFINITION_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            50,
+            51
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PROPERTY_DEFINITION_REPRESENTATION",
+              "declaring_type_id": 50,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PROPERTY_DEFINITION_REPRESENTATION",
+              "declaring_type_id": 50,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 52,
+          "name": "PRODUCT_CATEGORY",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            52
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_CATEGORY",
+              "declaring_type_id": 52,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY",
+              "declaring_type_id": 52,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 53,
+          "name": "PRODUCT_RELATED_PRODUCT_CATEGORY",
+          "parents": [
+            "PRODUCT_CATEGORY"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "products",
+              "type": "PRODUCT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            52,
+            53
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_CATEGORY",
+              "declaring_type_id": 52,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY",
+              "declaring_type_id": 52,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_RELATED_PRODUCT_CATEGORY",
+              "declaring_type_id": 53,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 54,
+          "name": "REPRESENTATION_CONTEXT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "context_identifier",
+              "type": "IDENTIFIER",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "context_type",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            54
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 55,
+          "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "parents": [
+            "REPRESENTATION_CONTEXT"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "coordinate_space_dimension",
+              "type": "DIMENSION_COUNT",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            54,
+            55
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "GEOMETRIC_REPRESENTATION_CONTEXT",
+              "declaring_type_id": 55,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 56,
+          "name": "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "parents": [
+            "REPRESENTATION_CONTEXT"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "units",
+              "type": "UNIT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            54,
+            56
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+              "declaring_type_id": 56,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 57,
+          "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+          "parents": [
+            "REPRESENTATION_CONTEXT"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "uncertainty",
+              "type": "UNCERTAINTY_MEASURE_WITH_UNIT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            54,
+            57
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+              "declaring_type_id": 57,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 58,
+          "name": "NAMED_UNIT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "dimensions",
+              "type": "DIMENSIONAL_EXPONENTS",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            58
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 59,
+          "name": "SI_UNIT",
+          "parents": [
+            "NAMED_UNIT"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "prefix",
+              "type": "SI_PREFIX",
+              "kind": "Enumeration",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "name",
+              "type": "SI_UNIT_NAME",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            58,
+            59
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SI_UNIT",
+              "declaring_type_id": 59,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SI_UNIT",
+              "declaring_type_id": 59,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 60,
+          "name": "LENGTH_UNIT",
+          "parents": [
+            "NAMED_UNIT"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            58,
+            60
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 61,
+          "name": "PLANE_ANGLE_UNIT",
+          "parents": [
+            "NAMED_UNIT"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            58,
+            61
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 62,
+          "name": "SOLID_ANGLE_UNIT",
+          "parents": [
+            "NAMED_UNIT"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            58,
+            62
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 63,
+          "name": "CONVERSION_BASED_UNIT",
+          "parents": [
+            "NAMED_UNIT"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "conversion_factor",
+              "type": "MEASURE_WITH_UNIT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            58,
+            63
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONVERSION_BASED_UNIT",
+              "declaring_type_id": 63,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONVERSION_BASED_UNIT",
+              "declaring_type_id": 63,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 64,
+          "name": "DIMENSIONAL_EXPONENTS",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "length_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "mass_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "time_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "electric_current_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "thermodynamic_temperature_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "amount_of_substance_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "luminous_intensity_exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            64
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 5
+            },
+            {
+              "declaring_type": "DIMENSIONAL_EXPONENTS",
+              "declaring_type_id": 64,
+              "local_field_index": 6
+            }
+          ]
+        },
+        {
+          "id": 65,
+          "name": "MEASURE_WITH_UNIT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "value_component",
+              "type": "MEASURE_VALUE",
+              "kind": "Measure",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "unit_component",
+              "type": "UNIT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            65
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 66,
+          "name": "LENGTH_MEASURE_WITH_UNIT",
+          "parents": [
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            65,
+            66
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 67,
+          "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
+          "parents": [
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            65,
+            67
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "UNCERTAINTY_MEASURE_WITH_UNIT",
+              "declaring_type_id": 67,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "UNCERTAINTY_MEASURE_WITH_UNIT",
+              "declaring_type_id": 67,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 68,
+          "name": "MASS_UNIT",
+          "parents": [
+            "NAMED_UNIT"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            58,
+            68
+          ],
+          "flattened": [
+            {
+              "declaring_type": "NAMED_UNIT",
+              "declaring_type_id": 58,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 69,
+          "name": "FOUNDED_ITEM",
+          "parents": [],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            69
+          ],
+          "flattened": []
+        },
+        {
+          "id": 70,
+          "name": "DERIVED_UNIT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "elements",
+              "type": "DERIVED_UNIT_ELEMENT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            70
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DERIVED_UNIT",
+              "declaring_type_id": 70,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 71,
+          "name": "DERIVED_UNIT_ELEMENT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "unit",
+              "type": "NAMED_UNIT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "exponent",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            71
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DERIVED_UNIT_ELEMENT",
+              "declaring_type_id": 71,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DERIVED_UNIT_ELEMENT",
+              "declaring_type_id": 71,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 72,
+          "name": "MASS_MEASURE_WITH_UNIT",
+          "parents": [
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            65,
+            72
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 73,
+          "name": "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION",
+          "parents": [
+            "REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            73
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 74,
+          "name": "STYLED_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "styles",
+              "type": "PRESENTATION_STYLE_ASSIGNMENT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "item",
+              "type": "REPRESENTATION_ITEM",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            74
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "STYLED_ITEM",
+              "declaring_type_id": 74,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "STYLED_ITEM",
+              "declaring_type_id": 74,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 75,
+          "name": "PRESENTATION_STYLE_ASSIGNMENT",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "styles",
+              "type": "PRESENTATION_STYLE_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            75
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRESENTATION_STYLE_ASSIGNMENT",
+              "declaring_type_id": 75,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 76,
+          "name": "SURFACE_STYLE_USAGE",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "side",
+              "type": "SURFACE_SIDE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "style",
+              "type": "SURFACE_SIDE_STYLE_SELECT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            76
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SURFACE_STYLE_USAGE",
+              "declaring_type_id": 76,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SURFACE_STYLE_USAGE",
+              "declaring_type_id": 76,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 77,
+          "name": "SURFACE_SIDE_STYLE",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "styles",
+              "type": "SURFACE_STYLE_ELEMENT_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": 7,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            77
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SURFACE_SIDE_STYLE",
+              "declaring_type_id": 77,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SURFACE_SIDE_STYLE",
+              "declaring_type_id": 77,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 78,
+          "name": "SURFACE_STYLE_FILL_AREA",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "fill_area",
+              "type": "FILL_AREA_STYLE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            78
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SURFACE_STYLE_FILL_AREA",
+              "declaring_type_id": 78,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 79,
+          "name": "FILL_AREA_STYLE",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "fill_styles",
+              "type": "FILL_STYLE_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            79
+          ],
+          "flattened": [
+            {
+              "declaring_type": "FILL_AREA_STYLE",
+              "declaring_type_id": 79,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FILL_AREA_STYLE",
+              "declaring_type_id": 79,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 80,
+          "name": "FILL_AREA_STYLE_COLOUR",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "fill_colour",
+              "type": "COLOUR",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            80
+          ],
+          "flattened": [
+            {
+              "declaring_type": "FILL_AREA_STYLE_COLOUR",
+              "declaring_type_id": 80,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "FILL_AREA_STYLE_COLOUR",
+              "declaring_type_id": 80,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 81,
+          "name": "COLOUR",
+          "parents": [],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            81
+          ],
+          "flattened": []
+        },
+        {
+          "id": 82,
+          "name": "COLOUR_SPECIFICATION",
+          "parents": [
+            "COLOUR"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            81,
+            82
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COLOUR_SPECIFICATION",
+              "declaring_type_id": 82,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 83,
+          "name": "COLOUR_RGB",
+          "parents": [
+            "COLOUR_SPECIFICATION"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "red",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "green",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "blue",
+              "type": "REAL",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            81,
+            82,
+            83
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COLOUR_SPECIFICATION",
+              "declaring_type_id": 82,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COLOUR_RGB",
+              "declaring_type_id": 83,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COLOUR_RGB",
+              "declaring_type_id": 83,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "COLOUR_RGB",
+              "declaring_type_id": 83,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 84,
+          "name": "REPRESENTATION_RELATIONSHIP",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "rep_1",
+              "type": "REPRESENTATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "rep_2",
+              "type": "REPRESENTATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            84
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 85,
+          "name": "SHAPE_REPRESENTATION_RELATIONSHIP",
+          "parents": [
+            "REPRESENTATION_RELATIONSHIP"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            84,
+            85
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 86,
+          "name": "CONIC",
+          "parents": [
+            "CURVE"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "position",
+              "type": "AXIS2_PLACEMENT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            86
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONIC",
+              "declaring_type_id": 86,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 87,
+          "name": "CIRCLE",
+          "parents": [
+            "CONIC"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            86,
+            87
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONIC",
+              "declaring_type_id": 86,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CIRCLE",
+              "declaring_type_id": 87,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 88,
+          "name": "ELLIPSE",
+          "parents": [
+            "CONIC"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "semi_axis_1",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "semi_axis_2",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            86,
+            88
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONIC",
+              "declaring_type_id": 86,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELLIPSE",
+              "declaring_type_id": 88,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELLIPSE",
+              "declaring_type_id": 88,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 89,
+          "name": "CYLINDRICAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            89
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CYLINDRICAL_SURFACE",
+              "declaring_type_id": 89,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 90,
+          "name": "CONICAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "radius",
+              "type": "LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "semi_angle",
+              "type": "PLANE_ANGLE_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            90
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONICAL_SURFACE",
+              "declaring_type_id": 90,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CONICAL_SURFACE",
+              "declaring_type_id": 90,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 91,
+          "name": "BOUNDED_CURVE",
+          "parents": [
+            "CURVE"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 92,
+          "name": "B_SPLINE_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "degree",
+              "type": "INTEGER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "control_points_list",
+              "type": "CARTESIAN_POINT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "curve_form",
+              "type": "B_SPLINE_CURVE_FORM",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "closed_curve",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "self_intersect",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            92
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 4
+            }
+          ]
+        },
+        {
+          "id": 93,
+          "name": "B_SPLINE_CURVE_WITH_KNOTS",
+          "parents": [
+            "B_SPLINE_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "knot_multiplicities",
+              "type": "INTEGER",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Integer",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "knots",
+              "type": "PARAMETER_VALUE",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "knot_spec",
+              "type": "KNOT_TYPE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            92,
+            93
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE_WITH_KNOTS",
+              "declaring_type_id": 93,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE_WITH_KNOTS",
+              "declaring_type_id": 93,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE_WITH_KNOTS",
+              "declaring_type_id": 93,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 94,
+          "name": "BOUNDED_SURFACE",
+          "parents": [
+            "SURFACE"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            11,
+            94
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 95,
+          "name": "B_SPLINE_SURFACE",
+          "parents": [
+            "BOUNDED_SURFACE"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "u_degree",
+              "type": "INTEGER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "v_degree",
+              "type": "INTEGER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "control_points_list",
+              "type": "CARTESIAN_POINT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": [
+                {
+                  "aggregate": "LIST",
+                  "minimum": 2,
+                  "maximum": null,
+                  "unique": false
+                }
+              ]
+            },
+            {
+              "name": "surface_form",
+              "type": "B_SPLINE_SURFACE_FORM",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "u_closed",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "v_closed",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "self_intersect",
+              "type": "LOGICAL",
+              "kind": "Logical",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            94,
+            95
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 5
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 6
+            }
+          ]
+        },
+        {
+          "id": 96,
+          "name": "B_SPLINE_SURFACE_WITH_KNOTS",
+          "parents": [
+            "B_SPLINE_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "u_multiplicities",
+              "type": "INTEGER",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Integer",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "v_multiplicities",
+              "type": "INTEGER",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Integer",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "u_knots",
+              "type": "PARAMETER_VALUE",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "v_knots",
+              "type": "PARAMETER_VALUE",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "knot_spec",
+              "type": "KNOT_TYPE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            94,
+            95,
+            96
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 5
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 6
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE_WITH_KNOTS",
+              "declaring_type_id": 96,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE_WITH_KNOTS",
+              "declaring_type_id": 96,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE_WITH_KNOTS",
+              "declaring_type_id": 96,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE_WITH_KNOTS",
+              "declaring_type_id": 96,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE_WITH_KNOTS",
+              "declaring_type_id": 96,
+              "local_field_index": 4
+            }
+          ]
+        },
+        {
+          "id": 97,
+          "name": "MEASURE_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM",
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            65,
+            97
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 98,
+          "name": "DESCRIPTIVE_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            98
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DESCRIPTIVE_REPRESENTATION_ITEM",
+              "declaring_type_id": 98,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 99,
+          "name": "VALUE_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "value_component",
+              "type": "MEASURE_VALUE",
+              "kind": "Measure",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            99
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "VALUE_REPRESENTATION_ITEM",
+              "declaring_type_id": 99,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 100,
+          "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+          "parents": [
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            65,
+            100
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 101,
+          "name": "PRESENTATION_LAYER_ASSIGNMENT",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "assigned_items",
+              "type": "LAYERED_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            101
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRESENTATION_LAYER_ASSIGNMENT",
+              "declaring_type_id": 101,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRESENTATION_LAYER_ASSIGNMENT",
+              "declaring_type_id": 101,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRESENTATION_LAYER_ASSIGNMENT",
+              "declaring_type_id": 101,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 102,
+          "name": "PRE_DEFINED_ITEM",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            102
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 102,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 103,
+          "name": "PRE_DEFINED_COLOUR",
+          "parents": [
+            "PRE_DEFINED_ITEM",
+            "COLOUR"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            81,
+            102,
+            103
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 102,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 104,
+          "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+          "parents": [
+            "PRE_DEFINED_COLOUR"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            81,
+            102,
+            103,
+            104
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 102,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 105,
+          "name": "APPROVAL_STATUS",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            105
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL_STATUS",
+              "declaring_type_id": 105,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 106,
+          "name": "APPROVAL",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "status",
+              "type": "APPROVAL_STATUS",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "level",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            106
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL",
+              "declaring_type_id": 106,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPROVAL",
+              "declaring_type_id": 106,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 107,
+          "name": "APPROVAL_ASSIGNMENT",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "assigned_approval",
+              "type": "APPROVAL",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            107
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL_ASSIGNMENT",
+              "declaring_type_id": 107,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 108,
+          "name": "CC_DESIGN_APPROVAL",
+          "parents": [
+            "APPROVAL_ASSIGNMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "items",
+              "type": "APPROVED_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            107,
+            108
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL_ASSIGNMENT",
+              "declaring_type_id": 107,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CC_DESIGN_APPROVAL",
+              "declaring_type_id": 108,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 109,
+          "name": "APPROVAL_ROLE",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "role",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            109
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL_ROLE",
+              "declaring_type_id": 109,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 110,
+          "name": "APPROVAL_PERSON_ORGANIZATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "person_organization",
+              "type": "PERSON_ORGANIZATION_SELECT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "authorized_approval",
+              "type": "APPROVAL",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "role",
+              "type": "APPROVAL_ROLE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            110
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL_PERSON_ORGANIZATION",
+              "declaring_type_id": 110,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPROVAL_PERSON_ORGANIZATION",
+              "declaring_type_id": 110,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "APPROVAL_PERSON_ORGANIZATION",
+              "declaring_type_id": 110,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 111,
+          "name": "APPROVAL_DATE_TIME",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "date_time",
+              "type": "DATE_TIME_SELECT",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "dated_approval",
+              "type": "APPROVAL",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            111
+          ],
+          "flattened": [
+            {
+              "declaring_type": "APPROVAL_DATE_TIME",
+              "declaring_type_id": 111,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "APPROVAL_DATE_TIME",
+              "declaring_type_id": 111,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 112,
+          "name": "PERSON",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "id",
+              "type": "IDENTIFIER",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "last_name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "first_name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "middle_names",
+              "type": "LABEL",
+              "kind": "Aggregate",
+              "optional": true,
+              "element_kind": "String",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "prefix_titles",
+              "type": "LABEL",
+              "kind": "Aggregate",
+              "optional": true,
+              "element_kind": "String",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "suffix_titles",
+              "type": "LABEL",
+              "kind": "Aggregate",
+              "optional": true,
+              "element_kind": "String",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            112
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PERSON",
+              "declaring_type_id": 112,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PERSON",
+              "declaring_type_id": 112,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PERSON",
+              "declaring_type_id": 112,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "PERSON",
+              "declaring_type_id": 112,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "PERSON",
+              "declaring_type_id": 112,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "PERSON",
+              "declaring_type_id": 112,
+              "local_field_index": 5
+            }
+          ]
+        },
+        {
+          "id": 113,
+          "name": "ORGANIZATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "id",
+              "type": "IDENTIFIER",
+              "kind": "String",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            113
+          ],
+          "flattened": [
+            {
+              "declaring_type": "ORGANIZATION",
+              "declaring_type_id": 113,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ORGANIZATION",
+              "declaring_type_id": 113,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "ORGANIZATION",
+              "declaring_type_id": 113,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 114,
+          "name": "PERSON_AND_ORGANIZATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "the_person",
+              "type": "PERSON",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "the_organization",
+              "type": "ORGANIZATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            114
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION",
+              "declaring_type_id": 114,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION",
+              "declaring_type_id": 114,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 115,
+          "name": "PERSON_AND_ORGANIZATION_ROLE",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            115
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION_ROLE",
+              "declaring_type_id": 115,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 116,
+          "name": "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "assigned_person_and_organization",
+              "type": "PERSON_AND_ORGANIZATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "role",
+              "type": "PERSON_AND_ORGANIZATION_ROLE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            116
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+              "declaring_type_id": 116,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+              "declaring_type_id": 116,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 117,
+          "name": "CC_DESIGN_PERSON_AND_ORGANIZATION_ASSIGNMENT",
+          "parents": [
+            "PERSON_AND_ORGANIZATION_ASSIGNMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "items",
+              "type": "PERSON_ORGANIZATION_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            116,
+            117
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+              "declaring_type_id": 116,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PERSON_AND_ORGANIZATION_ASSIGNMENT",
+              "declaring_type_id": 116,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "CC_DESIGN_PERSON_AND_ORGANIZATION_ASSIGNMENT",
+              "declaring_type_id": 117,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 118,
+          "name": "SECURITY_CLASSIFICATION_LEVEL",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            118
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SECURITY_CLASSIFICATION_LEVEL",
+              "declaring_type_id": 118,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 119,
+          "name": "SECURITY_CLASSIFICATION",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "purpose",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "security_level",
+              "type": "SECURITY_CLASSIFICATION_LEVEL",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            119
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SECURITY_CLASSIFICATION",
+              "declaring_type_id": 119,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SECURITY_CLASSIFICATION",
+              "declaring_type_id": 119,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "SECURITY_CLASSIFICATION",
+              "declaring_type_id": 119,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 120,
+          "name": "SECURITY_CLASSIFICATION_ASSIGNMENT",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "assigned_security_classification",
+              "type": "SECURITY_CLASSIFICATION",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            120
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SECURITY_CLASSIFICATION_ASSIGNMENT",
+              "declaring_type_id": 120,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 121,
+          "name": "CC_DESIGN_SECURITY_CLASSIFICATION",
+          "parents": [
+            "SECURITY_CLASSIFICATION_ASSIGNMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "items",
+              "type": "CLASSIFIED_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            120,
+            121
+          ],
+          "flattened": [
+            {
+              "declaring_type": "SECURITY_CLASSIFICATION_ASSIGNMENT",
+              "declaring_type_id": 120,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CC_DESIGN_SECURITY_CLASSIFICATION",
+              "declaring_type_id": 121,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 122,
+          "name": "DATE",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "year_component",
+              "type": "YEAR_NUMBER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            122
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DATE",
+              "declaring_type_id": 122,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 123,
+          "name": "CALENDAR_DATE",
+          "parents": [
+            "DATE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "day_component",
+              "type": "DAY_IN_MONTH_NUMBER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "month_component",
+              "type": "MONTH_IN_YEAR_NUMBER",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            122,
+            123
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DATE",
+              "declaring_type_id": 122,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CALENDAR_DATE",
+              "declaring_type_id": 123,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "CALENDAR_DATE",
+              "declaring_type_id": 123,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 124,
+          "name": "DATE_AND_TIME",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "date_component",
+              "type": "DATE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "time_component",
+              "type": "LOCAL_TIME",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            124
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DATE_AND_TIME",
+              "declaring_type_id": 124,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DATE_AND_TIME",
+              "declaring_type_id": 124,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 125,
+          "name": "LOCAL_TIME",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "hour_component",
+              "type": "HOUR_IN_DAY",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "minute_component",
+              "type": "MINUTE_IN_HOUR",
+              "kind": "Integer",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "second_component",
+              "type": "SECOND_IN_MINUTE",
+              "kind": "Real",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "zone",
+              "type": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            125
+          ],
+          "flattened": [
+            {
+              "declaring_type": "LOCAL_TIME",
+              "declaring_type_id": 125,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "LOCAL_TIME",
+              "declaring_type_id": 125,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "LOCAL_TIME",
+              "declaring_type_id": 125,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "LOCAL_TIME",
+              "declaring_type_id": 125,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 126,
+          "name": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "hour_offset",
+              "type": "HOUR_IN_DAY",
+              "kind": "Integer",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "minute_offset",
+              "type": "MINUTE_IN_HOUR",
+              "kind": "Integer",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sense",
+              "type": "AHEAD_OR_BEHIND",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            126
+          ],
+          "flattened": [
+            {
+              "declaring_type": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+              "declaring_type_id": 126,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+              "declaring_type_id": 126,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+              "declaring_type_id": 126,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 127,
+          "name": "DATE_TIME_ROLE",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            127
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DATE_TIME_ROLE",
+              "declaring_type_id": 127,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 128,
+          "name": "DATE_AND_TIME_ASSIGNMENT",
+          "parents": [],
+          "simple": false,
+          "fields": [
+            {
+              "name": "assigned_date_and_time",
+              "type": "DATE_AND_TIME",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "role",
+              "type": "DATE_TIME_ROLE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            128
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DATE_AND_TIME_ASSIGNMENT",
+              "declaring_type_id": 128,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DATE_AND_TIME_ASSIGNMENT",
+              "declaring_type_id": 128,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 129,
+          "name": "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
+          "parents": [
+            "DATE_AND_TIME_ASSIGNMENT"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "items",
+              "type": "DATE_TIME_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            128,
+            129
+          ],
+          "flattened": [
+            {
+              "declaring_type": "DATE_AND_TIME_ASSIGNMENT",
+              "declaring_type_id": 128,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "DATE_AND_TIME_ASSIGNMENT",
+              "declaring_type_id": 128,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "CC_DESIGN_DATE_AND_TIME_ASSIGNMENT",
+              "declaring_type_id": 129,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 130,
+          "name": "RATIONAL_B_SPLINE_CURVE",
+          "parents": [
+            "B_SPLINE_CURVE"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "weights_data",
+              "type": "REAL",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            92,
+            130
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_CURVE",
+              "declaring_type_id": 92,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "RATIONAL_B_SPLINE_CURVE",
+              "declaring_type_id": 130,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 131,
+          "name": "RATIONAL_B_SPLINE_SURFACE",
+          "parents": [
+            "B_SPLINE_SURFACE"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "weights_data",
+              "type": "REAL",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Real",
+              "minimum": 2,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": [
+                {
+                  "aggregate": "LIST",
+                  "minimum": 2,
+                  "maximum": null,
+                  "unique": false
+                }
+              ]
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            94,
+            95,
+            131
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 4
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 5
+            },
+            {
+              "declaring_type": "B_SPLINE_SURFACE",
+              "declaring_type_id": 95,
+              "local_field_index": 6
+            },
+            {
+              "declaring_type": "RATIONAL_B_SPLINE_SURFACE",
+              "declaring_type_id": 131,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 132,
+          "name": "TOROIDAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "major_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "minor_radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            132
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 132,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TOROIDAL_SURFACE",
+              "declaring_type_id": 132,
+              "local_field_index": 1
+            }
+          ]
+        },
+        {
+          "id": 133,
+          "name": "TRIMMED_CURVE",
+          "parents": [
+            "BOUNDED_CURVE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "basis_curve",
+              "type": "CURVE",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_1",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "trim_2",
+              "type": "TRIMMING_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "TrimmingSelect",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": "Set",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sense_agreement",
+              "type": "BOOLEAN",
+              "kind": "Boolean",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "master_representation",
+              "type": "TRIMMING_PREFERENCE",
+              "kind": "Enumeration",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            9,
+            91,
+            133
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 3
+            },
+            {
+              "declaring_type": "TRIMMED_CURVE",
+              "declaring_type_id": 133,
+              "local_field_index": 4
+            }
+          ]
+        }
+      ],
+      "reference_selects": [
+        {
+          "name": "UNIT",
+          "branches": [
+            "NAMED_UNIT"
+          ]
+        },
+        {
+          "name": "SHELL",
+          "branches": [
+            "OPEN_SHELL",
+            "CLOSED_SHELL"
+          ]
+        },
+        {
+          "name": "CHARACTERIZED_DEFINITION",
+          "branches": [
+            "PRODUCT_DEFINITION",
+            "PRODUCT_DEFINITION_SHAPE"
+          ]
+        },
+        {
+          "name": "REPRESENTED_DEFINITION",
+          "branches": [
+            "PROPERTY_DEFINITION"
+          ]
+        },
+        {
+          "name": "PRESENTATION_STYLE_SELECT",
+          "branches": [
+            "SURFACE_STYLE_USAGE",
+            "FILL_AREA_STYLE"
+          ]
+        },
+        {
+          "name": "SURFACE_SIDE_STYLE_SELECT",
+          "branches": [
+            "SURFACE_SIDE_STYLE"
+          ]
+        },
+        {
+          "name": "SURFACE_STYLE_ELEMENT_SELECT",
+          "branches": [
+            "SURFACE_STYLE_FILL_AREA"
+          ]
+        },
+        {
+          "name": "FILL_STYLE_SELECT",
+          "branches": [
+            "FILL_AREA_STYLE_COLOUR"
+          ]
+        },
+        {
+          "name": "AXIS2_PLACEMENT",
+          "branches": [
+            "AXIS2_PLACEMENT_3D"
+          ]
+        },
+        {
+          "name": "DATE_TIME_ITEM",
+          "branches": [
+            "PRODUCT_DEFINITION",
+            "APPROVAL_PERSON_ORGANIZATION",
+            "SECURITY_CLASSIFICATION"
+          ]
+        },
+        {
+          "name": "APPROVED_ITEM",
+          "branches": [
+            "PRODUCT_DEFINITION_FORMATION",
+            "PRODUCT_DEFINITION",
+            "SECURITY_CLASSIFICATION"
+          ]
+        },
+        {
+          "name": "PERSON_ORGANIZATION_SELECT",
+          "branches": [
+            "PERSON",
+            "ORGANIZATION",
+            "PERSON_AND_ORGANIZATION"
+          ]
+        },
+        {
+          "name": "DATE_TIME_SELECT",
+          "branches": [
+            "DATE",
+            "DATE_AND_TIME",
+            "LOCAL_TIME"
+          ]
+        },
+        {
+          "name": "CLASSIFIED_ITEM",
+          "branches": [
+            "PRODUCT_DEFINITION_FORMATION"
+          ]
+        },
+        {
+          "name": "PERSON_ORGANIZATION_ITEM",
+          "branches": [
+            "PRODUCT",
+            "PRODUCT_DEFINITION_FORMATION",
+            "PRODUCT_DEFINITION",
+            "SECURITY_CLASSIFICATION"
+          ]
+        },
+        {
+          "name": "LAYERED_ITEM",
+          "branches": [
+            "REPRESENTATION_ITEM"
+          ]
+        },
+        {
+          "name": "TRIMMING_SELECT",
+          "branches": [
+            "CARTESIAN_POINT"
+          ]
+        }
+      ],
+      "enumerations": [
+        {
+          "name": "SI_UNIT_NAME",
+          "branches": [
+            "METRE",
+            "GRAM",
+            "SECOND",
+            "AMPERE",
+            "KELVIN",
+            "MOLE",
+            "CANDELA",
+            "RADIAN",
+            "STERADIAN",
+            "HERTZ",
+            "NEWTON",
+            "PASCAL",
+            "JOULE",
+            "WATT",
+            "COULOMB",
+            "VOLT",
+            "FARAD",
+            "OHM",
+            "SIEMENS",
+            "WEBER",
+            "TESLA",
+            "HENRY",
+            "DEGREE_CELSIUS",
+            "LUMEN",
+            "LUX",
+            "BECQUEREL",
+            "GRAY",
+            "SIEVERT"
+          ]
+        },
+        {
+          "name": "SOURCE",
+          "branches": [
+            "MADE",
+            "BOUGHT",
+            "NOT_KNOWN"
+          ]
+        },
+        {
+          "name": "SURFACE_SIDE",
+          "branches": [
+            "POSITIVE",
+            "NEGATIVE",
+            "BOTH"
+          ]
+        },
+        {
+          "name": "B_SPLINE_CURVE_FORM",
+          "branches": [
+            "POLYLINE_FORM",
+            "CIRCULAR_ARC",
+            "ELLIPTIC_ARC",
+            "PARABOLIC_ARC",
+            "HYPERBOLIC_ARC",
+            "UNSPECIFIED"
+          ]
+        },
+        {
+          "name": "B_SPLINE_SURFACE_FORM",
+          "branches": [
+            "PLANE_SURF",
+            "CYLINDRICAL_SURF",
+            "CONICAL_SURF",
+            "SPHERICAL_SURF",
+            "TOROIDAL_SURF",
+            "SURF_OF_REVOLUTION",
+            "RULED_SURF",
+            "GENERALISED_CONE",
+            "QUADRIC_SURF",
+            "SURF_OF_LINEAR_EXTRUSION",
+            "UNSPECIFIED"
+          ]
+        },
+        {
+          "name": "KNOT_TYPE",
+          "branches": [
+            "UNIFORM_KNOTS",
+            "QUASI_UNIFORM_KNOTS",
+            "PIECEWISE_BEZIER_KNOTS",
+            "UNSPECIFIED"
+          ]
+        },
+        {
+          "name": "AHEAD_OR_BEHIND",
+          "branches": [
+            "AHEAD",
+            "BEHIND"
+          ]
+        },
+        {
+          "name": "TRIMMING_PREFERENCE",
+          "branches": [
+            "CARTESIAN",
+            "PARAMETER",
+            "UNSPECIFIED"
+          ]
+        }
+      ],
+      "complex_signatures": [
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "REPRESENTATION_CONTEXT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+          "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "REPRESENTATION_CONTEXT"
+        ],
+        [
+          "LENGTH_UNIT",
+          "NAMED_UNIT",
+          "SI_UNIT"
+        ],
+        [
+          "NAMED_UNIT",
+          "PLANE_ANGLE_UNIT",
+          "SI_UNIT"
+        ],
+        [
+          "NAMED_UNIT",
+          "SI_UNIT",
+          "SOLID_ANGLE_UNIT"
+        ],
+        [
+          "CONVERSION_BASED_UNIT",
+          "LENGTH_UNIT",
+          "NAMED_UNIT"
+        ],
+        [
+          "MASS_UNIT",
+          "NAMED_UNIT",
+          "SI_UNIT"
+        ],
+        [
+          "CONVERSION_BASED_UNIT",
+          "MASS_UNIT",
+          "NAMED_UNIT"
+        ],
+        [
+          "MEASURE_REPRESENTATION_ITEM",
+          "MEASURE_WITH_UNIT",
+          "REPRESENTATION_ITEM"
+        ],
+        [
+          "CONVERSION_BASED_UNIT",
+          "NAMED_UNIT",
+          "PLANE_ANGLE_UNIT"
+        ],
+        [
+          "REPRESENTATION_RELATIONSHIP",
+          "SHAPE_REPRESENTATION_RELATIONSHIP"
+        ],
+        [
+          "BOUNDED_CURVE",
+          "B_SPLINE_CURVE",
+          "B_SPLINE_CURVE_WITH_KNOTS",
+          "CURVE",
+          "GEOMETRIC_REPRESENTATION_ITEM",
+          "RATIONAL_B_SPLINE_CURVE",
+          "REPRESENTATION_ITEM"
+        ],
+        [
+          "BOUNDED_SURFACE",
+          "B_SPLINE_SURFACE",
+          "B_SPLINE_SURFACE_WITH_KNOTS",
+          "GEOMETRIC_REPRESENTATION_ITEM",
+          "RATIONAL_B_SPLINE_SURFACE",
+          "REPRESENTATION_ITEM",
+          "SURFACE"
+        ]
+      ],
+      "measure_branches": [
+        "LENGTH_MEASURE",
+        "POSITIVE_LENGTH_MEASURE",
+        "MASS_MEASURE",
+        "PLANE_ANGLE_MEASURE",
+        "AREA_MEASURE",
+        "VOLUME_MEASURE",
+        "COUNT_MEASURE"
+      ],
+      "derived_slots": [
+        {
+          "record_type": "ORIENTED_EDGE",
+          "declared_in": "EDGE",
+          "field": "edge_start"
+        },
+        {
+          "record_type": "ORIENTED_EDGE",
+          "declared_in": "EDGE",
+          "field": "edge_end"
+        },
+        {
+          "record_type": "SI_UNIT",
           "declared_in": "NAMED_UNIT",
           "field": "dimensions"
         }

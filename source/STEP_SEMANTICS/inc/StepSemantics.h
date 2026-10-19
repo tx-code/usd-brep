@@ -21,13 +21,16 @@ inline constexpr const char* Ap214SourceProfile = "214e3-P0-Source-0.1";
 inline constexpr const char* Ap214SchemaSha256 = "71ab140fe7f774321beee6a31e6fee2afc3973fd60350ae2018c74c211fb4295";
 inline constexpr const char* Ap214MbxSourceProfile = "214-MBx2010-Source-0.1";
 inline constexpr const char* Ap203GeneralSourceProfile = "203e2-G0-Source-0.1";
+inline constexpr const char* Ap203N916SourceProfile = "203-N916-Source-0.1";
+inline constexpr const char* Ap203N916SchemaSha256 = "020b4d25dbd0b6ee7d15099b978e3448f6699a72cb862d381e416e32187562f1";
 
 enum class ProfileKind
 {
     Ap203e2Planar,
     Ap214e3Source,
     Ap203e2GeneralSource,
-    Ap214MbxSource
+    Ap214MbxSource,
+    Ap203N916Source
 };
 
 struct Limits

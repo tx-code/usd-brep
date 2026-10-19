@@ -46,7 +46,7 @@ if(STEP_SEMANTICS_BUILD_TESTS)
         -m tools.step_catalog_validation.compile_contracts ${compile_driver_arguments})
     set_tests_properties(step_catalog_snapshot_contracts step_catalog_tool_contracts step_catalog_compile_driver
         PROPERTIES WORKING_DIRECTORY "${catalog_repo}")
-    foreach(profile RANGE 0 3)
+    foreach(profile RANGE 0 4)
         add_test(NAME step_catalog_allocations_${profile} COMMAND step_catalog_allocations ${profile})
     endforeach()
 endif()

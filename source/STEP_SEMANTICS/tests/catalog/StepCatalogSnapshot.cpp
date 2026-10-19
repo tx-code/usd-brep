@@ -144,6 +144,7 @@ constexpr ProfileEntry Profiles[] = {
     { ProfileKind::Ap203e2GeneralSource, "Ap203e2GeneralSource", Ap203GeneralSourceProfile, SchemaSha256 },
     { ProfileKind::Ap214e3Source, "Ap214e3Source", Ap214SourceProfile, Ap214SchemaSha256 },
     { ProfileKind::Ap214MbxSource, "Ap214MbxSource", Ap214MbxSourceProfile, Ap214SchemaSha256 },
+    { ProfileKind::Ap203N916Source, "Ap203N916Source", Ap203N916SourceProfile, Ap203N916SchemaSha256 },
 };
 void ProfileJson(Writer& out, const ProfileEntry& profile)
 {
@@ -320,7 +321,7 @@ int main()
                 output,
                 [](Writer& out)
                 {
-                    out.Add("{\"format\":\"step-catalog-snapshot.v1\",\"profiles\":");
+                    out.Add("{\"format\":\"step-catalog-snapshot.v2\",\"profiles\":");
                     Array(
                         out,
                         Profiles,

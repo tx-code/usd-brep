@@ -18,6 +18,21 @@ constexpr bool IsAp214SourceProfile(ProfileKind profile) noexcept
 {
     return profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap214MbxSource;
 }
+constexpr const char* SourceArtifactName(ProfileKind profile)
+{
+    switch (profile)
+    {
+        case ProfileKind::Ap203e2Planar:
+        case ProfileKind::Ap203e2GeneralSource:
+            return "N2635";
+        case ProfileKind::Ap214e3Source:
+        case ProfileKind::Ap214MbxSource:
+            return "AP214E3_2010.exp";
+        case ProfileKind::Ap203N916Source:
+            return "STEPcode modified N916";
+    }
+    throw std::logic_error("Unknown source profile authority");
+}
 inline constexpr std::size_t CatalogTypeCapacity = 256;
 class TypeMembership
 {

@@ -23,6 +23,7 @@ using Planar = catalog_build::CompiledCatalog<catalog_build::ProfileRecipe<Profi
 using General = catalog_build::CompiledCatalog<catalog_build::ProfileRecipe<ProfileKind::Ap203e2GeneralSource>>;
 using Ap214 = catalog_build::CompiledCatalog<catalog_build::ProfileRecipe<ProfileKind::Ap214e3Source>>;
 using Mbx = catalog_build::CompiledCatalog<catalog_build::ProfileRecipe<ProfileKind::Ap214MbxSource>>;
+using N916 = catalog_build::CompiledCatalog<catalog_build::ProfileRecipe<ProfileKind::Ap203N916Source>>;
 } // namespace
 std::optional<std::size_t> Catalog::Find(std::string_view name) const
 {
@@ -167,6 +168,8 @@ const Catalog& Schema(ProfileKind profile)
             return Ap214::catalog;
         case ProfileKind::Ap214MbxSource:
             return Mbx::catalog;
+        case ProfileKind::Ap203N916Source:
+            return N916::catalog;
     }
     throw std::logic_error("Unimplemented source declaration catalog");
 }

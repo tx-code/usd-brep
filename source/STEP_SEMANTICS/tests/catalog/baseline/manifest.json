@@ -2,6 +2,6 @@
   "format": "step-catalog-baseline.v1",
   "scope": "Refactoring equivalence only; not an independent schema witness or import qualification.",
   "payload_sha256": {
-    "catalog.json": "a4dcc290a097cd829fdb82a87c8a372a84fbe512e4f607628de6092f26a7ef70"
+    "catalog.json": "efbdd28622da13d6e766648b2fc804ff20373d33f6ecc7d8bda58c8bf30af776"
   }
 }

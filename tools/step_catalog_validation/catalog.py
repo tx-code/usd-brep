@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-PROFILES = ("Ap203e2Planar", "Ap203e2GeneralSource", "Ap214e3Source", "Ap214MbxSource")
+PROFILES = ("Ap203e2Planar", "Ap203e2GeneralSource", "Ap214e3Source", "Ap214MbxSource", "Ap203N916Source")
 PROFILE_KEYS = {
     "kind", "profile", "schema_sha256", "membership_capacity", "registered_types", "name_index", "declarations",
     "reference_selects", "enumerations", "complex_signatures", "measure_branches", "derived_slots",
@@ -80,10 +80,11 @@ def differences(expected, actual, path="$", limit=12):
 def validate_catalog(value):
     if not isinstance(value, dict) or set(value) != {"format", "profiles"}:
         raise ValueError("Snapshot envelope is incomplete")
-    if value["format"] != "step-catalog-snapshot.v1":
+    profiles = {"step-catalog-snapshot.v1": PROFILES[:4], "step-catalog-snapshot.v2": PROFILES}.get(value["format"])
+    if profiles is None:
         raise ValueError("Unknown snapshot format")
-    if tuple(p.get("kind") for p in value["profiles"]) != PROFILES:
-        raise ValueError("Expected all four profiles in their fixed order")
+    if tuple(p.get("kind") for p in value["profiles"]) != profiles:
+        raise ValueError("Expected every profile for the declared snapshot format, in its fixed order")
     for profile in value["profiles"]:
         if set(profile) != PROFILE_KEYS:
             raise ValueError(f"Incomplete profile sections: {profile['kind']}")
@@ -156,7 +157,7 @@ def capture(args):
     validate_catalog(catalog)
     if differences(catalog, execute(args.snapshot)):
         raise ValueError("Snapshot is not deterministic")
-    rounds = [[execute(args.allocations, str(i)) for i in range(4)] for _ in range(2)]
+    rounds = [[execute(args.allocations, str(i)) for i in range(len(PROFILES))] for _ in range(2)]
     if rounds[0] != rounds[1] or tuple(row["profile"] for row in rounds[0]) != PROFILES:
         raise ValueError("Allocation rounds/profile coverage differ")
     for row in rounds[0]:
@@ -203,7 +204,7 @@ def capture(args):
             # Only remove the fresh staging directory created above, never output.
             assert staging.parent == output.parent and staging.name.startswith(".catalog-capture-")
             shutil.rmtree(staging)
-    print(f"Captured all four full catalogs: {output}")
+    print(f"Captured all {len(PROFILES)} full catalogs: {output}")
     print(f"Local build/allocation observations: {receipt_name}")
 
 
@@ -231,7 +232,7 @@ def main(argv=None):
             changes = differences(expected, actual)
             if changes:
                 raise ValueError("Catalog differs:\n" + "\n".join(changes))
-            print("All four full catalogs match the sealed baseline")
+            print(f"All {len(actual['profiles'])} full catalogs match the sealed baseline")
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
         print(f"catalog validation: {error}")
         return 1

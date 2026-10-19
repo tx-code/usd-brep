@@ -85,6 +85,21 @@ class CatalogControls(unittest.TestCase):
             with self.subTest(section=section), self.assertRaises(ValueError):
                 catalog.validate_catalog(value)
 
+    def test_snapshot_versions_bind_complete_profile_coverage_without_changing_history(self):
+        self.assertEqual("step-catalog-snapshot.v2", self.expected["format"])
+        missing = deepcopy(self.expected)
+        missing["profiles"].pop()
+        with self.assertRaises(ValueError):
+            catalog.validate_catalog(missing)
+        # v1 keeps its original four-profile meaning. Existing archived inputs
+        # stay readable; they cannot establish coverage of the new fifth profile.
+        missing["format"] = "step-catalog-snapshot.v1"
+        catalog.validate_catalog(missing)
+        mixed = deepcopy(self.expected)
+        mixed["format"] = "step-catalog-snapshot.v1"
+        with self.assertRaises(ValueError):
+            catalog.validate_catalog(mixed)
+
     def test_tampered_payload_or_missing_role_cannot_be_used_as_baseline(self):
         with tempfile.TemporaryDirectory(prefix="catalog-controls-") as directory:
             copy = Path(directory) / "baseline"

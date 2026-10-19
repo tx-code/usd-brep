@@ -1,5 +1,13 @@
 # STEP_IMPORT（内部 C++20）
 
+显式通用路径还支持单个裸 `CONFIG_CONTROL_DESIGN` HEADER 的
+`203-N916-Source-0.1` 源子集。固定依据是修改版 N916/AP203 amendment 1，
+原始 HEADER 仍为 `NameOnly`，报告标记未证明具体版本；不改写为 N2635。
+源类型／单位规则及外来图层的受限互操作证明见
+[源检查合同](../STEP_SEMANTICS/README.md)。严格源策略仍拒绝外来图层和缺失 APD；
+显式互操作可在完成归属与非物理依赖证明后保留原诊断，不能据此补造协议声明或几何。
+原生构建继续执行相同质量配置、完整候选检查和原子发布；不授予完整 AP203 符合性。
+
 另一个独立选项 `Options.dataStringPolicy=PreserveOpaqueBytes`／CLI
 `--preserve-opaque-data-strings` 可保留未知编码的 DATA 文本；同样必须显式选择通用质量与
 `SourcePolicy::PreserveNonGeometric`，不会随旧文件头选项或互操作模式自动启用。

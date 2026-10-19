@@ -1,6 +1,6 @@
 {
   "format": "step-catalog-compile-cases.v1",
-  "scope": "Production consteval builder: all four profiles, diamond/derived/nested/membership controls, linked consumer and single-fault metadata rejection cases.",
+  "scope": "Production consteval builder: all five profiles, diamond/derived/nested/membership controls, linked consumer and single-fault metadata rejection cases.",
   "cases": [
     {
       "name": "catalog_header",

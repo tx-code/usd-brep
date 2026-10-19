@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepAp203N916Profile.h"
 #include "StepCatalog.h"
 #include "StepGeometryDependencies.h"
 #include "StepSchemaSelection.h"
@@ -124,7 +125,7 @@ public:
             [&]
             {
                 Mapping();
-                CheckLegacyContextMapping();
+                CheckForeignDeclarations();
                 Fields();
             }
         );
@@ -267,16 +268,7 @@ private:
         // source declarations, not the downstream rule profile or project restrictions.
         // Keep the existing AP203 labels so its diagnostic contract remains unchanged.
         Expects(m_data->catalog.has_value());
-        switch (m_data->profile.kind)
-        {
-            case ProfileKind::Ap203e2Planar:
-            case ProfileKind::Ap203e2GeneralSource:
-                return "N2635";
-            case ProfileKind::Ap214e3Source:
-            case ProfileKind::Ap214MbxSource:
-                return "AP214E3_2010.exp";
-        }
-        throw std::logic_error("Unknown source profile authority");
+        return SourceArtifactName(m_data->profile.kind);
     }
     Progress& State(Phase phase)
     {
@@ -396,6 +388,10 @@ private:
     {
         return m_data->policy == SourcePolicy::PreserveNonGeometric && m_data->profile.kind != ProfileKind::Ap203e2Planar;
     }
+    bool CanPreserveMissingApplicationProtocol() const
+    {
+        return m_data->profile.kind == ProfileKind::Ap214MbxSource || m_data->profile.kind == ProfileKind::Ap203N916Source;
+    }
     bool NonGeometricStyle(std::size_t record) const
     {
         // Closed declarations whose outgoing references stay in the style chain.
@@ -491,7 +487,7 @@ private:
 
     void Binding()
     {
-        m_outcome.schemaSelection = SelectSchema(*m_data->source);
+        m_outcome.schemaSelection = SelectSchema(*m_data->source, m_data->geometryScope);
         // An explicit general-BRep request selects a separate source subset.
         // The exact N2635 HEADER identity stays unchanged; default P0 checking
         // must not acquire newly admitted geometry or management declarations.
@@ -542,39 +538,55 @@ private:
         m_data->catalog.emplace(&Schema(m_data->profile.kind));
     }
 
-    void CheckLegacyContextMapping()
+    void CheckForeignDeclarations()
     {
-        if (m_data->profile.kind != ProfileKind::Ap214MbxSource)
+        constexpr std::string_view contexts[] = { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT" };
+        const bool n916 = m_data->profile.kind == ProfileKind::Ap203N916Source;
+        if (m_data->profile.kind != ProfileKind::Ap214MbxSource && !n916)
         {
             return;
         }
-        for (const auto name : { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT" })
+        const auto foreign = n916 ? std::span<const std::string_view>(ap203_n916::ForeignDeclarations) : std::span<const std::string_view>(contexts);
+        for (const auto name : foreign)
         {
             for (const auto record : Population(name))
             {
+                if (n916 && std::none_of(
+                                Record(record).components.begin(),
+                                Record(record).components.end(),
+                                [&](const auto& component)
+                                {
+                                    return component.name == name;
+                                }
+                            ))
+                {
+                    continue; // Inherited diagnostic descriptors are not additional source instances.
+                }
                 Visit(Record(record).span);
                 try
                 {
-                    // These nominal types are absent from the selected AP214
-                    // artifact. Keep that source error even when the separately
-                    // pinned N2635 transport layout lets us inspect their values.
+                    // Each listed type is absent from the selected artifact.
+                    // The separately pinned N2635 descriptor can explain its
+                    // transport fields, but cannot erase that source error.
                     Fail(
                         "UnsupportedEntityType",
                         "D2",
-                        "Legacy context is outside the selected AP214 declarations",
+                        n916 ? "Required content is outside the fixed modified N916 source declarations" :
+                               "Legacy context is outside the selected AP214 declarations",
                         Record(record).span,
                         Status::Unsupported,
                         record,
                         0,
                         {},
-                        "AP214E3_2010.exp declaration",
-                        name,
-                        "AP214 source type membership"
+                        n916 ? "modified N916 declaration" : "AP214E3_2010.exp declaration",
+                        std::string(name),
+                        n916 ? "modified N916 source type membership; borrowed transport does not admit an entity" : "AP214 source type membership"
                     );
                 }
                 catch (Failure& failure)
                 {
-                    if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep)
+                    if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                        (n916 && name != "PRESENTATION_LAYER_ASSIGNMENT"))
                     {
                         throw;
                     }
@@ -707,6 +719,8 @@ private:
                     Fail(
                         "UnsupportedComplexSignature",
                         "D2",
+                        m_data->profile.kind == ProfileKind::Ap203N916Source ?
+                            "Complete complex mapping is outside the modified N916 source subset" :
                         m_data->profile.kind == ProfileKind::Ap203e2GeneralSource ?
                             "Complete complex mapping is outside the selected N2635 general source signatures" :
                         IsAp214SourceProfile(m_data->profile.kind) ? "Complete complex mapping is outside the selected AP214 source signatures" :
@@ -716,6 +730,7 @@ private:
                         r,
                         0,
                         {},
+                        m_data->profile.kind == ProfileKind::Ap203N916Source      ? "registered modified N916 source signature" :
                         m_data->profile.kind == ProfileKind::Ap203e2GeneralSource ? "registered N2635 general source signature" :
                         IsAp214SourceProfile(m_data->profile.kind)                ? "registered AP214 source signature" :
                                                                                     "one of six signatures",
@@ -944,7 +959,7 @@ private:
                 // N2635 count_measure/numeric_measure are NUMBER, unlike the
                 // existing length/angle REAL branches. Retain INTEGER lexemes.
                 if (value.children[0].kind != ValueKind::Real &&
-                    !(m_data->profile.kind == ProfileKind::Ap203e2GeneralSource &&
+                    !((m_data->profile.kind == ProfileKind::Ap203e2GeneralSource || m_data->profile.kind == ProfileKind::Ap203N916Source) &&
                       (value.text == "COUNT_MEASURE" || value.text == "NUMERIC_MEASURE") && value.children[0].kind == ValueKind::Integer))
                 {
                     mismatch();
@@ -1432,11 +1447,11 @@ private:
         }
         catch (Failure& failure)
         {
-            // The precise HEADER already selected this source subset. An
+            // Binding already selected this source implementation. An
             // absent administrative APD is not a replacement geometry root.
             // Keep the exact strict guard diagnostic; do not invent its year,
             // status or schema claim from HEADER/application text.
-            if (m_data->profile.kind != ProfileKind::Ap214MbxSource || !Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
+            if (!CanPreserveMissingApplicationProtocol() || !Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
                 !Population("APPLICATION_PROTOCOL_DEFINITION").empty())
             {
                 throw;
@@ -2648,8 +2663,8 @@ private:
             {
                 // Part/closure and physical units completed without an APD
                 // dependency. No such record or role is manufactured. This
-                // preserves a failed profile guard, not AP214 global-rule conformance.
-                if (m_data->profile.kind != ProfileKind::Ap214MbxSource || m_data->part.applicationProtocolPresent ||
+                // preserves a failed profile guard, not AP/global-rule conformance.
+                if (!CanPreserveMissingApplicationProtocol() || m_data->part.applicationProtocolPresent ||
                     !Population("APPLICATION_PROTOCOL_DEFINITION").empty() || State(Phase::Part) != Progress::Passed)
                 {
                     throw Failure{ issue.status, std::move(issue.diagnostic) };
@@ -2718,7 +2733,10 @@ private:
                                                               (role.name == "definition_context" && IsA(*m_data, record, "DESIGN_CONTEXT")));
                     }
                 );
-                if (m_data->profile.kind != ProfileKind::Ap214MbxSource || !selected || physical[record])
+                const bool foreignLayer = m_data->profile.kind == ProfileKind::Ap203N916Source &&
+                                          IsA(*m_data, record, "PRESENTATION_LAYER_ASSIGNMENT") && record < m_administrativeAttachments.size() &&
+                                          m_administrativeAttachments[record];
+                if ((!foreignLayer && !(m_data->profile.kind == ProfileKind::Ap214MbxSource && selected)) || physical[record])
                 {
                     State(Phase::Types) = FailureProgress(issue.status);
                     State(Phase::Interoperability) = FailureProgress(issue.status);

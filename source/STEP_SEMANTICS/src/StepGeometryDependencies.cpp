@@ -245,7 +245,9 @@ private:
         Diagnostic issue;
         issue.source.key = dependency ? "SourceGeometryDependencyViolation" : "SourceRuleViolation:" + std::string(clause);
         issue.source.stage = "D3";
-        issue.source.message = m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ?
+        issue.source.message = m_data.profile.kind == ProfileKind::Ap203N916Source ?
+                                   "Source geometry parameter violates the selected modified N916 prerequisite" :
+                               m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ?
                                    "Source geometry parameter violates the selected N2635 prerequisite" :
                                    "Source geometry parameter violates the selected AP214 prerequisite";
         issue.source.primary = value.span;
@@ -259,8 +261,7 @@ private:
         issue.declaredType = field.declaredType;
         issue.expected = std::move(expected);
         issue.actual = std::move(actual);
-        issue.responsibility = std::string(m_data.profile.kind == ProfileKind::Ap203e2GeneralSource ? "N2635 " : "AP214E3_2010.exp ") +
-                               std::string(clause);
+        issue.responsibility = std::string(SourceArtifactName(m_data.profile.kind)) + " " + std::string(clause);
         if (!authorityOverride.empty())
         {
             issue.responsibility = authorityOverride;
