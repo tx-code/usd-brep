@@ -106,8 +106,8 @@ struct AttributeView
 {
     std::string_view name;
     std::string_view declaredIn;
-    std::string_view declaredType;
-    std::string_view redeclaredBy;
+    std::string_view declaredType; // Effective type after explicit narrowing; declaredIn retains the slot's origin.
+    std::string_view redeclaredBy; // Explicit or DERIVE redeclaring subtype. Only derivedSlot denotes a source '*'.
     bool optional = false;
     bool derivedSlot = false;
     std::string_view aggregate; // LIST/SET, empty for scalars.

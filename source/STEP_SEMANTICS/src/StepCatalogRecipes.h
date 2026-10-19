@@ -492,6 +492,12 @@ constexpr Recipe Describe(ProfileKind profile)
         // type identity in both fixed AP214 catalogs.
         ap214_presentation::AddAp214PredefinedColourDeclarations(recipe);
     }
+    if (profile == ProfileKind::Ap214MbxSource)
+    {
+        // Borrowed transport remains an error until the explicit property-only
+        // interoperability proof succeeds. Append to keep all prior type IDs.
+        ap214_mbx::AddBorrowedRealItemTransport(recipe);
+    }
     return recipe;
 }
 template <ProfileKind Profile>

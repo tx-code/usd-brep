@@ -396,6 +396,104 @@
       "expect": "fail",
       "marker": "STEP_CATALOG_INVALID_MissingReference",
       "positive_control": "catalog_valid"
+    },
+    {
+      "name": "explicit_valid",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=0"
+      ],
+      "expect": "pass"
+    },
+    {
+      "name": "explicit_reject_1",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=1"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitOwner",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_2",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=2"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitOrigin",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_3",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=3"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitField",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_4",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=4"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_5",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=5"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitConflict",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_6",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=6"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitConflict",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_7",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=7"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitConflict",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_8",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=8"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_valid"
+    },
+    {
+      "name": "explicit_reject_9",
+      "source": "ExplicitRedeclaration.cpp",
+      "definitions": [
+        "STEP_EXPLICIT_CASE=9"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitOrigin",
+      "positive_control": "explicit_valid"
     }
   ]
 }

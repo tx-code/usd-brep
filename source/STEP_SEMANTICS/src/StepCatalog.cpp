@@ -16,6 +16,18 @@ bool Contains(Names names, std::string_view value)
 {
     return std::find(names.begin(), names.end(), value) != names.end();
 }
+std::optional<std::size_t> ExplicitIndex(const Catalog& catalog, const TypeMembership& types, FieldBinding binding)
+{
+    for (std::size_t i = 0; i < catalog.explicitRedeclarations.size(); ++i)
+    {
+        const auto& slot = catalog.explicitRedeclarations[i];
+        if (binding.origin == slot.origin && binding.field == slot.field && types.test(slot.owner))
+        {
+            return i;
+        }
+    }
+    return {};
+}
 // Every profile is instantiated here in the ordinary library build. All stores,
 // their dependent views and the catalog roots are constexpr: no initialization
 // guard, heap construction or metadata validation remains on first access.
@@ -136,16 +148,32 @@ int Catalog::PrefixPower10(std::string_view prefix) const
 }
 std::string_view Catalog::RedeclaredBy(const TypeMembership& types, const FieldBinding& binding) const
 {
+    return ResolveField(types, binding).redeclaredBy;
+}
+const Field& Catalog::EffectiveField(const TypeMembership& types, FieldBinding binding) const
+{
+    const auto index = ExplicitIndex(*this, types, binding);
+    return index ? CatalogAt(explicitFields, *index) : FieldOf(binding);
+}
+ResolvedField Catalog::ResolveField(const TypeMembership& types, FieldBinding binding) const
+{
     // Preserve registration priority when more than one redeclaring subtype is
     // present. This describes a source '*' slot; it never evaluates DERIVE.
     for (const auto& slot : compiledDerivedSlots)
     {
         if (binding.origin == slot.origin && binding.field == slot.field && types.test(slot.owner))
         {
-            return names[slot.owner];
+            return { FieldOf(binding), names[slot.owner], true };
         }
     }
-    return {};
+    const auto index = ExplicitIndex(*this, types, binding);
+    if (index)
+    {
+        // A compile-checked explicit narrowing changes the effective value
+        // type, not slot identity or storage. It must never demand a '*'.
+        return { CatalogAt(explicitFields, *index), names[explicitRedeclarations[*index].owner], false };
+    }
+    return { FieldOf(binding), {}, false };
 }
 std::span<const SiPrefix> Catalog::PrefixEntries() const noexcept
 {
@@ -186,7 +214,8 @@ AttributeView AttributeAt(const SemanticData& data, std::size_t r, std::size_t c
     const auto& component = record.components.at(c);
     const auto type = catalog.RequireType(component.name);
     const auto binding = record.complex ? FieldBinding{ type, p } : CatalogAt(catalog.Flattened(type), p);
-    const auto& field = catalog.FieldOf(binding);
+    const auto resolved = catalog.ResolveField(data.types[r], binding);
+    const auto& field = resolved.field;
     AttributeView view;
     view.name = field.name;
     view.declaredIn = catalog.OriginOf(binding);
@@ -206,8 +235,8 @@ AttributeView AttributeAt(const SemanticData& data, std::size_t r, std::size_t c
             view.maximum = field.maximum;
         }
     }
-    view.redeclaredBy = catalog.RedeclaredBy(data.types[r], binding);
-    view.derivedSlot = !view.redeclaredBy.empty();
+    view.redeclaredBy = resolved.redeclaredBy;
+    view.derivedSlot = resolved.derivedSlot;
     return view;
 }
 } // namespace step_semantics

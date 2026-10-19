@@ -95,7 +95,8 @@ enum class FieldKind
     Aggregate,
     Measure,
     SizeSelect,
-    TrimmingSelect
+    TrimmingSelect,
+    Number // Unnarrowed EXPRESS NUMBER; explicit redeclarations retain their own effective kind.
 };
 enum class Unique
 {
@@ -154,6 +155,23 @@ struct CompiledDerivedSlot
 {
     std::size_t owner, origin, field;
 };
+struct ExplicitRedeclaration
+{
+    std::string_view recordType, declaredIn, field, type;
+    FieldKind kind;
+};
+struct CompiledExplicitRedeclaration
+{
+    std::size_t owner, origin, field;
+    std::string_view type;
+    FieldKind kind;
+};
+struct ResolvedField
+{
+    const Field& field;
+    std::string_view redeclaredBy;
+    bool derivedSlot = false;
+};
 template <class T>
 constexpr const T& CatalogAt(std::span<const T> values, std::size_t index)
 {
@@ -199,6 +217,8 @@ struct Catalog
     std::span<const std::span<const std::string_view>> exclusiveGroups;
     std::span<const TypeMembership> exclusiveMasks;
     std::span<const SiPrefix> prefixes;
+    std::span<const CompiledExplicitRedeclaration> explicitRedeclarations;
+    std::span<const Field> explicitFields;
     std::optional<std::size_t> Find(std::string_view name) const;
     std::size_t RequireType(std::string_view name) const;
     std::span<const FieldBinding> Flattened(std::size_t type) const;
@@ -212,6 +232,8 @@ struct Catalog
     bool AdmitsMeasure(std::string_view type) const;
     int PrefixPower10(std::string_view prefix) const;
     std::string_view RedeclaredBy(const TypeMembership& types, const FieldBinding& binding) const;
+    const Field& EffectiveField(const TypeMembership& types, FieldBinding binding) const;
+    ResolvedField ResolveField(const TypeMembership& types, FieldBinding binding) const;
     // Read-only access to the same fixed facts used by queries, for complete
     // refactoring snapshots; no second copy of the schema tables is maintained.
     std::span<const SiPrefix> PrefixEntries() const noexcept;
@@ -238,7 +260,8 @@ struct SemanticData
         ExistingMetadata,
         MissingApplicationProtocol,
         CurveStyleWidth,
-        OpaqueDisplayText
+        OpaqueDisplayText,
+        ForeignRealItem
     };
     struct PendingIssue
     {

@@ -34,7 +34,12 @@ enum class Error
     DerivedOwner,
     DerivedOrigin,
     DerivedField,
-    PrefixSentinel
+    PrefixSentinel,
+    ExplicitOwner,
+    ExplicitOrigin,
+    ExplicitField,
+    ExplicitNarrowing,
+    ExplicitConflict
 };
 
 // Scratch descriptions may allocate only inside constant evaluation. Text and
@@ -60,6 +65,7 @@ struct Recipe
 {
     std::vector<Declaration> declarations;
     std::vector<DerivedSlot> derivedSlots;
+    std::vector<ExplicitRedeclaration> explicitRedeclarations;
     std::vector<NamedBranches> referenceSelects, enumerations;
     std::vector<std::span<const std::string_view>> complexSignatures;
     std::vector<std::string_view> measureBranches;
@@ -104,7 +110,7 @@ struct Counts
     std::size_t types = 0, fields = 0, parents = 0, dimensions = 0, bindings = 0;
     std::size_t selects = 0, selectBranches = 0, enums = 0, enumValues = 0;
     std::size_t complexes = 0, facets = 0, derived = 0, measures = 0;
-    std::size_t groups = 0, groupBranches = 0, prefixes = 0;
+    std::size_t groups = 0, groupBranches = 0, prefixes = 0, redeclared = 0;
     constexpr bool operator==(const Counts&) const = default;
 };
 struct Analysis
@@ -414,6 +420,73 @@ constexpr Layout ComputeLayout(const Recipe& recipe)
             return layout;
         }
     }
+    counts.redeclared = recipe.explicitRedeclarations.size();
+    for (std::size_t i = 0; i < counts.redeclared; ++i)
+    {
+        const auto& slot = recipe.explicitRedeclarations[i];
+        const auto owner = typeId(slot.recordType), origin = typeId(slot.declaredIn);
+        if (!owner)
+        {
+            Fail(report, Error::ExplicitOwner, i);
+            return layout;
+        }
+        if (!origin || *owner == *origin || !layout.ancestors[*owner].test(*origin))
+        {
+            Fail(report, Error::ExplicitOrigin, i);
+            return layout;
+        }
+        const auto& fields = recipe.declarations[*origin].fields;
+        const auto field = std::find_if(
+            fields.begin(),
+            fields.end(),
+            [&](const auto& value)
+            {
+                return value.name == slot.field;
+            }
+        );
+        if (field == fields.end())
+        {
+            Fail(report, Error::ExplicitField, i);
+            return layout;
+        }
+        // This closed compiler currently admits exactly the scalar narrowing
+        // required by N2635 REAL_LITERAL. Preserve NUMBER at its declaring
+        // origin and REAL at the effective slot; do not invent a type lattice.
+        if (field->kind != FieldKind::Number || field->type != "NUMBER" || slot.kind != FieldKind::Real || slot.type != "REAL")
+        {
+            Fail(report, Error::ExplicitNarrowing, i);
+            return layout;
+        }
+        const auto overlaps = [&](std::string_view otherOwner)
+        {
+            const auto other = typeId(otherOwner);
+            return other && std::any_of(
+                                layout.ancestors.begin(),
+                                layout.ancestors.end(),
+                                [&](const auto& membership)
+                                {
+                                    return membership.test(*owner) && membership.test(*other);
+                                }
+                            );
+        };
+        for (std::size_t previous = 0; previous < i; ++previous)
+        {
+            const auto& other = recipe.explicitRedeclarations[previous];
+            if (slot.declaredIn == other.declaredIn && slot.field == other.field && overlaps(other.recordType))
+            {
+                Fail(report, Error::ExplicitConflict, i, previous);
+                return layout;
+            }
+        }
+        for (const auto& other : recipe.derivedSlots)
+        {
+            if (slot.declaredIn == other.declaredIn && slot.field == other.field && overlaps(other.recordType))
+            {
+                Fail(report, Error::ExplicitConflict, i);
+                return layout;
+            }
+        }
+    }
     counts.groups = recipe.exclusiveGroups.size();
     for (std::size_t g = 0; g < counts.groups; ++g)
     {
@@ -493,6 +566,11 @@ consteval bool RequireValid()
     STEP_CATALOG_REJECT(DerivedOrigin);
     STEP_CATALOG_REJECT(DerivedField);
     STEP_CATALOG_REJECT(PrefixSentinel);
+    STEP_CATALOG_REJECT(ExplicitOwner);
+    STEP_CATALOG_REJECT(ExplicitOrigin);
+    STEP_CATALOG_REJECT(ExplicitField);
+    STEP_CATALOG_REJECT(ExplicitNarrowing);
+    STEP_CATALOG_REJECT(ExplicitConflict);
 #undef STEP_CATALOG_REJECT
     return Report.code == Error::None;
 }
@@ -531,6 +609,7 @@ struct Frozen
     std::array<CatalogRange, C.types> flattened{};
     std::array<DerivedSlot, C.derived> derived{};
     std::array<CompiledDerivedSlot, C.derived> compiledDerived{};
+    std::array<CompiledExplicitRedeclaration, C.redeclared> explicitRedeclarations{};
     std::array<NamedRange, C.selects> selects{};
     std::array<TypeMembership, C.selects> selectMasks{};
     std::array<std::string_view, C.selectBranches> selectBranches{};
@@ -595,6 +674,21 @@ consteval Frozen<C> Freeze(const Recipe& recipe)
         );
         out.compiledDerived[i] = { owner, origin, static_cast<std::size_t>(found - fields.begin()) };
     }
+    for (std::size_t i = 0; i < C.redeclared; ++i)
+    {
+        const auto& slot = recipe.explicitRedeclarations[i];
+        const auto owner = *LookupCatalogName(out.index, slot.recordType), origin = *LookupCatalogName(out.index, slot.declaredIn);
+        const auto& fields = recipe.declarations[origin].fields;
+        const auto found = std::find_if(
+            fields.begin(),
+            fields.end(),
+            [&](const auto& value)
+            {
+                return value.name == slot.field;
+            }
+        );
+        out.explicitRedeclarations[i] = { owner, origin, static_cast<std::size_t>(found - fields.begin()), slot.type, slot.kind };
+    }
     const auto named = [&](const auto& raw, auto& entries, auto& names)
     {
         std::size_t offset = 0;
@@ -658,6 +752,20 @@ constexpr auto FieldViews(const Frozen<C>& store)
     return out;
 }
 template <Counts C>
+constexpr auto ExplicitFieldViews(const Frozen<C>& store, const std::array<step_semantics::Field, C.fields>& fields)
+{
+    std::array<step_semantics::Field, C.redeclared> out{};
+    for (std::size_t i = 0; i < C.redeclared; ++i)
+    {
+        const auto& slot = store.explicitRedeclarations[i];
+        out[i] = fields[store.declarations[slot.origin].fields.offset + slot.field];
+        out[i].type = slot.type;
+        out[i].kind = slot.kind;
+    }
+    return out;
+}
+
+template <Counts C>
 constexpr auto DeclarationViews(const Frozen<C>& store, const std::array<step_semantics::Field, C.fields>& fields)
 {
     std::array<step_semantics::Declaration, C.types> out{};
@@ -709,14 +817,29 @@ struct CompiledCatalog
     // These views are formed only after their referenced arrays have permanent
     // static addresses. Frozen itself contains no self-pointers or scratch spans.
     static constexpr auto fields = FieldViews(store);
+    static constexpr auto explicitFields = ExplicitFieldViews(store, fields);
     static constexpr auto declarations = DeclarationViews(store, fields);
     static constexpr auto selects = NamedViews(store.selects, store.selectBranches);
     static constexpr auto enums = NamedViews(store.enums, store.enumValues);
     static constexpr auto complexes = SpanViews(store.complexes, store.facets);
     static constexpr auto groups = SpanViews(store.groups, store.groupBranches);
-    static constexpr Catalog catalog{ declarations,    store.names,   store.index,           store.ancestors, store.bindings,
-                                      store.flattened, store.derived, store.compiledDerived, selects,         store.selectMasks,
-                                      enums,           complexes,     store.measures,        groups,          store.groupMasks,
-                                      store.prefixes };
+    static constexpr Catalog catalog{ declarations,
+                                      store.names,
+                                      store.index,
+                                      store.ancestors,
+                                      store.bindings,
+                                      store.flattened,
+                                      store.derived,
+                                      store.compiledDerived,
+                                      selects,
+                                      store.selectMasks,
+                                      enums,
+                                      complexes,
+                                      store.measures,
+                                      groups,
+                                      store.groupMasks,
+                                      store.prefixes,
+                                      store.explicitRedeclarations,
+                                      explicitFields };
 };
 } // namespace step_semantics::catalog_build

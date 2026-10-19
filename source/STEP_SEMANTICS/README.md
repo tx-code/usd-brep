@@ -111,6 +111,35 @@ the original type errors after validating their fields and proving that each is
 the selected product/definition context, outside physical dependencies. They are
 not relabelled as current AP214 types. The existing seven-arc subset stays closed.
 
+The same MBx subset has separately pinned N2635 transport for the foreign
+`REAL_REPRESENTATION_ITEM` leaf, which is absent from fixed AP214. Only explicit
+general-BRep nongeometric interoperability may retain it: the original strict
+`UnsupportedEntityType` remains, and final approval requires actual item
+membership in a proven selected-part property representation plus complete
+physical-dependency exclusion. Detached items, geometry roots, expression
+siblings and additional complex mappings remain unsupported. Malformed borrowed
+fields are `ProfileUnsupported` with N2635 transport provenance, not invented
+AP214 source-rule failures. Existing RI missing-label retention still needs the
+same final property proof and does not manufacture a name.
+
+The ten inherited types preserve two source slots: `REPRESENTATION_ITEM.name`
+and `LITERAL_NUMBER.the_value`. A shared compile-time explicit redeclaration
+keeps the original `NUMBER` declaration while `REAL_LITERAL` narrows the
+effective field to `REAL`; `redeclaredBy` identifies that subtype while
+`derivedSlot` stays false. This is not an explicit-to-DERIVE marker and adds no
+slot. The closed compiler currently supports exactly this NUMBER-to-REAL scalar
+narrowing and rejects missing owners/origins/fields, unsupported narrowings and
+ambiguous or derived-slot conflicts. No old type identities move, and the other
+four catalogs retain their facts.
+
+The original numeric token and property context remain unchanged. No unit,
+scale, positivity or measurement meaning is inferred from names or contexts.
+The mathematical ancestry does not enable variables, general expressions, SQL
+or derived-value evaluation; N2635's computed `is_int` and `sql_mappable`
+attributes have no transmitted slots. This diagnostic transport does not grant
+N2635/AP214 full conformance or authenticate an OID. Explicit unverified schema
+interpretation keeps its separate qualification and original binding diagnostic.
+
 The MBx subset also registers general-property associations, overriding styled
 items and RI presentation layers from the pinned AP214 artifact. Associations
 check their actual WR1/WR2 and attach only to an already proven selected-part
@@ -133,7 +162,7 @@ U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
 transport slot. The general catalogs contain 134/119 declarations respectively;
-the separate MBx general catalog contains 125 declarations;
+the separate MBx general catalog contains 134 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 

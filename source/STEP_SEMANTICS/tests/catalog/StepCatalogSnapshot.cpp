@@ -67,6 +67,8 @@ std::string_view Kind(FieldKind kind)
             return "SizeSelect";
         case FieldKind::TrimmingSelect:
             return "TrimmingSelect";
+        case FieldKind::Number:
+            return "Number";
     }
     throw std::logic_error("Unserialized FieldKind");
 }
@@ -283,6 +285,31 @@ void ProfileJson(Writer& out, const ProfileEntry& profile)
             out.Add("}");
         }
     );
+    out.Add(",\"explicit_redeclarations\":");
+    Array(
+        out,
+        catalog.explicitRedeclarations,
+        [&](const CompiledExplicitRedeclaration& slot)
+        {
+            out.Add("{\"record_type\":");
+            out.String(catalog.names[slot.owner]);
+            out.Add(",\"record_type_id\":");
+            out.Number(slot.owner);
+            out.Add(",\"declared_in\":");
+            out.String(catalog.names[slot.origin]);
+            out.Add(",\"declaring_type_id\":");
+            out.Number(slot.origin);
+            out.Add(",\"field\":");
+            out.String(catalog.declarations[slot.origin].fields[slot.field].name);
+            out.Add(",\"local_field_index\":");
+            out.Number(slot.field);
+            out.Add(",\"type\":");
+            out.String(slot.type);
+            out.Add(",\"kind\":");
+            out.String(Kind(slot.kind));
+            out.Add("}");
+        }
+    );
     out.Add(",\"exclusive_groups\":");
     Array(
         out,
@@ -321,7 +348,7 @@ int main()
                 output,
                 [](Writer& out)
                 {
-                    out.Add("{\"format\":\"step-catalog-snapshot.v2\",\"profiles\":");
+                    out.Add("{\"format\":\"step-catalog-snapshot.v3\",\"profiles\":");
                     Array(
                         out,
                         Profiles,

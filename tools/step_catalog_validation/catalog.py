@@ -14,11 +14,12 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 PROFILES = ("Ap203e2Planar", "Ap203e2GeneralSource", "Ap214e3Source", "Ap214MbxSource", "Ap203N916Source")
-PROFILE_KEYS = {
+LEGACY_PROFILE_KEYS = {
     "kind", "profile", "schema_sha256", "membership_capacity", "registered_types", "name_index", "declarations",
     "reference_selects", "enumerations", "complex_signatures", "measure_branches", "derived_slots",
     "exclusive_groups", "si_prefixes",
 }
+PROFILE_KEYS = LEGACY_PROFILE_KEYS | {"explicit_redeclarations"}
 
 
 def _object(pairs):
@@ -80,13 +81,15 @@ def differences(expected, actual, path="$", limit=12):
 def validate_catalog(value):
     if not isinstance(value, dict) or set(value) != {"format", "profiles"}:
         raise ValueError("Snapshot envelope is incomplete")
-    profiles = {"step-catalog-snapshot.v1": PROFILES[:4], "step-catalog-snapshot.v2": PROFILES}.get(value["format"])
+    profiles = {"step-catalog-snapshot.v1": PROFILES[:4], "step-catalog-snapshot.v2": PROFILES,
+                "step-catalog-snapshot.v3": PROFILES}.get(value["format"])
     if profiles is None:
         raise ValueError("Unknown snapshot format")
     if tuple(p.get("kind") for p in value["profiles"]) != profiles:
         raise ValueError("Expected every profile for the declared snapshot format, in its fixed order")
     for profile in value["profiles"]:
-        if set(profile) != PROFILE_KEYS:
+        keys = PROFILE_KEYS if value["format"] == "step-catalog-snapshot.v3" else LEGACY_PROFILE_KEYS
+        if set(profile) != keys:
             raise ValueError(f"Incomplete profile sections: {profile['kind']}")
         declarations = profile["declarations"]
         if profile["registered_types"] != [d["name"] for d in declarations]:
@@ -100,6 +103,11 @@ def validate_catalog(value):
                 if set(field) != {"name", "type", "kind", "optional", "element_kind", "minimum", "maximum",
                                   "unique", "nested_aggregates"}:
                     raise ValueError("Incomplete local field attributes")
+        if value["format"] == "step-catalog-snapshot.v3":
+            for slot in profile["explicit_redeclarations"]:
+                if set(slot) != {"record_type", "record_type_id", "declared_in", "declaring_type_id",
+                                 "field", "local_field_index", "type", "kind"}:
+                    raise ValueError("Incomplete explicit redeclaration record")
 
 
 def execute(binary, *args):

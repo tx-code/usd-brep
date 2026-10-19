@@ -42,4 +42,27 @@ constexpr void AddAp214MbxDeclarations(Recipe& catalog)
     catalog.referenceSelects.push_back({ "DERIVED_PROPERTY_SELECT", derivedProperty });
     catalog.referenceSelects.push_back({ "LAYERED_ITEM", layeredItem });
 }
+
+constexpr void AddBorrowedRealItemTransport(Recipe& catalog)
+{
+    // N2635 (c68dd022...), not AP214E3_2010: the foreign RI/literal
+    // intersection preserves all ten ancestors and the same two source slots.
+    // Mathematical parents are diagnostic guards, not admitted expressions.
+    // NUMERIC_EXPRESSION's computed LOGICAL attributes have no P21 slots.
+    catalog.declarations.insert(
+        catalog.declarations.end(),
+        {
+            { "GENERIC_EXPRESSION", {}, {} },
+            { "EXPRESSION", { "GENERIC_EXPRESSION" }, {} },
+            { "NUMERIC_EXPRESSION", { "EXPRESSION" }, {} },
+            { "SIMPLE_GENERIC_EXPRESSION", { "GENERIC_EXPRESSION" }, {} },
+            { "GENERIC_LITERAL", { "SIMPLE_GENERIC_EXPRESSION" }, {} },
+            { "SIMPLE_NUMERIC_EXPRESSION", { "NUMERIC_EXPRESSION", "SIMPLE_GENERIC_EXPRESSION" }, {} },
+            { "LITERAL_NUMBER", { "SIMPLE_NUMERIC_EXPRESSION", "GENERIC_LITERAL" }, { { "the_value", "NUMBER", FieldKind::Number } } },
+            { "REAL_LITERAL", { "LITERAL_NUMBER" }, {} },
+            { "REAL_REPRESENTATION_ITEM", { "REPRESENTATION_ITEM", "REAL_LITERAL" }, {}, true },
+        }
+    );
+    catalog.explicitRedeclarations.push_back({ "REAL_LITERAL", "LITERAL_NUMBER", "the_value", "REAL", FieldKind::Real });
+}
 } // namespace step_semantics::catalog_build::ap214_mbx

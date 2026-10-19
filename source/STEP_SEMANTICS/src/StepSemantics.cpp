@@ -271,6 +271,10 @@ private:
     {
         return m_data->profile.kind == ProfileKind::Ap203N916Source && IsA(*m_data, owner, "PRESENTATION_LAYER_ASSIGNMENT");
     }
+    bool BorrowedForeignReal(std::size_t owner) const
+    {
+        return m_data->profile.kind == ProfileKind::Ap214MbxSource && IsA(*m_data, owner, "REAL_REPRESENTATION_ITEM");
+    }
     std::string SourceAuthority(std::optional<std::size_t> owner = {}) const
     {
         // Used only after binding: attribute failures belong to the snapshot's pinned
@@ -280,6 +284,10 @@ private:
         if (owner && BorrowedForeignLayer(*owner))
         {
             return "N2635 borrowed foreign-layer transport (not a N916 declaration)";
+        }
+        if (owner && BorrowedForeignReal(*owner))
+        {
+            return "N2635 borrowed foreign REAL-item transport (not an AP214 declaration)";
         }
         return SourceArtifactName(m_data->profile.kind);
     }
@@ -359,16 +367,17 @@ private:
         std::string responsibility = {}
     )
     {
-        if (status == Status::Rejected && owner && BorrowedForeignLayer(*owner))
+        if (status == Status::Rejected && owner && (BorrowedForeignLayer(*owner) || BorrowedForeignReal(*owner)))
         {
             // A malformed foreign field prevents the compatibility proof. Its
-            // borrowed N2635 transport requirement is not a N916 source rule.
+            // borrowed N2635 requirement is not a rule of the selected artifact.
             // Keep the field/key/location while refusing this profile exception.
             status = Status::Unsupported;
             stage = "D2";
-            if (responsibility.find("N2635 borrowed foreign-layer transport") == std::string::npos)
+            const auto authority = SourceAuthority(owner);
+            if (responsibility.find(authority) == std::string::npos)
             {
-                responsibility = "N2635 borrowed foreign-layer transport (not a N916 declaration): " + responsibility;
+                responsibility = authority + ": " + responsibility;
             }
         }
         if (m_phase)
@@ -604,7 +613,7 @@ private:
 
     void CheckForeignDeclarations()
     {
-        constexpr std::string_view contexts[] = { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT" };
+        constexpr std::string_view contexts[] = { "MECHANICAL_CONTEXT", "DESIGN_CONTEXT", "REAL_REPRESENTATION_ITEM" };
         const bool n916 = m_data->profile.kind == ProfileKind::Ap203N916Source;
         if (m_data->profile.kind != ProfileKind::Ap214MbxSource && !n916)
         {
@@ -615,6 +624,36 @@ private:
         {
             for (const auto record : Population(name))
             {
+                if (name == "REAL_REPRESENTATION_ITEM")
+                {
+                    try
+                    {
+                        // Preserve the exact original unknown-type verdict,
+                        // before any borrowed field interpretation is approved.
+                        Fail(
+                            "UnsupportedEntityType",
+                            "D2",
+                            "Required content is outside the closed source profile",
+                            Record(record).components.front().span,
+                            Status::Unsupported,
+                            record,
+                            0,
+                            {},
+                            "registered profile entity",
+                            std::string(name),
+                            "closed type guard; unknown content is not skipped"
+                        );
+                    }
+                    catch (Failure& failure)
+                    {
+                        if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep)
+                        {
+                            throw;
+                        }
+                        Preserve(std::move(failure), SemanticData::PreservationProof::ForeignRealItem);
+                    }
+                    continue;
+                }
                 if (n916 && std::none_of(
                                 Record(record).components.begin(),
                                 Record(record).components.end(),
@@ -879,6 +918,12 @@ private:
                 break;
             case FieldKind::Real:
                 if (value.kind != ValueKind::Real)
+                {
+                    mismatch();
+                }
+                break;
+            case FieldKind::Number:
+                if (value.kind != ValueKind::Integer && value.kind != ValueKind::Real)
                 {
                     mismatch();
                 }
@@ -1218,7 +1263,8 @@ private:
                 {
                     const auto view = AttributeAt(*m_data, r, c, p);
                     const auto& value = *view.value;
-                    const auto& field = record.complex ? catalog.declarations[type].fields[p] : catalog.FieldOf(catalog.Flattened(type)[p]);
+                    const auto binding = record.complex ? FieldBinding{ type, p } : catalog.Flattened(type)[p];
+                    const auto& field = catalog.EffectiveField(m_data->types[r], binding);
                     const std::vector<std::size_t> path{ p + 1 };
                     Visit(value.span);
                     auto& bound = m_data->fields[r];
@@ -1963,7 +2009,9 @@ private:
                 // MRI can reference only units; DRI has text. Neither can smuggle
                 // geometry in through a style, placement or another BRep shape.
                 const bool valueItem = m_data->profile.kind == ProfileKind::Ap203e2GeneralSource && IsA(*m_data, target, "VALUE_REPRESENTATION_ITEM");
-                if (!IsA(*m_data, target, "MEASURE_REPRESENTATION_ITEM") && !IsA(*m_data, target, "DESCRIPTIVE_REPRESENTATION_ITEM") && !valueItem)
+                const bool foreignReal = Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep && BorrowedForeignReal(target);
+                if (!IsA(*m_data, target, "MEASURE_REPRESENTATION_ITEM") && !IsA(*m_data, target, "DESCRIPTIVE_REPRESENTATION_ITEM") && !valueItem &&
+                    !foreignReal)
                 {
                     reject(representation, "items", value, "UnsupportedPropertyItem", "measure or descriptive item", i + 1);
                 }
@@ -2810,6 +2858,24 @@ private:
                 {
                     State(Phase::Types) = FailureProgress(issue.status);
                     State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
+            if (issue.proof == SemanticData::PreservationProof::ForeignRealItem)
+            {
+                // The foreign leaf carries a raw scalar, never an inferred
+                // measure or expression result. Actual selected-property item
+                // membership and the complete physical closure decide approval.
+                if (!propertyUse)
+                {
+                    propertyUse = Reach(propertyItems, false);
+                }
+                if (!BorrowedForeignReal(record) || m_data->geometryScope != GeometryScope::GeneralBrep || !metadata[record] ||
+                    !(*propertyUse)[record] || physical[record] || !m_outgoing[record].empty())
+                {
+                    State(Phase::Types) = Progress::Unsupported;
+                    State(Phase::Interoperability) = Progress::Unsupported;
                     throw Failure{ issue.status, std::move(issue.diagnostic) };
                 }
                 continue;

@@ -1,5 +1,5 @@
 {
-  "format": "step-catalog-snapshot.v2",
+  "format": "step-catalog-snapshot.v3",
   "profiles": [
     {
       "kind": "Ap203e2Planar",
@@ -3365,6 +3365,7 @@
           "field": "dimensions"
         }
       ],
+      "explicit_redeclarations": [],
       "exclusive_groups": [
         [
           "SI_UNIT",
@@ -10465,6 +10466,7 @@
           "field": "dimensions"
         }
       ],
+      "explicit_redeclarations": [],
       "exclusive_groups": [
         [
           "SI_UNIT",
@@ -16784,6 +16786,7 @@
           "field": "dimensions"
         }
       ],
+      "explicit_redeclarations": [],
       "exclusive_groups": [
         [
           "SI_UNIT",
@@ -17001,7 +17004,16 @@
         "TRIMMED_CURVE",
         "PLANE_ANGLE_MEASURE_WITH_UNIT",
         "PRE_DEFINED_COLOUR",
-        "DRAUGHTING_PRE_DEFINED_COLOUR"
+        "DRAUGHTING_PRE_DEFINED_COLOUR",
+        "GENERIC_EXPRESSION",
+        "EXPRESSION",
+        "NUMERIC_EXPRESSION",
+        "SIMPLE_GENERIC_EXPRESSION",
+        "GENERIC_LITERAL",
+        "SIMPLE_NUMERIC_EXPRESSION",
+        "LITERAL_NUMBER",
+        "REAL_LITERAL",
+        "REAL_REPRESENTATION_ITEM"
       ],
       "name_index": [
         {
@@ -17185,6 +17197,10 @@
           "id": 88
         },
         {
+          "name": "EXPRESSION",
+          "id": 126
+        },
+        {
           "name": "FACE",
           "id": 24
         },
@@ -17221,6 +17237,14 @@
           "id": 115
         },
         {
+          "name": "GENERIC_EXPRESSION",
+          "id": 125
+        },
+        {
+          "name": "GENERIC_LITERAL",
+          "id": 129
+        },
+        {
           "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
           "id": 55
         },
@@ -17247,6 +17271,10 @@
         {
           "name": "LINE",
           "id": 10
+        },
+        {
+          "name": "LITERAL_NUMBER",
+          "id": 131
         },
         {
           "name": "LOCAL_TIME",
@@ -17291,6 +17319,10 @@
         {
           "name": "NAMED_UNIT",
           "id": 58
+        },
+        {
+          "name": "NUMERIC_EXPRESSION",
+          "id": 127
         },
         {
           "name": "OPEN_SHELL",
@@ -17401,6 +17433,14 @@
           "id": 119
         },
         {
+          "name": "REAL_LITERAL",
+          "id": 132
+        },
+        {
+          "name": "REAL_REPRESENTATION_ITEM",
+          "id": 133
+        },
+        {
           "name": "REPRESENTATION",
           "id": 33
         },
@@ -17431,6 +17471,14 @@
         {
           "name": "SHELL_BASED_SURFACE_MODEL",
           "id": 32
+        },
+        {
+          "name": "SIMPLE_GENERIC_EXPRESSION",
+          "id": 128
+        },
+        {
+          "name": "SIMPLE_NUMERIC_EXPRESSION",
+          "id": 130
         },
         {
           "name": "SI_UNIT",
@@ -23135,6 +23183,191 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 125,
+          "name": "GENERIC_EXPRESSION",
+          "parents": [],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125
+          ],
+          "flattened": []
+        },
+        {
+          "id": 126,
+          "name": "EXPRESSION",
+          "parents": [
+            "GENERIC_EXPRESSION"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125,
+            126
+          ],
+          "flattened": []
+        },
+        {
+          "id": 127,
+          "name": "NUMERIC_EXPRESSION",
+          "parents": [
+            "EXPRESSION"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125,
+            126,
+            127
+          ],
+          "flattened": []
+        },
+        {
+          "id": 128,
+          "name": "SIMPLE_GENERIC_EXPRESSION",
+          "parents": [
+            "GENERIC_EXPRESSION"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125,
+            128
+          ],
+          "flattened": []
+        },
+        {
+          "id": 129,
+          "name": "GENERIC_LITERAL",
+          "parents": [
+            "SIMPLE_GENERIC_EXPRESSION"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125,
+            128,
+            129
+          ],
+          "flattened": []
+        },
+        {
+          "id": 130,
+          "name": "SIMPLE_NUMERIC_EXPRESSION",
+          "parents": [
+            "NUMERIC_EXPRESSION",
+            "SIMPLE_GENERIC_EXPRESSION"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125,
+            126,
+            127,
+            128,
+            130
+          ],
+          "flattened": []
+        },
+        {
+          "id": 131,
+          "name": "LITERAL_NUMBER",
+          "parents": [
+            "SIMPLE_NUMERIC_EXPRESSION",
+            "GENERIC_LITERAL"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "the_value",
+              "type": "NUMBER",
+              "kind": "Number",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131
+          ],
+          "flattened": [
+            {
+              "declaring_type": "LITERAL_NUMBER",
+              "declaring_type_id": 131,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 132,
+          "name": "REAL_LITERAL",
+          "parents": [
+            "LITERAL_NUMBER"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132
+          ],
+          "flattened": [
+            {
+              "declaring_type": "LITERAL_NUMBER",
+              "declaring_type_id": 131,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 133,
+          "name": "REAL_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM",
+            "REAL_LITERAL"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            125,
+            126,
+            127,
+            128,
+            129,
+            130,
+            131,
+            132,
+            133
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "LITERAL_NUMBER",
+              "declaring_type_id": 131,
+              "local_field_index": 0
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -23452,6 +23685,18 @@
           "record_type": "CONVERSION_BASED_UNIT",
           "declared_in": "NAMED_UNIT",
           "field": "dimensions"
+        }
+      ],
+      "explicit_redeclarations": [
+        {
+          "record_type": "REAL_LITERAL",
+          "record_type_id": 132,
+          "declared_in": "LITERAL_NUMBER",
+          "declaring_type_id": 131,
+          "field": "the_value",
+          "local_field_index": 0,
+          "type": "REAL",
+          "kind": "Real"
         }
       ],
       "exclusive_groups": [
@@ -30549,6 +30794,7 @@
           "field": "dimensions"
         }
       ],
+      "explicit_redeclarations": [],
       "exclusive_groups": [
         [
           "SI_UNIT",

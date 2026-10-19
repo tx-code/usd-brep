@@ -20,6 +20,8 @@ python -m tools.step_catalog_validation check --snapshot _build/catalog-validati
 祖先位、展开字段的原声明/本地索引、name→ID、SELECT、枚举、complex signature、derived 槽、
 measure 分支、互斥组和 SI 前缀。只有独立名称索引按名称排序；其余数组次序参与比较。
 快照通过 STEP_SOURCE 的 JSON writer 完整发布，固定事实从产品目录读取，前缀与互斥组不抄到测试中。
+当前 v3 另保存显式字段收窄登记及编译后的 owner/origin/slot 身份；它与要求 `*` 的 DERIVE 槽分别记录。
+v1/v2 保持各自原有字段集合和 profile 范围，不能携带 v3 登记或借旧格式建立新增能力资格。
 
 `check` 验证冻结载荷 hash，然后比较完整 JSON 树。它不更新期望值，报告具体路径差异，
 不忽略数组次序、bool/整数差异或任何目录字段。`registered_types` 与声明次序也做结构核对。
