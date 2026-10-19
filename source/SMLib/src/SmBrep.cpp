@@ -35152,9 +35152,13 @@ SmBoolean bDebugMe = FALSE ;
 
   // Root test 15 is a LEVEL2 validity predicate; the query returns TRUE for
   // a coincidence, not for a valid BRep. The macro also avoids doing this
-  // expensive query when that test level/request does not select it.
-  bRtn &= SM_ASSERT_BOOLEAN_REPORT(15, SM_LEVEL_2,
-      (this->ContainsCoincidentTopology(-1,NULL,NULL,pAList,SM_LEVEL_2)==FALSE), _T(""));
+  // expensive query when that test level/request does not select it. Release
+  // report macros only compare levels, so request selection needs this guard.
+  if (SM_ASSERT_TEST_NEED(15, SM_LEVEL_2))
+  {
+    bRtn &= SM_ASSERT_BOOLEAN_REPORT(15, SM_LEVEL_2,
+        (this->ContainsCoincidentTopology(-1,NULL,NULL,pAList,SM_LEVEL_2)==FALSE), _T(""));
+  }
 
   // Shell context checks.
   for(ii=0;ii<sShells.GetSize();ii++)

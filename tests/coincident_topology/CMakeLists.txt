@@ -18,12 +18,13 @@ endif()
 add_executable(coincident_topology coincidence.cpp)
 target_compile_features(coincident_topology PRIVATE cxx_std_20)
 target_link_libraries(coincident_topology PRIVATE SM_API SMLib)
-if(WIN32)
+target_compile_definitions(coincident_topology PRIVATE NOMINMAX SM_GRAPHICS_CALLBACKS=1
+    $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>
+    $<$<PLATFORM_ID:Windows>:UNICODE;_UNICODE;NL_DEBUG_CODE>)
+if(MSVC)
     target_compile_options(coincident_topology PRIVATE /W4 /WX /permissive- /utf-8)
-    target_compile_definitions(coincident_topology PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
-        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
 endif()
-foreach(case clean first all touching outside optional root-clean root-overlap levels)
+foreach(case clean first all touching outside optional root-clean root-overlap levels requests)
     add_test(NAME coincident_${case} COMMAND coincident_topology ${case})
     if(WIN32 AND SMLIB_RUNTIME_DIR)
         set_tests_properties(coincident_${case} PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${SMLIB_RUNTIME_DIR}")

@@ -50,10 +50,10 @@ void Query(SmBrep& body, bool expected, bool all)
         Require((reports.GetSize() != 0) == (expected && level == SM_LEVEL_2), "report level does not change geometric truth");
     }
 }
-void Root(SmBrep& body, bool expected, SmAssertTestLevel level)
+void Root(SmBrep& body, bool expected, SmAssertTestLevel level, SmTArray<ULONG>* requests = nullptr)
 {
     SmAssertArray reports;
-    const bool valid = body.AssertValid(&reports, level, SM_NO_WALK) != FALSE;
+    const bool valid = body.AssertValid(&reports, level, SM_NO_WALK, requests) != FALSE;
     Require(valid == expected, "root validation coincidence result");
     Require((reports.GetSize() == 0) == expected, "root validation diagnostic presence");
     if (!expected)
@@ -123,6 +123,16 @@ int main(int argc, char** argv)
                 Root(*body, true, SM_LEVEL_0);
             }
             Root(*body, false, SM_LEVEL_2);
+        }
+        else if (mode == "requests")
+        {
+            auto body = Pair(0);
+            SmTArray<ULONG> requests;
+            requests.Add(13); // Context check: unrelated to coincidence test 15.
+            Root(*body, true, SM_LEVEL_GIVEN, &requests);
+            requests.ReSet();
+            requests.Add(15);
+            Root(*body, false, SM_LEVEL_GIVEN, &requests);
         }
         else
         {

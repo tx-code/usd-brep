@@ -9,6 +9,8 @@ The cases check first/all witnesses, paired and independently optional output
 arrays, explicit distance thresholds, report levels, and root validation test 15.
 The geometric predicate must not depend on whether a report was requested. Root
 LEVEL2 validation rejects coincident topology; LEVEL0 does not run test 15.
+`SM_LEVEL_GIVEN` requests including and excluding 15 run the corresponding
+predicate consistently in Release and Debug.
 This is a regression contract for these checks, not complete BRep validity.
 
 The validation-enabled SDK build registers the cases. For an existing matching
