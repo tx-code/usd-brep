@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImport.h"
 #include "StepImportCylinderChart.h"
+#include "StepImportGeneralMeasurements.h"
+#include "StepImportNativeData.h"
 #include "StepImportTrimMeasurement.h"
 
 #include <SmApiQueries.h>
@@ -13,6 +15,9 @@
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
+#include <SmFaceuse.h>
+#include <SmRegion.h>
+#include <SmShell.h>
 #include <SmLine.h>
 #include <SmPlane.h>
 #include <algorithm>
@@ -472,6 +477,66 @@ void OpaqueDataContract(const std::filesystem::path& source)
     }
     Require(rejected, "opaque DATA opt-in cannot relax strict import");
 }
+// Exercise the private measurement adapter against an independently reloaded
+// analytic box, deliberately reversing the source/native face correspondence.
+void MeasurementContract(ReloadedNative native)
+{
+    using namespace step_import::detail;
+    ModelData model;
+    model.context = std::move(native.context);
+    model.brep = std::move(native.brep);
+    SmTArray<SmFace*> faces;
+    model.brep->GetFaces(faces);
+    Require(faces.GetSize() == 6, "measurement analytic box");
+    auto* up = faces[0]->GetUpwardFaceuse();
+    auto* region = up->GetShell()->GetRegion();
+    model.material = region->IsVoid() ? up->GetMate()->GetShell()->GetRegion() : region;
+    for (ULONG i = faces.GetSize(); i > 0; --i)
+    {
+        NativeFaceData face;
+        face.face = faces[i - 1];
+        model.faces.push_back(std::move(face));
+    }
+    std::vector<std::size_t> queried;
+    GeneralSolidIntegrals integrals;
+    Require(IntegrateGeneralSolid(model, {7, 7, 20}, [&](std::size_t index) { queried.push_back(index); }, integrals) == SM_SUCCESS,
+        "fused analytic box integration");
+    Near(integrals.areaMm2, 2200, 1e-6, "independent fused box area");
+    Near(integrals.volumeMm3, 6000, 1e-5, "independent fused box volume");
+    for (std::size_t axis = 0; axis < 3; ++axis)
+        Near(integrals.centroidMm[axis], step_import::Point{7, 7, 20}[axis], 1e-7, "independent fused box centroid");
+    Require(queried.size() == model.faces.size() && integrals.faces.size() == model.faces.size(), "one checkpoint per face");
+    for (std::size_t i = 0; i < model.faces.size(); ++i)
+    {
+        Require(queried[i] == model.faces.size() - i - 1, "native traversal with source-order result identity");
+        double area = 0;
+        SmPoint3d centroid;
+        Require(SmApiFaceComputeCentroid(model.faces[i].face, 1e-4, area, centroid) == SM_SUCCESS, "independent legacy face query");
+        const auto& measured = integrals.faces[i];
+        Near(std::abs(measured.areaMm2), area, 1e-8, "complete fused face area");
+        const double expected[] = {centroid.x, centroid.y, centroid.z};
+        for (std::size_t axis = 0; axis < 3; ++axis)
+            Near(measured.areaOriginMm[axis] + measured.areaFirstMomentMm3[axis] / measured.areaMm2,
+                expected[axis], 1e-8, "source-associated local face centroid");
+    }
+    // Interrupt every fused face boundary: no partially accumulated output may
+    // escape, and no later face may run after the caller throws cancellation.
+    for (std::size_t stop = 0; stop < model.faces.size(); ++stop)
+    {
+        GeneralSolidIntegrals untouched;
+        untouched.areaMm2 = -37;
+        std::size_t visited = 0;
+        bool stopped = false;
+        struct Stop {};
+        try
+        {
+            IntegrateGeneralSolid(model, {7, 7, 20}, [&](std::size_t) { if (visited++ == stop) throw Stop{}; }, untouched);
+        }
+        catch (const Stop&) { stopped = true; }
+        Require(stopped && visited == stop + 1 && untouched.areaMm2 == -37 && untouched.faces.empty(),
+            "cancelled fused traversal does not assign partial output");
+    }
+}
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
     auto options = step_import::Options::PlanarFixture();
@@ -502,6 +567,8 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     double volume = 0;
     Require(SmApiBrepComputeVolume(reloaded.brep.get(), 1e-4, volume) == SM_SUCCESS, "reloaded volume query");
     Near(volume, 6000, 1e-5, "archive geometry preserved");
+    MeasurementContract(std::move(reloaded));
+    Require(!outcome.report.json.empty(), "successful import requires its complete report");
     for (const auto limit : { 3U, 30U, 80U })
     {
         auto limited = options;
@@ -509,38 +576,34 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
         const auto failed = step_import::ImportFile(source, limited);
         Require(failed.status == step_import::Status::ResourceLimit && !failed.model, "private candidate resource cleanup");
     }
-    // Measurement queries may be reordered/reused, but every actual query still
-    // costs one call and exposes a cooperative cancellation boundary. Exercise
-    // late failures after native geometry exists, without depending on a fixed
-    // implementation-specific total call count.
+    // Sweep every checkpoint, including all fused face queries, without
+    // freezing an implementation-specific count or order. Interrupted imports
+    // retain their full failure report and never publish a partial model.
     const auto calls = outcome.report.nativeCalls;
     Require(calls > 3, "general measured calls");
-    for (const auto limit : { calls - 3, calls - 1 })
+    for (std::size_t boundary = 1; boundary < calls; ++boundary)
     {
         auto limited = options;
-        limited.nativeLimits.nativeCalls = limit;
+        limited.nativeLimits.nativeCalls = boundary;
         const auto failed = step_import::ImportFile(source, limited);
-        Require(
-            failed.status == step_import::Status::ResourceLimit && !failed.model && failed.report.candidateDiscarded,
-            "late measured-query limit discards candidate"
-        );
-        Require(failed.report.nativeCalls == limit, "no uncharged measured query beyond limit");
-    }
-    auto cancelled = options;
-    cancelled.execution.control = std::make_shared<step_import::ImportControl>();
-    cancelled.execution.progress = [&](step_import::Progress progress)
-    {
-        if (progress.phase == step_import::Phase::BeforeNativeCall && progress.nativeCalls == calls - 1)
+        Require(failed.status == step_import::Status::ResourceLimit && !failed.model
+            && failed.report.nativeCalls == boundary && !failed.report.json.empty(),
+            "every native query is charged before execution");
+        auto cancelled = options;
+        cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+        cancelled.execution.progress = [&](step_import::Progress progress)
         {
-            cancelled.execution.control->RequestCancel();
-        }
-    };
-    const auto stopped = step_import::ImportFile(source, cancelled);
-    Require(
-        stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded,
-        "late measured-query cancellation discards candidate"
-    );
-    Require(stopped.report.nativeCalls == calls - 1, "cancelled query is not executed");
+            if (progress.phase == step_import::Phase::BeforeNativeCall && progress.nativeCalls == boundary)
+                cancelled.execution.control->RequestCancel();
+        };
+        const auto stopped = step_import::ImportFile(source, cancelled);
+        Require(stopped.status == step_import::Status::Cancelled && !stopped.model
+            && stopped.report.nativeCalls == boundary && !stopped.report.json.empty(),
+            "every native query has a cancellation boundary and complete failure report");
+        if (boundary >= calls - model->Info().faces - model->Info().edges)
+            Require(failed.report.candidateDiscarded && stopped.report.candidateDiscarded,
+                "late measurement interruption discards the private candidate");
+    }
     auto retained = outcome.model->Face();
     const auto identity = retained.SourceId();
     outcome = {};

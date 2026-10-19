@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportCylinderChart.h"
 #include "StepImportExecution.h"
+#include "StepImportGeneralMeasurements.h"
 #include "StepImportNativeData.h"
 #include "StepImportTrimMeasurement.h"
 
@@ -2246,9 +2247,6 @@ private:
                 shape
             );
         }
-        double volume = 0, mass = 0;
-        SmPoint3d centroid;
-        SmVector3d moments, products;
         Step(shape);
         // Finite-accuracy mass integration also accumulates moment terms.
         // Center their reference frame on the bounds to reduce cancellation;
@@ -2260,21 +2258,14 @@ private:
         {
             origin[axis] = std::midpoint(info.boundsMm[0][axis], info.boundsMm[1][axis]);
         }
-        Good(SmApiBrepComputeMassProperties(
-            m_model->brep.get(),
-            1e-4,
-            1.,
-            SmPoint3d(origin[0], origin[1], origin[2]),
-            info.areaMm2,
-            volume,
-            mass,
-            centroid,
-            moments,
-            products
-        ));
+        GeneralSolidIntegrals integrals;
+        Good(IntegrateGeneralSolid(*m_model, origin,
+            [&](Index face) { Step(faces[face].record); }, integrals));
+        info.areaMm2 = integrals.areaMm2;
+        const double volume = integrals.volumeMm3;
         Need(std::isfinite(volume) && volume > 0 && std::isfinite(info.areaMm2) && info.areaMm2 > 0, "GeneralSolidMeasures", shape);
         info.materialVolumeMm3 = volume;
-        info.centroidMm = P(centroid);
+        info.centroidMm = integrals.centroidMm;
         for (const auto value : info.centroidMm)
         {
             Need(std::isfinite(value), "GeneralFiniteCentroid", shape);
@@ -2296,10 +2287,13 @@ private:
             auto& f = m_model->faces[i];
             f.info.faces = 1;
             f.info.shapeRole = "MaterialSolidBoundary";
-            Step(faces[i].record);
-            SmPoint3d faceCentroid;
-            Good(SmApiFaceComputeCentroid(f.face, 1e-4, f.info.areaMm2, faceCentroid));
-            f.info.centroidMm = P(faceCentroid);
+            // The face's charged/cancellable query ran in the fused traversal.
+            // Finish its cached result here, retaining the original report order.
+            const auto& integral = integrals.faces[i];
+            Good(std::abs(integral.areaMm2) >= SM_EFF_ZERO ? SM_SUCCESS : SM_ERR_INVALID_INPUT);
+            f.info.areaMm2 = std::abs(integral.areaMm2);
+            for (Index axis = 0; axis < 3; ++axis)
+                f.info.centroidMm[axis] = integral.areaOriginMm[axis] + integral.areaFirstMomentMm3[axis] / integral.areaMm2;
             std::set<Index> faceEdges, faceVertices;
             for (const auto& loop : faces[i].loops)
             {

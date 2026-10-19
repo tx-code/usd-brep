@@ -23,7 +23,7 @@ if(NOT TARGET SMLib OR NOT TARGET SM_API)
     endforeach()
 endif()
 
-add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportGeneral.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportReport.cpp)
+add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportGeneral.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
