@@ -47,6 +47,12 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_conic_bounds_tests tests/StepImportConicBoundsTests.cpp)
+    target_link_libraries(step_import_conic_bounds_tests PRIVATE STEP_IMPORT)
+    add_test(NAME step_import_conic_bounds_contracts COMMAND step_import_conic_bounds_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_cylinder.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step")
+    set_tests_properties(step_import_conic_bounds_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_general_tests tests/StepImportGeneralTests.cpp)
     target_link_libraries(step_import_general_tests PRIVATE STEP_IMPORT)
     target_include_directories(step_import_general_tests PRIVATE src)
@@ -144,7 +150,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_native_import step_import_general_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_native_import step_import_conic_bounds_tests step_import_general_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD
