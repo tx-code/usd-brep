@@ -66,7 +66,7 @@ class InterpretedNativeTests(unittest.TestCase):
     def test_complete_cylinder_copy_and_archive_keep_separate_qualification(self):
         data = cylinder_source().replace(b"AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}", UNREGISTERED)
         cli = Path(os.environ["STEP_NATIVE_BINARY"])
-        binary = cli.with_name("step_import_general_tests" + cli.suffix)
+        binary = os.environ.get("STEP_NATIVE_GENERAL_BINARY", str(cli.with_name("step_import_general_tests" + cli.suffix)))
         with tempfile.TemporaryDirectory(prefix="step-interpreted-lifecycle-") as directory:
             root = Path(directory)
             source = root / "source.step"
