@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImport.h"
 #include "StepImportCylinderChart.h"
+#include "StepImportDerivedUv.h"
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportNativeData.h"
 #include "StepImportTrimMeasurement.h"
@@ -192,6 +193,181 @@ void FinalTrimContract()
     );
     std::unique_ptr<SmBSplineCurve> outsideUv(outsideRaw);
     Require(domainRejected(*outsideUv, -.25, 1.25), "matching UV/edge trim range cannot exceed the defining curve domain");
+}
+void DerivedUvEndpointContract()
+{
+    SmContext context;
+    SmPlane plane(SmPoint3d(0, 0, 0), SmVector3d(1, 0, 0), SmVector3d(0, 1, 0), SmVector2d(1, 1), SmExtent2d(-1, -1, 9, 1), &context);
+    const auto make = [&](ULONG dimension, bool rational = false, double y = 0)
+    {
+        SmTArray<SmPoint3d> points;
+        for (double x : { 0., .01, .02, 8. })
+        {
+            points.Add(SmPoint3d(x, y, 0));
+        }
+        SmTArray<ULONG> mult;
+        mult.Add(4);
+        mult.Add(4);
+        SmTArray<double> knots;
+        knots.Add(0);
+        knots.Add(1);
+        SmBSplineCurve* raw = nullptr;
+        SmTArray<double> weights;
+        if (rational)
+        {
+            for (double w : { 2., 3., 4., 5. })
+            {
+                weights.Add(w);
+            }
+        }
+        const auto status = SmBSplineCurve::CreateCanonical(
+            context,
+            dimension,
+            3,
+            points,
+            SM_CF_UNSPECIFIED,
+            mult,
+            knots,
+            SM_KT_UNSPECIFIED,
+            rational ? &weights : nullptr,
+            nullptr,
+            raw
+        );
+        std::unique_ptr<SmBSplineCurve> result(raw);
+        Require(status == SM_SUCCESS && result && result->GetDegree() == 3, "nonuniform straight Bezier fixture");
+        return result;
+    };
+    auto edge = make(3), raw = make(2), fixed = make(2);
+    const SmExtent1d interval(0, 1);
+    const double cut = 1. / 16;
+    SmPoint3d target;
+    Require(edge->EvaluatePoint(cut, target) == SM_SUCCESS, "analytic endpoint target");
+    const double displacement = .03 * cut + 7.97 * cut * cut * cut;
+    Near(target.x, displacement, 1e-12, "independent Bernstein endpoint");
+    Require(displacement > 0 && displacement < .01, "endpoint inside explicit derived-UV budget");
+    // Reproduce SmFace's trim/restore-range endpoint operation. The curve's
+    // image remains a straight line, but its parameter correspondence changes.
+    SmExtent1d shortened(cut, 1);
+    Require(fixed->Trim(shortened) == SM_SUCCESS, "legacy UV endpoint trim");
+    Require(fixed->EditParameterization(interval) == SM_SUCCESS, "legacy UV range restore");
+    Require(fixed->EditEndPoint(target, TRUE, nullptr, SM_EE_PROJECT_UVTRIMCURVE_VERTEX_TO_SURFACE, FALSE) == SM_SUCCESS, "legacy fixed UV endpoint");
+    const auto warped = step_import::detail::MeasureFinalTrim(*edge, *fixed, plane, 0, 1);
+    Require(warped.maximumMm > .01, "restoring UV range does not restore paired parameters");
+    unsigned charges = 0;
+    auto rebuilt = step_import::detail::MatchProjectedUvEndpoints(
+        std::move(raw),
+        *edge,
+        *fixed,
+        plane,
+        interval,
+        .01,
+        [&]
+        {
+            ++charges;
+        }
+    );
+    Require(rebuilt.status == step_import::detail::DerivedUvStatus::Ready && rebuilt.curve, "paired UV candidate preserves source parameters");
+    Require(rebuilt.rawPair && rebuilt.rawPair->maximumMm < 1e-12 && rebuilt.matchedPair, "raw and endpoint-matched evidence are distinct");
+    // Only Bernstein B0 changes: lifted difference = displacement*(1-t)^3.
+    // Its complete interval bound is displacement, independently of sampling.
+    Require(rebuilt.matchedPair->maximumMm <= displacement + 1e-12, "analytic whole-interval endpoint displacement bound");
+    Require(rebuilt.curve->GetNaturalInterval().AreEqual(interval, 0), "no UV parameter rescaling");
+    Require(rebuilt.curve->GetOwner() == nullptr && charges > 0, "caller-owned candidate with charged work");
+    for (unsigned sample = 0; sample <= 16; ++sample)
+    {
+        const double t = double(sample) / 16;
+        SmPoint3d original, actual;
+        Require(
+            edge->EvaluatePoint(t, original) == SM_SUCCESS && rebuilt.curve->EvaluatePoint(t, actual) == SM_SUCCESS,
+            "paired analytic curve samples"
+        );
+        Near(original.x, .03 * t + 7.97 * t * t * t, 1e-12, "defining curve is immutable");
+        Near(actual.x - original.x, displacement * (1 - t) * (1 - t) * (1 - t), 1e-12, "matched UV retains original interior parameters");
+    }
+    auto strict = step_import::detail::MatchProjectedUvEndpoints(
+        make(2),
+        *edge,
+        *fixed,
+        plane,
+        interval,
+        displacement / 2,
+        []
+        {
+        }
+    );
+    Require(
+        !strict.curve && strict.status == step_import::detail::DerivedUvStatus::MatchedGapExceeded,
+        "endpoint closure cannot enlarge the physical budget"
+    );
+    auto badProjection = step_import::detail::MatchProjectedUvEndpoints(
+        make(2, false, .02),
+        *edge,
+        *fixed,
+        plane,
+        interval,
+        .01,
+        []
+        {
+        }
+    );
+    Require(
+        !badProjection.curve && badProjection.status == step_import::detail::DerivedUvStatus::RawGapExceeded,
+        "inaccurate raw projection cannot be normalized into acceptance"
+    );
+    for (unsigned stop = 1; stop <= 6; ++stop)
+    {
+        unsigned calls = 0;
+        bool cancelled = false;
+        try
+        {
+            step_import::detail::MatchProjectedUvEndpoints(
+                make(2),
+                *edge,
+                *fixed,
+                plane,
+                interval,
+                .01,
+                [&]
+                {
+                    if (++calls == stop)
+                    {
+                        throw std::runtime_error("uv-operation-cancel");
+                    }
+                }
+            );
+        }
+        catch (const std::runtime_error& error)
+        {
+            cancelled = std::string_view(error.what()) == "uv-operation-cancel";
+        }
+        Require(cancelled, "cancellation propagates from every charged matching operation");
+    }
+    auto rationalEdge = make(3, true), rationalFixed = make(2, true);
+    Require(rationalEdge->EvaluatePoint(cut, target) == SM_SUCCESS, "rational endpoint target");
+    shortened = SmExtent1d(cut, 1);
+    Require(
+        rationalFixed->Trim(shortened) == SM_SUCCESS && rationalFixed->EditParameterization(interval) == SM_SUCCESS,
+        "rational legacy parameter warp"
+    );
+    auto rational = step_import::detail::MatchProjectedUvEndpoints(
+        make(2, true),
+        *rationalEdge,
+        *rationalFixed,
+        plane,
+        interval,
+        .01,
+        []
+        {
+        }
+    );
+    Require(rational.curve && rational.status == step_import::detail::DerivedUvStatus::Ready, "rational endpoint matching");
+    SmPoint3d rationalFirst, rationalLast;
+    double firstWeight = 0, lastWeight = 0;
+    rational.curve->GetEnds(rationalFirst, rationalLast, &firstWeight, &lastWeight);
+    Near(firstWeight, 2, 0, "fresh rational start weight is retained");
+    Near(lastWeight, 5, 0, "fresh rational end weight is retained");
+    Require(rational.curve->EvaluatePoint(0, rationalFirst) == SM_SUCCESS, "rational matched endpoint evaluation");
+    Near(rationalFirst.DistanceBetween(target), 0, 1e-12, "homogeneous endpoint uses the fresh weight, not the trimmed weight");
 }
 struct ReloadedNative
 {
@@ -634,6 +810,55 @@ void OpaqueHeaderContract(const std::filesystem::path& source)
     Require(sourceOwner->Bytes() == text, "metadata preservation must not transcode the STEP carrier");
     Near(*modelOwner->MaterialVolumeMm3(), 6000, 1e-5, "opaque metadata leaves exact box volume");
     Require(modelOwner->CopyForModeling().model != nullptr, "opaque-source native copy after outcome release");
+    auto projectionCopy = modelOwner->CopyForModeling();
+    projectionCopy.model->Edit(
+        [&](SmBrep& brep)
+        {
+            SmTArray<SmFace*> faces;
+            brep.GetFaces(faces);
+            Require(faces.GetSize() > 0, "projection owner test face");
+            auto face = faces[0];
+            SmTArray<SmEdgeuse*> uses;
+            face->GetUpwardEdgeuses(uses);
+            Require(uses.GetSize() > 0, "projection owner test edgeuse");
+            const auto oldCurve = uses[0]->GetUVTrimCurve();
+            const auto oldOwner = face->GetSurface()->GetOwner();
+            bool cancelled = false;
+            try
+            {
+                step_import::detail::RebuildDerivedUv(
+                    *uses[0],
+                    .001,
+                    []
+                    {
+                        throw std::runtime_error("projection-cancel");
+                    }
+                );
+            }
+            catch (const std::runtime_error& error)
+            {
+                cancelled = std::string_view(error.what()) == "projection-cancel";
+            }
+            Require(cancelled && face->GetSurface()->GetOwner() == oldOwner, "cancelled projection restores surface association");
+            Require(uses[0]->GetUVTrimCurve() == oldCurve, "cancelled projection leaves installed trim untouched");
+            auto candidate = step_import::detail::RebuildDerivedUv(
+                *uses[0],
+                .001,
+                []
+                {
+                }
+            );
+            Require(candidate.status == step_import::detail::DerivedUvStatus::Ready && candidate.curve, "complete unpublished projection candidate");
+            Require(
+                candidate.curve->GetOwner() == nullptr && candidate.curve.get() != oldCurve,
+                "new projection is independently owned until installation"
+            );
+            Require(
+                face->GetSurface()->GetOwner() == oldOwner && uses[0]->GetUVTrimCurve() == oldCurve,
+                "successful candidate generation does not install or transfer topology"
+            );
+        }
+    );
 }
 void OpaqueDataContract(const std::filesystem::path& source)
 {
@@ -1138,6 +1363,7 @@ int main(int argc, char** argv)
         Require(argc == 3, "fixture and local output directory required");
         GaugeContract();
         FinalTrimContract();
+        DerivedUvEndpointContract();
         RationalContract(argv[1], argv[2]);
         OpaqueHeaderContract(argv[1]);
         OpaqueDataContract(argv[1]);

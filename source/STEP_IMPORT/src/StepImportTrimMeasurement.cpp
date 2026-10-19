@@ -11,7 +11,7 @@
 #include <vector>
 namespace step_import::detail
 {
-TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const SmSurface& surface, double begin, double end)
+void CheckFinalTrimParameters(const SmCurve& edge, const SmCurve& uv, double begin, double end)
 {
     const auto domain = uv.GetNaturalInterval();
     const auto edgeDomain = edge.GetNaturalInterval();
@@ -36,6 +36,10 @@ TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const S
     {
         throw std::runtime_error("FinalTrimParameterDomain");
     }
+}
+TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const SmSurface& surface, double begin, double end)
+{
+    CheckFinalTrimParameters(edge, uv, begin, end);
     std::vector<double> breaks{ begin, end };
     for (const auto* curve : { &edge, &uv })
     {

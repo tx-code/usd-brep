@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportCurvePointDefinitions.h"
 #include "StepImportCylinderChart.h"
+#include "StepImportDerivedUv.h"
 #include "StepImportExecution.h"
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportGeometryConstruction.h"
@@ -156,6 +157,12 @@ public:
             BuildSupportingGeometry(definitions);
             m_model->curvePointDefinitions = std::move(definitions).Finish();
         }
+        if (m_rebuiltUv)
+        {
+            // Validators and measured queries can fill/fix UV caches. Check
+            // the final private candidate after those consumers, before return.
+            VerifyRebuiltUv();
+        }
         return m_model;
     }
 
@@ -169,6 +176,7 @@ private:
     std::vector<Curve> curves;
     std::vector<Face> faces;
     double consistency = 0, uvGap = 0;
+    bool m_rebuiltUv = false;
     std::vector<Index> derivedEdgeFaces;
     std::optional<Index> wireframeRepresentation;
     std::optional<Index> supportingRepresentation;
@@ -1695,7 +1703,67 @@ private:
                 Need(edge && edge->GetCurve() && uv, "GeneralFinalTrimMissing", f.record);
                 const auto interval = edge->GetInterval();
                 Step(f.record);
-                const auto measured = MeasureFinalTrim(*edge->GetCurve(), *uv, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
+                auto measured = MeasureFinalTrim(*edge->GetCurve(), *uv, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
+                if (measured.maximumMm > Q(m_options.quality.derivedUvMm))
+                {
+                    // This general source subset has no admitted source pcurve;
+                    // the failed data is derived UV, not defining 3D geometry.
+                    // Keep the usual path/cost unchanged for an adequate trim.
+                    auto rebuilt = RebuildDerivedUv(
+                        *uses[k],
+                        Q(m_options.quality.derivedUvMm),
+                        [&]
+                        {
+                            Step(f.record);
+                        }
+                    );
+                    if (rebuilt.projectionGapMm)
+                    {
+                        m_report.tolerances.push_back(
+                            { "DerivedUvEndpointMatching", "FreshProjectionSampleMaximum", Id(f.record), *rebuilt.projectionGapMm }
+                        );
+                    }
+                    if (rebuilt.rawPair)
+                    {
+                        m_report.tolerances.push_back(
+                            { "DerivedUvEndpointMatching", "RawPairedParameterSampleMaximum", Id(f.record), rebuilt.rawPair->maximumMm }
+                        );
+                    }
+                    if (rebuilt.matchedPair)
+                    {
+                        m_report.tolerances.push_back(
+                            { "DerivedUvEndpointMatching", "EndpointMatchedSampleMaximum", Id(f.record), rebuilt.matchedPair->maximumMm }
+                        );
+                    }
+                    if (rebuilt.status == DerivedUvStatus::Ready)
+                    {
+                        const auto found = std::find(m_model->edges.begin(), m_model->edges.end(), edge);
+                        Need(found != m_model->edges.end(), "GeneralRebuiltUvEdgeIdentity", f.record);
+                        const auto target = static_cast<Index>(found - m_model->edges.begin());
+                        Step(f.record);
+                        // Zero forbids tolerance growth; TRUE deletes the old
+                        // pair-owned trim. Release only after native adoption,
+                        // including on a later ownership-contract failure.
+                        const auto candidate = rebuilt.curve.get();
+                        uses[k]->SetUVTrimCurve(candidate, 0., TRUE);
+                        const bool adopted = rebuilt.curve->GetOwner() == uses[k] || rebuilt.curve->GetOwner() == uses[k]->GetMate();
+                        if (adopted)
+                        {
+                            rebuilt.curve.release();
+                        }
+                        const auto installed = uses[k]->GetUVTrimCurve();
+                        Need(adopted && installed == candidate, "GeneralRebuiltUvOwnership", f.record);
+                        Step(f.record);
+                        measured = MeasureFinalTrim(*edge->GetCurve(), *installed, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
+                        RepresentationNormalization normalization{ "DerivedUvEndpointMatching", Id(f.record), {}, {}, target };
+                        for (const auto& loop : f.loops)
+                        {
+                            normalization.sourceBoundIds.push_back(Id(loop.bound));
+                        }
+                        m_report.normalizations.push_back(std::move(normalization));
+                        m_rebuiltUv = true;
+                    }
+                }
                 Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", f.record);
                 finalGap = std::max(finalGap, measured.maximumMm);
             }
@@ -1709,6 +1777,40 @@ private:
             if (!explicitOuter)
             {
                 ClassifyRegion(f, native);
+            }
+        }
+    }
+    void VerifyRebuiltUv()
+    {
+        // Recheck every installed face trim because native validation can visit
+        // neighboring caches. This is still sampled development evidence; loop,
+        // seam/pole validity and the original mm quality gate remain required.
+        for (Index i = 0; i < faces.size(); ++i)
+        {
+            const auto& face = faces[i];
+            const auto native = m_model->faces[i].face;
+            SmTArray<SmEdgeuse*> uses;
+            native->GetUpwardEdgeuses(uses);
+            double maximum = 0;
+            for (ULONG k = 0; k < uses.GetSize(); ++k)
+            {
+                const auto edge = uses[k]->GetEdge();
+                const auto trim = uses[k]->GetUVTrimCurve();
+                Need(edge && edge->GetCurve() && trim, "GeneralFinalTrimMissing", face.record);
+                const auto interval = edge->GetInterval();
+                Step(face.record);
+                const auto measured = MeasureFinalTrim(*edge->GetCurve(), *trim, *native->GetSurface(), interval.GetMin(), interval.GetMax());
+                Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", face.record);
+                maximum = std::max(maximum, measured.maximumMm);
+            }
+            m_report.tolerances.push_back({ "FinalCandidateUv", "KnotSpanPairedParameterSampleMaximum", Id(face.record), maximum });
+            uvGap = std::max(uvGap, maximum);
+        }
+        for (auto& observation : m_report.tolerances)
+        {
+            if (observation.stage == "Postcheck" && observation.kind == "MeasuredDerivedUvGap")
+            {
+                observation.valueMm = uvGap;
             }
         }
     }
