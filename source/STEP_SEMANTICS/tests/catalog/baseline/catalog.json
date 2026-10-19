@@ -10800,7 +10800,9 @@
         "DRAUGHTING_PRE_DEFINED_COLOUR",
         "GEOMETRIC_SET",
         "GEOMETRIC_CURVE_SET",
-        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+        "PRODUCT_CATEGORY_RELATIONSHIP",
+        "INVISIBILITY"
       ],
       "name_index": [
         {
@@ -11036,6 +11038,10 @@
           "id": 54
         },
         {
+          "name": "INVISIBILITY",
+          "id": 123
+        },
+        {
           "name": "LENGTH_MEASURE_WITH_UNIT",
           "id": 64
         },
@@ -11142,6 +11148,10 @@
         {
           "name": "PRODUCT_CATEGORY",
           "id": 50
+        },
+        {
+          "name": "PRODUCT_CATEGORY_RELATIONSHIP",
+          "id": 122
         },
         {
           "name": "PRODUCT_CONTEXT",
@@ -13342,7 +13352,7 @@
           "id": 50,
           "name": "PRODUCT_CATEGORY",
           "parents": [],
-          "simple": false,
+          "simple": true,
           "fields": [
             {
               "name": "name",
@@ -16709,6 +16719,112 @@
               "local_field_index": 2
             }
           ]
+        },
+        {
+          "id": 122,
+          "name": "PRODUCT_CATEGORY_RELATIONSHIP",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "category",
+              "type": "PRODUCT_CATEGORY",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sub_category",
+              "type": "PRODUCT_CATEGORY",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            122
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 122,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 122,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 122,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 122,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 123,
+          "name": "INVISIBILITY",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "invisible_items",
+              "type": "INVISIBLE_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            123
+          ],
+          "flattened": [
+            {
+              "declaring_type": "INVISIBILITY",
+              "declaring_type_id": 123,
+              "local_field_index": 0
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16807,6 +16923,13 @@
             "POINT",
             "CURVE",
             "SURFACE"
+          ]
+        },
+        {
+          "name": "INVISIBLE_ITEM",
+          "branches": [
+            "REPRESENTATION",
+            "STYLED_ITEM"
           ]
         }
       ],
@@ -17254,7 +17377,9 @@
         "REAL_REPRESENTATION_ITEM",
         "GEOMETRIC_SET",
         "GEOMETRIC_CURVE_SET",
-        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+        "PRODUCT_CATEGORY_RELATIONSHIP",
+        "INVISIBILITY"
       ],
       "name_index": [
         {
@@ -17514,6 +17639,10 @@
           "id": 56
         },
         {
+          "name": "INVISIBILITY",
+          "id": 138
+        },
+        {
           "name": "LENGTH_MEASURE_WITH_UNIT",
           "id": 66
         },
@@ -17640,6 +17769,10 @@
         {
           "name": "PRODUCT_CATEGORY",
           "id": 52
+        },
+        {
+          "name": "PRODUCT_CATEGORY_RELATIONSHIP",
+          "id": 137
         },
         {
           "name": "PRODUCT_CONTEXT",
@@ -19918,7 +20051,7 @@
           "id": 52,
           "name": "PRODUCT_CATEGORY",
           "parents": [],
-          "simple": false,
+          "simple": true,
           "fields": [
             {
               "name": "name",
@@ -23717,6 +23850,112 @@
               "local_field_index": 2
             }
           ]
+        },
+        {
+          "id": 137,
+          "name": "PRODUCT_CATEGORY_RELATIONSHIP",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "description",
+              "type": "TEXT",
+              "kind": "String",
+              "optional": true,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "category",
+              "type": "PRODUCT_CATEGORY",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "sub_category",
+              "type": "PRODUCT_CATEGORY",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            137
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 137,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 137,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 137,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "PRODUCT_CATEGORY_RELATIONSHIP",
+              "declaring_type_id": 137,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 138,
+          "name": "INVISIBILITY",
+          "parents": [],
+          "simple": true,
+          "fields": [
+            {
+              "name": "invisible_items",
+              "type": "INVISIBLE_ITEM",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            138
+          ],
+          "flattened": [
+            {
+              "declaring_type": "INVISIBILITY",
+              "declaring_type_id": 138,
+              "local_field_index": 0
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -23827,6 +24066,14 @@
             "POINT",
             "CURVE",
             "SURFACE"
+          ]
+        },
+        {
+          "name": "INVISIBLE_ITEM",
+          "branches": [
+            "PRESENTATION_LAYER_ASSIGNMENT",
+            "REPRESENTATION",
+            "STYLED_ITEM"
           ]
         }
       ],

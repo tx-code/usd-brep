@@ -5,6 +5,7 @@
 #include "StepAp203N916CatalogData.h"
 #include "StepAp214MbxCatalogData.h"
 #include "StepAp214PresentationCatalogData.h"
+#include "StepAp214SourceRolesCatalogData.h"
 #include "StepCatalogBuilder.h"
 #include "StepDateTimeCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
@@ -510,6 +511,10 @@ constexpr Recipe ProfileRecipe()
         // Finalize after protocol-specific recipes (including N916's copied
         // recipe and MBx's foreign declarations), so no prior type ID moves.
         wireframe::AppendDeclarations(recipe);
+    }
+    if constexpr (IsAp214SourceProfile(Profile))
+    {
+        ap214_source_roles::AppendDeclarations(recipe, Profile == ProfileKind::Ap214MbxSource);
     }
     return recipe;
 }

@@ -2696,6 +2696,118 @@ private:
         }
     }
 
+    void CheckAp214CategoryHierarchy()
+    {
+        const auto& relationships = Population("PRODUCT_CATEGORY_RELATIONSHIP");
+        if (relationships.empty())
+        {
+            return;
+        }
+        // Fixed AP214E3_2010.exp PRODUCT_CATEGORY_RELATIONSHIP.WR1 calls
+        // acyclic_product_category_relationship. Iterative three-colour DFS
+        // proves the same absence of directed category cycles, including self
+        // links, without source-depth recursion or exponential shared-DAG walks.
+        std::unordered_map<std::size_t, std::vector<std::size_t>> outgoing;
+        for (const auto relation : relationships)
+        {
+            Visit(Record(relation).span);
+            outgoing[Target(FieldValue(relation, "category"))].push_back(relation);
+        }
+        struct Frame
+        {
+            std::size_t category, next = 0;
+        };
+        std::vector<unsigned char> colour(m_data->types.size());
+        std::vector<Frame> stack;
+        for (const auto root : Population("PRODUCT_CATEGORY"))
+        {
+            Visit(Record(root).span);
+            if (colour[root])
+            {
+                continue;
+            }
+            colour[root] = 1;
+            stack.push_back({ root });
+            while (!stack.empty())
+            {
+                auto& frame = stack.back();
+                const auto found = outgoing.find(frame.category);
+                if (found == outgoing.end() || frame.next == found->second.size())
+                {
+                    colour[frame.category] = 2;
+                    stack.pop_back();
+                    continue;
+                }
+                const auto relation = found->second[frame.next++];
+                const auto& subcategory = FieldValue(relation, "sub_category");
+                Visit(subcategory.span);
+                const auto child = Target(subcategory);
+                if (colour[child] == 1)
+                {
+                    FieldFailure(
+                        "SourceRuleViolation:PRODUCT_CATEGORY_RELATIONSHIP.WR1",
+                        "D3",
+                        "Product category hierarchy contains a directed cycle",
+                        subcategory.span,
+                        Status::Rejected,
+                        relation,
+                        "sub_category",
+                        FieldDetail::AttributePath,
+                        "acyclic category references",
+                        "cycle",
+                        "AP214E3_2010.exp PRODUCT_CATEGORY_RELATIONSHIP.WR1"
+                    );
+                }
+                if (!colour[child])
+                {
+                    colour[child] = 1;
+                    stack.push_back({ child });
+                }
+            }
+        }
+    }
+    void AttachAp214Invisibility()
+    {
+        const auto& instances = Population("INVISIBILITY");
+        if (instances.empty())
+        {
+            return;
+        }
+        // AP214 INVISIBILITY affects presentation only. Prove every target was
+        // already owned before these records acquire roles; an invisibility
+        // reference cannot introduce or suppress required geometry/units.
+        std::vector<std::size_t> roots;
+        for (const auto& role : m_data->part.roles)
+        {
+            roots.push_back(role.recordIndex);
+        }
+        const auto owned = Reach(std::move(roots), false);
+        for (const auto record : instances)
+        {
+            const auto& items = FieldValue(record, "invisible_items");
+            for (const auto& item : items.children)
+            {
+                Visit(item.span);
+                if (!owned[Target(item)])
+                {
+                    FieldFailure(
+                        "UnsupportedInvisibilityAttachment",
+                        "D2",
+                        "Invisible target is outside the previously established selected model/presentation closure",
+                        item.span,
+                        Status::Unsupported,
+                        record,
+                        "invisible_items",
+                        FieldDetail::AttributePath,
+                        "previously owned presentation target",
+                        item.text,
+                        "project invisibility attachment guard"
+                    );
+                }
+            }
+            m_data->part.roles.push_back({ "invisibility_" + std::to_string(record), record });
+        }
+    }
     void Closure()
     {
         m_outgoing.resize(m_data->types.size());
@@ -2717,6 +2829,8 @@ private:
         }
         if (IsAp214SourceProfile(m_data->profile.kind))
         {
+            CheckAp214CategoryHierarchy();
+            AttachAp214Invisibility();
             CheckAp214CurveStyleValues();
             CheckAp214PredefinedColourValues();
             CheckAp214RenderingValues();
@@ -2789,10 +2903,27 @@ private:
                     // Standalone category dictionaries have no source references,
                     // shape role or unit effect. Keep them as unattached source
                     // metadata with the original orphan diagnostic, never fake roots.
-                    if (m_data->profile.kind == ProfileKind::Ap203e2GeneralSource && Record(r).components.size() == 1 &&
-                        Record(r).components.front().name == "PRODUCT_CATEGORY")
+                    if ((m_data->profile.kind == ProfileKind::Ap203e2GeneralSource || IsAp214SourceProfile(m_data->profile.kind)) &&
+                        Record(r).components.size() == 1 && Record(r).components.front().name == "PRODUCT_CATEGORY")
                     {
                         return m_outgoing[r].empty();
+                    }
+                    if (IsAp214SourceProfile(m_data->profile.kind) && Record(r).components.size() == 1 &&
+                        Record(r).components.front().name == "PRODUCT_CATEGORY_RELATIONSHIP")
+                    {
+                        // The checked hierarchy retains dictionary relations
+                        // as unattached source metadata, not invented product
+                        // membership. Its complete outgoing graph contains only
+                        // already typed category entities; cycles failed above.
+                        return std::all_of(
+                            m_outgoing[r].begin(),
+                            m_outgoing[r].end(),
+                            [&](auto reference)
+                            {
+                                Visit(references[reference].span);
+                                return IsA(*m_data, references[reference].targetRecordIndex, "PRODUCT_CATEGORY");
+                            }
+                        );
                     }
                     if (!NonGeometricStyle(r))
                     {

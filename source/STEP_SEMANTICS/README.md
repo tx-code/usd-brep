@@ -1,5 +1,37 @@
 # STEP source semantics: ticket 03
 
+The two fixed AP214 catalogs admit ordinary `PRODUCT_CATEGORY` and
+`PRODUCT_CATEGORY_RELATIONSHIP` with the pinned AP214E3_2010.exp
+(`71ab140f...`) transport: category name/optional description, and relationship
+name/optional description/category/sub_category. Computed category.id has no
+P21 slot; it is not synthesized. The closed catalogs still reject ID_ATTRIBUTE,
+so its incoming count for PRODUCT_CATEGORY.WR1 is zero in this subset; no general
+derived-id or ID_ATTRIBUTE evaluation is claimed. Relationship WR1's absence of
+category cycles is checked by a budgeted iterative traversal, including self
+links and shared descendants. Ordinary dictionary categories do not create
+PRODUCT membership, a selected-part category or a new geometry root.
+
+Unattached category dictionaries and their checked relations may be retained
+only under explicit `PreserveNonGeometric`, through the existing orphan
+preservation contract: preserve the original `UnownedOrOrphanProfileContent`
+diagnostic and complete records, with all outgoing relations restricted to
+typed categories. Strict requests keep the orphan refusal. The existing
+PRODUCT_RELATED_PRODUCT_CATEGORY membership/name guard is unchanged. N2635's
+existing standalone dictionary behavior is unchanged; N916, N2635 and P0 do
+not acquire the new hierarchy declarations.
+
+AP214 also admits ordinary `INVISIBILITY(invisible_items)` and its required
+nonempty SET. The fixed invisible_item SELECT includes styled items, layers,
+representations and draughting callouts. This subset admits the first three
+only where already supported: the seven-arc catalog still excludes layers,
+while the separate MBx catalog supports them. Callouts and context-dependent
+invisibility remain unsupported. Every target must already belong to the
+proved selected part/presentation closure before INV acquires its own source
+role; an invisible reference cannot establish a new owner or hide required
+geometry, units or diagnostics. Its raw targets and instruction remain in the
+owning source snapshot/report. Native construction and queries retain the
+complete model; applying visibility in a renderer is not implemented or claimed.
+
 An application may separately request `SchemaInterpretation::UnregisteredAp214As2010`
 with general-BRep scope and `SourcePolicy::PreserveNonGeometric`. Only the exact
 unregistered identifier `AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1 1}` may select the
@@ -195,8 +227,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 137/122 declarations respectively;
-the separate MBx general catalog contains 137 declarations;
+transport slot. The general catalogs contain 137/124 declarations respectively;
+the separate MBx general catalog contains 139 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 
