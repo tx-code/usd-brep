@@ -25,6 +25,7 @@ endif()
 
 add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportPointClassification.cpp src/StepImportWireframe.cpp src/StepImportGeneral.cpp src/StepImportCurvePointDefinitions.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportDerivedUv.cpp src/StepImportSurfaceProof.cpp src/StepImportSupportDomain.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
+target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
 target_link_libraries(STEP_IMPORT PUBLIC STEP_PLANAR PRIVATE SM_API SMLib usd_brep_gsl)
@@ -95,6 +96,12 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_general_contracts COMMAND step_import_general_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step"
         "${CMAKE_CURRENT_BINARY_DIR}/general-contract-output")
+    add_executable(step_import_general_unit_tests tests/StepImportGeneralUnitTests.cpp)
+    target_link_libraries(step_import_general_unit_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_general_unit_tests PRIVATE src)
+    add_test(NAME step_import_general_unit_contracts COMMAND step_import_general_unit_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step")
+    set_tests_properties(step_import_general_unit_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_tests tests/StepImportTests.cpp)
     target_link_libraries(step_import_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_contracts COMMAND step_import_tests
@@ -183,7 +190,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_import_surface_proof_tests step_native_import step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_import_surface_proof_tests step_native_import step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

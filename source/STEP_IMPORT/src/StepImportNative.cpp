@@ -229,6 +229,7 @@ public:
         : m_plan(plan), m_options(options), m_report(report), m_model(std::make_shared<ModelData>()), m_execution(execution)
     {
         m_model->source = m_plan.source;
+        m_model->lengthUnits = m_plan.units;
         m_model->queryTolerance = Value(m_options.quality.queryMm);
         m_model->queryBudget = m_options.quality.queryMm;
     }
@@ -1511,6 +1512,14 @@ std::shared_ptr<const step_semantics::Snapshot> ModelSnapshot::Source() const
 std::optional<double> ModelSnapshot::MaterialVolumeMm3() const
 {
     return m_data->info.materialVolumeMm3;
+}
+UnitNormalization ModelSnapshot::LengthUnits() const
+{
+    if (!m_data->lengthUnits)
+    {
+        throw std::logic_error("Accepted snapshot requires length normalization evidence");
+    }
+    return *m_data->lengthUnits;
 }
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {

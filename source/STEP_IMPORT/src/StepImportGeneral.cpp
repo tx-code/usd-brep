@@ -9,6 +9,7 @@
 #include "StepImportNativeData.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
+#include "StepImportUnits.h"
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
@@ -257,11 +258,23 @@ private:
         shell = Role("shell");
         Need(Is(shape, "MANIFOLD_SOLID_BREP") && Is(shell, "CLOSED_SHELL"), "GeneralUnsupportedShape", shape);
         const auto power = m_source->UnitContext().lengthPower10Mm;
-        if (!power)
+        std::optional<ResolvedLengthScale> convertedLength;
+        if (power)
         {
-            Fail("GeneralConversionUnitNotImplemented", shape, Status::Unsupported);
+            scale = std::pow(10.0, *power); // Preserve the established SI path and its report/call order.
         }
-        scale = std::pow(10.0, *power);
+        else
+        {
+            convertedLength = ResolveLengthScale(
+                *m_source,
+                m_source->UnitContext().lengthUnit,
+                [&]
+                {
+                    m_execution.Check(Phase::SemanticsChecked);
+                }
+            );
+            scale = Q(convertedLength->scaleMm);
+        }
         Need(scale > 0 && std::isfinite(scale), "GeneralUnitScaleRange", shape);
         // Angular placement conventions do not use the file's angle unit.
         // CONICAL_SURFACE.semi_angle does, and requires an explicit radian SI context.
@@ -330,7 +343,7 @@ private:
                                                        Id(shape),       "MANIFOLD_SOLID_BREP",      Id(shell),
                                                        "CLOSED_SHELL" };
         std::int64_t num = 1, den = 1;
-        for (int i = 0; i < std::abs(*power); ++i)
+        for (int i = 0; power && i < std::abs(*power); ++i)
         {
             if (i >= 15)
             {
@@ -346,6 +359,12 @@ private:
             }
         }
         m_report.units = UnitNormalization{ Id(m_source->UnitContext().lengthUnit), Fraction(num, den), {} };
+        if (convertedLength)
+        {
+            m_report.units->lengthToMm = convertedLength->scaleMm;
+            m_report.units->generalDefinitions = std::move(convertedLength->definitions);
+        }
+        m_model->lengthUnits = *m_report.units;
         if (supportingRepresentation)
         {
             // Physical content cannot be an interoperability exception. Reject

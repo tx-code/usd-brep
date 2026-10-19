@@ -233,6 +233,7 @@ private:
     std::size_t m_set = 0;
 };
 struct EditableCopyOutcome;
+struct UnitNormalization;
 enum class PointClass
 {
     Outside,
@@ -283,6 +284,7 @@ public:
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
     std::optional<NumericalIntegrationObservation> NumericalIntegration() const; // Owning snapshot evidence; null for the proved planar path.
+    UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
@@ -333,11 +335,18 @@ struct SourceShapeObservation
 {
     std::string role, representationId, representationType, shapeId, shapeType, shellId, shellType;
 };
+struct ConversionUnitDefinition
+{
+    std::size_t unit = 0, factor = 0, baseUnit = 0; // Source record indices, never native pointers or invented dimension entities.
+    std::string valueType;
+    Fraction factorValue, scaleMm;
+};
 struct UnitNormalization
 {
     std::string sourceLengthUnitId;
     Fraction lengthToMm;
     std::vector<step_planar::UnitConversion> definitions; // Source record indices refer to Report::source.
+    std::vector<ConversionUnitDefinition> generalDefinitions; // General source dimensions remain in the typed source, including derived slots.
 };
 struct NativeRoleObservation
 {

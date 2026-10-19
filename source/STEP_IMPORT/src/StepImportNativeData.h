@@ -54,6 +54,7 @@ struct ModelData
     double definitionToleranceMm = 0; // General defining-geometry budget, also bounds linked archive readback.
     Fraction queryBudget;
     std::optional<NumericalIntegrationObservation> numericalIntegration;
+    std::optional<UnitNormalization> lengthUnits; // Independent of the caller's mutable report and output lifetime.
     Statistics info;
     mutable std::mutex mutex;
 };

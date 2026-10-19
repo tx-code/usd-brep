@@ -1,5 +1,25 @@
 # STEP_IMPORT（内部 C++20）
 
+通用构建支持已检查的 `CONVERSION_BASED_UNIT + LENGTH_UNIT` 链，终点必须是已登记的
+SI `METRE` 长度单位；SI prefix 与嵌套因子按实际实体引用求积，不使用单位名称猜测。
+因子必须逐项为正，毫米比例与每步结果使用既有有界精确有理数保存；容量不足返回
+`Indeterminate`，未支持的基单位或名义量返回 `Unsupported`，不回退到近似比例。
+源 SELECT、名义类型、量纲和必要条款继续由 `STEP_SEMANTICS` 检查；本层不另造维数实体，
+也不把其“转换解释待下层”的源状态改写为已通过全部检查。
+
+长度比例只作用于坐标、半径与 VECTOR 长度等长度量，应用一次；方向比、LINE 参数、
+B 样条节点与权重不乘长度比例。角度继续按原独立角单位合同解释，本次不扩展转换角单位。
+`unit_normalization` 仅在实际通用长度转换时增加，记录源单位／因子／基单位身份、
+精确源因子与逐步毫米比例；原始字符串、数值和声明仍由 owning 源快照保留。
+已有 SI 路径与平面证明路径的报告字节和计费顺序保持。
+
+`ModelSnapshot::LengthUnits()` 返回独立的值副本，通用与平面模型均保留实际毫米归一化，
+丢弃可变 outcome/report 后仍有效。转换定义中的记录索引相对于该模型的 `Source()`；
+读取原实体时须保留模型或其 owning 源。原生存档本身不编码 STEP 来源资格，仍须保留报告／源。
+`UnitNormalization` 的内部 C++ 布局已扩展，库与消费者需一起重建；内核布局和存档格式不变。
+单位合同有独立 CMake 目标 `step_import_general_unit_tests`／CTest
+`step_import_general_unit_contracts`，可单独构建与验证。
+
 通用路径可显式设置 `Options.numericalIntegration=NumericalIntegrationSettings{1e-6}`，
 CLI 使用 `--integration-relative-accuracy 1e-6`。范围为 `[1e-8,1e-4]`，必须为有限数；
 严格平面证明路径拒绝此配置。它只控制原生融合面积、体积及一阶矩积分的数值停止条件，
