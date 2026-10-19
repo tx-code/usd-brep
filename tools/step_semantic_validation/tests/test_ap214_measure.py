@@ -112,7 +112,10 @@ class Ap214MeasureTests(unittest.TestCase):
         for old, new, key, code in (
             (b"'source measure'", b"$", "RequiredAttributeMissing", 1),
             (b"MASS_MEASURE(+2.204600E+0)", b"MASS_MEASURE(2)", "AttributeTypeMismatch", 1),
-            (b"MASS_MEASURE(+2.204600E+0)", b"NUMERIC_MEASURE(2.)", "UnsupportedMeasureBranch", 2),
+            (b"MASS_MEASURE(+2.204600E+0)", b"UNKNOWN_MEASURE(2.)", "UnsupportedMeasureBranch", 2),
+            # The full AP214 scalar SELECT now binds NUMBER, but this MWU use
+            # still cannot establish its physical dimension: do not guess one.
+            (b"MASS_MEASURE(+2.204600E+0)", b"NUMERIC_MEASURE(2.)", "UnsupportedMeasureDimensionBranch", 2),
             (b"E+0),#900", b"E+0),#901", "ReferenceTypeMismatch", 1),
             (b"E+0),#900", b"E+0),#900,'extra'", "AttributeCountMismatch", 1),
         ):

@@ -348,10 +348,17 @@ constexpr Layout ComputeLayout(const Recipe& recipe)
         {
             const auto& field = recipe.declarations[id].fields[f];
             const auto kind = field.kind == FieldKind::Aggregate ? field.elementKind : field.kind;
-            if ((kind == FieldKind::Reference || kind == FieldKind::TrimmingSelect) && !typeId(field.type) &&
+            if ((kind == FieldKind::Reference || kind == FieldKind::TrimmingSelect || kind == FieldKind::MarkerSelect) && !typeId(field.type) &&
                 !HasName(recipe.referenceSelects, field.type))
             {
                 Fail(report, Error::MissingReference, id, f);
+                return layout;
+            }
+            // MarkerSelect is a fixed domain codec, like SizeSelect. Its
+            // primitive alternative must resolve as well as its reference arm.
+            if (kind == FieldKind::MarkerSelect && !HasName(recipe.enumerations, "MARKER_TYPE"))
+            {
+                Fail(report, Error::MissingEnumeration, id, f);
                 return layout;
             }
             if (kind == FieldKind::Enumeration && !HasName(recipe.enumerations, field.type) &&

@@ -440,11 +440,19 @@ private:
         // Closed declarations whose outgoing references stay in the style chain.
         // STYLED_ITEM is deliberately absent: it references a geometric RI and
         // must still pass the existing selected-body attachment proof.
-        constexpr std::string_view names[] = {
-            "PRESENTATION_STYLE_ASSIGNMENT", "SURFACE_STYLE_USAGE", "SURFACE_SIDE_STYLE",      "SURFACE_STYLE_FILL_AREA",   "FILL_AREA_STYLE",
-            "FILL_AREA_STYLE_COLOUR",        "COLOUR_RGB",          "SURFACE_STYLE_RENDERING", "SURFACE_STYLE_TRANSPARENT", "CURVE_STYLE",
-            "PRE_DEFINED_CURVE_FONT"
-        };
+        constexpr std::string_view names[] = { "PRESENTATION_STYLE_ASSIGNMENT",
+                                               "SURFACE_STYLE_USAGE",
+                                               "SURFACE_SIDE_STYLE",
+                                               "SURFACE_STYLE_FILL_AREA",
+                                               "FILL_AREA_STYLE",
+                                               "FILL_AREA_STYLE_COLOUR",
+                                               "COLOUR_RGB",
+                                               "SURFACE_STYLE_RENDERING",
+                                               "SURFACE_STYLE_TRANSPARENT",
+                                               "CURVE_STYLE",
+                                               "PRE_DEFINED_CURVE_FONT",
+                                               "POINT_STYLE",
+                                               "PRE_DEFINED_POINT_MARKER_SYMBOL" };
         return std::any_of(
             std::begin(names),
             std::end(names),
@@ -1055,24 +1063,40 @@ private:
                     Fail(
                         "UnsupportedMeasureBranch",
                         "D2",
-                        IsAp214SourceProfile(m_data->profile.kind) ?
-                            "This source profile consumes the registered length/mass/ratio measure families" :
-                            "This profile consumes only the registered length measure family",
+                        IsAp214SourceProfile(m_data->profile.kind) ? "This source profile consumes the fixed registered measure SELECT alternatives" :
+                                                                     "This profile consumes only the registered length measure family",
                         value.span,
                         Status::Unsupported,
                         r,
                         c,
                         path,
-                        IsAp214SourceProfile(m_data->profile.kind) ? "registered typed length/mass/ratio measure" : "typed length measure",
+                        IsAp214SourceProfile(m_data->profile.kind) ? "registered typed measure" : "typed length measure",
                         value.text,
                         "profile measure SELECT guard"
                     );
                 }
-                // N2635 count_measure/numeric_measure are NUMBER, unlike the
-                // existing length/angle REAL branches. Retain INTEGER lexemes.
-                if (value.children[0].kind != ValueKind::Real &&
-                    !((m_data->profile.kind == ProfileKind::Ap203e2GeneralSource || m_data->profile.kind == ProfileKind::Ap203N916Source) &&
-                      (value.text == "COUNT_MEASURE" || value.text == "NUMERIC_MEASURE") && value.children[0].kind == ValueKind::Integer))
+                // The fixed AP214/N2635 count_measure and numeric_measure are
+                // NUMBER, descriptive_measure is STRING, and the other admitted
+                // alternatives are REAL. No integer/real/string coercion occurs.
+                if (value.text == "DESCRIPTIVE_MEASURE" && IsAp214SourceProfile(m_data->profile.kind))
+                {
+                    if (value.children[0].kind == ValueKind::OpaqueString)
+                    {
+                        // Reuse the existing unavailable-text classification;
+                        // unknown encoding is not a proven malformed scalar.
+                        Scalar(value.children[0], FieldKind::String, field, r, c, path);
+                    }
+                    if (value.children[0].kind != ValueKind::String)
+                    {
+                        mismatch();
+                    }
+                }
+                else if (
+                    value.children[0].kind != ValueKind::Real &&
+                    !((m_data->profile.kind == ProfileKind::Ap203e2GeneralSource || m_data->profile.kind == ProfileKind::Ap203N916Source ||
+                       IsAp214SourceProfile(m_data->profile.kind)) &&
+                      (value.text == "COUNT_MEASURE" || value.text == "NUMERIC_MEASURE") && value.children[0].kind == ValueKind::Integer)
+                )
                 {
                     mismatch();
                 }
@@ -1109,6 +1133,25 @@ private:
                     value.kind != ValueKind::Typed || value.text != "PARAMETER_VALUE" || value.children.size() != 1 ||
                     value.children[0].kind != ValueKind::Real
                 )
+                {
+                    mismatch();
+                }
+                break;
+            case FieldKind::MarkerSelect:
+                if (value.kind == ValueKind::Reference)
+                {
+                    auto reference = field;
+                    reference.kind = FieldKind::Reference;
+                    Scalar(value, FieldKind::Reference, reference, r, c, path);
+                }
+                else if (value.kind == ValueKind::Typed && value.text == "MARKER_TYPE" && value.children.size() == 1)
+                {
+                    auto marker = field;
+                    marker.kind = FieldKind::Enumeration;
+                    marker.type = "MARKER_TYPE";
+                    Scalar(value.children[0], FieldKind::Enumeration, marker, r, c, path);
+                }
+                else
                 {
                     mismatch();
                 }
@@ -2250,14 +2293,15 @@ private:
                 // Restrict the entire metadata item boundary, not just its name.
                 // MRI can reference only units; DRI has text. Neither can smuggle
                 // geometry in through a style, placement or another BRep shape.
-                const bool valueItem = m_data->profile.kind == ProfileKind::Ap203e2GeneralSource && IsA(*m_data, target, "VALUE_REPRESENTATION_ITEM");
+                const bool valueItem = IsA(*m_data, target, "VALUE_REPRESENTATION_ITEM");
                 const bool foreignReal = Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep && BorrowedForeignReal(target);
                 if (!IsA(*m_data, target, "MEASURE_REPRESENTATION_ITEM") && !IsA(*m_data, target, "DESCRIPTIVE_REPRESENTATION_ITEM") && !valueItem &&
                     !foreignReal)
                 {
                     reject(representation, "items", value, "UnsupportedPropertyItem", "measure or descriptive item", i + 1);
                 }
-                if (valueItem && !IsA(*m_data, Target(FieldValue(representation, "context_of_items")), "GLOBAL_UNIT_ASSIGNED_CONTEXT"))
+                if (valueItem && m_data->profile.kind == ProfileKind::Ap203e2GeneralSource &&
+                    !IsA(*m_data, Target(FieldValue(representation, "context_of_items")), "GLOBAL_UNIT_ASSIGNED_CONTEXT"))
                 {
                     FieldFailure(
                         "SourceRuleViolation:VALUE_REPRESENTATION_ITEM.WR1",
@@ -2670,6 +2714,58 @@ private:
         }
     }
 
+    void CheckStyleSize(std::size_t style, std::string_view field, const char* message)
+    {
+        const auto& width = FieldValue(style, field);
+        Visit(width.span);
+        if (width.kind == ValueKind::Typed && width.text == "POSITIVE_LENGTH_MEASURE" && CompareSourceReals(width.children[0].text, "0.") <= 0)
+        {
+            FieldFailure(
+                "SourceRuleViolation:POSITIVE_LENGTH_MEASURE.WR1",
+                "D3",
+                message,
+                width.span,
+                Status::Rejected,
+                style,
+                field,
+                FieldDetail::AttributePath,
+                "value > 0",
+                width.children[0].text,
+                "AP214E3_2010.exp POSITIVE_LENGTH_MEASURE.WR1"
+            );
+        }
+    }
+    void CheckStyleColour(std::size_t style, std::string_view colourField)
+    {
+        const auto colour = Target(FieldValue(style, colourField));
+        if (IsA(*m_data, colour, "COLOUR_RGB"))
+        {
+            constexpr std::pair<std::string_view, std::string_view> channels[] = { { "red", "COLOUR_RGB.WR1" },
+                                                                                   { "green", "COLOUR_RGB.WR2" },
+                                                                                   { "blue", "COLOUR_RGB.WR3" } };
+            for (const auto& [field, clause] : channels)
+            {
+                const auto& value = FieldValue(colour, field);
+                Visit(value.span);
+                if (CompareSourceReals(value.text, "0.") < 0 || CompareSourceReals(value.text, "1.") > 0)
+                {
+                    FieldFailure(
+                        "SourceRuleViolation:" + std::string(clause),
+                        "D3",
+                        "Source colour channel is outside [0,1]",
+                        value.span,
+                        Status::Rejected,
+                        colour,
+                        field,
+                        FieldDetail::AttributePath,
+                        "0 <= value <= 1",
+                        value.text,
+                        "AP214E3_2010.exp " + std::string(clause)
+                    );
+                }
+            }
+        }
+    }
     void CheckAp214CurveStyleValues()
     {
         // These source checks never turn an appearance dependency into a body
@@ -2699,54 +2795,10 @@ private:
         const auto& styles = Population("CURVE_STYLE");
         for (const auto style : styles)
         {
-            const auto& width = FieldValue(style, "curve_width");
-            Visit(width.span);
-            if (width.kind == ValueKind::Typed && width.text == "POSITIVE_LENGTH_MEASURE" && CompareSourceReals(width.children[0].text, "0.") <= 0)
-            {
-                FieldFailure(
-                    "SourceRuleViolation:POSITIVE_LENGTH_MEASURE.WR1",
-                    "D3",
-                    "Source width is not strictly positive",
-                    width.span,
-                    Status::Rejected,
-                    style,
-                    "curve_width",
-                    FieldDetail::AttributePath,
-                    "value > 0",
-                    width.children[0].text,
-                    "AP214E3_2010.exp POSITIVE_LENGTH_MEASURE.WR1"
-                );
-            }
+            CheckStyleSize(style, "curve_width", "Source width is not strictly positive");
             // A provisional invalid STRING width remains uninterpreted here.
             // Its typed pending proof is checked only after closure/attachment.
-            const auto colour = Target(FieldValue(style, "curve_colour"));
-            if (IsA(*m_data, colour, "COLOUR_RGB"))
-            {
-                constexpr std::pair<std::string_view, std::string_view> channels[] = { { "red", "COLOUR_RGB.WR1" },
-                                                                                       { "green", "COLOUR_RGB.WR2" },
-                                                                                       { "blue", "COLOUR_RGB.WR3" } };
-                for (const auto& [field, clause] : channels)
-                {
-                    const auto& value = FieldValue(colour, field);
-                    Visit(value.span);
-                    if (CompareSourceReals(value.text, "0.") < 0 || CompareSourceReals(value.text, "1.") > 0)
-                    {
-                        FieldFailure(
-                            "SourceRuleViolation:" + std::string(clause),
-                            "D3",
-                            "Source colour channel is outside [0,1]",
-                            value.span,
-                            Status::Rejected,
-                            colour,
-                            field,
-                            FieldDetail::AttributePath,
-                            "0 <= value <= 1",
-                            value.text,
-                            "AP214E3_2010.exp " + std::string(clause)
-                        );
-                    }
-                }
-            }
+            CheckStyleColour(style, "curve_colour");
         }
         std::unordered_set<std::size_t> curveAssignments;
         // No curve style means no matching assignment. Skip the assignment scan,
@@ -2819,6 +2871,114 @@ private:
                     std::to_string(assignments),
                     "AP214E3_2010.exp styled_curve.WR1"
                 );
+            }
+        }
+    }
+    void CheckAp214PointStyleValues()
+    {
+        const auto& styles = Population("POINT_STYLE");
+        const auto& markers = Population("PRE_DEFINED_POINT_MARKER_SYMBOL");
+        if (styles.empty() && markers.empty())
+        {
+            return;
+        }
+        constexpr std::string_view names[] = { "asterisk", "circle", "dot", "plus", "square", "triangle", "x" };
+        for (const auto marker : markers)
+        {
+            const auto& name = FieldValue(marker, "name");
+            Visit(name.span);
+            if (std::find(std::begin(names), std::end(names), name.text) == std::end(names))
+            {
+                FieldFailure(
+                    "SourceRuleViolation:PRE_DEFINED_POINT_MARKER_SYMBOL.WR1",
+                    "D3",
+                    "Unknown predefined point marker name",
+                    name.span,
+                    Status::Rejected,
+                    marker,
+                    "name",
+                    FieldDetail::AttributePath,
+                    "seven exact predefined point marker names",
+                    name.text,
+                    "AP214E3_2010.exp PRE_DEFINED_POINT_MARKER_SYMBOL.WR1"
+                );
+            }
+        }
+        for (const auto style : styles)
+        {
+            CheckStyleSize(style, "marker_size", "Source marker size is not strictly positive");
+            CheckStyleColour(style, "marker_colour");
+        }
+        for (const auto assignment : Population("PRESENTATION_STYLE_ASSIGNMENT"))
+        {
+            std::size_t count = 0;
+            const auto& values = FieldValue(assignment, "styles");
+            for (const auto& value : values.children)
+            {
+                Visit(value.span);
+                count += IsA(*m_data, Target(value), "POINT_STYLE");
+            }
+            if (count > 1)
+            {
+                FieldFailure(
+                    "SourceRuleViolation:PRESENTATION_STYLE_ASSIGNMENT.WR1",
+                    "D3",
+                    "Presentation assignment repeats the point-style type",
+                    values.span,
+                    Status::Rejected,
+                    assignment,
+                    "styles",
+                    FieldDetail::AttributePath,
+                    "at most one POINT_STYLE",
+                    std::to_string(count),
+                    "AP214E3_2010.exp PRESENTATION_STYLE_ASSIGNMENT.WR1"
+                );
+            }
+        }
+        // This extra restriction belongs to MDGPR.WR6, not to POINT_STYLE or
+        // SIZE_SELECT in every source use. Generic styles may retain descriptive
+        // or explicit-MWU sizes; this geometric-presentation use requires the
+        // typed positive-length branch and its admitted colour family.
+        for (const auto representation : Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION"))
+        {
+            for (const auto& value : FieldValue(representation, "items").children)
+            {
+                const auto styled = Target(value);
+                if (!IsA(*m_data, styled, "STYLED_ITEM"))
+                {
+                    continue;
+                }
+                for (const auto& use : FieldValue(styled, "styles").children)
+                {
+                    for (const auto& entry : FieldValue(Target(use), "styles").children)
+                    {
+                        const auto style = Target(entry);
+                        if (!IsA(*m_data, style, "POINT_STYLE"))
+                        {
+                            continue;
+                        }
+                        const auto& size = FieldValue(style, "marker_size");
+                        Visit(size.span);
+                        const auto colour = Target(FieldValue(style, "marker_colour"));
+                        if (size.kind != ValueKind::Typed || size.text != "POSITIVE_LENGTH_MEASURE" ||
+                            (!IsA(*m_data, colour, "COLOUR_RGB") && !IsA(*m_data, colour, "DRAUGHTING_PRE_DEFINED_COLOUR")))
+                        {
+                            FieldFailure(
+                                "SourceRuleViolation:MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION.WR6",
+                                "D3",
+                                "Point style in geometric presentation requires positive-length size and admitted colour",
+                                size.span,
+                                Status::Rejected,
+                                style,
+                                "marker_size",
+                                FieldDetail::AttributePath,
+                                "POSITIVE_LENGTH_MEASURE and RGB/draughting colour",
+                                size.text,
+                                "AP214E3_2010.exp MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION.WR6"
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -2986,6 +3146,93 @@ private:
             m_data->part.roles.push_back({ "invisibility_" + std::to_string(record), record });
         }
     }
+    void CheckAp214ValueItemContexts()
+    {
+        if (!IsAp214SourceProfile(m_data->profile.kind))
+        {
+            return;
+        }
+        const auto& values = Population("VALUE_REPRESENTATION_ITEM");
+        if (values.empty())
+        {
+            return;
+        }
+        // AP214E3_2010.exp VALUE_REPRESENTATION_ITEM.WR1 uses ALL using_representations,
+        // including reverse uses through RI/founded-item references. Propagate
+        // bad-context representation uses forward over exactly those item
+        // dependencies once, instead of repeatedly traversing a shared DAG for
+        // every value. Cyclic item uses terminate; traversal never grants ownership.
+        std::vector<std::optional<std::size_t>> invalidUse(m_data->types.size());
+        std::vector<std::size_t> pending;
+        const auto add = [&](std::size_t item, std::size_t representation)
+        {
+            if (!invalidUse[item])
+            {
+                invalidUse[item] = representation;
+                pending.push_back(item);
+            }
+        };
+        for (const auto representation : Population("REPRESENTATION"))
+        {
+            const auto& context = FieldValue(representation, "context_of_items");
+            Visit(context.span);
+            if (IsA(*m_data, Target(context), "GLOBAL_UNIT_ASSIGNED_CONTEXT"))
+            {
+                continue;
+            }
+            for (const auto& item : FieldValue(representation, "items").children)
+            {
+                Visit(item.span);
+                add(Target(item), representation);
+            }
+        }
+        for (std::size_t at = 0; at < pending.size(); ++at)
+        {
+            const auto item = pending[at];
+            Visit(Record(item).span);
+            for (const auto edge : m_outgoing[item])
+            {
+                const auto& reference = m_data->source->References()[edge];
+                Visit(reference.span);
+                const auto child = reference.targetRecordIndex;
+                if (IsA(*m_data, child, "REPRESENTATION_ITEM") || IsA(*m_data, child, "FOUNDED_ITEM"))
+                {
+                    add(child, *invalidUse[item]);
+                }
+            }
+        }
+        for (const auto value : values)
+        {
+            Visit(Record(value).span);
+            if (!invalidUse[value])
+            {
+                continue;
+            }
+            const auto representation = *invalidUse[value];
+            const auto& context = FieldValue(representation, "context_of_items");
+            try
+            {
+                FieldFailure(
+                    "SourceRuleViolation:VALUE_REPRESENTATION_ITEM.WR1",
+                    "D3",
+                    "Every using representation of a value item requires assigned units",
+                    context.span,
+                    Status::Rejected,
+                    representation,
+                    "context_of_items",
+                    FieldDetail::AttributePath,
+                    "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+                    "context without unit assignment",
+                    "AP214E3_2010.exp VALUE_REPRESENTATION_ITEM.WR1"
+                );
+            }
+            catch (Failure& failure)
+            {
+                failure.diagnostic.source.related.push_back(Record(value).idSpan);
+                throw;
+            }
+        }
+    }
     void Closure()
     {
         m_outgoing.resize(m_data->types.size());
@@ -2996,6 +3243,7 @@ private:
         }
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
+            CheckAp214ValueItemContexts();
             AttachAp214Properties();
             AttachGeneralPropertyAssociations();
             CheckStyleOverrideCycles();
@@ -3010,6 +3258,7 @@ private:
             CheckAp214CategoryHierarchy();
             AttachAp214Invisibility();
             CheckAp214CurveStyleValues();
+            CheckAp214PointStyleValues();
             CheckAp214PredefinedColourValues();
             CheckAp214RenderingValues();
         }

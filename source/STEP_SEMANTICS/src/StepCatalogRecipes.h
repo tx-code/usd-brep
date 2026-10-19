@@ -5,8 +5,10 @@
 #include "StepAp203N916CatalogData.h"
 #include "StepAp214ConstructionCatalogData.h"
 #include "StepAp214MbxCatalogData.h"
+#include "StepAp214PointStyleCatalogData.h"
 #include "StepAp214PresentationCatalogData.h"
 #include "StepAp214SourceRolesCatalogData.h"
+#include "StepAp214ValueCatalogData.h"
 #include "StepCatalogBuilder.h"
 #include "StepDateTimeCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
@@ -517,6 +519,8 @@ constexpr Recipe ProfileRecipe()
     {
         ap214_source_roles::AppendDeclarations(recipe, Profile == ProfileKind::Ap214MbxSource);
         ap214_construction::AppendDeclarations(recipe);
+        ap214_value::AppendDeclarations(recipe);
+        ap214_point_style::AppendDeclarations(recipe);
     }
     return recipe;
 }

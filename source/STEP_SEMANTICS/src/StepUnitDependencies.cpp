@@ -549,19 +549,24 @@ private:
     }
     void Measures()
     {
+        // Resolve stable type identities once. This pass scans every record;
+        // repeated name lookup here adds work even in models with no measures.
+        const auto measureType = Schema(m_data).Find("MEASURE_WITH_UNIT");
+        const auto valueType = Schema(m_data).Find("VALUE_REPRESENTATION_ITEM");
+        Expects(measureType.has_value());
         for (std::size_t r = 0; r < m_data.fields.size(); ++r)
         {
-            if (!IsA(r, "MEASURE_WITH_UNIT"))
+            const bool valueItem = valueType && m_data.types[r].test(*valueType) && m_data.profile.kind != ProfileKind::Ap203N916Source;
+            if (!m_data.types[r].test(*measureType) && !valueItem)
             {
                 continue;
             }
             try
             {
-                const auto& unit = Field(r, "unit_component");
-                const auto target = Target(*unit.declaration.value);
                 const auto& value = Field(r, "value_component");
                 const auto& tag = value.declaration.value->text;
-                if (tag == "POSITIVE_RATIO_MEASURE" || tag == "POSITIVE_LENGTH_MEASURE" || tag == "NON_NEGATIVE_LENGTH_MEASURE")
+                if (tag == "POSITIVE_RATIO_MEASURE" || tag == "POSITIVE_LENGTH_MEASURE" || tag == "NON_NEGATIVE_LENGTH_MEASURE" ||
+                    tag == "POSITIVE_PLANE_ANGLE_MEASURE")
                 {
                     // Source TYPE predicates also apply through SIZE_SELECT's
                     // generic MWU branch. Compare exact REALs (including signed
@@ -574,6 +579,16 @@ private:
                         Rule(r, value, tag + ".WR1");
                     }
                 }
+                if (valueItem)
+                {
+                    // VRI has no unit_component. Its fixed WR1 constrains ALL
+                    // using representation contexts; the source checker proves
+                    // that separately. Retain original values/context and never
+                    // substitute the selected body's unit or infer a scale here.
+                    continue;
+                }
+                const auto& unit = Field(r, "unit_component");
+                const auto target = Target(*unit.declaration.value);
                 Dimensions required;
                 if (tag == "MASS_MEASURE")
                 {
@@ -583,7 +598,7 @@ private:
                 {
                     required = Basis(0);
                 }
-                else if (tag == "PLANE_ANGLE_MEASURE")
+                else if (tag == "PLANE_ANGLE_MEASURE" || tag == "POSITIVE_PLANE_ANGLE_MEASURE")
                 {
                     // Pinned N2635 / AP214E3_2010.exp valid_units check only the
                     // value branch's dimension, not nominal angle membership.
@@ -649,7 +664,7 @@ private:
             catch (Stop& stop)
             {
                 const auto& key = stop.failure.diagnostic.source.key;
-                if (m_data.policy != SourcePolicy::PreserveNonGeometric || !IsA(r, "MEASURE_REPRESENTATION_ITEM") ||
+                if (m_data.policy != SourcePolicy::PreserveNonGeometric || (!IsA(r, "MEASURE_REPRESENTATION_ITEM") && !valueItem) ||
                     stop.failure.status != Status::Rejected ||
                     (key != "SourceRuleViolation:MEASURE_WITH_UNIT.WR1" && key != "SourceRuleViolation:POSITIVE_RATIO_MEASURE.WR1"))
                 {

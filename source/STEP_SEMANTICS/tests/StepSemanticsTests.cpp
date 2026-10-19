@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 127,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 132,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -337,6 +337,30 @@ int main(int argc, char** argv)
                 measureValue.Value().children.front().text == "+25.400E+0" && measureUnit.Value().text == "10" &&
                 measureUnit.Location().parameterPath == std::vector<std::size_t>{ 3 },
             "Owning MRI fields must retain the original tag, REAL lexeme, unit identity and slot after caller release"
+        );
+        ++groups;
+
+        auto valueText = Read(corpus / "S203-P04/input.step");
+        valueText.replace(valueText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        valueText.insert(valueText.find("ENDSEC;", valueText.find("DATA;")), R"STEP(
+#900=PROPERTY_DEFINITION('source count',$,#7);
+#901=VALUE_REPRESENTATION_ITEM('count',COUNT_MEASURE(123456789012345678901234567890));
+#902=REPRESENTATION('source count',(#901),#12);
+#903=PROPERTY_DEFINITION_REPRESENTATION(#900,#902);
+)STEP");
+        auto valueRaw = step_source::InspectBytes(valueText, step_source::Limits::PlanarFixtures());
+        auto valueResult = Check(valueRaw, Limits{});
+        Require(valueResult.snapshot && valueResult.status == Status::Checked, "AP214 source value snapshot");
+        auto owningValue = valueResult.snapshot->Field(Index(*valueResult.snapshot, "901"), "value_component");
+        Require(&owningValue.Value() == &valueRaw.source->Find("901")->components[0].parameters[1], "VRI field must borrow exact original value");
+        valueRaw = {};
+        valueResult = {};
+        Require(
+            owningValue.Value().text == "COUNT_MEASURE" && owningValue.Value().children[0].kind == step_source::ValueKind::Integer &&
+                owningValue.Value().children[0].text == "123456789012345678901234567890" &&
+                owningValue.Declaration().declaredIn == "VALUE_REPRESENTATION_ITEM" &&
+                owningValue.Location().parameterPath == std::vector<std::size_t>{ { 2 } },
+            "owning integer value literal and source binding"
         );
         ++groups;
 

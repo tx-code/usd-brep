@@ -10805,7 +10805,12 @@
         "INVISIBILITY",
         "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
         "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
-        "PARAMETRIC_REPRESENTATION_CONTEXT"
+        "PARAMETRIC_REPRESENTATION_CONTEXT",
+        "VALUE_REPRESENTATION_ITEM",
+        "POINT_STYLE",
+        "PRE_DEFINED_MARKER",
+        "PRE_DEFINED_SYMBOL",
+        "PRE_DEFINED_POINT_MARKER_SYMBOL"
       ],
       "name_index": [
         {
@@ -11141,6 +11146,10 @@
           "id": 3
         },
         {
+          "name": "POINT_STYLE",
+          "id": 128
+        },
+        {
           "name": "PRESENTATION_STYLE_ASSIGNMENT",
           "id": 73
         },
@@ -11155,6 +11164,18 @@
         {
           "name": "PRE_DEFINED_ITEM",
           "id": 108
+        },
+        {
+          "name": "PRE_DEFINED_MARKER",
+          "id": 129
+        },
+        {
+          "name": "PRE_DEFINED_POINT_MARKER_SYMBOL",
+          "id": 131
+        },
+        {
+          "name": "PRE_DEFINED_SYMBOL",
+          "id": 130
         },
         {
           "name": "PRODUCT",
@@ -11303,6 +11324,10 @@
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
           "id": 65
+        },
+        {
+          "name": "VALUE_REPRESENTATION_ITEM",
+          "id": 127
         },
         {
           "name": "VECTOR",
@@ -16930,6 +16955,186 @@
               "local_field_index": 1
             }
           ]
+        },
+        {
+          "id": 127,
+          "name": "VALUE_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "value_component",
+              "type": "MEASURE_VALUE",
+              "kind": "Measure",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            127
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "VALUE_REPRESENTATION_ITEM",
+              "declaring_type_id": 127,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 128,
+          "name": "POINT_STYLE",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "marker",
+              "type": "MARKER_SELECT",
+              "kind": "MarkerSelect",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "marker_size",
+              "type": "SIZE_SELECT",
+              "kind": "SizeSelect",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "marker_colour",
+              "type": "COLOUR",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            67,
+            128
+          ],
+          "flattened": [
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 128,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 128,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 128,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 128,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 129,
+          "name": "PRE_DEFINED_MARKER",
+          "parents": [
+            "PRE_DEFINED_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            108,
+            129
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 108,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 130,
+          "name": "PRE_DEFINED_SYMBOL",
+          "parents": [
+            "PRE_DEFINED_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            108,
+            130
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 108,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 131,
+          "name": "PRE_DEFINED_POINT_MARKER_SYMBOL",
+          "parents": [
+            "PRE_DEFINED_MARKER",
+            "PRE_DEFINED_SYMBOL"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            108,
+            129,
+            130,
+            131
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 108,
+              "local_field_index": 0
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16965,7 +17170,8 @@
           "branches": [
             "SURFACE_STYLE_USAGE",
             "FILL_AREA_STYLE",
-            "CURVE_STYLE"
+            "CURVE_STYLE",
+            "POINT_STYLE"
           ]
         },
         {
@@ -17035,6 +17241,12 @@
           "branches": [
             "REPRESENTATION",
             "STYLED_ITEM"
+          ]
+        },
+        {
+          "name": "MARKER_SELECT",
+          "branches": [
+            "PRE_DEFINED_MARKER"
           ]
         }
       ],
@@ -17148,6 +17360,18 @@
             "PARAMETER",
             "UNSPECIFIED"
           ]
+        },
+        {
+          "name": "MARKER_TYPE",
+          "branches": [
+            "DOT",
+            "X",
+            "PLUS",
+            "ASTERISK",
+            "RING",
+            "SQUARE",
+            "TRIANGLE"
+          ]
         }
       ],
       "complex_signatures": [
@@ -17246,7 +17470,22 @@
         "MASS_MEASURE",
         "RATIO_MEASURE",
         "POSITIVE_RATIO_MEASURE",
-        "PLANE_ANGLE_MEASURE"
+        "PLANE_ANGLE_MEASURE",
+        "AMOUNT_OF_SUBSTANCE_MEASURE",
+        "AREA_MEASURE",
+        "CELSIUS_TEMPERATURE_MEASURE",
+        "CONTEXT_DEPENDENT_MEASURE",
+        "COUNT_MEASURE",
+        "DESCRIPTIVE_MEASURE",
+        "ELECTRIC_CURRENT_MEASURE",
+        "LUMINOUS_INTENSITY_MEASURE",
+        "NUMERIC_MEASURE",
+        "PARAMETER_VALUE",
+        "POSITIVE_PLANE_ANGLE_MEASURE",
+        "SOLID_ANGLE_MEASURE",
+        "THERMODYNAMIC_TEMPERATURE_MEASURE",
+        "TIME_MEASURE",
+        "VOLUME_MEASURE"
       ],
       "derived_slots": [
         {
@@ -17505,7 +17744,12 @@
         "INVISIBILITY",
         "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
         "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
-        "PARAMETRIC_REPRESENTATION_CONTEXT"
+        "PARAMETRIC_REPRESENTATION_CONTEXT",
+        "VALUE_REPRESENTATION_ITEM",
+        "POINT_STYLE",
+        "PRE_DEFINED_MARKER",
+        "PRE_DEFINED_SYMBOL",
+        "PRE_DEFINED_POINT_MARKER_SYMBOL"
       ],
       "name_index": [
         {
@@ -17881,6 +18125,10 @@
           "id": 3
         },
         {
+          "name": "POINT_STYLE",
+          "id": 143
+        },
+        {
           "name": "PRESENTATION_LAYER_ASSIGNMENT",
           "id": 117
         },
@@ -17899,6 +18147,18 @@
         {
           "name": "PRE_DEFINED_ITEM",
           "id": 110
+        },
+        {
+          "name": "PRE_DEFINED_MARKER",
+          "id": 144
+        },
+        {
+          "name": "PRE_DEFINED_POINT_MARKER_SYMBOL",
+          "id": 146
+        },
+        {
+          "name": "PRE_DEFINED_SYMBOL",
+          "id": 145
         },
         {
           "name": "PRODUCT",
@@ -18063,6 +18323,10 @@
         {
           "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
           "id": 67
+        },
+        {
+          "name": "VALUE_REPRESENTATION_ITEM",
+          "id": 142
         },
         {
           "name": "VECTOR",
@@ -24184,6 +24448,186 @@
               "local_field_index": 1
             }
           ]
+        },
+        {
+          "id": 142,
+          "name": "VALUE_REPRESENTATION_ITEM",
+          "parents": [
+            "REPRESENTATION_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "value_component",
+              "type": "MEASURE_VALUE",
+              "kind": "Measure",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            142
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "VALUE_REPRESENTATION_ITEM",
+              "declaring_type_id": 142,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 143,
+          "name": "POINT_STYLE",
+          "parents": [
+            "FOUNDED_ITEM"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "name",
+              "type": "LABEL",
+              "kind": "String",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "marker",
+              "type": "MARKER_SELECT",
+              "kind": "MarkerSelect",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "marker_size",
+              "type": "SIZE_SELECT",
+              "kind": "SizeSelect",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            },
+            {
+              "name": "marker_colour",
+              "type": "COLOUR",
+              "kind": "Reference",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            69,
+            143
+          ],
+          "flattened": [
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 143,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 143,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 143,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "POINT_STYLE",
+              "declaring_type_id": 143,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 144,
+          "name": "PRE_DEFINED_MARKER",
+          "parents": [
+            "PRE_DEFINED_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            110,
+            144
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 110,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 145,
+          "name": "PRE_DEFINED_SYMBOL",
+          "parents": [
+            "PRE_DEFINED_ITEM"
+          ],
+          "simple": false,
+          "fields": [],
+          "ancestors": [
+            110,
+            145
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 110,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 146,
+          "name": "PRE_DEFINED_POINT_MARKER_SYMBOL",
+          "parents": [
+            "PRE_DEFINED_MARKER",
+            "PRE_DEFINED_SYMBOL"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            110,
+            144,
+            145,
+            146
+          ],
+          "flattened": [
+            {
+              "declaring_type": "PRE_DEFINED_ITEM",
+              "declaring_type_id": 110,
+              "local_field_index": 0
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -24219,7 +24663,8 @@
           "branches": [
             "SURFACE_STYLE_USAGE",
             "FILL_AREA_STYLE",
-            "CURVE_STYLE"
+            "CURVE_STYLE",
+            "POINT_STYLE"
           ]
         },
         {
@@ -24302,6 +24747,12 @@
             "PRESENTATION_LAYER_ASSIGNMENT",
             "REPRESENTATION",
             "STYLED_ITEM"
+          ]
+        },
+        {
+          "name": "MARKER_SELECT",
+          "branches": [
+            "PRE_DEFINED_MARKER"
           ]
         }
       ],
@@ -24415,6 +24866,18 @@
             "PARAMETER",
             "UNSPECIFIED"
           ]
+        },
+        {
+          "name": "MARKER_TYPE",
+          "branches": [
+            "DOT",
+            "X",
+            "PLUS",
+            "ASTERISK",
+            "RING",
+            "SQUARE",
+            "TRIANGLE"
+          ]
         }
       ],
       "complex_signatures": [
@@ -24513,7 +24976,22 @@
         "MASS_MEASURE",
         "RATIO_MEASURE",
         "POSITIVE_RATIO_MEASURE",
-        "PLANE_ANGLE_MEASURE"
+        "PLANE_ANGLE_MEASURE",
+        "AMOUNT_OF_SUBSTANCE_MEASURE",
+        "AREA_MEASURE",
+        "CELSIUS_TEMPERATURE_MEASURE",
+        "CONTEXT_DEPENDENT_MEASURE",
+        "COUNT_MEASURE",
+        "DESCRIPTIVE_MEASURE",
+        "ELECTRIC_CURRENT_MEASURE",
+        "LUMINOUS_INTENSITY_MEASURE",
+        "NUMERIC_MEASURE",
+        "PARAMETER_VALUE",
+        "POSITIVE_PLANE_ANGLE_MEASURE",
+        "SOLID_ANGLE_MEASURE",
+        "THERMODYNAMIC_TEMPERATURE_MEASURE",
+        "TIME_MEASURE",
+        "VOLUME_MEASURE"
       ],
       "derived_slots": [
         {

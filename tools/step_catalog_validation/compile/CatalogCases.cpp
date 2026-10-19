@@ -111,6 +111,10 @@ constexpr Recipe MakeCase()
     recipe.complexSignatures.push_back({});
 #elif STEP_CATALOG_CASE == 34
     recipe.declarations[0].fields[0] = { "x", "ABSENT", FieldKind::TrimmingSelect };
+#elif STEP_CATALOG_CASE >= 35 && STEP_CATALOG_CASE <= 37
+    recipe.declarations[0].fields[0] = { "x", "MARKER_SELECT", FieldKind::MarkerSelect };
+    if constexpr (STEP_CATALOG_CASE != 36) recipe.referenceSelects.push_back({ "MARKER_SELECT", B });
+    if constexpr (STEP_CATALOG_CASE != 37) recipe.enumerations.push_back({ "MARKER_TYPE", Values });
 #endif
     return recipe;
 }

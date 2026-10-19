@@ -504,6 +504,34 @@
       "expect": "fail",
       "marker": "STEP_CATALOG_INVALID_ExplicitConflict",
       "positive_control": "explicit_valid"
+    },
+    {
+      "name": "marker_valid",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=35"
+      ],
+      "expect": "pass"
+    },
+    {
+      "name": "marker_missing_reference",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=36"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingReference",
+      "positive_control": "marker_valid"
+    },
+    {
+      "name": "marker_missing_enum",
+      "source": "CatalogCases.cpp",
+      "definitions": [
+        "STEP_CATALOG_CASE=37"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_MissingEnumeration",
+      "positive_control": "marker_valid"
     }
   ]
 }

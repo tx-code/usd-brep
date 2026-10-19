@@ -1,5 +1,39 @@
 # STEP source semantics: ticket 03
 
+The fixed AP214 profiles admit `VALUE_REPRESENTATION_ITEM`: inherited RI.name
+and `value_component:MEASURE_VALUE`, with no explicit unit slot. The fixed
+AP214E3_2010.exp (`71ab140f...`) SELECT has 22 scalar alternatives: count/numeric
+measures are NUMBER (INTEGER or REAL, including negative values); descriptive
+measure is STRING; the others are REAL. Original lexemes, kinds, source fields,
+property ownership and every representation context remain in the owning source.
+No property value is converted using the selected body's units. Full scalar
+binding does not establish dimensional conversion for every generic
+MEASURE_WITH_UNIT alternative: unsupported dimension families remain explicit.
+
+VRI.WR1 requires GLOBAL_UNIT_ASSIGNED_CONTEXT on every `using_representations`
+result, including indirect RI/founded-item uses. A budgeted linear propagation
+from unassigned-unit representations checks this without granting new ownership;
+missing contexts remain fatal even with interoperability. Selected PD/PDS
+property attachment and complete physical exclusion are separate checks.
+The shared measure predicate pass also checks VRI's positive/nonnegative
+length and positive ratio/angle TYPE predicates. This fixes missing positive
+length predicates on existing N2635 value items. Only the existing explicit
+nongeometric positive-ratio exception may retain that original error after
+selected-property attachment and full physical exclusion; units are not invented.
+
+AP214 point appearance preserves four required POINT_STYLE fields, MARKER_SELECT
+(reference or typed MARKER_TYPE enum), and the single inherited name through
+PRE_DEFINED_POINT_MARKER_SYMBOL's marker/symbol diamond. The enum's seven values
+include RING; the seven predefined STRING names use 'circle'. Other ordinary
+predefined marker/symbol leaves remain outside this project subset. SIZE_SELECT,
+RGB range, predefined symbol names and PSA.WR1 duplicate point-style type checks
+run with their source provenance and budgets. MDGPR.WR6's stricter typed
+positive-length size/colour rule applies only to that presentation use.
+Presentation attachment still requires the point in selected physical geometry;
+styles cannot create ownership, move/resize native points or suppress geometry.
+Renderer application is not implemented. Other three catalogs retain their
+previous declarations and tables.
+
 The two fixed AP214 source profiles also admit one directed
 `CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP` from an already selected
 shape representation to one `CONSTRUCTIVE_GEOMETRY_REPRESENTATION`. These
@@ -258,8 +292,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 137/127 declarations respectively;
-the separate MBx general catalog contains 142 declarations;
+transport slot. The general catalogs contain 137/132 declarations respectively;
+the separate MBx general catalog contains 147 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 

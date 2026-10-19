@@ -67,6 +67,8 @@ std::string_view Kind(FieldKind kind)
             return "SizeSelect";
         case FieldKind::TrimmingSelect:
             return "TrimmingSelect";
+        case FieldKind::MarkerSelect:
+            return "MarkerSelect";
         case FieldKind::Number:
             return "Number";
     }

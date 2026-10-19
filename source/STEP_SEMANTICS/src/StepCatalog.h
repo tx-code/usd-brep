@@ -96,7 +96,8 @@ enum class FieldKind
     Measure,
     SizeSelect,
     TrimmingSelect,
-    Number // Unnarrowed EXPRESS NUMBER; explicit redeclarations retain their own effective kind.
+    Number, // Unnarrowed EXPRESS NUMBER; explicit redeclarations retain their own effective kind.
+    MarkerSelect // Fixed marker_type enumeration or pre_defined_marker reference.
 };
 enum class Unique
 {
