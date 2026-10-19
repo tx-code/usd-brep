@@ -47,6 +47,10 @@ bench::Trial Run(const bench::Args& args)
             {
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
             }
+            if (args.carrierInterpretation == "Level1AsCorrectedEncoding")
+            {
+                options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+            }
             options.sourceLimits = SourceLimits(args.maximumInput);
             if (bench::GeneralQuality(args.quality))
             {
@@ -175,6 +179,17 @@ bench::Trial Run(const bench::Args& args)
                 if (applied)
                 {
                     row.extra += ",\"source_binding_verified\":false";
+                }
+            }
+            if (!args.carrierInterpretation.empty())
+            {
+                const bool applied = result.model ? result.model->Source()->Source().AppliedCarrierAssumption() != nullptr :
+                                                    bool(result.report.carrierAssumption);
+                row.extra += ",\"requested_carrier_interpretation\":" + bench::Q(args.carrierInterpretation) +
+                             ",\"carrier_interpretation_applied\":" + (applied ? "true" : "false");
+                if (applied)
+                {
+                    row.extra += ",\"source_carrier_verified\":false";
                 }
             }
             if (!args.headerNamePolicy.empty())

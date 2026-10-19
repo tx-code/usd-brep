@@ -113,6 +113,12 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
     }
+    if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+        (options.carrierInterpretation != step_source::CarrierInterpretation::Level1AsCorrectedEncoding || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("Unverified carrier interpretation requires explicit general interoperability");
+    }
 }
 template <class Capture>
 Outcome Import(const Options& options, Capture capture)
@@ -126,6 +132,7 @@ Outcome Import(const Options& options, Capture capture)
     raw.limits = options.sourceLimits;
     raw.headerNamePolicy = options.headerNamePolicy;
     raw.dataStringPolicy = options.dataStringPolicy;
+    raw.requestedCarrierInterpretation = options.carrierInterpretation;
     detail::Execution execution(options, report);
     detail::Publication publication(options, result, raw, execution);
     try
@@ -134,6 +141,10 @@ Outcome Import(const Options& options, Capture capture)
         raw = capture();
         report.source = raw.source;
         report.captured = raw.captured;
+        // Capture owns the immutable receipt even if a later parse/reference
+        // failure withheld the source graph. A successful snapshot also owns
+        // this evidence; a caller clearing its mutable report cannot erase it.
+        report.carrierAssumption = raw.carrierAssumption;
         report.sourceSha256 = raw.sha256;
         report.sourceStatus = step_source::StatusName(raw.status);
         if (raw.status == step_source::Status::Inspected)
@@ -262,7 +273,13 @@ Outcome ImportBytes(std::string bytes, const Options& options)
         frozen,
         [&]
         {
-            return step_source::InspectBytes(std::move(bytes), frozen.sourceLimits, frozen.headerNamePolicy, frozen.dataStringPolicy);
+            return step_source::InspectBytes(
+                std::move(bytes),
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
         }
     );
 }
@@ -275,7 +292,13 @@ Outcome ImportFile(const std::filesystem::path& path, const Options& options)
         frozen,
         [&]
         {
-            return step_source::InspectFile(capturedPath, frozen.sourceLimits, frozen.headerNamePolicy, frozen.dataStringPolicy);
+            return step_source::InspectFile(
+                capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
         }
     );
 }

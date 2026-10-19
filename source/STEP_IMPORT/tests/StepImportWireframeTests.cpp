@@ -261,6 +261,18 @@ void CurveFamilies(const std::string& source, const std::filesystem::path& direc
     const auto view = result.model->Wireframes().at(0);
     result = {};
     Require(view.AppliedSourceInterpretation() == options.schemaInterpretation, "wireframe retains unverified source assumption");
+    Replace(interpreted, "'2;1'", "'1'");
+    options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+    result = ImportBytes(interpreted, options);
+    Require(result.status == Status::AcceptedUnderInterpretation && result.model, "combined wireframe source assumptions");
+    const auto carried = result.model->Wireframes().at(0);
+    result.report.carrierAssumption.reset();
+    result = {};
+    Require(
+        carried.AppliedSourceInterpretation() == options.schemaInterpretation && carried.AppliedCarrierAssumption() &&
+            carried.AppliedCarrierAssumption()->declaredLevel == "1",
+        "owning wireframe preserves independent schema and carrier evidence after mutable report disposal"
+    );
 }
 void Execution(const std::string& source, const std::filesystem::path& bodyFixture)
 {

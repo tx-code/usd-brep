@@ -54,7 +54,7 @@ int Exit(step_import::Status status)
         case Status::Accepted:
             return 0;
         case Status::AcceptedUnderInterpretation:
-            return 11; // A model exists, but this is not ordinary verified-source acceptance.
+            return 11; // A model exists, with an unverified schema or carrier assumption.
         case Status::Rejected:
             return 1;
         case Status::Unsupported:
@@ -124,6 +124,10 @@ int main(int argc, char** argv)
             else if (arg == "--interpret-unregistered-ap214-2010")
             {
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+            }
+            else if (arg == "--interpret-level1-as-corrected")
+            {
+                options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
             }
             else if (arg == "--preserve-opaque-header-name")
             {

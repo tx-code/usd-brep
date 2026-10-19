@@ -115,6 +115,7 @@ struct Options
     step_source::DataStringPolicy dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
     step_semantics::SchemaInterpretation schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
     bool restrictUnusedSupportDomains = false; // Explicit equivalent target representation; general development path only.
+    step_source::CarrierInterpretation carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
     static Options PlanarFixture();
 };
 struct Statistics
@@ -160,6 +161,7 @@ public:
 
     WireframeInfo Info() const;
     step_semantics::SchemaInterpretation AppliedSourceInterpretation() const;
+    const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Borrows immutable evidence owned by this view.
     Point EvaluateCurve(std::size_t curve, double parameter) const;
     ClosestPoint Closest(const Point& pointMm) const; // Only this source set; neither material classification nor a certified global error bound.
 
@@ -203,6 +205,7 @@ public:
 
     SupportingGeometryInfo Info() const;
     step_semantics::SchemaInterpretation AppliedSourceInterpretation() const;
+    const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Independent of the schema interpretation.
     Point EvaluateCurve(std::size_t curve, double parameter) const;
     Point EvaluatePlane(std::size_t plane, double uMm, double vMm) const;
     ClosestPoint ClosestPlane(std::size_t plane, const Point& pointMm) const;
@@ -238,7 +241,8 @@ class FaceView
 public:
 
     std::string SourceId() const;
-    step_semantics::SchemaInterpretation AppliedSourceInterpretation() const; // Immutable source assumption retained by this owning view.
+    step_semantics::SchemaInterpretation AppliedSourceInterpretation() const; // Immutable schema assumption retained by this owning view.
+    const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Borrow remains valid while this view owns its source.
     Statistics Info() const;
     std::array<double, 4> ParameterDomain() const; // Native evaluator parameters; general charts do not imply source UV or millimetres.
     Point EvaluateSurface(double u, double v) const; // Rejects domain violations before native evaluation.
@@ -393,6 +397,7 @@ struct Report
     std::optional<std::size_t> processPrivateLimitBytes, hardMemoryLimitBytes;
     bool deadlineConfigured = false;
     std::string json; // Mandatory bounded report, completed before a model is published.
+    std::shared_ptr<const step_source::CarrierAssumption> carrierAssumption; // Also survives parsing failure without a record graph.
 };
 enum class Status
 {
@@ -406,7 +411,7 @@ enum class Status
     PostcheckFailure,
     SourceFailure,
     Cancelled,
-    AcceptedUnderInterpretation // Complete native result, unverified source binding; distinct from ordinary acceptance.
+    AcceptedUnderInterpretation // Complete native result with an assumed source schema or carrier; distinct from ordinary acceptance.
 };
 struct Outcome
 {

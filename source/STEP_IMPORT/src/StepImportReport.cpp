@@ -372,6 +372,19 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 {
                     w.Add(",\"source_binding_verified\":false,\"source_interpretation\":\"UnregisteredAp214As2010\"");
                 }
+                const auto carrier = source.source ? source.source->AppliedCarrierAssumption() : report.carrierAssumption.get();
+                if (source.requestedCarrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly || carrier)
+                {
+                    w.Add(",\"requested_carrier_interpretation\":");
+                    w.String(step_source::CarrierInterpretationName(source.requestedCarrierInterpretation));
+                    w.Add(",\"source_carrier_verified\":");
+                    w.Bool(source.source && source.status == step_source::Status::Inspected && !carrier);
+                    if (carrier)
+                    {
+                        w.Add(",\"source_carrier_interpretation\":");
+                        w.String(step_source::CarrierInterpretationName(carrier->interpretation));
+                    }
+                }
                 w.Add(",\"repair\":\"None\",\"quality_id\":");
                 w.String(quality.id);
                 w.Add(",\"quality\":{");

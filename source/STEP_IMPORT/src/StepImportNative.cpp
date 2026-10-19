@@ -1552,6 +1552,12 @@ step_semantics::SchemaInterpretation FaceView::AppliedSourceInterpretation() con
     // Reading this qualification does not dispatch into the native kernel.
     return m_data->source->AppliedInterpretation();
 }
+const step_source::CarrierAssumption* FaceView::AppliedCarrierAssumption() const
+{
+    // Source data belongs to this owning view, independent of mutable reports
+    // and the native context. Querying the assumption performs no kernel call.
+    return m_data->source->Source().AppliedCarrierAssumption();
+}
 Statistics FaceView::Info() const
 {
     return m_data->faces[m_face].info;

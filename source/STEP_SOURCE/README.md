@@ -6,13 +6,14 @@ all reference occurrences. `Inspected` means this source-only work completed;
 AP/schema rules, types, units, geometry and native BRep construction remain unrun.
 The JSON field `native_build` means SMLib BRep construction, not C++ compilation.
 
-For source exploration only, an application may explicitly select
+For source inspection, an application may explicitly select
 `CarrierInterpretation::Level1AsCorrectedEncoding` (source/semantic CLI
 `--interpret-level1-as-corrected`). It lets the existing corrected reader grammar
 inspect a declaration `1` under an **unverified assumption**. It does not
 implement original 1994 SELECT encoding, identify `1` with `2;1`, authenticate a
-conformance class, rewrite a header/value, or enable native import. Native import
-still has no such option in this increment and keeps its strict carrier default.
+conformance class, rewrite a header/value, or itself enable native import.
+[Native import](../STEP_IMPORT/README.md) has an independent explicit entry;
+source inspection alone does not select it or grant native qualification.
 
 The distinction follows ISO 10303-21:1994/Cor 1:1996 replacement §9.2.1 and
 [STEP Tools' original/corrected-version documentation](https://steptools.com/docs/roselib/read_write.html).

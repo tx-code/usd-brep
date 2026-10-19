@@ -32,6 +32,15 @@ complete models have a separate result qualification and owning assumption
 evidence; ordinary admission and unsupported required-content guards remain
 unchanged. They do not silently enter ordinary source-qualified acceptance counts.
 
+A carrier declaration may separately require an explicit, unverified reading
+assumption. It is independent of schema identity: neither assumption verifies
+the other. Complete native results retain the applied evidence in their owning
+source and use the interpreted qualification whenever either assumption applies.
+Failed parsing may retain captured bytes and a carrier receipt without publishing
+a partial source graph. Requested but unused interpretations grant no additional
+qualification. Native defaults, supported grammar and complete-result publication
+remain unchanged; current options and limits belong to the component contracts.
+
 ## Completeness and geometry
 
 - Select an explicit root and account for its complete required dependencies.

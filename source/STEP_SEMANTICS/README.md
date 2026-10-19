@@ -9,8 +9,9 @@ An owning semantic snapshot retains the source's immutable assumption and a
 successful check is `CheckedWithDiagnostics`. Schema recognition, type/unit
 checks, geometry checks and ownership do not relax. A registered schema identity
 does not verify an assumed carrier; carrier and schema assumptions are distinct
-and may compose. This increment does not add native carrier interpretation or
-qualify original pre-corrigendum SELECT semantics.
+and may compose. Typed checking does not itself select the separate
+[native carrier option](../STEP_IMPORT/README.md) or qualify original
+pre-corrigendum SELECT semantics.
 
 All four general source catalogs admit ordinary `COMPOSITE_CURVE` and
 `COMPOSITE_CURVE_SEGMENT`, compared against the fixed AP214, N2635 and modified

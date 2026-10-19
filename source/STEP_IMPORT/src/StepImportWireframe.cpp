@@ -143,6 +143,10 @@ step_semantics::SchemaInterpretation WireframeView::AppliedSourceInterpretation(
 {
     return m_data->source->AppliedInterpretation();
 }
+const step_source::CarrierAssumption* WireframeView::AppliedCarrierAssumption() const
+{
+    return m_data->source->Source().AppliedCarrierAssumption();
+}
 std::vector<WireframeView> ModelSnapshot::Wireframes() const
 {
     std::vector<WireframeView> result;
@@ -240,6 +244,10 @@ SupportingGeometryInfo SupportingGeometryView::Info() const
 step_semantics::SchemaInterpretation SupportingGeometryView::AppliedSourceInterpretation() const
 {
     return m_data->source->AppliedInterpretation();
+}
+const step_source::CarrierAssumption* SupportingGeometryView::AppliedCarrierAssumption() const
+{
+    return m_data->source->Source().AppliedCarrierAssumption();
 }
 std::vector<SupportingGeometryView> ModelSnapshot::SupportingGeometry() const
 {

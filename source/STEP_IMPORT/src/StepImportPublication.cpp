@@ -19,11 +19,17 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
     m_candidate = std::move(candidate);
     m_prepared = Access::Snapshot(std::move(m_candidate));
     m_execution.Check(Phase::NativeReady);
-    // Complete checks do not authenticate an explicitly assumed source schema.
+    // Complete checks do not authenticate an assumed source schema or carrier.
     // Choose this result before either report and final arbitration; after
     // Commit the sole remaining action remains the owning transfer.
-    const bool interpreted = m_outcome.report.sourceSchema &&
-                             m_outcome.report.sourceSchema->appliedInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly;
+    bool interpreted = false;
+    {
+        // Release this temporary source owner before the commit region. The
+        // prepared model remains the authoritative owner of both assumptions.
+        const auto semantic = m_prepared->Source();
+        interpreted = semantic->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
+                      semantic->Source().AppliedCarrierAssumption() != nullptr;
+    }
     m_outcome.status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
     m_execution.Check(Phase::BeforeReport);
     WriteReport();

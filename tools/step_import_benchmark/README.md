@@ -1,5 +1,12 @@
 # STEP 模型库画像与测量工具
 
+原生 import 探针可显式传 `--carrier-interpretation Level1AsCorrectedEncoding`，并同时
+选择通用质量与 `--source-policy PreserveNonGeometric`。它与 schema 解释独立，可显式组合；
+实际采用载体假设时为 `AcceptedUnderInterpretation`，记录请求、应用及
+`source_carrier_verified=false`。未应用的请求不改变普通成功资格。其他引擎／模式即使
+值为 `DeclaredOnly` 或输入超限，也拒绝这个原生专用选项。Python 批测命令未增加该参数；
+可直接调用探针或 C++ API。开发解释结果必须单列，不并入普通成功性能组。
+
 原生探针可显式传 `--restrict-unused-support-domains 1`，并选择通用质量；其他引擎／模式
 即使值为 0 或将因输入预算跳过，也拒绝该原生专用选项。
 `--quality Q-AP214-work-tolerance-study-mm-01` 是另一个单列研究配置：几何/UV 预算仍

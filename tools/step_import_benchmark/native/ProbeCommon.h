@@ -105,6 +105,7 @@ struct Args
     std::string mode;
     std::string quality, sourcePolicy, headerNamePolicy, dataStringPolicy; // Explicit choices; empty preserves the strict P0 run.
     std::string schemaInterpretation; // An explicit assumption, never ordinary source-qualified acceptance.
+    std::string carrierInterpretation; // Independent carrier evidence, not a schema alias.
     std::optional<bool> restrictUnusedSupportDomains;
     std::optional<bool> nativeBoundaryTiming; // Presence is distinct from enabled; never silently ignore a foreign engine's flag.
     std::size_t warmup = 0, repeat = 1, maximumInput = 64 * 1024 * 1024;
@@ -136,6 +137,14 @@ inline Args Parse(const std::vector<std::string>& tokens)
             if (value.empty())
             {
                 throw std::invalid_argument("Empty schema interpretation policy");
+            }
+        }
+        else if (key == "--carrier-interpretation")
+        {
+            args.carrierInterpretation = value;
+            if (value.empty())
+            {
+                throw std::invalid_argument("Empty carrier interpretation policy");
             }
         }
         else if (key == "--quality" || key == "--source-policy" || key == "--header-name-policy" || key == "--data-string-policy")
@@ -219,7 +228,8 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
         // Never accept a native policy flag and silently ignore it on the other
         // reader. Invalid policies are rejected even for an input-budget skip.
         if (!args.quality.empty() || !args.sourcePolicy.empty() || !args.headerNamePolicy.empty() || !args.dataStringPolicy.empty() ||
-            !args.schemaInterpretation.empty() || args.nativeBoundaryTiming.has_value() || args.restrictUnusedSupportDomains.has_value())
+            !args.schemaInterpretation.empty() || !args.carrierInterpretation.empty() || args.nativeBoundaryTiming.has_value() ||
+            args.restrictUnusedSupportDomains.has_value())
         {
             if (std::string_view(engine) != "self-native" || args.mode != "import")
             {
@@ -230,7 +240,9 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                 (!args.headerNamePolicy.empty() && args.headerNamePolicy != "StrictAscii" && args.headerNamePolicy != "PreserveOpaqueBytes") ||
                 (!args.dataStringPolicy.empty() && args.dataStringPolicy != "StrictAscii" && args.dataStringPolicy != "PreserveOpaqueBytes") ||
                 (!args.schemaInterpretation.empty() && args.schemaInterpretation != "DeclaredOnly" &&
-                 args.schemaInterpretation != "UnregisteredAp214As2010"))
+                 args.schemaInterpretation != "UnregisteredAp214As2010") ||
+                (!args.carrierInterpretation.empty() && args.carrierInterpretation != "DeclaredOnly" &&
+                 args.carrierInterpretation != "Level1AsCorrectedEncoding"))
             {
                 throw std::invalid_argument("Unknown explicit native quality or source policy");
             }
@@ -243,6 +255,11 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                 (args.sourcePolicy != "PreserveNonGeometric" || !GeneralQuality(args.quality)))
             {
                 throw std::invalid_argument("Schema interpretation requires explicit general interoperability");
+            }
+            if (args.carrierInterpretation == "Level1AsCorrectedEncoding" &&
+                (args.sourcePolicy != "PreserveNonGeometric" || !GeneralQuality(args.quality)))
+            {
+                throw std::invalid_argument("Carrier interpretation requires explicit general interoperability");
             }
         }
         if (args.restrictUnusedSupportDomains.value_or(false) && !GeneralQuality(args.quality))

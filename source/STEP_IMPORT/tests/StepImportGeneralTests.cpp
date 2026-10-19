@@ -1102,6 +1102,97 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     model.reset();
     Require(!identity.empty() && std::isfinite(retained.Closest({ 20, 7, 20 }).distanceMm), "owning face view lifetime");
 }
+void CarrierContract(const std::filesystem::path& fixture, const std::filesystem::path& directory)
+{
+    using step_source::CarrierInterpretation;
+    std::ifstream input(fixture, std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    const auto declared = text.find("'2;1'");
+    Require(declared != std::string::npos, "corrected-carrier box fixture");
+    text.replace(declared, 5, "'1'");
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    options.carrierInterpretation = CarrierInterpretation::Level1AsCorrectedEncoding;
+    auto result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::AcceptedUnderInterpretation && result.model, "distinct carrier-qualified native result");
+    const auto receipt = result.report.carrierAssumption;
+    Require(receipt && receipt->declaredLevel == "1" && receipt->originalDiagnostics.size() == 1, "owning carrier receipt");
+    Require(receipt->originalDiagnostics[0].key == "UnsupportedImplementationLevel", "original strict carrier refusal retained");
+    auto source = result.model->Source();
+    Require(
+        source->Source().Bytes() == text && source->Source().AppliedCarrierAssumption() == receipt.get(),
+        "immutable original source owns receipt"
+    );
+    Require(source->AppliedInterpretation() == step_semantics::SchemaInterpretation::DeclaredOnly, "schema identity does not verify a carrier");
+    auto held = result.model->Face();
+    Require(held.AppliedCarrierAssumption() == receipt.get(), "face independently exposes carrier evidence");
+    auto copy = result.model->CopyForModeling();
+    Require(copy.status == step_import::Status::Accepted && copy.model, "editable copy has its own geometry validation");
+    std::filesystem::create_directories(directory);
+    const auto archive = directory / "carrier-box.smb";
+    result.model->WriteNative(archive);
+    auto reloaded = ReloadNative(archive);
+    double volume = 0;
+    Require(SmApiBrepComputeVolume(reloaded.brep.get(), 1e-4, volume) == SM_SUCCESS, "carrier model archive reload");
+    Near(volume, 6000, 1e-5, "independent carrier box volume");
+    result.report.carrierAssumption.reset();
+    result = {};
+    source.reset();
+    Require(
+        held.AppliedCarrierAssumption() == receipt.get() && std::isfinite(held.Closest({ 20, 7, 20 }).distanceMm),
+        "discarded mutable outcome cannot launder an owning view's carrier assumption"
+    );
+    for (auto phase : { step_import::Phase::NativeReady, step_import::Phase::BeforeCommit })
+    {
+        auto cancelled = options;
+        cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+        cancelled.execution.progress = [&](step_import::Progress progress)
+        {
+            if (progress.phase == phase)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        const auto stopped = step_import::ImportBytes(text, cancelled);
+        Require(
+            stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded &&
+                stopped.report.carrierAssumption && !stopped.report.json.empty(),
+            "carrier assumption does not bypass cancellation, disposal or complete failure reports"
+        );
+    }
+    auto limited = options;
+    limited.nativeLimits.reportBytes = 1;
+    const auto failed = step_import::ImportBytes(text, limited);
+    Require(
+        failed.status == step_import::Status::ResourceLimit && !failed.model && failed.report.candidateDiscarded && failed.report.carrierAssumption &&
+            failed.report.json.empty(),
+        "carrier model needs its complete report before publication"
+    );
+    auto broken = text;
+    const auto link = broken.find("#8,#20");
+    Require(link != std::string::npos, "synthetic broken-reference fixture");
+    broken.replace(link, 6, "#8,#999999");
+    const auto rejected = step_import::ImportBytes(broken, options);
+    Require(
+        rejected.status == step_import::Status::Rejected && !rejected.model && !rejected.report.source && rejected.report.carrierAssumption &&
+            rejected.report.captured && *rejected.report.captured == broken,
+        "later parsing failure keeps captured bytes and carrier receipt without a partial graph"
+    );
+    auto invalid = options;
+    invalid.carrierInterpretation = static_cast<CarrierInterpretation>(99);
+    bool refused = false;
+    try
+    {
+        step_import::ImportBytes(text, invalid);
+    }
+    catch (const std::invalid_argument&)
+    {
+        refused = true;
+    }
+    Require(refused, "unknown carrier policy cannot become a default");
+}
 void InterpretationContract(const std::filesystem::path& fixture)
 {
     using step_semantics::SchemaInterpretation;
@@ -1180,7 +1271,8 @@ void DevelopmentContract(
     bool opaqueDataText,
     bool interpret,
     bool restrictSupport = false,
-    bool workStudy = false
+    bool workStudy = false,
+    bool carrier = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1200,6 +1292,10 @@ void DevelopmentContract(
         options.quality = step_import::Quality::GeneralWorkToleranceStudy();
     }
     options.restrictUnusedSupportDomains = restrictSupport;
+    if (carrier)
+    {
+        options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+    }
     options.sourceLimits = { 67108864, 1000000, 2000000, 2000000, 128, 1048576, 16777216, 268435456, 1024 };
     options.semanticLimits.dependencyVisits = 10000000;
     options.semanticLimits.preservedDiagnostics = 16384;
@@ -1214,7 +1310,9 @@ void DevelopmentContract(
     std::ofstream report(directory / "import.json", std::ios::binary);
     report << result.report.json;
     report.close();
-    const bool assumed = result.model && result.model->Source()->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly;
+    const bool schemaAssumed = result.model && result.model->Source()->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly;
+    const bool carrierAssumed = result.model && result.model->Source()->Source().AppliedCarrierAssumption();
+    const bool assumed = schemaAssumed || carrierAssumed;
     Require(
         result.status == (assumed ? step_import::Status::AcceptedUnderInterpretation : step_import::Status::Accepted) && bool(result.model),
         "development native import"
@@ -1308,9 +1406,13 @@ void DevelopmentContract(
     Near(queryDistance, distance, 1e-5, "archive boundary distance preserved");
     std::ofstream checks(directory / "checks.json", std::ios::binary);
     checks << std::setprecision(17) << "{\"status\":\"Passed\"";
-    if (assumed)
+    if (schemaAssumed)
     {
         checks << ",\"source_interpretation\":\"UnregisteredAp214As2010\",\"source_binding_verified\":false";
+    }
+    if (carrierAssumed)
+    {
+        checks << ",\"carrier_interpretation\":\"Level1AsCorrectedEncoding\",\"source_carrier_verified\":false";
     }
     checks
         << ",\"source_sha256\":\"" << result.report.sourceSha256 << "\",\"quality_id\":\"" << options.quality.id << "\",\"faces\":" << info.faces
@@ -1346,14 +1448,14 @@ int main(int argc, char** argv)
     {
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
-            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false;
+            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
                 Require(
                     flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
-                        flag == "--work-tolerance-study",
+                        flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected",
                     "unknown explicit source flag"
                 );
                 if (flag == "--interpret-unregistered-ap214-2010")
@@ -1368,12 +1470,16 @@ int main(int argc, char** argv)
                 {
                     workStudy = true;
                 }
+                else if (flag == "--interpret-level1-as-corrected")
+                {
+                    carrier = true;
+                }
                 else
                 {
                     (flag == "--preserve-opaque-header-name" ? header : data) = true;
                 }
             }
-            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data, interpret, restrictSupport, workStudy);
+            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data, interpret, restrictSupport, workStudy, carrier);
             return 0;
         }
         Require(argc == 3, "fixture and local output directory required");
@@ -1400,6 +1506,7 @@ int main(int argc, char** argv)
         OpaqueHeaderContract(argv[1]);
         OpaqueDataContract(argv[1]);
         InterpretationContract(argv[1]);
+        CarrierContract(argv[1], argv[2]);
         LifecycleContract(argv[1], argv[2]);
     }
     catch (const std::exception& error)

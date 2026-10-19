@@ -16,6 +16,25 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_carrier_assumption_is_separate_from_schema_identity_and_ordinary_acceptance(self):
+        from tools.step_semantic_validation.tests.test_carrier_level1 import level1_box
+
+        with tempfile.TemporaryDirectory(prefix="step-carrier-probe-") as directory:
+            source = Path(directory) / "source.step"
+            source.write_bytes(level1_box())
+            flags = ("--quality", "Q-AP214-development-mm-01", "--source-policy", "PreserveNonGeometric")
+            (before,) = self.invoke("native", "import", source, *flags)["trials"]
+            self.assertFalse(before["has_model"])
+            (trial,) = self.invoke(
+                "native", "import", source, *flags, "--carrier-interpretation", "Level1AsCorrectedEncoding"
+            )["trials"]
+            self.assertEqual("AcceptedUnderInterpretation", trial["status"])
+            self.assertTrue(trial["has_model"])
+            self.assertTrue(trial["carrier_interpretation_applied"])
+            self.assertFalse(trial["source_carrier_verified"])
+            self.assertNotIn("source_binding_verified", trial)
+            self.assertAlmostEqual(6000, trial["model"]["volume_mm3"], delta=1e-5)
+
     def test_support_restriction_is_explicit_and_uses_declared_work_budgets(self):
         from tools.step_import_native_validation.tests.test_support_domain import support_box
 
@@ -210,6 +229,10 @@ class ProbeTests(unittest.TestCase):
                 ("occt", "transfer", ["--restrict-unused-support-domains", "1"]),
                 ("native", "import", ["--restrict-unused-support-domains", "1"]),
                 ("native", "import", ["--restrict-unused-support-domains", "2"]),
+                ("source", "source", ["--carrier-interpretation", "DeclaredOnly"]),
+                ("occt", "transfer", ["--carrier-interpretation", "Level1AsCorrectedEncoding"]),
+                ("native", "import", ["--carrier-interpretation", "Level1AsCorrectedEncoding"]),
+                ("native", "import", ["--carrier-interpretation", "unknown"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

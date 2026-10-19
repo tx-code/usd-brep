@@ -1,5 +1,23 @@
 # STEP_IMPORT（内部 C++20）
 
+通用开发请求可独立选择 `Options.carrierInterpretation=Level1AsCorrectedEncoding`／CLI
+`--interpret-level1-as-corrected`，并须同时显式选择通用质量与非几何互操作策略。
+它只让声明 `1` 在未验证的修正版编码假设下进入现有读取链路，保留原始声明、字节、
+跨度及原严格拒绝诊断；不实现原 1994 SELECT 形式，不把 `1` 改写或认证为 `2;1`。
+其他载体、字符串、引用、schema、类型、单位、几何、预算与完整发布检查保持原约束。
+
+实际采用载体假设且通过全部原生检查时，结果为 `AcceptedUnderInterpretation`，CLI 返回 11；
+它与 schema 假设分别记录，成功绑定 schema 不能验证载体。报告的
+`source_carrier_verified=false` 与 `source_carrier_interpretation` 标明实际假设；
+`source_binding_verified` 继续只描述 schema 假设。请求在普通 `2;1` 上未应用时仍是
+普通 `Accepted`，不会为模型捏造假设。两种假设可以显式组合，不能进入普通验收或性能组。
+
+`ModelSnapshot::Source()->Source().AppliedCarrierAssumption()` 提供 owning 源内的不可变见证；
+面、独立线框与辅助几何 owning view 的同名方法借用该见证，随 view 保持有效。
+`Report.carrierAssumption` 还可在后续解析／引用失败且源图未交付时保留原见证。
+清除可变 outcome/report 不会清除模型或 view 的资格。取消、报告不足及失败仍禁止部分发布；
+建模副本、原生存档不继承源验收资格，保存存档时须另存原报告。默认和严格／P0 路径不变。
+
 显式通用选项 `Options.restrictUnusedSupportDomains`／CLI
 `--restrict-unused-support-domains` 可限制未使用的 B 样条支撑面域。默认关闭，P0 拒绝。
 首版要求源声明唯一外边界、非闭合／非周期参数图、正权重 UV 控制网，以及完整边参数

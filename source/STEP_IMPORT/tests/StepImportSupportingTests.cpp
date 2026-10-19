@@ -336,6 +336,21 @@ int main(int argc, char** argv)
         result = {};
         Require(held.AppliedSourceInterpretation() == options.schemaInterpretation, "owning supporting view retains unverified identity");
         Near(held.EvaluatePlane(0, 2, 3), { 30, 42, 53 });
+        const auto level = interpreted.find("'2;1'");
+        Require(level != std::string::npos, "supporting carrier fixture");
+        interpreted.replace(level, 5, "'1'");
+        options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+        result = ImportBytes(interpreted, options);
+        Require(result.status == Status::AcceptedUnderInterpretation && result.model, "combined supporting source assumptions");
+        const auto carried = result.model->SupportingGeometry()[0];
+        result.report.carrierAssumption.reset();
+        result = {};
+        Require(
+            carried.AppliedSourceInterpretation() == options.schemaInterpretation && carried.AppliedCarrierAssumption() &&
+                carried.AppliedCarrierAssumption()->declaredLevel == "1",
+            "owning supporting view preserves both independent source assumptions"
+        );
+        Near(carried.EvaluatePlane(0, 2, 3), { 30, 42, 53 });
         Execution(source, argv[2]);
         Execution(SharedSource(source), argv[2]);
         std::cout << "supporting geometry ownership/query/archive/publication controls passed\n";
