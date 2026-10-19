@@ -255,7 +255,12 @@ private:
     std::vector<Index> derivedEdgeFaces;
     std::optional<Index> wireframeRepresentation;
     std::optional<Index> supportingRepresentation;
-    std::map<Index, WireframeCurveInfo> detachedCurveInfo;
+    struct DetachedCurveData
+    {
+        WireframeCurveInfo info;
+        std::optional<double> sourceResidualMm, endpointResidualMm;
+    };
+    std::map<Index, DetachedCurveData> detachedCurveInfo;
     std::map<Index, WireframePointInfo> detachedPointInfo;
     double Tol() const
     {
@@ -415,6 +420,12 @@ private:
         curves.push_back({ a, geometry, Vertex(same ? start : end), Vertex(same ? end : start), same, {}, 0, 0, {} });
         return i;
     }
+    bool DetachedCurveSupported(Index geometry) const
+    {
+        const auto basis = Is(geometry, "TRIMMED_CURVE") ? Ref(geometry, "basis_curve") : geometry;
+        return Is(geometry, "TRIMMED_CURVE") ? Is(basis, "LINE") || Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") :
+                                               Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") || Is(basis, "B_SPLINE_CURVE_WITH_KNOTS");
+    }
     void Prepare()
     {
         for (const auto& role : m_source->PartDefinition().roles)
@@ -528,11 +539,8 @@ private:
             // unsupported required items before allocating a native candidate.
             for (const auto geometry : Refs(*supportingRepresentation, "items"))
             {
-                const auto basis = Is(geometry, "TRIMMED_CURVE") ? Ref(geometry, "basis_curve") : geometry;
-                const bool curve = Is(geometry, "TRIMMED_CURVE") ?
-                                       Is(basis, "LINE") || Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") :
-                                       Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") || Is(basis, "B_SPLINE_CURVE_WITH_KNOTS");
-                if (!Is(geometry, "CARTESIAN_POINT") && !Is(geometry, "AXIS2_PLACEMENT_3D") && !Is(geometry, "PLANE") && !curve)
+                if (!Is(geometry, "CARTESIAN_POINT") && !Is(geometry, "AXIS2_PLACEMENT_3D") && !Is(geometry, "PLANE") &&
+                    !DetachedCurveSupported(geometry))
                 {
                     Fail("GeneralSupportingGeometryUnsupported", geometry, Status::Unsupported);
                 }
@@ -548,11 +556,7 @@ private:
                 }
                 for (const auto geometry : Refs(set, "elements"))
                 {
-                    const auto basis = Is(geometry, "TRIMMED_CURVE") ? Ref(geometry, "basis_curve") : geometry;
-                    const bool admitted = Is(geometry, "CARTESIAN_POINT") ||
-                                          (Is(geometry, "TRIMMED_CURVE") ?
-                                               Is(basis, "LINE") || Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") :
-                                               Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") || Is(basis, "B_SPLINE_CURVE_WITH_KNOTS"));
+                    const bool admitted = Is(geometry, "CARTESIAN_POINT") || DetachedCurveSupported(geometry);
                     if (!admitted)
                     {
                         Fail("GeneralWireframeGeometryUnsupported", geometry, Status::Unsupported);
@@ -725,10 +729,24 @@ private:
         }
         return result;
     }
-    WireframeCurveInfo AddWireCurve(Index record, double& sourceConsistency, double& definitionEndpoints, bool supporting = false)
+    DetachedCurveData AddDetachedCurve(Index record, bool supporting)
     {
         const bool trimmed = Is(record, "TRIMMED_CURVE");
         const auto basis = trimmed ? Ref(record, "basis_curve") : record;
+        double sourceConsistency = 0, definitionEndpoints = 0;
+        const auto hasPointCut = [&](std::string_view name)
+        {
+            const auto& cuts = F(record, name).children;
+            return std::any_of(
+                cuts.begin(),
+                cuts.end(),
+                [](const auto& cut)
+                {
+                    return cut.kind == step_source::ValueKind::Reference;
+                }
+            );
+        };
+        const bool measuredSourceTrim = trimmed && (hasPointCut("trim_1") || hasPointCut("trim_2"));
         WireframeCurveInfo info{ Id(record), Id(basis), m_model->wireCurves.size(), {}, !trimmed || B(record, "sense_agreement") };
         std::unique_ptr<SmCurve> curve;
         ParameterMapping mapping;
@@ -874,7 +892,21 @@ private:
         mapping.parameters.push_back({ "source_forward_in_native", { info.sourceForwardInNative ? 1. : -1. } });
         m_report.parameterMappings.push_back(std::move(mapping));
         m_model->wireCurves.push_back(std::move(curve));
-        return info;
+        return { std::move(info),
+                 measuredSourceTrim ? std::optional<double>(sourceConsistency) : std::nullopt,
+                 expectedEnds ? std::optional<double>(definitionEndpoints) : std::nullopt };
+    }
+    const DetachedCurveData& DetachedCurve(Index geometry, bool supporting)
+    {
+        if (const auto found = detachedCurveInfo.find(geometry); found != detachedCurveInfo.end())
+        {
+            return found->second;
+        }
+        // A shared native definition retains its measurements as well as its
+        // mapping. Every source role must aggregate the same observed residual;
+        // cache reuse cannot turn a nonzero observation into zero. Absence
+        // means this constructor ran no applicable measurement, not zero error.
+        return detachedCurveInfo.emplace(geometry, AddDetachedCurve(geometry, supporting)).first->second;
     }
     void BuildWireframes()
     {
@@ -882,7 +914,6 @@ private:
         {
             return;
         }
-        auto& curveInfo = detachedCurveInfo;
         auto& pointInfo = detachedPointInfo;
         double sourceConsistency = 0, definitionEndpoints = 0;
         for (const auto set : Refs(*wireframeRepresentation, "items"))
@@ -927,11 +958,10 @@ private:
                 }
                 else
                 {
-                    if (!curveInfo.contains(geometry))
-                    {
-                        curveInfo.emplace(geometry, AddWireCurve(geometry, sourceConsistency, definitionEndpoints));
-                    }
-                    const auto& info = curveInfo.at(geometry);
+                    const auto& definition = DetachedCurve(geometry, false);
+                    const auto& info = definition.info;
+                    sourceConsistency = std::max(sourceConsistency, definition.sourceResidualMm.value_or(0));
+                    definitionEndpoints = std::max(definitionEndpoints, definition.endpointResidualMm.value_or(0));
                     group.curves.push_back(info);
                     SmExtent3d box;
                     Step(geometry);
@@ -956,7 +986,7 @@ private:
         SupportingGeometryInfo group;
         group.representationId = Id(*supportingRepresentation);
         group.relationshipId = Id(Role("construction_relationship"));
-        double sourceConsistency = 0, definitionEndpoints = 0;
+        std::optional<double> sourceConsistency, definitionEndpoints;
         for (const auto geometry : Refs(*supportingRepresentation, "items"))
         {
             m_execution.Check(Phase::BeforeNativeCall);
@@ -1016,19 +1046,30 @@ private:
             }
             else
             {
-                if (!detachedCurveInfo.contains(geometry))
+                const auto& definition = DetachedCurve(geometry, true);
+                if (definition.sourceResidualMm)
                 {
-                    detachedCurveInfo.emplace(geometry, AddWireCurve(geometry, sourceConsistency, definitionEndpoints, true));
+                    sourceConsistency = std::max(sourceConsistency.value_or(0), *definition.sourceResidualMm);
                 }
-                group.curves.push_back(detachedCurveInfo.at(geometry));
+                if (definition.endpointResidualMm)
+                {
+                    definitionEndpoints = std::max(definitionEndpoints.value_or(0), *definition.endpointResidualMm);
+                }
+                group.curves.push_back(definition.info);
             }
         }
         m_model->supportingGeometry.push_back(std::move(group));
         m_report.supportingGeometry = m_model->supportingGeometry;
-        m_report.tolerances.push_back({ "Postcheck", "MeasuredSupportingSourceTrimResidual", Id(*supportingRepresentation), sourceConsistency });
-        m_report.tolerances.push_back(
-            { "Postcheck", "MeasuredSupportingDefinitionEndpointError", Id(*supportingRepresentation), definitionEndpoints }
-        );
+        if (sourceConsistency)
+        {
+            m_report.tolerances.push_back({ "Postcheck", "MeasuredSupportingSourceTrimResidual", Id(*supportingRepresentation), *sourceConsistency });
+        }
+        if (definitionEndpoints)
+        {
+            m_report.tolerances.push_back(
+                { "Postcheck", "MeasuredSupportingDefinitionEndpointError", Id(*supportingRepresentation), *definitionEndpoints }
+            );
+        }
     }
     void MakeCurve(Curve& c)
     {

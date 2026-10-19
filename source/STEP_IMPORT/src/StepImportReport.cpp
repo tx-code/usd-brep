@@ -69,6 +69,33 @@ void FrameJson(Writer& w, const CoordinateFrame& frame)
     PointJson(w, frame.z);
     w.Add("}");
 }
+void DetachedCurveJson(Writer& w, const WireframeCurveInfo& curve)
+{
+    w.Add("{\"source_id\":");
+    w.String(curve.sourceId);
+    w.Add(",\"source_basis\":");
+    w.String(curve.basisId);
+    w.Add(",\"native_curve_index\":");
+    w.Number(curve.nativeIndex);
+    w.Add(",\"native_parameter_domain\":[");
+    Number(w, curve.parameterDomain[0]);
+    w.Add(",");
+    Number(w, curve.parameterDomain[1]);
+    w.Add("],\"source_forward_in_native\":");
+    w.Bool(curve.sourceForwardInNative);
+    w.Add("}");
+}
+
+void PointMappingJson(Writer& w, const WireframePointInfo& point)
+{
+    w.Add("{\"source_id\":");
+    w.String(point.sourceId);
+    w.Add(",\"archive_point_brep_index\":");
+    w.Number(point.nativeIndex + 1);
+    w.Add(",\"point_mm\":");
+    PointJson(w, point.pointMm);
+    w.Add("}");
+}
 void SupportingJson(Writer& w, const std::vector<SupportingGeometryInfo>& groups)
 {
     w.Add(",\"supporting_geometry\":[");
@@ -90,20 +117,7 @@ void SupportingJson(Writer& w, const std::vector<SupportingGeometryInfo>& groups
             {
                 w.Add(",");
             }
-            const auto& curve = group.curves[j];
-            w.Add("{\"source_id\":");
-            w.String(curve.sourceId);
-            w.Add(",\"source_basis\":");
-            w.String(curve.basisId);
-            w.Add(",\"native_curve_index\":");
-            w.Number(curve.nativeIndex);
-            w.Add(",\"native_parameter_domain\":[");
-            Number(w, curve.parameterDomain[0]);
-            w.Add(",");
-            Number(w, curve.parameterDomain[1]);
-            w.Add("],\"source_forward_in_native\":");
-            w.Bool(curve.sourceForwardInNative);
-            w.Add("}");
+            DetachedCurveJson(w, group.curves[j]);
         }
         w.Add("],\"points\":[");
         for (std::size_t j = 0; j < group.points.size(); ++j)
@@ -112,14 +126,7 @@ void SupportingJson(Writer& w, const std::vector<SupportingGeometryInfo>& groups
             {
                 w.Add(",");
             }
-            const auto& point = group.points[j];
-            w.Add("{\"source_id\":");
-            w.String(point.sourceId);
-            w.Add(",\"archive_point_brep_index\":");
-            w.Number(point.nativeIndex + 1);
-            w.Add(",\"point_mm\":");
-            PointJson(w, point.pointMm);
-            w.Add("}");
+            PointMappingJson(w, group.points[j]);
         }
         w.Add("],\"frames\":[");
         for (std::size_t j = 0; j < group.frames.size(); ++j)
@@ -615,20 +622,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                             {
                                 w.Add(",");
                             }
-                            const auto& curve = group.curves[j];
-                            w.Add("{\"source_id\":");
-                            w.String(curve.sourceId);
-                            w.Add(",\"source_basis\":");
-                            w.String(curve.basisId);
-                            w.Add(",\"native_curve_index\":");
-                            w.Number(curve.nativeIndex);
-                            w.Add(",\"native_parameter_domain\":[");
-                            Number(w, curve.parameterDomain[0]);
-                            w.Add(",");
-                            Number(w, curve.parameterDomain[1]);
-                            w.Add("],\"source_forward_in_native\":");
-                            w.Bool(curve.sourceForwardInNative);
-                            w.Add("}");
+                            DetachedCurveJson(w, group.curves[j]);
                         }
                         w.Add("],\"points\":[");
                         for (std::size_t j = 0; j < group.points.size(); ++j)
@@ -637,14 +631,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                             {
                                 w.Add(",");
                             }
-                            const auto& point = group.points[j];
-                            w.Add("{\"source_id\":");
-                            w.String(point.sourceId);
-                            w.Add(",\"archive_point_brep_index\":");
-                            w.Number(point.nativeIndex + 1);
-                            w.Add(",\"point_mm\":");
-                            PointJson(w, point.pointMm);
-                            w.Add("}");
+                            PointMappingJson(w, group.points[j]);
                         }
                         w.Add("]}");
                     }

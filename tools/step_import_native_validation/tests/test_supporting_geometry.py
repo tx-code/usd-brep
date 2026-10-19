@@ -57,3 +57,21 @@ class SupportingNativeTests(unittest.TestCase):
             self.assertIsNone(report["model"])
             self.assertIn(expected, [x["key"] for x in report["diagnostics"]])
             self.assertEqual(0, report["native_calls"])
+
+    def test_shared_curve_retains_nonzero_residual_in_each_source_role(self):
+        data = supporting_source(wireframe=True).replace(
+            b"#914=CARTESIAN_POINT('',(0.,0.,0.))", b"#914=CARTESIAN_POINT('',(0.,0.0000001,0.))")
+        run, report = self.invoke(data, write=True)
+        self.assertEqual(0, run.returncode, run.stderr or report["diagnostics"])
+        measurements = {x["kind"]: x["value_mm"] for x in report["measurements"]}
+        self.assertGreater(measurements["MeasuredWireframeSourceTrimResidual"], 0)
+        self.assertAlmostEqual(1e-7, measurements["MeasuredSupportingSourceTrimResidual"], delta=1e-14)
+        for suffix in ("SourceTrimResidual", "DefinitionEndpointError"):
+            self.assertEqual(measurements["MeasuredWireframe" + suffix], measurements["MeasuredSupporting" + suffix])
+
+    def test_no_inapplicable_measurements_are_reported_as_zero_for_supporting_role(self):
+        data = supporting_source(wireframe=True).replace(b"(#904,#970,#972,#911,#912,#940)",
+                                                        b"(#904,#970,#972,#911)")
+        run, report = self.invoke(data, write=True)
+        self.assertEqual(0, run.returncode, run.stderr or report["diagnostics"])
+        self.assertFalse(any(x["kind"].startswith("MeasuredSupporting") for x in report["measurements"]))

@@ -26,3 +26,8 @@ wireframe/support roles and rejection of an unbounded line before native calls.
 
 These are public project subset controls, not a complete schema witness,
 production quality calibration or a continuous bound for arbitrary geometry.
+
+A shared-role variant displaces the line origin by 1e-7 mm in Y while
+retaining the final Cartesian cut. Its measured source trim residual is
+1e-7 mm in both roles. A supporting group with only frames/plane/point has
+no applicable curve residual observations and emits none for that role.

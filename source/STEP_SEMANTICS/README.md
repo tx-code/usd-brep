@@ -258,8 +258,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 137/124 declarations respectively;
-the separate MBx general catalog contains 139 declarations;
+transport slot. The general catalogs contain 137/127 declarations respectively;
+the separate MBx general catalog contains 142 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 
