@@ -9,6 +9,12 @@ $env:STEP_NATIVE_BINARY = '<build>/Release/step_native_import.exe'
 python -m unittest tools.step_import_native_validation.tests.test_native -v
 ```
 
+完整 `tests` discovery 还需同配置的 `step_import_general_tests`，默认取
+`STEP_NATIVE_BINARY` 同目录；分开存放时可用测试变量 `STEP_NATIVE_GENERAL_BINARY` 指定。
+椭圆柱回归调用其实际 development-file 入口，分别以解析体积 `56π mm³` 核对导入、
+建模副本和存档重载，并保留定义系数／UV 检查。融合量测与独立 legacy 查询均请求相对精度
+`1e-4`，数值对照采用已有 `2e-4` 筛查阈值；这不是连续误差界或几何容差。
+
 完整首profile复核使用同一配置的四个真实CLI，输出到新的本地目录：
 
 ```powershell

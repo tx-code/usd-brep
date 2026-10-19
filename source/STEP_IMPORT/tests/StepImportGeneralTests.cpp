@@ -138,9 +138,11 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive)
 }
 double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::Point, 2>& bounds)
 {
-    // Origin-dependent quadrature noise must not masquerade as copy/archive
-    // geometry changes. Match the documented mass integration origin/accuracy;
-    // defining coefficients and UV are compared independently below.
+    // Use the legacy mass query as a separate numerical observation, retaining
+    // the import origin and requested relative accuracy. The fused import now
+    // integrates fewer moment groups with a stricter per-face area scale, so
+    // these paths need not choose identical quadrature nodes. Coefficients and
+    // installed UV are compared independently below.
     step_import::Point origin;
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
@@ -666,7 +668,10 @@ void DevelopmentContract(
         }
     );
     const auto expected = *result.model->MaterialVolumeMm3();
-    Near(copiedVolume, expected, std::max(1e-6, expected * 1e-9), "copy preserves development geometry");
+    // Both integrators request relative 1e-4. Their 2e-4 comparison screen is
+    // not a certified error bound and must not be mistaken for a geometry
+    // tolerance; copy/archive defining coefficients and UV are still checked.
+    Near(copiedVolume, expected, std::max(1e-6, expected * 2e-4), "copy numerical volume agreement");
     const auto archive = directory / "model.smb";
     result.model->WriteNative(archive);
     auto loaded = ReloadNative(archive);

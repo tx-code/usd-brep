@@ -1,7 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 """Trimmed conic definitions remain distinct from the topological edge interval."""
+import json
 import math
+import os
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 
 from tools.step_import_native_validation.tests import test_general
@@ -49,6 +54,32 @@ def elliptical_cylinder_source():
 
 class TrimmedNativeTests(unittest.TestCase):
     invoke_bytes = test_general.GeneralTests.invoke_bytes
+
+    def test_elliptical_cylinder_copy_archive_has_independent_analytic_volume(self):
+        # Exercise the same development-file harness used for local model
+        # qualification. The fused import and legacy copy/archive integrations
+        # have distinct quadrature controls; each must satisfy analytic truth.
+        cli = Path(os.environ["STEP_NATIVE_BINARY"])
+        binary = os.environ.get("STEP_NATIVE_GENERAL_BINARY", str(cli.with_name("step_import_general_tests" + cli.suffix)))
+        data = elliptical_cylinder_source()
+        with tempfile.TemporaryDirectory(prefix="step-ellipse-copy-") as directory:
+            root = Path(directory)
+            source = root / "ellipse.step"
+            source.write_bytes(data)
+            output = root / "result"
+            run = subprocess.run([binary, "--development-file", str(source), str(output), "normal"],
+                                 capture_output=True, timeout=30)
+            self.assertEqual(0, run.returncode, run.stderr)
+            checks = json.loads((output / "checks.json").read_bytes())
+            report = json.loads((output / "import.json").read_bytes())
+        truth = 56 * math.pi  # pi * semiaxis_x(4 mm) * semiaxis_y(2 mm) * height(7 mm).
+        for field in ("volume_mm3", "copied_volume_mm3", "reloaded_volume_mm3"):
+            with self.subTest(field=field):
+                self.assertAlmostEqual(truth, checks[field], delta=truth * 2e-4)
+        self.assertEqual("Passed", checks["status"])
+        self.assertTrue(checks["defining_coefficients_and_uv_checked"])
+        self.assertEqual((3, 3, 2), tuple(checks[key] for key in ("faces", "edges", "vertices")))
+        self.assertEqual(data.decode("ascii"), report["source_inspection"]["source"]["input"]["raw"])
 
     def test_trimmed_ellipse_keeps_source_sense_and_independent_cylinder_volume(self):
         for sense in [True, False]:
