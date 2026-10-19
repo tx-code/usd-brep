@@ -64,6 +64,41 @@ void ComponentJson(Writer& out, const Component& component, const SourceSnapshot
     }
     out.Add("]}");
 }
+void DiagnosticJson(Writer& out, const InspectOutcome& result, const Diagnostic& diagnostic)
+{
+    out.Add("{\"key\":");
+    out.String(diagnostic.key);
+    out.Add(",\"stage\":");
+    out.String(diagnostic.stage);
+    out.Add(",\"message\":");
+    out.String(diagnostic.message);
+    out.Add(",\"span\":");
+    out.Range(diagnostic.primary);
+    out.Add(",\"location\":");
+    out.Position(result, diagnostic.primary.begin);
+    out.Add(",\"record_id\":");
+    out.String(diagnostic.recordId);
+    out.Add(",\"component\":");
+    out.String(diagnostic.component);
+    out.Add(",\"parameter_path\":");
+    out.Path(diagnostic.parameterPath);
+    out.Add(",\"target_id\":");
+    out.String(diagnostic.targetId);
+    out.Add(",\"related\":[");
+    for (std::size_t j = 0; j < diagnostic.related.size(); ++j)
+    {
+        if (j)
+        {
+            out.Add(",");
+        }
+        out.Add("{\"span\":");
+        out.Range(diagnostic.related[j]);
+        out.Add(",\"location\":");
+        out.Position(result, diagnostic.related[j].begin);
+        out.Add("}");
+    }
+    out.Add("]}");
+}
 } // namespace
 
 void report::WriteJson(Writer& out, const InspectOutcome& result)
@@ -77,6 +112,46 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
     if (result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes)
     {
         out.Add(",\"data_string_policy\":\"PreserveOpaqueBytes\"");
+    }
+    // A completed snapshot is the qualification owner. Resettable outcome
+    // annotations cannot hide its assumption; failures retain their own receipt.
+    const auto* assumption = result.source ? result.source->AppliedCarrierAssumption() : result.carrierAssumption.get();
+    if (result.requestedCarrierInterpretation != CarrierInterpretation::DeclaredOnly || assumption)
+    {
+        out.Add(",\"carrier_interpretation\":{\"requested\":");
+        out.String(CarrierInterpretationName(result.requestedCarrierInterpretation));
+        out.Add(",\"applied\":");
+        out.Add(assumption ? "true" : "false");
+        out.Add(",\"status\":");
+        out.String(assumption ? "InterpretedUnverified" : "NotApplied");
+        out.Add(",\"interpretation\":");
+        out.String(CarrierInterpretationName(assumption ? assumption->interpretation : CarrierInterpretation::DeclaredOnly));
+        out.Add(",\"declared_level\":");
+        if (assumption)
+        {
+            out.String(assumption->declaredLevel);
+        }
+        else if (result.source)
+        {
+            out.String(result.source->Header()[0].parameters[1].text);
+        }
+        else
+        {
+            out.Add("null");
+        }
+        out.Add(",\"declaration_verified\":false,\"original_diagnostics\":[");
+        if (assumption)
+        {
+            for (std::size_t i = 0; i < assumption->originalDiagnostics.size(); ++i)
+            {
+                if (i)
+                {
+                    out.Add(",");
+                }
+                DiagnosticJson(out, result, assumption->originalDiagnostics[i]);
+            }
+        }
+        out.Add("]}");
     }
     out.Add(",\"source_complete\":");
     out.Add(result.source ? "true" : "false");
@@ -225,38 +300,7 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
         {
             out.Add(",");
         }
-        out.Add("{\"key\":");
-        out.String(diagnostic.key);
-        out.Add(",\"stage\":");
-        out.String(diagnostic.stage);
-        out.Add(",\"message\":");
-        out.String(diagnostic.message);
-        out.Add(",\"span\":");
-        out.Range(diagnostic.primary);
-        out.Add(",\"location\":");
-        out.Position(result, diagnostic.primary.begin);
-        out.Add(",\"record_id\":");
-        out.String(diagnostic.recordId);
-        out.Add(",\"component\":");
-        out.String(diagnostic.component);
-        out.Add(",\"parameter_path\":");
-        out.Path(diagnostic.parameterPath);
-        out.Add(",\"target_id\":");
-        out.String(diagnostic.targetId);
-        out.Add(",\"related\":[");
-        for (std::size_t j = 0; j < diagnostic.related.size(); ++j)
-        {
-            if (j)
-            {
-                out.Add(",");
-            }
-            out.Add("{\"span\":");
-            out.Range(diagnostic.related[j]);
-            out.Add(",\"location\":");
-            out.Position(result, diagnostic.related[j].begin);
-            out.Add("}");
-        }
-        out.Add("]}");
+        DiagnosticJson(out, result, diagnostic);
     }
     out.Add("]}\n");
 }

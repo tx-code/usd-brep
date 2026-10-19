@@ -18,6 +18,7 @@ namespace step_source
 struct SourceData
 {
     std::shared_ptr<const std::string> bytes;
+    std::shared_ptr<const CarrierAssumption> carrierAssumption;
     std::vector<Component> header;
     std::vector<Record> records;
     std::vector<Reference> references;
@@ -321,7 +322,7 @@ private:
     bool m_inData = false;
     std::vector<Span> m_opaqueDataStrings;
 
-    [[noreturn]] void Fail(std::string key, std::string message, Span span, Status status = Status::Rejected, std::string stage = "D0")
+    Diagnostic ErrorDiagnostic(std::string key, std::string message, Span span, std::string stage = "D0") const
     {
         Diagnostic diagnostic;
         diagnostic.key = std::move(key);
@@ -331,7 +332,11 @@ private:
         diagnostic.recordId = m_recordId;
         diagnostic.component = m_component;
         diagnostic.parameterPath = m_path;
-        throw Failure{ status, std::move(diagnostic) };
+        return diagnostic;
+    }
+    [[noreturn]] void Fail(std::string key, std::string message, Span span, Status status = Status::Rejected, std::string stage = "D0")
+    {
+        throw Failure{ status, ErrorDiagnostic(std::move(key), std::move(message), span, std::move(stage)) };
     }
 
     void Bound(std::size_t value, std::size_t maximum, const char* key, Span span)
@@ -895,7 +900,23 @@ private:
             valid = p.size() == 2 && StringList(p[0]) && p[1].kind == ValueKind::String;
             if (valid && p[1].text != "2;1")
             {
-                Fail("UnsupportedImplementationLevel", "Only FILE_DESCRIPTION implementation level 2;1 is supported", p[1].span, Status::Unsupported);
+                constexpr auto message = "Only FILE_DESCRIPTION implementation level 2;1 is supported";
+                if (p[1].text != "1" || m_result.requestedCarrierInterpretation != CarrierInterpretation::Level1AsCorrectedEncoding)
+                {
+                    Fail("UnsupportedImplementationLevel", message, p[1].span, Status::Unsupported);
+                }
+                // ISO10303-21:1994/Cor1:1996 replacement9.2.1 distinguishes
+                // declaration1 from corrected2;1. This application assumption
+                // selects the existing corrected grammar without rewriting any
+                // byte/value. Original SELECT semantics remain unverified; all
+                // syntax/reference/budget and downstream typed checks still run.
+                auto assumption = std::make_shared<CarrierAssumption>();
+                assumption->interpretation = m_result.requestedCarrierInterpretation;
+                assumption->declaredLevel = p[1].text;
+                assumption->declaredSpan = p[1].span;
+                assumption->originalDiagnostics.push_back(ErrorDiagnostic("UnsupportedImplementationLevel", message, p[1].span));
+                m_result.carrierAssumption = assumption;
+                m_data->carrierAssumption = std::move(assumption);
             }
         }
         else if (component.name == "FILE_NAME")
@@ -1068,7 +1089,28 @@ Location SourceSnapshot::Locate(std::size_t offset) const
     return { static_cast<std::size_t>(line), offset - m_data->lines[static_cast<std::size_t>(line) - 1] + 1 };
 }
 
-InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy headerNamePolicy, DataStringPolicy dataStringPolicy)
+const CarrierAssumption* SourceSnapshot::AppliedCarrierAssumption() const
+{
+    return m_data->carrierAssumption.get();
+}
+const char* CarrierInterpretationName(CarrierInterpretation interpretation)
+{
+    switch (interpretation)
+    {
+        case CarrierInterpretation::DeclaredOnly:
+            return "DeclaredOnly";
+        case CarrierInterpretation::Level1AsCorrectedEncoding:
+            return "Level1AsCorrectedEncoding";
+    }
+    return "Unknown";
+}
+InspectOutcome InspectBytes(
+    std::string bytes,
+    Limits limits,
+    HeaderNamePolicy headerNamePolicy,
+    DataStringPolicy dataStringPolicy,
+    CarrierInterpretation carrierInterpretation
+)
 {
     if (headerNamePolicy != HeaderNamePolicy::StrictAscii && headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes)
     {
@@ -1078,10 +1120,15 @@ InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy h
     {
         throw std::invalid_argument("Unknown DATA string policy");
     }
+    if (carrierInterpretation != CarrierInterpretation::DeclaredOnly && carrierInterpretation != CarrierInterpretation::Level1AsCorrectedEncoding)
+    {
+        throw std::invalid_argument("Unknown carrier interpretation");
+    }
     InspectOutcome result{};
     result.limits = limits;
     result.headerNamePolicy = headerNamePolicy;
     result.dataStringPolicy = dataStringPolicy;
+    result.requestedCarrierInterpretation = carrierInterpretation;
     if (!ValidLimits(limits))
     {
         result.status = Status::ResourceLimit;
@@ -1115,6 +1162,20 @@ InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy h
         Parser(data, result).Parse();
         result.source = std::make_shared<const SourceSnapshot>(std::move(data));
         result.status = Status::Inspected;
+        if (const auto* assumption = result.source->AppliedCarrierAssumption())
+        {
+            result.diagnostics.push_back(
+                { "UnverifiedCarrierInterpretation",
+                  "D0",
+                  "Declared level1 interpreted using corrected grammar; original encoding conformance is unverified",
+                  assumption->declaredSpan,
+                  {},
+                  {},
+                  "FILE_DESCRIPTION",
+                  { 2 },
+                  {} }
+            );
+        }
         const auto& name = result.source->Header()[1].parameters[0];
         if (name.kind == ValueKind::OpaqueString)
         {
@@ -1139,15 +1200,25 @@ InspectOutcome InspectBytes(std::string bytes, Limits limits, HeaderNamePolicy h
     return result;
 }
 
-InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, HeaderNamePolicy headerNamePolicy, DataStringPolicy dataStringPolicy)
+InspectOutcome InspectFile(
+    const std::filesystem::path& path,
+    Limits limits,
+    HeaderNamePolicy headerNamePolicy,
+    DataStringPolicy dataStringPolicy,
+    CarrierInterpretation carrierInterpretation
+)
 {
     if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes)
     {
         throw std::invalid_argument("Unknown DATA string policy");
     }
+    if (carrierInterpretation != CarrierInterpretation::DeclaredOnly && carrierInterpretation != CarrierInterpretation::Level1AsCorrectedEncoding)
+    {
+        throw std::invalid_argument("Unknown carrier interpretation");
+    }
     if (!ValidLimits(limits))
     {
-        return InspectBytes({}, limits, headerNamePolicy, dataStringPolicy);
+        return InspectBytes({}, limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
     }
     std::ifstream input(path, std::ios::binary);
     std::string bytes;
@@ -1161,12 +1232,12 @@ InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, Hea
             bytes.append(buffer.data(), static_cast<std::size_t>(input.gcount()));
             if (bytes.size() > limits.inputBytes)
             {
-                return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy);
+                return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
             }
         }
         if (input.eof() && !input.bad())
         {
-            return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy);
+            return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
         }
     }
     InspectOutcome result{};
@@ -1174,6 +1245,7 @@ InspectOutcome InspectFile(const std::filesystem::path& path, Limits limits, Hea
     result.limits = limits;
     result.headerNamePolicy = headerNamePolicy;
     result.dataStringPolicy = dataStringPolicy;
+    result.requestedCarrierInterpretation = carrierInterpretation;
     result.diagnostics.push_back({ "InputReadFailure", "Capture", "Input capture did not complete", {}, {}, {}, {}, {}, {} });
     return result;
 }

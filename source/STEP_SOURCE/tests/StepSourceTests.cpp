@@ -360,6 +360,78 @@ int main()
             Require(bytesRejected && fileRejected, "unknown DATA policy rejected before capture");
             ++checks;
         }
+        {
+            auto input = File("#1=A(LENGTH_MEASURE(+1.2500E-2),#1);\n");
+            const auto at = input.find("'2;1'");
+            Require(at != std::string::npos, "carrier fixture declaration");
+            input.replace(at, 5, "'1'");
+            const auto strict = InspectBytes(input, limits);
+            Require(strict.status == Status::Unsupported && !strict.source, "level1 keeps strict refusal");
+            auto assumed = InspectBytes(
+                input,
+                limits,
+                HeaderNamePolicy::StrictAscii,
+                DataStringPolicy::StrictAscii,
+                CarrierInterpretation::Level1AsCorrectedEncoding
+            );
+            Require(assumed.status == Status::Inspected && assumed.source, "explicit carrier assumption admits existing syntax");
+            auto owner = assumed.source;
+            const auto* receipt = owner->AppliedCarrierAssumption();
+            Require(receipt && receipt->declaredLevel == "1" && owner->Raw(receipt->declaredSpan) == "'1'", "source declaration preserved");
+            Require(
+                receipt->originalDiagnostics[0].key == strict.diagnostics[0].key &&
+                    receipt->originalDiagnostics[0].primary.begin == strict.diagnostics[0].primary.begin,
+                "original carrier refusal preserved"
+            );
+            assumed.carrierAssumption.reset();
+            assumed.requestedCarrierInterpretation = CarrierInterpretation::DeclaredOnly;
+            assumed.diagnostics.clear();
+            Require(
+                InspectJson(assumed, json) && json.find("InterpretedUnverified") != std::string::npos,
+                "mutable outcome cannot erase source-owned qualification"
+            );
+            assumed = {};
+            Require(owner->AppliedCarrierAssumption() == receipt && owner->Bytes() == input, "carrier receipt survives outcome destruction");
+            const auto& typed = owner->Records()[0].components[0].parameters[0];
+            Require(typed.text == "LENGTH_MEASURE" && typed.children[0].text == "+1.2500E-2", "carrier option cannot rewrite scalar data");
+            auto canonical = File("#1=A();\n");
+            auto normal = InspectBytes(canonical, limits);
+            normal.carrierAssumption = std::make_shared<const CarrierAssumption>(*receipt);
+            Require(
+                InspectJson(normal, json) && json.find("carrier_interpretation") == std::string::npos,
+                "outcome cannot forge an assumption on an ordinary snapshot"
+            );
+            auto bad = input;
+            bad.replace(bad.find("#1);"), 4, "#99);");
+            const auto carrierFailure = InspectBytes(
+                bad,
+                limits,
+                HeaderNamePolicy::StrictAscii,
+                DataStringPolicy::StrictAscii,
+                CarrierInterpretation::Level1AsCorrectedEncoding
+            );
+            Require(
+                !carrierFailure.source && carrierFailure.carrierAssumption && carrierFailure.captured,
+                "later failure retains receipt without partial graph"
+            );
+            bool invalid = false;
+            try
+            {
+                InspectFile(
+                    "missing-carrier-fixture.step",
+                    limits,
+                    HeaderNamePolicy::StrictAscii,
+                    DataStringPolicy::StrictAscii,
+                    static_cast<CarrierInterpretation>(99)
+                );
+            }
+            catch (const std::invalid_argument&)
+            {
+                invalid = true;
+            }
+            Require(invalid, "unknown carrier request rejected before IO");
+            ++checks;
+        }
         ReportWriterContract();
         ++checks;
         std::cout << "Passed " << checks << " native source contract groups\n";

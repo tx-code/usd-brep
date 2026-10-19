@@ -38,6 +38,7 @@ int main(int argc, char** argv)
         bool selectedLimits = false;
         auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
+        auto carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
         std::string input;
         for (int i = 1; i < argc; ++i)
         {
@@ -53,6 +54,10 @@ int main(int argc, char** argv)
             else if (argument == "--preserve-opaque-data-strings")
             {
                 dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+            }
+            else if (argument == "--interpret-level1-as-corrected")
+            {
+                carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
             }
             else if (options.count(argument))
             {
@@ -83,7 +88,7 @@ int main(int argc, char** argv)
             std::cerr << "Usage: step_inspect --fixture-limits <input.step> [--max-... N]\n";
             return 64;
         }
-        const auto outcome = step_source::InspectFile(std::filesystem::path(input), limits, headerNamePolicy, dataStringPolicy);
+        const auto outcome = step_source::InspectFile(std::filesystem::path(input), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
         std::string report;
         if (!step_source::InspectJson(outcome, report))
         {

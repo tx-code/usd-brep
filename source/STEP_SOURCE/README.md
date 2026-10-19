@@ -6,6 +6,31 @@ all reference occurrences. `Inspected` means this source-only work completed;
 AP/schema rules, types, units, geometry and native BRep construction remain unrun.
 The JSON field `native_build` means SMLib BRep construction, not C++ compilation.
 
+For source exploration only, an application may explicitly select
+`CarrierInterpretation::Level1AsCorrectedEncoding` (source/semantic CLI
+`--interpret-level1-as-corrected`). It lets the existing corrected reader grammar
+inspect a declaration `1` under an **unverified assumption**. It does not
+implement original 1994 SELECT encoding, identify `1` with `2;1`, authenticate a
+conformance class, rewrite a header/value, or enable native import. Native import
+still has no such option in this increment and keeps its strict carrier default.
+
+The distinction follows ISO 10303-21:1994/Cor 1:1996 replacement §9.2.1 and
+[STEP Tools' original/corrected-version documentation](https://steptools.com/docs/roselib/read_write.html).
+Only `1` may apply this option. Other declarations, unsupported carrier
+structures/encodings, original SELECT forms outside the implemented grammar,
+references and resource/report limits keep their existing checks. No failed
+typed conversion is retried using another reading of the input.
+
+The optional `carrier_interpretation` JSON object reports request/application,
+`InterpretedUnverified` and the original strict refusal. The applied evidence is
+immutable and owned by the source snapshot. A shared failure receipt can survive
+later parsing failure without publishing a partial record graph. Resetting
+mutable outcome notices cannot erase a completed source's assumption. The
+original declaration, tokens and spans remain in the captured source. An enabled
+but unused option on `2;1` reports `NotApplied` and grants no extra qualification.
+Default reports retain their previous bytes. Consumers must rebuild for the
+extended C++ source inspection signatures/outcome layout.
+
 An explicit `HeaderNamePolicy::PreserveOpaqueBytes` (CLI
 `--preserve-opaque-header-name`) can retain nonstandard raw high bytes in exactly
 `HEADER.FILE_NAME.name`. It publishes that one value as `OpaqueString`, with

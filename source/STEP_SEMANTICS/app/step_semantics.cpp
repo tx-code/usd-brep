@@ -30,6 +30,7 @@ int main(int argc, char** argv)
         auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
         auto interpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
+        auto carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
         const std::unordered_map<std::string_view, std::size_t*> options = { { "--max-input-bytes", &limits.inputBytes },
                                                                              { "--max-records", &limits.records },
                                                                              { "--max-values", &limits.values },
@@ -71,6 +72,10 @@ int main(int argc, char** argv)
             {
                 dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
             }
+            else if (arg == "--interpret-level1-as-corrected")
+            {
+                carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+            }
             else if (options.count(arg))
             {
                 if (++i == argc)
@@ -100,7 +105,7 @@ int main(int argc, char** argv)
             std::cerr << "Usage: step_semantic_inspect --fixture-limits <input.step> [--max-... N]\n";
             return 64;
         }
-        const auto source = step_source::InspectFile(std::filesystem::path(path), limits, headerNamePolicy, dataStringPolicy);
+        const auto source = step_source::InspectFile(std::filesystem::path(path), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
         const auto semantics = step_semantics::Check(source, semanticLimits, policy, geometryScope, interpretation);
         std::string output;
         if (!step_semantics::InspectJson(source, semantics, output))

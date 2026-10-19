@@ -65,6 +65,12 @@ enum class DataStringPolicy
     PreserveOpaqueBytes // Unknown DATA STRING text; downstream must qualify each field's use independently.
 };
 
+enum class CarrierInterpretation
+{
+    DeclaredOnly,
+    Level1AsCorrectedEncoding // Explicit unverified assumption; not support for original 1994 SELECT encoding.
+};
+
 struct Value
 {
     ValueKind kind = ValueKind::Unset;
@@ -115,6 +121,14 @@ struct Diagnostic
     std::string targetId;
 };
 
+struct CarrierAssumption
+{
+    CarrierInterpretation interpretation = CarrierInterpretation::DeclaredOnly;
+    std::string declaredLevel;
+    Span declaredSpan;
+    std::vector<Diagnostic> originalDiagnostics;
+};
+
 struct Statistics
 {
     std::size_t records = 0;
@@ -139,6 +153,7 @@ public:
     const std::vector<std::size_t>& Incoming(std::string_view canonicalId) const;
     std::string_view Raw(Span span) const;
     Location Locate(std::size_t offset) const;
+    const CarrierAssumption* AppliedCarrierAssumption() const; // Borrows immutable snapshot-owned interpretation evidence.
 
 private:
 
@@ -167,6 +182,10 @@ struct InspectOutcome
     std::vector<Diagnostic> diagnostics;
     HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii;
     DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii;
+    CarrierInterpretation requestedCarrierInterpretation = CarrierInterpretation::DeclaredOnly;
+    // Survives later parse failure without publishing a partial source graph.
+    // Successful-source consumers use the snapshot's immutable receipt instead.
+    std::shared_ptr<const CarrierAssumption> carrierAssumption;
 };
 
 // Bytes are owned by value before parsing. Neither entry point consults a path after capture.
@@ -174,17 +193,20 @@ InspectOutcome InspectBytes(
     std::string bytes,
     Limits limits,
     HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii,
-    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii
+    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii,
+    CarrierInterpretation carrierInterpretation = CarrierInterpretation::DeclaredOnly
 );
 InspectOutcome InspectFile(
     const std::filesystem::path& path,
     Limits limits,
     HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii,
-    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii
+    DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii,
+    CarrierInterpretation carrierInterpretation = CarrierInterpretation::DeclaredOnly
 );
 
 // Bounded internal JSON report. False clears output; never returns a truncated success document.
 bool InspectJson(const InspectOutcome& outcome, std::string& output);
 const char* StatusName(Status status);
 const char* ValueKindName(ValueKind kind);
+const char* CarrierInterpretationName(CarrierInterpretation interpretation);
 } // namespace step_source

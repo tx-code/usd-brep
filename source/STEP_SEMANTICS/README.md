@@ -1,5 +1,17 @@
 # STEP source semantics: ticket 03
 
+Source-only exploration may use the explicit
+`--interpret-level1-as-corrected --general-brep-source --interop-nongeometric`
+combination. See the [carrier qualification contract](../STEP_SOURCE/README.md).
+Typed checking requires these general interoperability settings; strict/P0
+checks refuse an assumed carrier even if mutable outcome notices are cleared.
+An owning semantic snapshot retains the source's immutable assumption and a
+successful check is `CheckedWithDiagnostics`. Schema recognition, type/unit
+checks, geometry checks and ownership do not relax. A registered schema identity
+does not verify an assumed carrier; carrier and schema assumptions are distinct
+and may compose. This increment does not add native carrier interpretation or
+qualify original pre-corrigendum SELECT semantics.
+
 All four general source catalogs admit ordinary `COMPOSITE_CURVE` and
 `COMPOSITE_CURVE_SEGMENT`, compared against the fixed AP214, N2635 and modified
 N916 artifacts below. P0 remains unchanged. Ordered, repeated LIST occurrences,

@@ -3961,6 +3961,14 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
     {
         throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
     }
+    // Trust the immutable source owner's actual assumption, never resettable
+    // InspectOutcome notices/options. P0 cannot acquire this unverified carrier.
+    if ((source.requestedCarrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly ||
+         (source.source && source.source->AppliedCarrierAssumption())) &&
+        (policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
+    {
+        throw std::invalid_argument("Unverified carrier interpretation requires explicit general interoperability");
+    }
     Outcome result;
     result.limits = limits;
     result.policy = policy;
@@ -4004,7 +4012,8 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
             result.status = Status::Deferred;
         }
         result.preservedDiagnostics = data->preservedDiagnostics;
-        if (result.status == Status::Checked && (!result.preservedDiagnostics.empty() || !data->interpretationDiagnostics.empty()))
+        if (result.status == Status::Checked &&
+            (!result.preservedDiagnostics.empty() || !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
         {
             result.status = Status::CheckedWithDiagnostics;
         }

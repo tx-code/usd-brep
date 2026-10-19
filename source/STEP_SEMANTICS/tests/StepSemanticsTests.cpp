@@ -58,6 +58,46 @@ int main(int argc, char** argv)
         Require(view.value->text == "110" && snapshot->Source().Find("203"), "owning semantic snapshot lifetime");
         ++groups;
 
+        {
+            auto input = Read(corpus / "S203-P04/input.step");
+            const auto at = input.find("'2;1'");
+            Require(at != std::string::npos, "carrier semantic fixture");
+            input.replace(at, 5, "'1'");
+            auto carrier = step_source::InspectBytes(
+                input,
+                step_source::Limits::PlanarFixtures(),
+                step_source::HeaderNamePolicy::StrictAscii,
+                step_source::DataStringPolicy::StrictAscii,
+                step_source::CarrierInterpretation::Level1AsCorrectedEncoding
+            );
+            Require(bool(carrier.source), "source carrier capture");
+            const auto* receipt = carrier.source->AppliedCarrierAssumption();
+            carrier.carrierAssumption.reset();
+            carrier.requestedCarrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
+            carrier.diagnostics.clear();
+            bool p0Refused = false;
+            try
+            {
+                Check(carrier, Limits{});
+            }
+            catch (const std::invalid_argument&)
+            {
+                p0Refused = true;
+            }
+            Require(p0Refused, "outcome edits cannot enable P0 on an assumed carrier");
+            auto interpreted = Check(carrier, Limits{}, SourcePolicy::PreserveNonGeometric, GeometryScope::GeneralBrep);
+            Require(
+                interpreted.status == Status::CheckedWithDiagnostics && interpreted.snapshot,
+                "typed source retains unverified carrier qualification"
+            );
+            carrier = {};
+            Require(
+                interpreted.snapshot->Source().AppliedCarrierAssumption() == receipt && interpreted.snapshot->Source().Bytes() == input,
+                "semantic owner retains carrier evidence and bytes"
+            );
+            ++groups;
+        }
+
         // Keep both catalogs alive: AP214's DERIVE override must not change an existing AP203 field view.
         auto conversion203 = Check(step_source::InspectBytes(Read(corpus / "S203-P11/input.step"), step_source::Limits::PlanarFixtures()), Limits{});
         auto conversionText = Read(corpus / "S203-P11/input.step");
