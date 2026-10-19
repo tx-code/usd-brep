@@ -8,6 +8,7 @@
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
+#include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
 #include <SmBrep.h>
 #include <SmBrepData.h>
@@ -26,6 +27,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <set>
@@ -113,6 +115,83 @@ void FinalTrimContract()
     const auto observed = step_import::detail::MeasureFinalTrim(*edge, *uv, plane, 0, 1);
     Near(observed.maximumMm, .02, 1e-12, "remeasure final UV after endpoint movement");
     Require(observed.samples == 9 && observed.maximumMm > .001, "final trim exceeds independent budget");
+
+    // A projection may leave parameter endpoints a few representable values
+    // apart. The kernel accepts this roundoff; paired evaluation must still
+    // measure the actual lift rather than relabeling or rescaling parameters.
+    const double roundoff = 4 * std::numeric_limits<double>::epsilon();
+    SmExtent1d nearDomain(-roundoff, 1 + roundoff);
+    SmTArray<SmPoint3d> nearControls;
+    nearControls.Add(SmPoint3d(0, 0, 0));
+    nearControls.Add(SmPoint3d(1, 0, 0));
+    SmTArray<ULONG> nearMultiplicities;
+    nearMultiplicities.Add(2);
+    nearMultiplicities.Add(2);
+    SmTArray<double> nearKnots;
+    nearKnots.Add(nearDomain.GetMin());
+    nearKnots.Add(nearDomain.GetMax());
+    SmBSplineCurve* nearRaw = nullptr;
+    Require(
+        SmBSplineCurve::CreateCanonical(
+            context,
+            2,
+            1,
+            nearControls,
+            SM_CF_UNSPECIFIED,
+            nearMultiplicities,
+            nearKnots,
+            SM_KT_UNSPECIFIED,
+            nullptr,
+            nullptr,
+            nearRaw
+        ) == SM_SUCCESS,
+        "roundoff final UV interval"
+    );
+    std::unique_ptr<SmBSplineCurve> nearUv(nearRaw);
+    Require(nearUv->GetNaturalInterval().GetMin() != 0, "fixture retains actual parameter roundoff");
+    const auto roundoffMeasurement = step_import::detail::MeasureFinalTrim(*edge, *nearUv, plane, 0, 1);
+    Require(roundoffMeasurement.samples == 9 && roundoffMeasurement.maximumMm < 1e-12, "parameter roundoff preserves analytic straight-edge lift");
+    const auto displaced = step_import::detail::MeasureFinalTrim(*edge, *uv, plane, roundoff, 1 - roundoff);
+    Near(displaced.maximumMm, .02, 1e-12, "parameter comparison cannot hide physical UV displacement");
+    Require(displaced.maximumMm > .001, "physical trim budget remains separate from parameter roundoff");
+
+    const auto domainRejected = [&](const SmCurve& trim, double begin, double end)
+    {
+        try
+        {
+            step_import::detail::MeasureFinalTrim(*edge, trim, plane, begin, end);
+        }
+        catch (const std::runtime_error& error)
+        {
+            return std::string_view(error.what()) == "FinalTrimParameterDomain";
+        }
+        return false;
+    };
+    Require(domainRejected(*nearUv, .25, .75), "a covering UV interval is not an equivalent parameter domain");
+    Require(domainRejected(*nearUv, 1, 0), "reversed final edge interval");
+    Require(domainRejected(*nearUv, 0, std::numeric_limits<double>::infinity()), "nonfinite final edge interval");
+    Require(domainRejected(*nearUv, std::numeric_limits<double>::quiet_NaN(), 1), "undefined final edge interval");
+    nearKnots[0] = -.25;
+    nearKnots[1] = 1.25;
+    SmBSplineCurve* outsideRaw = nullptr;
+    Require(
+        SmBSplineCurve::CreateCanonical(
+            context,
+            2,
+            1,
+            nearControls,
+            SM_CF_UNSPECIFIED,
+            nearMultiplicities,
+            nearKnots,
+            SM_KT_UNSPECIFIED,
+            nullptr,
+            nullptr,
+            outsideRaw
+        ) == SM_SUCCESS,
+        "UV domain outside defining edge domain"
+    );
+    std::unique_ptr<SmBSplineCurve> outsideUv(outsideRaw);
+    Require(domainRejected(*outsideUv, -.25, 1.25), "matching UV/edge trim range cannot exceed the defining curve domain");
 }
 struct ReloadedNative
 {

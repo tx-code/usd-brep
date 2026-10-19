@@ -4,6 +4,7 @@
 
 #include <SmCurve.h>
 #include <SmSurface.h>
+#include <SmTol.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -13,10 +14,25 @@ namespace step_import::detail
 TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const SmSurface& surface, double begin, double end)
 {
     const auto domain = uv.GetNaturalInterval();
-    // SMLib stores trim and edge curves in the same parameter direction/range,
-    // independently of edgeuse orientation. Do not silently compare unrelated
-    // parameters if the projection/fix stage broke that kernel contract.
-    if (!(end > begin) || domain.GetMin() != begin || domain.GetMax() != end)
+    const auto edgeDomain = edge.GetNaturalInterval();
+    // SmEdgeuse::AssertValid tests 25/26 compare trim/edge parameter endpoints
+    // with 100*GetScaledZero at the defining curve's natural endpoints. Match
+    // that parameter-roundoff policy, not a millimetre gap budget or an affine
+    // reparameterization. Every sample below still evaluates the original same
+    // t on both curves and checks the actual lifted 3D gap independently.
+    // This finite development measurement does not interpret kernel infinity
+    // markers as an enormous allowance for unrelated parameter domains.
+    if (!std::isfinite(begin) || !std::isfinite(end) || !(end > begin) || !std::isfinite(domain.GetMin()) || !std::isfinite(domain.GetMax()) ||
+        !std::isfinite(edgeDomain.GetMin()) || !std::isfinite(edgeDomain.GetMax()) || !(domain.GetMax() > domain.GetMin()) ||
+        !(edgeDomain.GetMax() > edgeDomain.GetMin()) || SM_IS_INFINITE(edgeDomain.GetMin()) || SM_IS_INFINITE(edgeDomain.GetMax()))
+    {
+        throw std::runtime_error("FinalTrimParameterDomain");
+    }
+    const double minRoundoff = 100 * SmTol::GetScaledZero(edgeDomain.GetMin());
+    const double maxRoundoff = 100 * SmTol::GetScaledZero(edgeDomain.GetMax());
+    if (!std::isfinite(minRoundoff) || !std::isfinite(maxRoundoff) || std::abs(domain.GetMin() - begin) > minRoundoff ||
+        std::abs(domain.GetMax() - end) > maxRoundoff || domain.GetMin() < edgeDomain.GetMin() - minRoundoff ||
+        domain.GetMax() > edgeDomain.GetMax() + maxRoundoff)
     {
         throw std::runtime_error("FinalTrimParameterDomain");
     }

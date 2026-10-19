@@ -14,5 +14,8 @@ struct TrimMeasurement
 // Read-only paired-parameter measurement of the FINAL installed trim. Samples
 // include both curves' knots and eight subintervals per union span. This is a
 // numerical development observation, not a continuous error certificate.
+// Finite trim/edge parameter domains must agree within SmEdgeuse::AssertValid's
+// parameter comparison policy (tests 25/26); no affine remapping or mm-budget
+// growth is permitted. Every sample uses the same actual parameter on both.
 TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const SmSurface& surface, double begin, double end);
 } // namespace step_import::detail
