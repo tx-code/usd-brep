@@ -335,9 +335,8 @@ class SmSurfPtSolveStepper : public SmSurfacePointSolver
                                          }
 
   // Copy Constructor.
-  // Do not copy the evaluated data, because in practice,
-  // this would never be called with the expectation that it will
-  // be at the same uv as the original.
+  // A copied iterate starts at the same UV and reuses available evaluations.
+  // SetUV invalidates that state before evaluating a different guess.
   SmSurfPtSolveStepper( const SmSurfPtSolveStepper & crOther );
  virtual ~SmSurfPtSolveStepper() {}
 
@@ -3180,17 +3179,22 @@ SmStatus SmSurface::GlobalPointSolve_1
 ***********************************************************************/
 
 // Copy constructor
-SmSurfPtSolveStepper::SmSurfPtSolveStepper( const SmSurfPtSolveStepper & crOther )
- : SmSurfacePointSolver( crOther ),
-   m_sSrfEval( crOther.m_pSrf )
+SmSurfPtSolveStepper::SmSurfPtSolveStepper(const SmSurfPtSolveStepper& crOther) : SmSurfacePointSolver(crOther), m_sSrfEval(crOther.m_pSrf)
 {
-  m_sSrfEval.SetUV( crOther.UV() );
-  m_bSet         = FALSE;  // see note above.
-  m_iIter        = crOther.m_iIter;
-  m_iBndHitU     = crOther.m_iBndHitU;
-  m_iBndHitV     = crOther.m_iBndHitV;
-  m_dMaxStepFrac = crOther.m_dMaxStepFrac;
-  m_bNRSuspect   = crOther.m_bNRSuspect;
+    m_sSrfEval.SetUV(crOther.UV());
+    m_bSet = FALSE; // Lazy unless evaluated state is copied below.
+    m_iIter = crOther.m_iIter;
+    m_iBndHitU = crOther.m_iBndHitU;
+    m_iBndHitV = crOther.m_iBndHitV;
+    m_dMaxStepFrac = crOther.m_dMaxStepFrac;
+    m_bNRSuspect = crOther.m_bNRSuspect;
+    if (crOther.m_bSet)
+    {
+        // Assignment already copies the matching surface evaluations and
+        // objective/derivative state. The problem and UV are identical here;
+        // moving to a different UV invalidates them. Reuse stays within a solve.
+        *this = crOther;
+    }
 }
 
 // Assignment operator.
