@@ -311,7 +311,10 @@ public:
   // calculate the precise BoundingBox of the Brep.
   SmStatus CalculateTightBoundingBox(SmExtent3d & rBrepBBox) const ;
 
-  // Check for coincident topology in this Brep.
+  // TRUE means at least one geometric coincidence was found, independently of
+  // report level or optional output arrays. FALSE means none was found by these
+  // checks; it is not complete geometric validity. Both output arrays are
+  // independently optional; requested arrays contain the paired witness order.
   SmBoolean ContainsCoincidentTopology(double                    dTol    = -1.0,          // in : min dist between distinct points, negative = use Brep tol 
                                        SmTArray< SmTopology* > * pCoinEnts1 = NULL,       // out: List of geometry that has coincident neighbors, NULL to ignore, 
                                        SmTArray< SmTopology* > * pCoinEnts2 = NULL,       // out: associated coincident neighbors of pCoinEnts1, NULL to ignore, 

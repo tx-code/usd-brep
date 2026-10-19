@@ -30200,10 +30200,14 @@ SmBoolean bDebugMe = FALSE ;
 
   // init output
   if(pCoinEnts1 != NULL ) { pCoinEnts1->ReSet(); }
-  if(pCoinEnts1 != NULL ) { pCoinEnts2->ReSet(); }
+  if(pCoinEnts2 != NULL ) { pCoinEnts2->ReSet(); }
 
   // local for error reporting
-  SmBoolean bCheck = FALSE ;
+  // Report selection cannot determine geometric truth: LEVEL0 may suppress
+  // every pair report, and either output array may be omitted independently.
+  // Keep the actual witnesses separate (tests/coincident_topology).
+  SmBoolean bAnyCoincidence = FALSE;
+  SmBoolean bCheck = TRUE;
 
   // get working tolerance
   if(dTol <= 0.0 )
@@ -30251,6 +30255,7 @@ SmBoolean bDebugMe = FALSE ;
 
           if(bCoinVerts == TRUE)
             {
+              bAnyCoincidence = TRUE;
               if(pCoinEnts1 != NULL ) { pCoinEnts1->Add( sVerts[ii]) ; }
               if(pCoinEnts2 != NULL ) { pCoinEnts2->Add( sVerts[jj]) ; }
               if(!bFindAll)
@@ -30299,6 +30304,7 @@ SmBoolean bDebugMe = FALSE ;
 
       if(eStat == SM_SUCCESS && bFound == TRUE && dMaxDev < dTol )
         {
+          bAnyCoincidence = TRUE;
           if(pCoinEnts1 != NULL ) { pCoinEnts1->Add( pThisEdge) ; }
           if(pCoinEnts2 != NULL ) { pCoinEnts2->Add( sEdges[lFoundIndex]) ; }
           if(!bFindAll)
@@ -30356,6 +30362,7 @@ SmBoolean bDebugMe = FALSE ;
 
       if(eStat == SM_SUCCESS && bFound == TRUE && dMaxDev < dTol )
         {
+          bAnyCoincidence = TRUE;
           if(pCoinEnts1 != NULL ) { pCoinEnts1->Add( pThisFace) ; }
           if(pCoinEnts2 != NULL ) { pCoinEnts2->Add( sFaces[lFoundIndex]) ; }
           if(!bFindAll)
@@ -30453,6 +30460,7 @@ SmBoolean bDebugMe = FALSE ;
 
           // arrive here for coincident geometry - next: error reporting - when pAList != NULL and output args
           bCheck &= SM_ASSERT_PAIR_REPORT(SM_LIST_3, 3, SM_LEVEL_2, FALSE, pV, pE, dTol, dDist, _T("") ) ;
+          bAnyCoincidence = TRUE;
           if(pCoinEnts1 != NULL ) { pCoinEnts1->Add( pV) ; }
           if(pCoinEnts2 != NULL ) { pCoinEnts2->Add( pE) ; }
           if(!bFindAll)
@@ -30525,6 +30533,7 @@ SmBoolean bDebugMe = FALSE ;
 
           // arrive here for coincident geometry - next: error reporting - when pAList != NULL and output args
           bCheck &= SM_ASSERT_PAIR_REPORT(SM_LIST_3, 4, SM_LEVEL_2, FALSE, pV, pF, dTol, dDist, _T("") ) ;
+          bAnyCoincidence = TRUE;
           if(pCoinEnts1 != NULL ) { pCoinEnts1->Add( pV) ; }
           if(pCoinEnts2 != NULL ) { pCoinEnts2->Add( pF) ; }
           if(!bFindAll)
@@ -30597,6 +30606,7 @@ SmBoolean bDebugMe = FALSE ;
 
               // arrive here for coincident geometry - next: error reporting - when pAList != NULL and output args
               bCheck &= SM_ASSERT_PAIR_REPORT(SM_LIST_3, 5, SM_LEVEL_2, FALSE, pE, pF, dTol, SM_UNDEF_DOUBLE, _T("") ) ;
+              bAnyCoincidence = TRUE;
               if(pCoinEnts1 != NULL ) { pCoinEnts1->Add( pE) ; }
               if(pCoinEnts2 != NULL ) { pCoinEnts2->Add( pF) ; }
               if(!bFindAll)
@@ -30608,9 +30618,9 @@ SmBoolean bDebugMe = FALSE ;
 
   } // end Vertex/Face and Edge/Face checks: loop on all Faces
 
-  // all done - if pass checks (bCheck == TRUE) return No Coincidence (FALSE)
-
-  return !bCheck ;
+  // Reports describe requested checks; they do not define this query result.
+  SM_REF1(bCheck);
+  return bAnyCoincidence;
 
 } // end SmBrep::ContainsCoincidentTopology
 
@@ -35140,9 +35150,11 @@ SmBoolean bDebugMe = FALSE ;
   //            return FALSE;  // Make sure the caller doesn't miss it.
   //        }
 
-  // See about running coincident-topology checks.
-  bRtn &= this->ContainsCoincidentTopology(-1,NULL,NULL,pAList) ;
-  // bRtn &= SM_ASSERT_BOOLEAN_REPORT(15, SM_LEVEL_2, (this->ContainsCoincidentTopology(-1,NULL,NULL,pAList)==FALSE), _T("") ) ;
+  // Root test 15 is a LEVEL2 validity predicate; the query returns TRUE for
+  // a coincidence, not for a valid BRep. The macro also avoids doing this
+  // expensive query when that test level/request does not select it.
+  bRtn &= SM_ASSERT_BOOLEAN_REPORT(15, SM_LEVEL_2,
+      (this->ContainsCoincidentTopology(-1,NULL,NULL,pAList,SM_LEVEL_2)==FALSE), _T(""));
 
   // Shell context checks.
   for(ii=0;ii<sShells.GetSize();ii++)
