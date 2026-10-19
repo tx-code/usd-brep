@@ -246,6 +246,10 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 // qualification for analytic/NURBS models or complete AP214 rules.
                 w.Add("{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":");
                 w.String(StatusName(outcome.status));
+                if (report.sourceSchema && report.sourceSchema->appliedInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly)
+                {
+                    w.Add(",\"source_binding_verified\":false,\"source_interpretation\":\"UnregisteredAp214As2010\"");
+                }
                 w.Add(",\"repair\":\"None\",\"quality_id\":");
                 w.String(quality.id);
                 w.Add(",\"quality\":{");
@@ -310,7 +314,7 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                     w.Add("}");
                 }
                 w.Add("],\"model\":");
-                if (report.native && outcome.status == Status::Accepted)
+                if (report.native && (outcome.status == Status::Accepted || outcome.status == Status::AcceptedUnderInterpretation))
                 {
                     StatisticsJson(w, *report.native);
                 }

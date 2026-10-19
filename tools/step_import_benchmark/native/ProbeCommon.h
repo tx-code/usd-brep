@@ -100,6 +100,7 @@ struct Args
     std::filesystem::path input, output;
     std::string mode;
     std::string quality, sourcePolicy, headerNamePolicy, dataStringPolicy; // Explicit choices; empty preserves the strict P0 run.
+    std::string schemaInterpretation; // An explicit assumption, never ordinary source-qualified acceptance.
     std::optional<bool> nativeBoundaryTiming; // Presence is distinct from enabled; never silently ignore a foreign engine's flag.
     std::size_t warmup = 0, repeat = 1, maximumInput = 64 * 1024 * 1024;
 };
@@ -123,6 +124,14 @@ inline Args Parse(const std::vector<std::string>& tokens)
         else if (key == "--mode")
         {
             args.mode = value;
+        }
+        else if (key == "--schema-interpretation")
+        {
+            args.schemaInterpretation = value;
+            if (value.empty())
+            {
+                throw std::invalid_argument("Empty schema interpretation policy");
+            }
         }
         else if (key == "--quality" || key == "--source-policy" || key == "--header-name-policy" || key == "--data-string-policy")
         {
@@ -201,7 +210,7 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
         // Never accept a native policy flag and silently ignore it on the other
         // reader. Invalid policies are rejected even for an input-budget skip.
         if (!args.quality.empty() || !args.sourcePolicy.empty() || !args.headerNamePolicy.empty() || !args.dataStringPolicy.empty() ||
-            args.nativeBoundaryTiming.has_value())
+            !args.schemaInterpretation.empty() || args.nativeBoundaryTiming.has_value())
         {
             if (std::string_view(engine) != "self-native" || args.mode != "import")
             {
@@ -211,7 +220,9 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                  args.quality != "Q-AP214-tolerance-study-mm-01") ||
                 (!args.sourcePolicy.empty() && args.sourcePolicy != "Strict" && args.sourcePolicy != "PreserveNonGeometric") ||
                 (!args.headerNamePolicy.empty() && args.headerNamePolicy != "StrictAscii" && args.headerNamePolicy != "PreserveOpaqueBytes") ||
-                (!args.dataStringPolicy.empty() && args.dataStringPolicy != "StrictAscii" && args.dataStringPolicy != "PreserveOpaqueBytes"))
+                (!args.dataStringPolicy.empty() && args.dataStringPolicy != "StrictAscii" && args.dataStringPolicy != "PreserveOpaqueBytes") ||
+                (!args.schemaInterpretation.empty() && args.schemaInterpretation != "DeclaredOnly" &&
+                 args.schemaInterpretation != "UnregisteredAp214As2010"))
             {
                 throw std::invalid_argument("Unknown explicit native quality or source policy");
             }
@@ -220,6 +231,12 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                  (args.quality != "Q-AP214-development-mm-01" && args.quality != "Q-AP214-tolerance-study-mm-01")))
             {
                 throw std::invalid_argument("Opaque text requires explicit general quality and nongeometric interoperability");
+            }
+            if (args.schemaInterpretation == "UnregisteredAp214As2010" &&
+                (args.sourcePolicy != "PreserveNonGeometric" ||
+                 (args.quality != "Q-AP214-development-mm-01" && args.quality != "Q-AP214-tolerance-study-mm-01")))
+            {
+                throw std::invalid_argument("Schema interpretation requires explicit general interoperability");
             }
         }
         const auto bytes = std::filesystem::file_size(args.input);

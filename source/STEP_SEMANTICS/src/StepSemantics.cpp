@@ -207,6 +207,11 @@ public:
         m_outcome.part = ProgressName(State(Phase::Part));
         m_outcome.siUnits = ProgressName(State(Phase::Units));
         m_outcome.interoperability = ProgressName(State(Phase::Interoperability));
+        m_outcome.interpretationDiagnostics = m_data->interpretationDiagnostics;
+        if (State(Phase::Binding) == Progress::Passed && m_data->appliedInterpretation != SchemaInterpretation::DeclaredOnly)
+        {
+            m_outcome.binding = "InterpretedUnverified";
+        }
         for (const auto& diagnostic : m_data->preservedDiagnostics)
         {
             const auto& key = diagnostic.source.key;
@@ -439,7 +444,7 @@ private:
         // Fail marked the phase terminal. Restore it only for this provisional
         // issue; the final proof still precedes every typed snapshot publication.
         State(*m_phase) = Progress::Running;
-        if (m_data->pendingIssues.size() > m_outcome.limits.preservedDiagnostics)
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() > m_outcome.limits.preservedDiagnostics)
         {
             Fail(
                 "PreservedDiagnosticLimit",
@@ -538,19 +543,51 @@ private:
         const auto& literal = identifiers[0].text;
         if (!m_outcome.schemaSelection->qualified)
         {
-            Fail(
-                "UnsupportedSchemaBinding",
-                "D2",
-                "HEADER identifier is not bound to the fixed N2635 registry entry",
-                identifiers[0].span,
-                Status::Unsupported,
-                {},
-                0,
-                {},
-                std::string(SchemaName) + " {1 0 10303 403 2 1 2}",
-                literal,
-                "profile registry; no APD/year inference"
-            );
+            try
+            {
+                Fail(
+                    "UnsupportedSchemaBinding",
+                    "D2",
+                    "HEADER identifier is not bound to the fixed N2635 registry entry",
+                    identifiers[0].span,
+                    Status::Unsupported,
+                    {},
+                    0,
+                    {},
+                    std::string(SchemaName) + " {1 0 10303 403 2 1 2}",
+                    literal,
+                    "profile registry; no APD/year inference"
+                );
+            }
+            catch (Failure& failure)
+            {
+                auto implementation = SelectExplicitInterpretation(*m_outcome.schemaSelection, m_outcome.requestedInterpretation);
+                if (!implementation)
+                {
+                    throw;
+                }
+                // This is a user-selected interpretation, not a proof that an
+                // unknown schema is nonphysical or equivalent. Preserve the
+                // exact strict failure in a separate, owning diagnostic set.
+                // It shares the configured storage quota with metadata issues.
+                if (m_outcome.limits.preservedDiagnostics == 0)
+                {
+                    Fail(
+                        "PreservedDiagnosticLimit",
+                        "D2",
+                        "Source interpretation diagnostic capacity exceeded",
+                        failure.diagnostic.source.primary,
+                        Status::ResourceLimit
+                    );
+                }
+                m_data->interpretationDiagnostics.push_back(std::move(failure.diagnostic));
+                // Apply the assumption only after its mandatory diagnostic can
+                // be retained. A quota failure keeps the original unbound selection.
+                m_outcome.schemaSelection->qualified = std::move(*implementation);
+                m_outcome.schemaSelection->appliedInterpretation = m_outcome.requestedInterpretation;
+                m_data->appliedInterpretation = m_outcome.schemaSelection->appliedInterpretation;
+                State(Phase::Binding) = Progress::Running;
+            }
         }
         m_data->profile = *m_outcome.schemaSelection->qualified;
         m_data->schemaIdentity = m_outcome.schemaSelection->identifiers.front();
@@ -2666,7 +2703,7 @@ private:
                 propertyItems.push_back(Target(value));
             }
         }
-        if (m_data->pendingIssues.size() > m_outcome.limits.preservedDiagnostics)
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() > m_outcome.limits.preservedDiagnostics)
         {
             Fail(
                 "PreservedDiagnosticLimit",
@@ -2997,6 +3034,14 @@ const SchemaIdentifier& Snapshot::SchemaIdentity() const
 {
     return m_data->schemaIdentity;
 }
+SchemaInterpretation Snapshot::AppliedInterpretation() const
+{
+    return m_data->appliedInterpretation;
+}
+const std::vector<Diagnostic>& Snapshot::InterpretationDiagnostics() const
+{
+    return m_data->interpretationDiagnostics;
+}
 const Units& Snapshot::UnitContext() const
 {
     return m_data->units;
@@ -3123,15 +3168,25 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits)
 }
 Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope)
 {
+    return Check(source, limits, policy, scope, SchemaInterpretation::DeclaredOnly);
+}
+Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope, SchemaInterpretation interpretation)
+{
     if ((policy != SourcePolicy::Strict && policy != SourcePolicy::PreserveNonGeometric) ||
         (scope != GeometryScope::ExplicitOuterBounds && scope != GeometryScope::GeneralBrep))
     {
         throw std::invalid_argument("Unknown source checking policy or geometry scope");
     }
+    if (interpretation != SchemaInterpretation::DeclaredOnly && (interpretation != SchemaInterpretation::UnregisteredAp214As2010 ||
+                                                                 policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
+    {
+        throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
+    }
     Outcome result;
     result.limits = limits;
     result.policy = policy;
     result.geometryScope = scope;
+    result.requestedInterpretation = interpretation;
     if (!source.source || source.status != step_source::Status::Inspected)
     {
         for (const auto& diagnostic : source.diagnostics)
@@ -3170,7 +3225,7 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
             result.status = Status::Deferred;
         }
         result.preservedDiagnostics = data->preservedDiagnostics;
-        if (result.status == Status::Checked && !result.preservedDiagnostics.empty())
+        if (result.status == Status::Checked && (!result.preservedDiagnostics.empty() || !data->interpretationDiagnostics.empty()))
         {
             result.status = Status::CheckedWithDiagnostics;
         }

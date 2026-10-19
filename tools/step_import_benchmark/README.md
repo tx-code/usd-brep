@@ -1,5 +1,12 @@
 # STEP 模型库画像与测量工具
 
+独立原生探针可显式传 `--schema-interpretation UnregisteredAp214As2010`，并同时选择
+通用质量和 `PreserveNonGeometric`。该选项只适用于 `self-native/import`，其他引擎
+在输入预算跳过前也明确拒绝。实际采用假设时返回 `AcceptedUnderInterpretation`，
+记录请求、实际应用和 `source_binding_verified=false`；模型可用性与普通验收分开。
+这类开发观察不得并入普通 `Accepted` 性能或验收组，也不能用独立读取成功认证有争议的 OID。
+Python 批测命令目前未增加该参数；可直接调用独立探针或 C++ API。
+
 原生 import 探针可显式传 `--header-name-policy PreserveOpaqueBytes`，与通用质量和
 `--source-policy PreserveNonGeometric` 同时使用，保留原始 HEADER 文件名字节。
 错误组合在执行前拒绝；不会把此选项传给其他读取器。

@@ -16,10 +16,10 @@
 #include <SmEdgeuse.h>
 #include <SmFace.h>
 #include <SmFaceuse.h>
-#include <SmRegion.h>
-#include <SmShell.h>
 #include <SmLine.h>
 #include <SmPlane.h>
+#include <SmRegion.h>
+#include <SmShell.h>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -501,12 +501,24 @@ void MeasurementContract(ReloadedNative native)
     }
     std::vector<std::size_t> queried;
     GeneralSolidIntegrals integrals;
-    Require(IntegrateGeneralSolid(model, {7, 7, 20}, [&](std::size_t index) { queried.push_back(index); }, integrals) == SM_SUCCESS,
-        "fused analytic box integration");
+    Require(
+        IntegrateGeneralSolid(
+            model,
+            { 7, 7, 20 },
+            [&](std::size_t index)
+            {
+                queried.push_back(index);
+            },
+            integrals
+        ) == SM_SUCCESS,
+        "fused analytic box integration"
+    );
     Near(integrals.areaMm2, 2200, 1e-6, "independent fused box area");
     Near(integrals.volumeMm3, 6000, 1e-5, "independent fused box volume");
     for (std::size_t axis = 0; axis < 3; ++axis)
-        Near(integrals.centroidMm[axis], step_import::Point{7, 7, 20}[axis], 1e-7, "independent fused box centroid");
+    {
+        Near(integrals.centroidMm[axis], step_import::Point{ 7, 7, 20 }[axis], 1e-7, "independent fused box centroid");
+    }
     Require(queried.size() == model.faces.size() && integrals.faces.size() == model.faces.size(), "one checkpoint per face");
     for (std::size_t i = 0; i < model.faces.size(); ++i)
     {
@@ -516,10 +528,16 @@ void MeasurementContract(ReloadedNative native)
         Require(SmApiFaceComputeCentroid(model.faces[i].face, 1e-4, area, centroid) == SM_SUCCESS, "independent legacy face query");
         const auto& measured = integrals.faces[i];
         Near(std::abs(measured.areaMm2), area, 1e-8, "complete fused face area");
-        const double expected[] = {centroid.x, centroid.y, centroid.z};
+        const double expected[] = { centroid.x, centroid.y, centroid.z };
         for (std::size_t axis = 0; axis < 3; ++axis)
-            Near(measured.areaOriginMm[axis] + measured.areaFirstMomentMm3[axis] / measured.areaMm2,
-                expected[axis], 1e-8, "source-associated local face centroid");
+        {
+            Near(
+                measured.areaOriginMm[axis] + measured.areaFirstMomentMm3[axis] / measured.areaMm2,
+                expected[axis],
+                1e-8,
+                "source-associated local face centroid"
+            );
+        }
     }
     // Interrupt every fused face boundary: no partially accumulated output may
     // escape, and no later face may run after the caller throws cancellation.
@@ -529,14 +547,32 @@ void MeasurementContract(ReloadedNative native)
         untouched.areaMm2 = -37;
         std::size_t visited = 0;
         bool stopped = false;
-        struct Stop {};
+        struct Stop
+        {
+        };
         try
         {
-            IntegrateGeneralSolid(model, {7, 7, 20}, [&](std::size_t) { if (visited++ == stop) throw Stop{}; }, untouched);
+            IntegrateGeneralSolid(
+                model,
+                { 7, 7, 20 },
+                [&](std::size_t)
+                {
+                    if (visited++ == stop)
+                    {
+                        throw Stop{};
+                    }
+                },
+                untouched
+            );
         }
-        catch (const Stop&) { stopped = true; }
-        Require(stopped && visited == stop + 1 && untouched.areaMm2 == -37 && untouched.faces.empty(),
-            "cancelled fused traversal does not assign partial output");
+        catch (const Stop&)
+        {
+            stopped = true;
+        }
+        Require(
+            stopped && visited == stop + 1 && untouched.areaMm2 == -37 && untouched.faces.empty(),
+            "cancelled fused traversal does not assign partial output"
+        );
     }
 }
 void LifecycleContract(const std::filesystem::path& source, const std::filesystem::path& directory)
@@ -588,23 +624,33 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
         auto limited = options;
         limited.nativeLimits.nativeCalls = boundary;
         const auto failed = step_import::ImportFile(source, limited);
-        Require(failed.status == step_import::Status::ResourceLimit && !failed.model
-            && failed.report.nativeCalls == boundary && !failed.report.json.empty(),
-            "every native query is charged before execution");
+        Require(
+            failed.status == step_import::Status::ResourceLimit && !failed.model && failed.report.nativeCalls == boundary &&
+                !failed.report.json.empty(),
+            "every native query is charged before execution"
+        );
         auto cancelled = options;
         cancelled.execution.control = std::make_shared<step_import::ImportControl>();
         cancelled.execution.progress = [&](step_import::Progress progress)
         {
             if (progress.phase == step_import::Phase::BeforeNativeCall && progress.nativeCalls == boundary)
+            {
                 cancelled.execution.control->RequestCancel();
+            }
         };
         const auto stopped = step_import::ImportFile(source, cancelled);
-        Require(stopped.status == step_import::Status::Cancelled && !stopped.model
-            && stopped.report.nativeCalls == boundary && !stopped.report.json.empty(),
-            "every native query has a cancellation boundary and complete failure report");
+        Require(
+            stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.nativeCalls == boundary &&
+                !stopped.report.json.empty(),
+            "every native query has a cancellation boundary and complete failure report"
+        );
         if (boundary >= calls - model->Info().faces - model->Info().edges)
-            Require(failed.report.candidateDiscarded && stopped.report.candidateDiscarded,
-                "late measurement interruption discards the private candidate");
+        {
+            Require(
+                failed.report.candidateDiscarded && stopped.report.candidateDiscarded,
+                "late measurement interruption discards the private candidate"
+            );
+        }
     }
     auto retained = outcome.model->Face();
     const auto identity = retained.SourceId();
@@ -612,12 +658,83 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     model.reset();
     Require(!identity.empty() && std::isfinite(retained.Closest({ 20, 7, 20 }).distanceMm), "owning face view lifetime");
 }
+void InterpretationContract(const std::filesystem::path& fixture)
+{
+    using step_semantics::SchemaInterpretation;
+    std::ifstream input(fixture, std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    const std::string old = std::string(step_semantics::SchemaName) + " {1 0 10303 403 2 1 2}";
+    const auto start = text.find(old);
+    Require(start != std::string::npos, "synthetic interpretation fixture header");
+    text.replace(start, old.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1 1}");
+    const std::string oldClaim = "'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011";
+    const auto claim = text.find(oldClaim);
+    Require(claim != std::string::npos, "synthetic interpretation fixture APD");
+    text.replace(claim, oldClaim.size(), "'automotive_design',2010");
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    options.schemaInterpretation = SchemaInterpretation::UnregisteredAp214As2010;
+    auto result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::AcceptedUnderInterpretation && bool(result.model), "distinct interpreted model publication");
+    Near(*result.model->MaterialVolumeMm3(), 6000, 1e-5, "independent interpreted box volume");
+    auto source = result.model->Source();
+    Require(
+        source->AppliedInterpretation() == options.schemaInterpretation && source->InterpretationDiagnostics().size() == 1 &&
+            source->InterpretationDiagnostics()[0].source.key == "UnsupportedSchemaBinding" &&
+            source->SchemaIdentity().match == step_semantics::SchemaMatch::UnregisteredVersion && source->SchemaIdentity().registryId.empty() &&
+            source->Source().Bytes() == text,
+        "owning assumption and original identity"
+    );
+    auto view = result.model->Face();
+    result = {};
+    source.reset();
+    Require(
+        view.AppliedSourceInterpretation() == options.schemaInterpretation && std::isfinite(view.Closest({ 20, 7, 20 }).distanceMm),
+        "owning view retains interpretation after report/model owner release"
+    );
+
+    // Interpretation changes qualification only. Every late publication
+    // boundary must still release its unpublished model on cancellation.
+    for (const auto phase :
+         { step_import::Phase::NativeReady, step_import::Phase::BeforeReport, step_import::Phase::ReportReady, step_import::Phase::BeforeCommit })
+    {
+        auto cancelled = options;
+        cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+        cancelled.execution.progress = [&](step_import::Progress progress)
+        {
+            if (progress.phase == phase)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        const auto stopped = step_import::ImportBytes(text, cancelled);
+        Require(
+            stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded && !stopped.report.json.empty(),
+            "interpreted publication cancellation remains atomic"
+        );
+    }
+    auto invalid = options;
+    invalid.schemaInterpretation = static_cast<SchemaInterpretation>(99);
+    bool rejected = false;
+    try
+    {
+        step_import::ImportBytes("not a carrier", invalid);
+    }
+    catch (const std::invalid_argument&)
+    {
+        rejected = true;
+    }
+    Require(rejected, "unknown interpretation policy rejected before capture");
+}
 void DevelopmentContract(
     const std::filesystem::path& source,
     const std::filesystem::path& directory,
     bool study,
     bool opaqueHeaderName,
-    bool opaqueDataText
+    bool opaqueDataText,
+    bool interpret
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -637,12 +754,20 @@ void DevelopmentContract(
     options.semanticLimits.preservedDiagnostics = 16384;
     options.nativeLimits.nativeCalls = 100000;
     options.nativeLimits.reportBytes = 268435456;
+    if (interpret)
+    {
+        options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+    }
     auto result = step_import::ImportFile(source, options);
     std::filesystem::create_directories(directory);
     std::ofstream report(directory / "import.json", std::ios::binary);
     report << result.report.json;
     report.close();
-    Require(result.status == step_import::Status::Accepted && bool(result.model), "development native import");
+    const bool assumed = result.model && result.model->Source()->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly;
+    Require(
+        result.status == (assumed ? step_import::Status::AcceptedUnderInterpretation : step_import::Status::Accepted) && bool(result.model),
+        "development native import"
+    );
     const auto info = result.model->Info();
     step_import::Point outside = info.boundsMm[0];
     const double span = std::hypot(info.boundsMm[1][0] - outside[0], info.boundsMm[1][1] - outside[1], info.boundsMm[1][2] - outside[2]);
@@ -702,13 +827,17 @@ void DevelopmentContract(
     );
     Near(queryDistance, distance, 1e-5, "archive boundary distance preserved");
     std::ofstream checks(directory / "checks.json", std::ios::binary);
+    checks << std::setprecision(17) << "{\"status\":\"Passed\"";
+    if (assumed)
+    {
+        checks << ",\"source_interpretation\":\"UnregisteredAp214As2010\",\"source_binding_verified\":false";
+    }
     checks
-        << std::setprecision(17) << "{\"status\":\"Passed\",\"source_sha256\":\"" << result.report.sourceSha256 << "\",\"quality_id\":\""
-        << options.quality.id << "\",\"faces\":" << info.faces << ",\"edges\":" << info.edges << ",\"vertices\":" << info.vertices
-        << ",\"volume_mm3\":" << expected << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume
-        << ",\"outside_distance_mm\":" << distance << ",\"reloaded_distance_mm\":" << queryDistance
-        << ",\"archive_spline_to_extrusion_surfaces\":" << changes.extrusionSurfaces << ",\"archive_spline_to_linear_uv\":" << changes.linearUv
-        << ",\"archive_spline_to_plane_surfaces\":" << changes.planeSurfaces
+        << ",\"source_sha256\":\"" << result.report.sourceSha256 << "\",\"quality_id\":\"" << options.quality.id << "\",\"faces\":" << info.faces
+        << ",\"edges\":" << info.edges << ",\"vertices\":" << info.vertices << ",\"volume_mm3\":" << expected
+        << ",\"copied_volume_mm3\":" << copiedVolume << ",\"reloaded_volume_mm3\":" << volume << ",\"outside_distance_mm\":" << distance
+        << ",\"reloaded_distance_mm\":" << queryDistance << ",\"archive_spline_to_extrusion_surfaces\":" << changes.extrusionSurfaces
+        << ",\"archive_spline_to_linear_uv\":" << changes.linearUv << ",\"archive_spline_to_plane_surfaces\":" << changes.planeSurfaces
         << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0}\n";
     Require(bool(checks), "development check receipt");
 }
@@ -719,14 +848,25 @@ int main(int argc, char** argv)
     {
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
-            bool header = false, data = false;
+            bool header = false, data = false, interpret = false;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
-                Require(flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings", "unknown explicit text flag");
-                (flag == "--preserve-opaque-header-name" ? header : data) = true;
+                Require(
+                    flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
+                        flag == "--interpret-unregistered-ap214-2010",
+                    "unknown explicit source flag"
+                );
+                if (flag == "--interpret-unregistered-ap214-2010")
+                {
+                    interpret = true;
+                }
+                else
+                {
+                    (flag == "--preserve-opaque-header-name" ? header : data) = true;
+                }
             }
-            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data);
+            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data, interpret);
             return 0;
         }
         Require(argc == 3, "fixture and local output directory required");
@@ -735,6 +875,7 @@ int main(int argc, char** argv)
         RationalContract(argv[1], argv[2]);
         OpaqueHeaderContract(argv[1]);
         OpaqueDataContract(argv[1]);
+        InterpretationContract(argv[1]);
         LifecycleContract(argv[1], argv[2]);
     }
     catch (const std::exception& error)

@@ -185,6 +185,10 @@ void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelecti
         out.String(selection->qualified->profile);
         out.Add(",\"express_sha256\":");
         out.String(selection->qualified->expressSha256);
+        if (selection->appliedInterpretation != SchemaInterpretation::DeclaredOnly)
+        {
+            out.Add(",\"binding_basis\":\"ExplicitApplicationInterpretation\",\"header_identity_verified\":false");
+        }
         if (selection->qualified->kind == ProfileKind::Ap203N916Source)
         {
             out.Add(",\"binding_basis\":\"NameOnlyGeneralSourceSubset\",\"header_edition_verified\":false");
@@ -231,6 +235,19 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     step_source::report::WriteJson(out, source);
     out.Add(",\"schema_selection\":");
     WriteSchemaSelection(out, result.schemaSelection);
+    if (result.requestedInterpretation != SchemaInterpretation::DeclaredOnly)
+    {
+        const bool applied = result.schemaSelection && result.schemaSelection->appliedInterpretation != SchemaInterpretation::DeclaredOnly;
+        out.Add(",\"schema_interpretation\":{\"requested\":\"UnregisteredAp214As2010\",\"applied\":");
+        out.Add(applied ? "true" : "false");
+        if (applied)
+        {
+            out.Add(",\"source_binding_verified\":false");
+        }
+        out.Add(",\"original_binding_diagnostics\":");
+        Diagnostics(out, source, result.interpretationDiagnostics);
+        out.Add("}");
+    }
     out.Add(",\"checks\":{\"schema_binding\":");
     out.String(result.binding);
     out.Add(",\"type_fields\":");

@@ -112,6 +112,7 @@ struct Options
     step_semantics::SourcePolicy sourcePolicy = step_semantics::SourcePolicy::Strict;
     step_source::HeaderNamePolicy headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
     step_source::DataStringPolicy dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
+    step_semantics::SchemaInterpretation schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
     static Options PlanarFixture();
 };
 struct Statistics
@@ -153,6 +154,7 @@ class FaceView
 public:
 
     std::string SourceId() const;
+    step_semantics::SchemaInterpretation AppliedSourceInterpretation() const; // Immutable source assumption retained by this owning view.
     Statistics Info() const;
     std::array<double, 4> ParameterDomain() const; // Native evaluator parameters; general charts do not imply source UV or millimetres.
     Point EvaluateSurface(double u, double v) const; // Rejects domain violations before native evaluation.
@@ -312,7 +314,8 @@ enum class Status
     BuildFailure,
     PostcheckFailure,
     SourceFailure,
-    Cancelled
+    Cancelled,
+    AcceptedUnderInterpretation // Complete native result, unverified source binding; distinct from ordinary acceptance.
 };
 struct Outcome
 {

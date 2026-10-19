@@ -1,5 +1,27 @@
 # STEP source semantics: ticket 03
 
+An application may separately request `SchemaInterpretation::UnregisteredAp214As2010`
+with general-BRep scope and `SourcePolicy::PreserveNonGeometric`. Only the exact
+unregistered identifier `AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1 1}` may select the
+existing fixed `214-MBx2010-Source-0.1` implementation under this assumption.
+Its catalog and pinned EXPRESS bytes are reused; this does not register an OID,
+authenticate an edition, or equate it with the seven-arc identifier. Registered
+bindings still select their ordinary implementation; there is no retry after a
+body check fails and no arbitrary schema override.
+
+The HEADER retains `UnregisteredVersion`, all eight original arcs and its empty
+registry ID. `schema_interpretation` identifies the request/application, reports
+`source_binding_verified=false` when applied, and retains the exact original
+`UnsupportedSchemaBinding` in `original_binding_diagnostics`. Binding progress is
+`InterpretedUnverified`; the owning snapshot exposes `AppliedInterpretation()`
+and `InterpretationDiagnostics()`. These assumptions are distinct from proven
+nongeometric exceptions, while sharing their configured diagnostic-storage quota.
+All required types, dependencies, units and remaining checks still run. The
+default policy remains `DeclaredOnly`; P0/strict requests cannot enable this mode.
+The semantic CLI flag is `--interpret-unregistered-ap214-2010`, together with
+`--general-brep-source --interop-nongeometric`. This source-only result does not
+grant native geometry or ordinary source-binding qualification.
+
 Explicit `GeometryScope::GeneralBrep` also selects `203-N916-Source-0.1` for a
 single bare `CONFIG_CONTROL_DESIGN` HEADER. The implementation uses
 [STEPcode's fixed modified N916/AP203 amendment 1 artifact](https://raw.githubusercontent.com/stepcode/stepcode/87e1f9948c60837c2a1664cd86e00e3962a02ff5/data/ap203/ap203.exp),

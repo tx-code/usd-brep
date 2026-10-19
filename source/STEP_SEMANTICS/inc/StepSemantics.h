@@ -48,6 +48,13 @@ enum class GeometryScope
     ExplicitOuterBounds,
     GeneralBrep // Source regions without an explicit outer bound require a later geometric proof.
 };
+enum class SchemaInterpretation
+{
+    DeclaredOnly,
+    // Application assumption for exactly one unregistered AP214 identifier.
+    // This chooses a fixed implementation; it does not authenticate the HEADER.
+    UnregisteredAp214As2010
+};
 
 enum class Protocol
 {
@@ -85,6 +92,7 @@ struct SchemaSelection
 {
     std::vector<SchemaIdentifier> identifiers; // Complete HEADER order; owning observations survive failed binding.
     std::optional<QualifiedSchemaProfile> qualified; // Absent for known versions without an implemented profile.
+    SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
 };
 
 struct AggregateDimension
@@ -219,6 +227,8 @@ public:
     // Borrowed identity views remain valid while this owning snapshot lives.
     const QualifiedSchemaProfile& SelectedProfile() const;
     const SchemaIdentifier& SchemaIdentity() const;
+    SchemaInterpretation AppliedInterpretation() const;
+    const std::vector<Diagnostic>& InterpretationDiagnostics() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
     const std::vector<Diagnostic>& PreservedDiagnostics() const;
@@ -269,6 +279,7 @@ struct Outcome
     Status status = Status::SourceFailure;
     SourcePolicy policy = SourcePolicy::Strict;
     GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
+    SchemaInterpretation requestedInterpretation = SchemaInterpretation::DeclaredOnly;
     std::shared_ptr<const Snapshot> snapshot;
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
@@ -285,10 +296,14 @@ struct Outcome
     Limits limits;
     std::vector<Diagnostic> diagnostics;
     std::vector<Diagnostic> preservedDiagnostics; // Approved nongeometric issues only, separate from fatal failures.
+    // Original unsupported binding, separately retained as an application
+    // assumption. Never describe this as a proven nongeometric exception.
+    std::vector<Diagnostic> interpretationDiagnostics;
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
 Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope = GeometryScope::ExplicitOuterBounds);
+Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope, SchemaInterpretation interpretation);
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& semantics, std::string& output);
 const char* StatusName(Status status);
 } // namespace step_semantics

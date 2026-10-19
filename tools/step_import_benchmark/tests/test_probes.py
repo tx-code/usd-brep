@@ -16,6 +16,34 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_explicit_interpretation_has_a_distinct_result_and_settings(self):
+        from tools.step_semantic_validation.tests.test_interpretation import box_source
+
+        with tempfile.TemporaryDirectory(prefix="step-interpreted-probe-") as directory:
+            source = Path(directory) / "source.step"
+            source.write_bytes(box_source())
+            (before,) = self.invoke("native", "import", source, "--quality", "Q-AP214-development-mm-01",
+                                    "--source-policy", "PreserveNonGeometric")["trials"]
+            self.assertEqual("Unsupported", before["status"])
+            (trial,) = self.invoke("native", "import", source, "--quality", "Q-AP214-development-mm-01",
+                                   "--source-policy", "PreserveNonGeometric", "--schema-interpretation",
+                                   "UnregisteredAp214As2010")["trials"]
+            self.assertEqual("AcceptedUnderInterpretation", trial["status"])
+            self.assertTrue(trial["has_model"])
+            self.assertTrue(trial["schema_interpretation_applied"])
+            self.assertFalse(trial["source_binding_verified"])
+            self.assertAlmostEqual(6000, trial["model"]["volume_mm3"], delta=1e-5)
+
+    def test_interpretation_requires_native_general_scope_before_input_budget_skip(self):
+        for engine, mode in (("source", "source"), ("occt", "transfer"), ("native", "import")):
+            with tempfile.TemporaryDirectory(prefix="step-interpreted-probe-negative-") as directory:
+                output = Path(directory) / "result.json"
+                run = subprocess.run([os.environ["STEP_BENCH_" + engine.upper()], "--mode", mode, "--input", str(BOX),
+                                      "--output", str(output), "--max-input-bytes", "0", "--schema-interpretation",
+                                      "UnregisteredAp214As2010"], capture_output=True, timeout=30)
+                self.assertNotEqual(0, run.returncode)
+                self.assertFalse(output.exists())
+
     def invoke(self, engine, mode, path=BOX, *options):
         binary = Path(os.environ["STEP_BENCH_" + engine.upper()]).resolve(strict=True)
         with tempfile.TemporaryDirectory(prefix="step-benchmark-") as root:

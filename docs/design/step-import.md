@@ -25,6 +25,12 @@ Preserve source IDs and directed uses across layers. Shared typed field bindings
 and reference queries retain the source snapshot owner; `$`, `*`, empty values,
 nominal types, and coincident-but-distinct entities keep their own meanings.
 Schema recognition is distinct from checked source scope and geometric acceptance.
+An application may explicitly select a fixed developer interpretation for a
+specifically supported unregistered identifier. This introduces a recorded source
+assumption, not an authenticated binding or proven nongeometric exception. Such
+complete models have a separate result qualification and owning assumption
+evidence; ordinary admission and unsupported required-content guards remain
+unchanged. They do not silently enter ordinary source-qualified acceptance counts.
 
 ## Completeness and geometry
 

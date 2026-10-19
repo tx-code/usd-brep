@@ -251,6 +251,8 @@ struct SemanticData
     std::size_t preservedDiagnosticLimit = 1024;
     std::vector<PendingIssue> pendingIssues; // Provisional only; no metadata/root qualification until the final proof.
     std::vector<Diagnostic> preservedDiagnostics;
+    SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
+    std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.
     std::shared_ptr<const step_source::SourceSnapshot> source;
     std::optional<gsl::not_null<const Catalog*>> catalog; // Selected by binding, before type/field interpretation.

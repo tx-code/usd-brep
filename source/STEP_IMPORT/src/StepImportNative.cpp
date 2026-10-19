@@ -1528,6 +1528,12 @@ std::string FaceView::SourceId() const
 {
     return m_data->faces[m_face].faceId;
 }
+step_semantics::SchemaInterpretation FaceView::AppliedSourceInterpretation() const
+{
+    // Immutable semantic ownership survives a dropped import outcome/report.
+    // Reading this qualification does not dispatch into the native kernel.
+    return m_data->source->AppliedInterpretation();
+}
 Statistics FaceView::Info() const
 {
     return m_data->faces[m_face].info;

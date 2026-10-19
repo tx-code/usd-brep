@@ -94,6 +94,12 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Opaque DATA text requires explicit general interoperability");
     }
+    if (options.schemaInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&
+        (options.schemaInterpretation != step_semantics::SchemaInterpretation::UnregisteredAp214As2010 || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
+    }
 }
 template <class Capture>
 Outcome Import(const Options& options, Capture capture)
@@ -122,8 +128,13 @@ Outcome Import(const Options& options, Capture capture)
         }
         if (options.generalBrep)
         {
-            report
-                .generalSource = step_semantics::Check(raw, options.semanticLimits, options.sourcePolicy, step_semantics::GeometryScope::GeneralBrep);
+            report.generalSource = step_semantics::Check(
+                raw,
+                options.semanticLimits,
+                options.sourcePolicy,
+                step_semantics::GeometryScope::GeneralBrep,
+                options.schemaInterpretation
+            );
             const auto& checked = *report.generalSource;
             report.sourceSchema = checked.schemaSelection;
             report.semanticStatus = step_semantics::StatusName(checked.status);
@@ -260,6 +271,8 @@ const char* StatusName(Status status)
     {
         case Status::Accepted:
             return "Accepted";
+        case Status::AcceptedUnderInterpretation:
+            return "AcceptedUnderInterpretation";
         case Status::Rejected:
             return "Rejected";
         case Status::Unsupported:

@@ -8,4 +8,7 @@ namespace step_semantics
 {
 // Private selection module. Recognition and permission to use the existing catalog are distinct.
 SchemaSelection SelectSchema(const step_source::SourceSnapshot& source, GeometryScope scope);
+// Explicit application interpretation only; never modifies HEADER recognition
+// or registers an unverified OID as a publisher/ISO binding.
+std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaSelection& selection, SchemaInterpretation interpretation);
 } // namespace step_semantics

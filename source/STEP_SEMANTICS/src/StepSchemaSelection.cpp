@@ -180,4 +180,22 @@ SchemaSelection SelectSchema(const step_source::SourceSnapshot& source, Geometry
     }
     return selection;
 }
+std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaSelection& selection, SchemaInterpretation interpretation)
+{
+    if (interpretation != SchemaInterpretation::UnregisteredAp214As2010 || selection.qualified || selection.identifiers.size() != 1)
+    {
+        return {};
+    }
+    const auto& identity = selection.identifiers.front();
+    if (identity.name != "AUTOMOTIVE_DESIGN" || identity.match != SchemaMatch::UnregisteredVersion || identity.oid != Words("1 0 10303 214 3 1 1 1"))
+    {
+        return {};
+    }
+    // The pinned AP214E3_2010.exp (71ab140f...) identifies seven arcs; no
+    // authority establishes this eight-arc literal as the same schema. The
+    // caller explicitly selects the already audited implementation, including
+    // its separately proved compatibility transport. Keep HEADER identity,
+    // original unsupported-binding diagnostic and assumption qualification.
+    return QualifiedSchemaProfile{ "ap214-mbx-2010", Ap214MbxSourceProfile, Ap214SchemaSha256, ProfileKind::Ap214MbxSource };
+}
 } // namespace step_semantics

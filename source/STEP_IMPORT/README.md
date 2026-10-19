@@ -1,5 +1,21 @@
 # STEP_IMPORT（内部 C++20）
 
+通用开发请求可显式设置 `Options.schemaInterpretation=UnregisteredAp214As2010`，
+并同时选择通用质量与非几何互操作策略。它只为未登记的八段 AP214 标识选择固定源解释，
+具体范围见[源检查合同](../STEP_SEMANTICS/README.md)。默认路径继续拒绝该标识；
+不删除 OID 段、不改 HEADER、不放宽必需内容、单位、几何、容差或发布检查。
+
+完成全部检查的结果为 `AcceptedUnderInterpretation`，与普通 `Accepted` 分开；
+报告明确 `source_binding_verified=false` 并保留原绑定失败诊断。调用者可从
+`model->Source()->AppliedInterpretation()` 和 owning 面视图的
+`AppliedSourceInterpretation()` 查询这一假设，丢弃原 outcome/report 不会丢失它。
+独立建模副本与原生存档不继承源验收资格；保存原报告才能保留此次导入的来源说明。
+失败、预算和取消继续释放未发布候选，完整模型与报告仍经同一个提交点交付。
+
+原生 CLI 使用 `--interpret-unregistered-ap214-2010`，并需显式通用质量与
+`--interop-nongeometric`。成功交付解释模型时返回 **11**；普通成功仍为 **0**。
+这类模型需由调用者单列，不自动进入普通验收数量或性能成功组。
+
 显式通用路径还支持单个裸 `CONFIG_CONTROL_DESIGN` HEADER 的
 `203-N916-Source-0.1` 源子集。固定依据是修改版 N916/AP203 amendment 1，
 原始 HEADER 仍为 `NameOnly`，报告标记未证明具体版本；不改写为 N2635。

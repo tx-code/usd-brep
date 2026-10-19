@@ -43,6 +43,10 @@ bench::Trial Run(const bench::Args& args)
     {
         {
             auto options = step_import::Options::PlanarFixture();
+            if (args.schemaInterpretation == "UnregisteredAp214As2010")
+            {
+                options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+            }
             options.sourceLimits = SourceLimits(args.maximumInput);
             if (args.quality == "Q-AP214-development-mm-01" || args.quality == "Q-AP214-tolerance-study-mm-01")
             {
@@ -143,6 +147,17 @@ bench::Trial Run(const bench::Args& args)
                 ",\"work_tolerance_mm\":" +
                 bench::N(double(options.quality.initialWorkToleranceMm.Numerator()) / double(options.quality.initialWorkToleranceMm.Denominator())) +
                 ",\"operation_scope\":\"public ImportFile including source validation, construction, postchecks, integrals, mandatory report and commit\"}";
+            if (!args.schemaInterpretation.empty())
+            {
+                const bool applied = result.report.sourceSchema &&
+                                     result.report.sourceSchema->appliedInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly;
+                row.extra += ",\"requested_schema_interpretation\":" + bench::Q(args.schemaInterpretation) +
+                             ",\"schema_interpretation_applied\":" + (applied ? "true" : "false");
+                if (applied)
+                {
+                    row.extra += ",\"source_binding_verified\":false";
+                }
+            }
             if (!args.headerNamePolicy.empty())
             {
                 row.extra += ",\"header_name_policy\":" + bench::Q(args.headerNamePolicy);

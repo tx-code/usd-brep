@@ -19,7 +19,12 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
     m_candidate = std::move(candidate);
     m_prepared = Access::Snapshot(std::move(m_candidate));
     m_execution.Check(Phase::NativeReady);
-    m_outcome.status = Status::Accepted;
+    // Complete checks do not authenticate an explicitly assumed source schema.
+    // Choose this result before either report and final arbitration; after
+    // Commit the sole remaining action remains the owning transfer.
+    const bool interpreted = m_outcome.report.sourceSchema &&
+                             m_outcome.report.sourceSchema->appliedInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly;
+    m_outcome.status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
     m_execution.Check(Phase::BeforeReport);
     WriteReport();
     m_execution.Check(Phase::ReportReady);

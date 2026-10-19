@@ -53,6 +53,8 @@ int Exit(step_import::Status status)
     {
         case Status::Accepted:
             return 0;
+        case Status::AcceptedUnderInterpretation:
+            return 11; // A model exists, but this is not ordinary verified-source acceptance.
         case Status::Rejected:
             return 1;
         case Status::Unsupported:
@@ -112,6 +114,10 @@ int main(int argc, char** argv)
             else if (arg == "--interop-nongeometric")
             {
                 options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+            }
+            else if (arg == "--interpret-unregistered-ap214-2010")
+            {
+                options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
             }
             else if (arg == "--preserve-opaque-header-name")
             {
