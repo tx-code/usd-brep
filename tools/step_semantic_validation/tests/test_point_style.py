@@ -85,3 +85,26 @@ class PointStyleTests(unittest.TestCase):
         run, report = self.invoke(data, "--max-semantic-visits", visits - 1)
         self.assertIsNone(report["snapshot"])
         self.assertEqual("DependencyVisitLimit", report["diagnostics"][0]["key"])
+
+    def test_shared_nonpoint_assignments_consume_traversal_budget(self):
+        def source(representations, assignments):
+            ids = [1000 + i for i in range(assignments)]
+            uses = ("STYLED_ITEM('',(#965," + ",".join("#" + str(i) for i in ids) + "),#911)").encode()
+            data = point_style_source().replace(b"STYLED_ITEM('',(#965),#911)", uses)
+            records = (b"#980=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');\n"
+                       b"#981=CURVE_STYLE('',#980,POSITIVE_LENGTH_MEASURE(1.),#964);\n")
+            records += b"".join(f"#{i}=PRESENTATION_STYLE_ASSIGNMENT((#981));\n".encode() for i in ids)
+            records += b"".join(
+                f"#{2000+i}=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#966),#12);\n".encode()
+                for i in range(representations - 1))
+            return append_records(data, records)
+
+        visits = {(r, n): self.checked(source(r, n))["statistics"]["dependency_visits"]
+                  for r, n in ((1, 1), (1, 5), (5, 1), (5, 5))}
+        # Four extra presentations each revisit four extra assignment references
+        # and their style entries. Non-point entries must not escape accounting.
+        self.assertGreaterEqual(visits[5, 5] - visits[5, 1] - visits[1, 5] + visits[1, 1], 2 * 4 * 4)
+        run, report = self.invoke(source(5, 5), "--max-semantic-visits", visits[5, 5] - 1)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["snapshot"])
+        self.assertEqual("DependencyVisitLimit", report["diagnostics"][0]["key"])

@@ -2766,6 +2766,16 @@ private:
             }
         }
     }
+    std::size_t CountStyleType(const Value& values, std::string_view type)
+    {
+        std::size_t count = 0;
+        for (const auto& value : values.children)
+        {
+            Visit(value.span);
+            count += IsA(*m_data, Target(value), type);
+        }
+        return count;
+    }
     void CheckAp214CurveStyleValues()
     {
         // These source checks never turn an appearance dependency into a body
@@ -2807,16 +2817,8 @@ private:
         {
             for (const auto assignment : Population("PRESENTATION_STYLE_ASSIGNMENT"))
             {
-                std::size_t curves = 0;
                 const auto& values = FieldValue(assignment, "styles");
-                for (const auto& value : values.children)
-                {
-                    Visit(value.span);
-                    if (IsA(*m_data, Target(value), "CURVE_STYLE"))
-                    {
-                        ++curves;
-                    }
-                }
+                const auto curves = CountStyleType(values, "CURVE_STYLE");
                 if (curves > 1)
                 {
                     // Every admitted CURVE_STYLE has the same TYPEOF set. PSA.WR1
@@ -2911,13 +2913,8 @@ private:
         }
         for (const auto assignment : Population("PRESENTATION_STYLE_ASSIGNMENT"))
         {
-            std::size_t count = 0;
             const auto& values = FieldValue(assignment, "styles");
-            for (const auto& value : values.children)
-            {
-                Visit(value.span);
-                count += IsA(*m_data, Target(value), "POINT_STYLE");
-            }
+            const auto count = CountStyleType(values, "POINT_STYLE");
             if (count > 1)
             {
                 FieldFailure(
@@ -2938,11 +2935,14 @@ private:
         // This extra restriction belongs to MDGPR.WR6, not to POINT_STYLE or
         // SIZE_SELECT in every source use. Generic styles may retain descriptive
         // or explicit-MWU sizes; this geometric-presentation use requires the
-        // typed positive-length branch and its admitted colour family.
+        // typed positive-length branch and its admitted colour family. Charge
+        // every traversed use, including non-point assignments: shared styled
+        // items can otherwise multiply this work without consuming the budget.
         for (const auto representation : Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION"))
         {
             for (const auto& value : FieldValue(representation, "items").children)
             {
+                Visit(value.span);
                 const auto styled = Target(value);
                 if (!IsA(*m_data, styled, "STYLED_ITEM"))
                 {
@@ -2950,8 +2950,10 @@ private:
                 }
                 for (const auto& use : FieldValue(styled, "styles").children)
                 {
+                    Visit(use.span);
                     for (const auto& entry : FieldValue(Target(use), "styles").children)
                     {
+                        Visit(entry.span);
                         const auto style = Target(entry);
                         if (!IsA(*m_data, style, "POINT_STYLE"))
                         {

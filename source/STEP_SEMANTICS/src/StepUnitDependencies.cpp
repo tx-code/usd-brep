@@ -671,8 +671,10 @@ private:
                     throw;
                 }
                 // This is only a deferred source error. The outer checker must
-                // still prove that the MRI belongs to an attached property and
-                // is not a body/physical-unit dependency before any publication.
+                // prove that the MRI/VRI belongs to an attached property and is
+                // not a body/physical-unit dependency before any publication.
+                // VRI has no unit slot, so only its positive-ratio TYPE error
+                // can reach this exception; no context/unit error is deferred.
                 PreservePending(std::move(stop), r, Field(r, "value_component"));
             }
         }
