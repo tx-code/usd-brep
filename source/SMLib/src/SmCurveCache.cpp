@@ -7,6 +7,7 @@
 **********************************************************************/
 
 #include "StdAfx.h"
+#include "SmBezierDeviation.h"
 
 #include <SmCurveCache.h>
 #include <SmBSplineCurve.h>
@@ -873,7 +874,8 @@ static SmStatus sm_ComputeConstants
    double               & rdMaxTurningAngleDeg,      // out: sum control-polygon vertex angles
    double               & rdOffAxisDistance,         // out: err value when dOffAxisTol not 0.0 and control-polygon BBox not linear and x,y, or z aligned
    double               & rdCurveDistance,           // out: err value when distance between curves is greater than rApproxTol
-   SmBoolean            & rbNullCurve)               // out: err value when control-polygon vertices are all within SM_EFF_ZERO distance of one another
+   SmBoolean            & rbNullCurve,               // out: control-polygon vertices all within SM_EFF_ZERO
+   const sm_bezier_deviation::QuadraticReference* cpDeviationSource) // in: optional reference for unchanged defining geometry
 {
   // init output
   rdMaxLength             = 0.0;
@@ -1061,6 +1063,11 @@ SmBoolean bDebugMe = FALSE;
   // set output
   rdMaxChordHeightSquared = dMaxSegmentCHSq;
   rdMaxTurningAngleDeg    = dTotalAngle * 180 / SM_PI;
+
+  // Certify the actual native curve/leaf coefficient difference before the
+  // numerical probe. Inconclusive evidence keeps every original check below.
+  if (cpDeviationSource && sm_bezier_deviation::Bound(*cpDeviationSource, rBez, sInterval, rApproxTol.val))
+    { return SM_SUCCESS; }
 
   SmFindCurveDistanceExtremaEFO sEFO( &rBez, &rOriginalCurve, sInterval, 10.*SM_EFF_ZERO );
   SmLocalSolve1d sLS( sEFO, sInterval, FALSE );
@@ -1523,6 +1530,11 @@ SmStatus SmCurveCache::Tessellate()
        sSegmentBeziersMgr,
        sBeziers ) );
 
+  // This call observes immutable defining geometry after Bezier extraction.
+  // The bounded reference owns copied coefficients, expires at Tessellate's
+  // return and is never reused across edits or retained with a model cache.
+  const auto deviationSource = sm_bezier_deviation::Prepare(m_crCurve);
+
   // allocate one more bezier curve as local working memory
   gw_CURVE *pWorkBez = SM_REINTERPRET_CAST( gw_CURVE*, sSegmentBeziersMgr.GetNewElement() );
 
@@ -1617,7 +1629,8 @@ SmStatus SmCurveCache::Tessellate()
          dMaxTurningAngleDeg,          // out: Sum control-polygon vertex angles
          dOffAxisDistance,             // out: Not 0.0 = m_dOffAxisTolerance exceeded
                               dCurveDistance,
-         bNullCurve ) );                 // out: TRUE = span 3d-size less than SM_EFF_ZER0
+         bNullCurve,                   // out: TRUE = span 3d-size less than SM_EFF_ZERO
+         deviationSource ? &*deviationSource : nullptr ) );
 
 // skip short spans - unless its the last span and no other spans have yet to be output
 // gwc: Is this a source of tolerance errors?
@@ -1730,7 +1743,8 @@ SmStatus SmCurveCache::Tessellate()
          dMaxTurningAngleDeg,          // out: Sum control-polygon vertex angles
          dOffAxisDistance,             // out: Not 0.0 = m_dOffAxisTolerance exceeded
                               dCurveDistance,
-         bNullCurve ) );                 // out: TRUE = span 3d-size less than SM_EFF_ZER0
+         bNullCurve,                   // out: TRUE = span 3d-size less than SM_EFF_ZERO
+         deviationSource ? &*deviationSource : nullptr ) );
 
       // skip very small curves
       if(bNullCurve)
