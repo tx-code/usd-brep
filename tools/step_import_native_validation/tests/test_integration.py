@@ -59,6 +59,7 @@ class NumericalIntegrationTests(unittest.TestCase):
         observation = result["numerical_integration"]
         self.assertEqual(1e-7, observation["requested_relative_accuracy"])
         self.assertEqual(1e-7, observation["applied_relative_accuracy"])
+        self.assertEqual(1e-7, result["measurement_policy"]["native_requested_relative_accuracy"])
         self.assertTrue(observation["completed"])
         self.assertFalse(observation["continuous_error_bound_established"])
         self.assertEqual("DimensionlessNumericalStoppingOnly", observation["control_scope"])
@@ -99,6 +100,7 @@ class NumericalIntegrationTests(unittest.TestCase):
         self.assertIsNone(result["model"])
         observation = result["numerical_integration"]
         self.assertEqual(1e-7, observation["requested_relative_accuracy"])
+        self.assertEqual(1e-7, result["measurement_policy"]["native_requested_relative_accuracy"])
         self.assertIsNone(observation["applied_relative_accuracy"])
         self.assertFalse(observation["completed"])
 

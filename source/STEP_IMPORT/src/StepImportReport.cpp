@@ -429,8 +429,17 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                     FractionJson(w, value);
                 }
                 w.Add("}");
+                w.Add(",\"measurement_policy\":{\"native_requested_relative_accuracy\":");
+                if (report.numericalIntegration)
+                {
+                    Number(w, report.numericalIntegration->requestedRelativeAccuracy);
+                }
+                else
+                {
+                    w.Add("0.0001"); // Retain the exact legacy spelling for unconfigured requests.
+                }
                 w.Add(
-                    ",\"measurement_policy\":{\"native_requested_relative_accuracy\":0.0001,\"mass_integration_origin\":\"AxisAlignedBoundsMidpoint\",\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
+                    ",\"mass_integration_origin\":\"AxisAlignedBoundsMidpoint\",\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
                 );
                 w.Add(
                     ",\"qualification\":\"SelectedSourceChecksAndNativeMeasuredPostchecks\",\"full_schema_conformance\":false,\"planar_proofs\":\"NotApplicable\",\"source_sha256\":"
