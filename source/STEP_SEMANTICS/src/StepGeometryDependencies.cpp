@@ -303,6 +303,10 @@ private:
             walk(root);
         }
     }
+    bool DirectWireCurve(std::size_t record) const
+    {
+        return IsA(record, "B_SPLINE_CURVE") || IsA(record, "CIRCLE") || IsA(record, "ELLIPSE");
+    }
     void PrepareCompositeWireValidity(std::vector<signed char>& memo)
     {
         // Fixed valid_geometrically_bounded_wf_curve evaluated in the proven
@@ -311,7 +315,7 @@ private:
         for (const auto record : m_curvePostorder)
         {
             m_visit(m_data.source->Records()[record].span);
-            bool valid = IsA(record, "B_SPLINE_CURVE") || IsA(record, "CIRCLE") || IsA(record, "ELLIPSE");
+            bool valid = DirectWireCurve(record);
             if (IsA(record, "TRIMMED_CURVE"))
             {
                 const auto& basis = *Field(record, "basis_curve").declaration.value;
@@ -458,14 +462,14 @@ private:
             PrepareCompositeWireValidity(memo);
         }
         // Fixed valid_geometrically_bounded_wf_curve, restricted to registered
-        // branches. TrimmedClosure has already established a finite basis graph.
+        // branches. The preceding definition traversal has proved a finite graph.
         // A LINE is valid as a TRIMMED_CURVE basis, not as a bare set element.
         std::vector<std::size_t> path;
         auto current = record;
         while (memo[current] < 0)
         {
             m_visit(m_data.source->Records()[current].span);
-            if (IsA(current, "B_SPLINE_CURVE") || IsA(current, "CIRCLE") || IsA(current, "ELLIPSE"))
+            if (DirectWireCurve(current))
             {
                 memo[current] = 1;
                 break;

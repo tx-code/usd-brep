@@ -2197,8 +2197,10 @@ private:
         }
     }
 
-    std::vector<unsigned char> Reach(std::vector<std::size_t> pending, bool riOnly)
+    std::vector<unsigned char> Reach(std::vector<std::size_t> pending, bool geometryOnly)
     {
+        const auto composite = geometryOnly ? Schema(*m_data).Find("COMPOSITE_CURVE") : std::optional<std::size_t>{};
+        const auto segment = geometryOnly ? Schema(*m_data).Find("COMPOSITE_CURVE_SEGMENT") : std::optional<std::size_t>{};
         std::vector<unsigned char> visited(m_data->types.size(), 0);
         while (!pending.empty())
         {
@@ -2214,7 +2216,14 @@ private:
             {
                 const auto& reference = m_data->source->References()[index];
                 Visit(reference.span);
-                if (!riOnly || IsA(*m_data, reference.targetRecordIndex, "REPRESENTATION_ITEM"))
+                // The ordinary segment is FOUNDED_ITEM, not RI. Its only
+                // admitted incoming definition edge is CC.segments, and its
+                // typed parent is bounded geometry. Follow that bridge without
+                // treating arbitrary founded styles/metadata as geometry roots.
+                // The public UsedByRepresentation query still filters to RIs.
+                const bool segmentUse = composite && segment && m_data->types[r].test(*composite) &&
+                                        m_data->types[reference.targetRecordIndex].test(*segment);
+                if (!geometryOnly || IsA(*m_data, reference.targetRecordIndex, "REPRESENTATION_ITEM") || segmentUse)
                 {
                     pending.push_back(reference.targetRecordIndex);
                 }

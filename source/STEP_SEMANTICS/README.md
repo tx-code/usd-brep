@@ -25,6 +25,9 @@ natural-language conformance or full founded-item/global rules. Existing
 selected-part/context/unit and ownership checks still apply. Native composite
 conversion remains explicitly Unsupported before construction; no joining,
 new material role or partial model publication is authorized by source success.
+Selected geometric use follows the admitted CC-to-segment-to-parent bridge,
+including parent curves and defining RIs in presentation attachment. It does
+not follow arbitrary founded metadata; the public used-by query stays RI-only.
 
 The fixed AP214 profiles admit `VALUE_REPRESENTATION_ITEM`: inherited RI.name
 and `value_component:MEASURE_VALUE`, with no explicit unit slot. The fixed
@@ -159,7 +162,7 @@ gain this binding. APD/year values cannot select or certify the implementation.
 The new catalog reuses compared transport descriptions at constant evaluation,
 with N916's required descriptions, direct PDR property reference, actual
 administrative SELECT branches, UTC type aliases and two-value offset enum.
-Its 137 registered transport descriptors comprise 117 declarations present in
+Its 139 registered transport descriptors comprise 119 declarations present in
 the fixed artifact and 20 borrowed N2635 diagnostic descriptions. Registration
 and `IsA` do not prove source conformance: every explicitly instantiated foreign
 type is refused. Only `PRESENTATION_LAYER_ASSIGNMENT` may survive explicit
@@ -319,8 +322,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 137/132 declarations respectively;
-the separate MBx general catalog contains 147 declarations;
+transport slot. The general catalogs contain 139/134 declarations respectively;
+the separate MBx general catalog contains 149 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 

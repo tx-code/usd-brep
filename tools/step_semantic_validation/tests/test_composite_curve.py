@@ -53,6 +53,9 @@ class CompositeSourceTests(unittest.TestCase):
                                  [x["name"] for x in typed["941"]["attributes"]])
                 self.assertEqual({"FOUNDED_ITEM", "COMPOSITE_CURVE_SEGMENT"}, set(typed["941"]["types"]))
                 self.assertIn("BOUNDED_CURVE", typed["940"]["types"])
+                for parent in ("912", "950", "913", "914", "915", "916", "917"):
+                    self.assertTrue(typed[parent]["used_by_representation"], parent)
+                self.assertFalse(typed["941"]["used_by_representation"])  # Public query is RI-only.
                 raw = {x["id"]: x for x in report["source"]["records"]}
                 cc = raw["940"]["components"][0]["parameters"]
                 self.assertEqual(["941", "942"], [x["text"] for x in cc[1]["children"]])
@@ -67,6 +70,25 @@ class CompositeSourceTests(unittest.TestCase):
         raw = next(x for x in report["source"]["records"] if x["id"] == "940")
         self.assertEqual(["941", "941", "942"],
                          [x["text"] for x in raw["components"][0]["parameters"][1]["children"]])
+
+    def test_parent_presentations_use_geometry_dependencies_without_owning_foreign_curves(self):
+        for schema in (AP214, MBX):
+            for target, style in ((b"#950", b"CURVE_STYLE('',#964,POSITIVE_LENGTH_MEASURE(1.),#965)"),
+                                  (b"#915", b"POINT_STYLE('',MARKER_TYPE(.DOT.),POSITIVE_LENGTH_MEASURE(1.),#965)")):
+                data = append_records(composite_source(schema),
+                                      b"#960=MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#961),#12);\n"
+                                      b"#961=STYLED_ITEM('',(#962)," + target + b");\n"
+                                      b"#962=PRESENTATION_STYLE_ASSIGNMENT((#963));\n"
+                                      b"#963=" + style + b";\n#965=COLOUR_RGB('',0.2,0.4,0.6);\n" +
+                                      (b"#964=DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');\n"
+                                       if target == b"#950" else b""))
+                self.checked(data)
+                if target == b"#950":
+                    foreign = append_records(data.replace(b"(#962),#950", b"(#962),#980"),
+                                             b"#980=TRIMMED_CURVE('',#913,(#914),(#915),.T.,.CARTESIAN.);\n")
+                    run, report = self.invoke(foreign, "--general-brep-source", "--interop-nongeometric")
+                    self.assertEqual(2, run.returncode)
+                    self.assertEqual("UnsupportedPresentationAttachment", report["diagnostics"][0]["key"])
 
     def test_transition_declarations_check_open_and_closed_sequences(self):
         source = composite_source()
