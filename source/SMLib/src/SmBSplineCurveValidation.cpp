@@ -413,88 +413,45 @@ static       ULONG lFoundItem ;
 
        } // end iter all min Deriv solutions
 
-//    // if this is a UVTrimCurve with a given pCrvOnSurf pointer
-      SmBSplineCurve *pCopyCurve = NULL ;
-      SmObjDelete sCopyClean(pCopyCurve) ; // Will be set only if a copy is made.
-//    if(   this->GetDim() == 2
-//       && pOptCrvOnSurf != NULL)
-//      {
-//        // copy and scale the UVTrimCurve so that it lives on a surface
-//        // mapping which is similar to arc-length parameterizations
-//
-//        // Surface UVDomain
-//        SmExtent2d sSurfUVDomain = pOptCrvOnSurf->GetNaturalUVDomain() ;
-//
-//        // MidCurve Evaluation
-//        SmPoint3d sMidCurvePointXYZ ;
-//        this->EvaluatePoint(GetNaturalInterval().Evaluate(.5), sMidCurvePointXYZ) ;
-//
-//        // Surface deriviatives at midCurve evaluation watch out for singularities
-//        SmPoint2d sMidCurvePointUV(sMidCurvePointXYZ.x, sMidCurvePointXYZ.y) ;
-//        SmSurfParamType eSingularDirection ;
-//        if(pOptCrvOnSurf->IsSingularity(sMidCurvePointUV, eSingularDirection))
-//          {
-//            sMidCurvePointUV = sSurfUVDomain.Evaluate(.5, .5) ;
-//          }
-//        SmPoint3d sSurfPoint, sSurfDu, sSurfDv ;
-//        pOptCrvOnSurf->Evaluate1stDerivatives(sMidCurvePointUV, TRUE, TRUE,
-//                                              sSurfPoint, sSurfDu, sSurfDv) ;
-//
-//        // pick scale factors so that surface is near arclength parameterization
-//        // watch out for surface singularities
-//        double dScaleU = sSurfDu.Length() ;
-//        double dScaleV = sSurfDv.Length() ;
-//
-//        // Copy the UVTrimCurve and scale its control points
-//        pCopyCurve = new (this->GetContext()) SmBSplineCurve(*this) ;
-//        sCopyClean.SetObj( pCopyCurve );
-//        ULONG lControlPointCount = pCopyCurve->m_pNurb->pol->n + 1 ;
-//        CPOINT *pPw = pCopyCurve->m_pNurb->pol->Pw ;
-//        for(ULONG ii=0;ii<lControlPointCount;ii++)
-//          {
-//            pPw[ii].x *= dScaleU ;
-//            pPw[ii].y *= dScaleV ;
-//          }
-//
-//      } // end scaling of UVTrimCurves when given pOptCrvOnSurf
-
-      if ( pCopyCurve == NULL )
-        { pCopyCurve = (SmBSplineCurve*)this; }
-
-      // Another type of kink check: vanishing radius of curvature.
-      pCopyCurve->GlobalPropertyAnalysis( sDomain, SM_CP_MINIMIZE_RADIUS_OF_CURVATURE,
-                                          NULL, NULL, dMinSep, rSolutionArray );
-
-      if(dMinRadius < dTol)
+      // Release report macros only compare levels. Gate explicitly so a
+      // request for an unrelated test does not acquire a new radius failure.
+      if (SM_ASSERT_TEST_NEED(GetDim() == 2 ? 13 : 14, SM_LEVEL_0))
         {
-          // Note, the same comment as for MINIMIZE_FIRST_DERIVATIVE could
-          // apply here, but in this case the function value used is indeed
-          // the actual radius of curvature.
+        // Keep the historical threshold above, including its parameter dependence.
+        // A small radius is a validator quality finding, not a claim that the
+        // mathematical curve or its owning topology is invalid in every use.
+        this->GlobalPropertyAnalysis(sDomain, SM_CP_MINIMIZE_RADIUS_OF_CURVATURE,
+                                     NULL, NULL, dMinSep, rSolutionArray);
+        // GPA does not promise that candidates are sorted by property value.
+        // Consume them before testing the threshold (the old guard tested the
+        // unchanged SM_BIG_DOUBLE sentinel, so tests 13/14 could never report).
+        for (ULONG solution = 0; solution < rSolutionArray.GetSize(); ++solution)
+          {
+            const SmSolution& candidate = rSolutionArray[solution];
+            if (candidate.m_vStart.m_dSolutionValue < dMinRadius)
+              {
+                dMinRadius = candidate.m_vStart.m_dSolutionValue;
+                dMinRadiusParam = candidate.m_vStart.m_adParameters[0];
+              }
+          }
+        if(dMinRadius < dTol)
+          {
+            if(GetDim() == 2)
+              {
+                /* 13 */
+                bRtn &= SM_ASSERT_VALUE_REPORT(13, SM_LEVEL_0, dMinRadius >= dTol, dTol, dMinRadius, _T("")) ;
+                SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMinRadiusParam, 0.0)) ;
+                // SM_ASSERT_MSG( FALSE, _T("2D Curve Warning: Extremely small radius of curvature") );
+              }
+            if(GetDim() == 3)
+              {
+                /* 14 */
+                bRtn &= SM_ASSERT_VALUE_REPORT(14, SM_LEVEL_0, dMinRadius >= dTol, dTol, dMinRadius, _T("")) ;
+                SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMinRadiusParam, 0.0)) ;
 
-          // save values for debugging convenience
-          dMinRadius      =   rSolutionArray.GetSize() > 0
-                            ? rSolutionArray[0].m_vStart.m_dSolutionValue
-                            : SM_BIG_DOUBLE ;
-          dMinRadiusParam =   rSolutionArray.GetSize() > 0
-                            ? rSolutionArray[0].m_vStart.m_adParameters[0]
-                            : 0.0 ;
-
-          if(GetDim() == 2)
-            {
-              /* 13 */
-              bRtn &= SM_ASSERT_VALUE_REPORT(13, SM_LEVEL_0, dMinRadius >= dTol, dTol, dMinRadius, _T("")) ;
-              SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMinRadiusParam, 0.0)) ;
-              // SM_ASSERT_MSG( FALSE, _T("2D Curve Warning: Extremely small radius of curvature") );
-            }
-          if(GetDim() == 3)
-            {
-              /* 14 */
-              bRtn &= SM_ASSERT_VALUE_REPORT(14, SM_LEVEL_0, dMinRadius >= dTol, dTol, dMinRadius, _T("")) ;
-              SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMinRadiusParam, 0.0)) ;
-
-              // SM_ASSERT_MSG( FALSE, _T("3D Curve Warning: Extremely small radius of curvature") );
-            }
-          bRtn = FALSE;
+                // SM_ASSERT_MSG( FALSE, _T("3D Curve Warning: Extremely small radius of curvature") );
+              }
+          }
         }
     } // end not degnerate curve check
 
