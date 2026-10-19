@@ -48,14 +48,15 @@ bench::Trial Run(const bench::Args& args)
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
             }
             options.sourceLimits = SourceLimits(args.maximumInput);
-            if (args.quality == "Q-AP214-development-mm-01" || args.quality == "Q-AP214-tolerance-study-mm-01")
+            if (bench::GeneralQuality(args.quality))
             {
                 // This is the public general importer, including its required
                 // source checks, native validators, measured queries and report.
                 // The larger report cap changes capacity, not checked accuracy.
                 options.generalBrep = true;
-                options.quality = args.quality == "Q-AP214-development-mm-01" ? step_import::Quality::GeneralDevelopment() :
-                                                                                step_import::Quality::GeneralToleranceStudy();
+                options.quality = args.quality == "Q-AP214-development-mm-01"          ? step_import::Quality::GeneralDevelopment() :
+                                  args.quality == "Q-AP214-work-tolerance-study-mm-01" ? step_import::Quality::GeneralWorkToleranceStudy() :
+                                                                                         step_import::Quality::GeneralToleranceStudy();
                 options.sourceLimits.reportBytes = 256 * 1024 * 1024;
                 options.nativeLimits.reportBytes = options.sourceLimits.reportBytes;
                 options.nativeLimits.nativeCalls = 100000;
@@ -74,6 +75,7 @@ bench::Trial Run(const bench::Args& args)
             {
                 options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
             }
+            options.restrictUnusedSupportDomains = args.restrictUnusedSupportDomains.value_or(false);
             std::vector<std::pair<std::size_t, double>> intervals;
             std::optional<std::pair<std::size_t, bench::Clock::time_point>> previous;
             if (args.nativeBoundaryTiming.value_or(false))
@@ -147,6 +149,23 @@ bench::Trial Run(const bench::Args& args)
                 ",\"work_tolerance_mm\":" +
                 bench::N(double(options.quality.initialWorkToleranceMm.Numerator()) / double(options.quality.initialWorkToleranceMm.Denominator())) +
                 ",\"operation_scope\":\"public ImportFile including source validation, construction, postchecks, integrals, mandatory report and commit\"}";
+            if (args.restrictUnusedSupportDomains.has_value())
+            {
+                row.extra += ",\"support_domain_restriction_requested\":" + std::string(options.restrictUnusedSupportDomains ? "true" : "false");
+            }
+            if (args.quality == "Q-AP214-work-tolerance-study-mm-01")
+            {
+                row.extra += ",\"native_work_budget\":{\"maximum_mm\":" +
+                             bench::N(
+                                 double(options.quality.maximumWorkToleranceMm.Numerator()) /
+                                 double(options.quality.maximumWorkToleranceMm.Denominator())
+                             ) +
+                             ",\"growth_mm\":" +
+                             bench::N(
+                                 double(options.quality.toleranceGrowthMm.Numerator()) / double(options.quality.toleranceGrowthMm.Denominator())
+                             ) +
+                             "}";
+            }
             if (!args.schemaInterpretation.empty())
             {
                 const bool applied = result.report.sourceSchema &&

@@ -90,6 +90,7 @@ struct Quality
     static Quality PlanarFixture(); // Explicit synthetic-test candidate, never a production default.
     static Quality GeneralDevelopment(); // Explicit development profile; production calibration remains open.
     static Quality GeneralToleranceStudy(); // Explicit 10-micrometre study, not an automatic source-uncertainty policy.
+    static Quality GeneralWorkToleranceStudy(); // Same 10um geometry budgets; explicit 10->20um native zone study, never automatic.
 };
 struct Limits
 {
@@ -113,6 +114,7 @@ struct Options
     step_source::HeaderNamePolicy headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
     step_source::DataStringPolicy dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
     step_semantics::SchemaInterpretation schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
+    bool restrictUnusedSupportDomains = false; // Explicit equivalent target representation; general development path only.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -355,6 +357,7 @@ struct ParameterMapping
 struct Report
 {
     bool generalBrep = false;
+    bool supportDomainRestrictionRequested = false;
     std::optional<step_semantics::Outcome> generalSource; // Source diagnostics and original records survive native failure.
     std::vector<std::pair<std::string, std::string>> classifiedOuterBounds; // Derived face/bound IDs, never source relabeling.
     std::vector<RepresentationNormalization> normalizations;

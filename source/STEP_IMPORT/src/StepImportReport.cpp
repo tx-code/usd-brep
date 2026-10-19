@@ -364,6 +364,10 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 // qualification for analytic/NURBS models or complete AP214 rules.
                 w.Add("{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":");
                 w.String(StatusName(outcome.status));
+                if (report.supportDomainRestrictionRequested)
+                {
+                    w.Add(",\"support_domain_restriction_requested\":true");
+                }
                 if (report.sourceSchema && report.sourceSchema->appliedInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly)
                 {
                     w.Add(",\"source_binding_verified\":false,\"source_interpretation\":\"UnregisteredAp214As2010\"");

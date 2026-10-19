@@ -99,12 +99,14 @@ int main(int argc, char** argv)
             else if (arg == "--quality" && i + 1 < argc)
             {
                 const std::string_view id(argv[++i]);
-                quality = id == "Q-P0-mm-01" || id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01";
-                if (id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01")
+                quality = id == "Q-P0-mm-01" || id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" ||
+                          id == "Q-AP214-work-tolerance-study-mm-01";
+                if (id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" || id == "Q-AP214-work-tolerance-study-mm-01")
                 {
                     options.generalBrep = true;
-                    options.quality = id == "Q-AP214-development-mm-01" ? step_import::Quality::GeneralDevelopment() :
-                                                                          step_import::Quality::GeneralToleranceStudy();
+                    options.quality = id == "Q-AP214-development-mm-01"          ? step_import::Quality::GeneralDevelopment() :
+                                      id == "Q-AP214-work-tolerance-study-mm-01" ? step_import::Quality::GeneralWorkToleranceStudy() :
+                                                                                   step_import::Quality::GeneralToleranceStudy();
                 }
                 if (!quality)
                 {
@@ -114,6 +116,10 @@ int main(int argc, char** argv)
             else if (arg == "--interop-nongeometric")
             {
                 options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+            }
+            else if (arg == "--restrict-unused-support-domains")
+            {
+                options.restrictUnusedSupportDomains = true;
             }
             else if (arg == "--interpret-unregistered-ap214-2010")
             {

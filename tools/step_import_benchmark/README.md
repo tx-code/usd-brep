@@ -1,5 +1,12 @@
 # STEP 模型库画像与测量工具
 
+原生探针可显式传 `--restrict-unused-support-domains 1`，并选择通用质量；其他引擎／模式
+即使值为 0 或将因输入预算跳过，也拒绝该原生专用选项。
+`--quality Q-AP214-work-tolerance-study-mm-01` 是另一个单列研究配置：几何/UV 预算仍
+0.01 mm，原生初始工作容差 0.01 mm、上限 0.02 mm、增长预算 0.01 mm。它不自动开启
+规范化，不修改旧配置，也不进入不同配置的普通成功性能组。实际选项及原生工作预算
+写入 trial；限制域的能力与数值／区域条件见 [STEP_IMPORT](../../source/STEP_IMPORT/README.md)。
+
 独立原生探针可显式传 `--schema-interpretation UnregisteredAp214As2010`，并同时选择
 通用质量和 `PreserveNonGeometric`。该选项只适用于 `self-native/import`，其他引擎
 在输入预算跳过前也明确拒绝。实际采用假设时返回 `AcceptedUnderInterpretation`，

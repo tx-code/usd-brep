@@ -95,12 +95,17 @@ inline std::string Memory()
 #endif
     return "null";
 }
+inline bool GeneralQuality(std::string_view id)
+{
+    return id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" || id == "Q-AP214-work-tolerance-study-mm-01";
+}
 struct Args
 {
     std::filesystem::path input, output;
     std::string mode;
     std::string quality, sourcePolicy, headerNamePolicy, dataStringPolicy; // Explicit choices; empty preserves the strict P0 run.
     std::string schemaInterpretation; // An explicit assumption, never ordinary source-qualified acceptance.
+    std::optional<bool> restrictUnusedSupportDomains;
     std::optional<bool> nativeBoundaryTiming; // Presence is distinct from enabled; never silently ignore a foreign engine's flag.
     std::size_t warmup = 0, repeat = 1, maximumInput = 64 * 1024 * 1024;
 };
@@ -164,6 +169,10 @@ inline Args Parse(const std::vector<std::string>& tokens)
             {
                 args.maximumInput = number;
             }
+            else if (key == "--restrict-unused-support-domains" && number <= 1)
+            {
+                args.restrictUnusedSupportDomains = number != 0;
+            }
             else if (key == "--native-boundary-timing" && number <= 1)
             {
                 args.nativeBoundaryTiming = number != 0;
@@ -210,14 +219,13 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
         // Never accept a native policy flag and silently ignore it on the other
         // reader. Invalid policies are rejected even for an input-budget skip.
         if (!args.quality.empty() || !args.sourcePolicy.empty() || !args.headerNamePolicy.empty() || !args.dataStringPolicy.empty() ||
-            !args.schemaInterpretation.empty() || args.nativeBoundaryTiming.has_value())
+            !args.schemaInterpretation.empty() || args.nativeBoundaryTiming.has_value() || args.restrictUnusedSupportDomains.has_value())
         {
             if (std::string_view(engine) != "self-native" || args.mode != "import")
             {
                 throw std::invalid_argument("Quality and source policy apply only to self-native import");
             }
-            if ((!args.quality.empty() && args.quality != "Q-P0-mm-01" && args.quality != "Q-AP214-development-mm-01" &&
-                 args.quality != "Q-AP214-tolerance-study-mm-01") ||
+            if ((!args.quality.empty() && args.quality != "Q-P0-mm-01" && !GeneralQuality(args.quality)) ||
                 (!args.sourcePolicy.empty() && args.sourcePolicy != "Strict" && args.sourcePolicy != "PreserveNonGeometric") ||
                 (!args.headerNamePolicy.empty() && args.headerNamePolicy != "StrictAscii" && args.headerNamePolicy != "PreserveOpaqueBytes") ||
                 (!args.dataStringPolicy.empty() && args.dataStringPolicy != "StrictAscii" && args.dataStringPolicy != "PreserveOpaqueBytes") ||
@@ -227,17 +235,19 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                 throw std::invalid_argument("Unknown explicit native quality or source policy");
             }
             if ((args.headerNamePolicy == "PreserveOpaqueBytes" || args.dataStringPolicy == "PreserveOpaqueBytes") &&
-                (args.sourcePolicy != "PreserveNonGeometric" ||
-                 (args.quality != "Q-AP214-development-mm-01" && args.quality != "Q-AP214-tolerance-study-mm-01")))
+                (args.sourcePolicy != "PreserveNonGeometric" || !GeneralQuality(args.quality)))
             {
                 throw std::invalid_argument("Opaque text requires explicit general quality and nongeometric interoperability");
             }
             if (args.schemaInterpretation == "UnregisteredAp214As2010" &&
-                (args.sourcePolicy != "PreserveNonGeometric" ||
-                 (args.quality != "Q-AP214-development-mm-01" && args.quality != "Q-AP214-tolerance-study-mm-01")))
+                (args.sourcePolicy != "PreserveNonGeometric" || !GeneralQuality(args.quality)))
             {
                 throw std::invalid_argument("Schema interpretation requires explicit general interoperability");
             }
+        }
+        if (args.restrictUnusedSupportDomains.value_or(false) && !GeneralQuality(args.quality))
+        {
+            throw std::invalid_argument("Support restriction requires explicit general quality");
         }
         const auto bytes = std::filesystem::file_size(args.input);
         std::ostringstream out;

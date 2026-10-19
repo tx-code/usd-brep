@@ -7,6 +7,7 @@
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportGeometryConstruction.h"
 #include "StepImportNativeData.h"
+#include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
 
 #include <SmApiQueries.h>
@@ -146,6 +147,10 @@ public:
         Step(shape);
         Good(c.EndBrep());
         InstallUv();
+        if (m_options.restrictUnusedSupportDomains)
+        {
+            RestrictSupports();
+        }
         Validate();
         ObserveTolerances();
         Measure();
@@ -1778,6 +1783,73 @@ private:
             {
                 ClassifyRegion(f, native);
             }
+        }
+    }
+    void RestrictSupports()
+    {
+        // Quality is an exact positive int64 ratio. Round both integer casts
+        // and the division outward toward a smaller budget: converting large
+        // numerator and denominator values independently can otherwise round
+        // above the declared rational allowance. The proof also checks its
+        // floating environment before using this bound.
+        const auto definition = m_options.quality.definitionMm;
+        const double lowerDefinition = std::nextafter(
+            std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
+            0.
+        );
+        for (Index i = 0; i < faces.size(); ++i)
+        {
+            const auto& source = faces[i];
+            const auto outerCount = std::count_if(
+                source.loops.begin(),
+                source.loops.end(),
+                [](const Loop& loop)
+                {
+                    return loop.outer;
+                }
+            );
+            const auto evidence = RestrictUnusedSupportDomain(
+                *m_model->faces[i].face,
+                outerCount == 1,
+                lowerDefinition,
+                m_options.sourceLimits.values,
+                m_options.sourceLimits.values,
+                [&]
+                {
+                    Step(source.surface);
+                }
+            );
+            if (evidence.status == SupportDomainStatus::WorkLimit)
+            {
+                Fail("SupportDomainProofWorkLimit", source.surface, Status::ResourceLimit);
+            }
+            if (evidence.status != SupportDomainStatus::Normalized)
+            {
+                continue; // Original candidate still faces every native check.
+            }
+            ParameterMapping mapping;
+            mapping.kind = "UnusedSupportDomainRestriction";
+            mapping.sourceGeometryId = Id(source.surface);
+            mapping.sourceUseId = Id(source.record);
+            mapping.targetFaceIndex = i;
+            mapping.equation =
+                "native_uv=original_native_uv on retained domain; source definition unchanged in owning snapshot; tensor Bernstein interval bound covers the whole retained rectangle";
+            mapping.parameters = { { "original_native_domain", { evidence.original.begin(), evidence.original.end() } },
+                                   { "requested_control_hull_domain", { evidence.requested.begin(), evidence.requested.end() } },
+                                   { "actual_native_domain", { evidence.actual.begin(), evidence.actual.end() } },
+                                   { "proved_native_difference_mm", { *evidence.numeric.maximumMm } },
+                                   { "proved_tensor_patches", { double(evidence.numeric.patches) } } };
+            m_report.parameterMappings.push_back(std::move(mapping));
+            RepresentationNormalization normalization{ "UnusedSupportDomainRestriction", Id(source.record), {}, {}, {} };
+            for (const auto& loop : source.loops)
+            {
+                normalization.sourceBoundIds.push_back(Id(loop.bound));
+            }
+            m_report.normalizations.push_back(std::move(normalization));
+            m_report.tolerances.push_back(
+                { "SupportDomainRestriction", "ContinuousNativeSurfaceDifferenceUpper", Id(source.surface), *evidence.numeric.maximumMm }
+            );
+            m_rebuiltUv = true; // Recheck final UV after every native consumer.
         }
     }
     void VerifyRebuiltUv()

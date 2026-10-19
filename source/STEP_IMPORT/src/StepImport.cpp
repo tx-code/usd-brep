@@ -31,6 +31,14 @@ Quality Quality::GeneralToleranceStudy()
     quality.consistencyMm = quality.derivedUvMm = quality.initialWorkToleranceMm = quality.maximumWorkToleranceMm = Fraction(1, 100);
     return quality;
 }
+Quality Quality::GeneralWorkToleranceStudy()
+{
+    auto quality = GeneralToleranceStudy();
+    quality.id = "Q-AP214-work-tolerance-study-mm-01";
+    quality.maximumWorkToleranceMm = Fraction(1, 50);
+    quality.toleranceGrowthMm = Fraction(1, 100);
+    return quality;
+}
 Options Options::PlanarFixture()
 {
     return { step_source::Limits::PlanarFixtures(), {}, {}, Quality::PlanarFixture(), {}, {} };
@@ -40,6 +48,10 @@ namespace
 void Validate(const Options& options)
 {
     const auto& q = options.quality;
+    if (options.restrictUnusedSupportDomains && !options.generalBrep)
+    {
+        throw std::invalid_argument("Support-domain restriction requires the explicit general geometry path");
+    }
     const std::array positive = { q.definitionMm,           q.consistencyMm, q.derivedUvMm, q.initialWorkToleranceMm,
                                   q.maximumWorkToleranceMm, q.queryMm,       q.areaMm2,     q.volumeMm3 };
     if (q.id.empty() ||
@@ -76,6 +88,7 @@ void Validate(const Options& options)
     }
     if ((q.id == "Q-AP214-development-mm-01" && fields(q) != fields(Quality::GeneralDevelopment())) ||
         (q.id == "Q-AP214-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralToleranceStudy())) ||
+        (q.id == "Q-AP214-work-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralWorkToleranceStudy())) ||
         (options.generalBrep && q.id == "Q-P0-mm-01") || (!options.generalBrep && options.sourcePolicy != step_semantics::SourcePolicy::Strict))
     {
         throw std::invalid_argument("Explicit general geometry quality and source policy must match the selected import path");
@@ -108,6 +121,7 @@ Outcome Import(const Options& options, Capture capture)
     auto& report = result.report;
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
+    report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     step_source::InspectOutcome raw;
     raw.limits = options.sourceLimits;
     raw.headerNamePolicy = options.headerNamePolicy;

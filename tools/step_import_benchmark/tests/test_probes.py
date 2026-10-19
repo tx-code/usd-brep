@@ -16,6 +16,24 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_support_restriction_is_explicit_and_uses_declared_work_budgets(self):
+        from tools.step_import_native_validation.tests.test_support_domain import support_box
+
+        quality = "Q-AP214-work-tolerance-study-mm-01"
+        with tempfile.TemporaryDirectory(prefix="step-support-probe-") as directory:
+            source = Path(directory) / "source.step"
+            source.write_bytes(support_box())
+            (ordinary,) = self.invoke("native", "import", source, "--quality", quality)["trials"]
+            self.assertFalse(ordinary["has_model"])
+            self.assertNotIn("support_domain_restriction_requested", ordinary)
+            (selected,) = self.invoke(
+                "native", "import", source, "--quality", quality, "--restrict-unused-support-domains", "1"
+            )["trials"]
+            self.assertEqual("Accepted", selected["status"])
+            self.assertTrue(selected["support_domain_restriction_requested"])
+            self.assertEqual({"maximum_mm": 0.02, "growth_mm": 0.01}, selected["native_work_budget"])
+            self.assertAlmostEqual(6000, selected["model"]["volume_mm3"], delta=1e-4)
+
     def test_explicit_interpretation_has_a_distinct_result_and_settings(self):
         from tools.step_semantic_validation.tests.test_interpretation import box_source
 
@@ -188,6 +206,10 @@ class ProbeTests(unittest.TestCase):
                 ("occt", "transfer", ["--data-string-policy", "StrictAscii"]),
                 ("native", "import", ["--data-string-policy", "unknown"]),
                 ("native", "import", ["--data-string-policy", "PreserveOpaqueBytes"]),
+                ("source", "source", ["--restrict-unused-support-domains", "0"]),
+                ("occt", "transfer", ["--restrict-unused-support-domains", "1"]),
+                ("native", "import", ["--restrict-unused-support-domains", "1"]),
+                ("native", "import", ["--restrict-unused-support-domains", "2"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

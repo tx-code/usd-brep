@@ -1178,7 +1178,9 @@ void DevelopmentContract(
     bool study,
     bool opaqueHeaderName,
     bool opaqueDataText,
-    bool interpret
+    bool interpret,
+    bool restrictSupport = false,
+    bool workStudy = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1193,6 +1195,11 @@ void DevelopmentContract(
         options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
     }
     options.quality = study ? step_import::Quality::GeneralToleranceStudy() : step_import::Quality::GeneralDevelopment();
+    if (workStudy)
+    {
+        options.quality = step_import::Quality::GeneralWorkToleranceStudy();
+    }
+    options.restrictUnusedSupportDomains = restrictSupport;
     options.sourceLimits = { 67108864, 1000000, 2000000, 2000000, 128, 1048576, 16777216, 268435456, 1024 };
     options.semanticLimits.dependencyVisits = 10000000;
     options.semanticLimits.preservedDiagnostics = 16384;
@@ -1339,28 +1346,53 @@ int main(int argc, char** argv)
     {
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
-            bool header = false, data = false, interpret = false;
+            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
                 Require(
                     flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
-                        flag == "--interpret-unregistered-ap214-2010",
+                        flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
+                        flag == "--work-tolerance-study",
                     "unknown explicit source flag"
                 );
                 if (flag == "--interpret-unregistered-ap214-2010")
                 {
                     interpret = true;
                 }
+                else if (flag == "--restrict-unused-support-domains")
+                {
+                    restrictSupport = true;
+                }
+                else if (flag == "--work-tolerance-study")
+                {
+                    workStudy = true;
+                }
                 else
                 {
                     (flag == "--preserve-opaque-header-name" ? header : data) = true;
                 }
             }
-            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data, interpret);
+            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data, interpret, restrictSupport, workStudy);
             return 0;
         }
         Require(argc == 3, "fixture and local output directory required");
+        {
+            auto invalid = step_import::Options::PlanarFixture();
+            invalid.generalBrep = true;
+            invalid.quality = step_import::Quality::GeneralWorkToleranceStudy();
+            invalid.quality.maximumWorkToleranceMm = step_import::Fraction(3, 100);
+            bool refused = false;
+            try
+            {
+                step_import::ImportBytes({}, invalid);
+            }
+            catch (const std::invalid_argument&)
+            {
+                refused = true;
+            }
+            Require(refused, "frozen work-study identity cannot hide different budgets");
+        }
         GaugeContract();
         FinalTrimContract();
         DerivedUvEndpointContract();
