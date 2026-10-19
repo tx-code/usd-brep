@@ -24,6 +24,7 @@ constexpr std::string_view SiSolidAngle[] = { "NAMED_UNIT", "SI_UNIT", "SOLID_AN
 constexpr std::string_view ConversionLength[] = { "CONVERSION_BASED_UNIT", "LENGTH_UNIT", "NAMED_UNIT" };
 constexpr std::string_view SiMass[] = { "MASS_UNIT", "NAMED_UNIT", "SI_UNIT" };
 constexpr std::string_view ConversionMass[] = { "CONVERSION_BASED_UNIT", "MASS_UNIT", "NAMED_UNIT" };
+constexpr std::string_view ConversionPlaneAngle[] = { "CONVERSION_BASED_UNIT", "NAMED_UNIT", "PLANE_ANGLE_UNIT" };
 constexpr std::string_view MeasureRepresentation[] = { "MEASURE_REPRESENTATION_ITEM", "MEASURE_WITH_UNIT", "REPRESENTATION_ITEM" };
 constexpr Names ComplexSignatures[] = { Context, ContextWithUncertainty, SiLength, SiPlaneAngle, SiSolidAngle, ConversionLength };
 static_assert(std::size(ComplexSignatures) == 6);
@@ -473,6 +474,15 @@ constexpr Recipe Describe(ProfileKind profile)
         );
         referenceSelects.push_back({ "TRIMMING_SELECT", TrimmingPoints });
         enumerations.push_back({ "TRIMMING_PREFERENCE", TrimmingPreferences });
+    }
+    if (IsAp214SourceProfile(profile))
+    {
+        // Fixed AP214E3_2010.exp (71ab140f...), PLANE_ANGLE_MEASURE_WITH_UNIT:
+        // inherited value/unit slots; its nominal-unit WR1 is distinct from
+        // generic MWU's valid_units dimension test. Append to retain prior IDs.
+        declarations.push_back({ "PLANE_ANGLE_MEASURE_WITH_UNIT", { "MEASURE_WITH_UNIT" }, {}, true });
+        measureBranches.push_back("PLANE_ANGLE_MEASURE");
+        complexSignatures.push_back(ConversionPlaneAngle);
     }
     return recipe;
 }

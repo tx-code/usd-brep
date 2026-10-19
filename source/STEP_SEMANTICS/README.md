@@ -71,8 +71,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 134/116 declarations respectively;
-the separate MBx general catalog contains 122 declarations;
+transport slot. The general catalogs contain 134/117 declarations respectively;
+the separate MBx general catalog contains 123 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 
@@ -125,6 +125,17 @@ original diagnostics and independent ownership checks.
 The retained explicit mass dimensions must equal the factor-derived vector;
 `MetadataMassUnitDimensionsConflict` is a project compatibility guard, not an
 invented AP214 WHERE clause.
+
+Both AP214 source bindings also admit `PLANE_ANGLE_MEASURE_WITH_UNIT`, the
+`PLANE_ANGLE_MEASURE` value branch and the conversion-based plane-angle complex
+mapping from the same fixed `AP214E3_2010.exp`. Generic MWU `valid_units` checks
+that this value branch has a zero dimensional vector; the angle MWU subtype's
+own WR1 additionally requires a nominal `PLANE_ANGLE_UNIT`, independently of
+the value tag. A dimensionless solid-angle or plain named unit therefore cannot
+satisfy that subtype. Original values, conversion-unit names, references and
+derived-slot markers remain unchanged. Source scalar conversion evaluation stays
+`NotRun`; no radian scale or positivity requirement is invented by this source
+declaration. Native construction keeps its separate angular-conversion gates.
 
 An explicit `GeometryScope::GeneralBrep` request also selects the separate
 `203e2-G0-Source-0.1` subset for the exact N2635 name/OID. The default P0 catalog,

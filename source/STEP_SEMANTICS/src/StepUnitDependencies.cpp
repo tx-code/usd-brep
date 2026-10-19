@@ -558,9 +558,10 @@ private:
                 {
                     required = Basis(0);
                 }
-                else if (m_data.profile.kind == ProfileKind::Ap203e2GeneralSource && tag == "PLANE_ANGLE_MEASURE")
+                else if (tag == "PLANE_ANGLE_MEASURE")
                 {
-                    // N2635 valid_units checks only the value branch's dimension.
+                    // Pinned N2635 / AP214E3_2010.exp valid_units check only the
+                    // value branch's dimension, not nominal angle membership.
                     // Nominal angle-unit membership belongs to the MWU subtype
                     // below; generic MWU must not inherit that entity's WR1.
                     required = {};
@@ -610,7 +611,8 @@ private:
                 }
                 if (IsA(r, "PLANE_ANGLE_MEASURE_WITH_UNIT"))
                 {
-                    // N2635 PLANE_ANGLE_MEASURE_WITH_UNIT.WR1 constrains this
+                    // Pinned N2635 / AP214E3_2010.exp
+                    // PLANE_ANGLE_MEASURE_WITH_UNIT.WR1 constrains this
                     // entity's unit_component regardless of value_component's tag.
                     Count(unit.declaration.value->span);
                     if (!IsA(target, "PLANE_ANGLE_UNIT"))

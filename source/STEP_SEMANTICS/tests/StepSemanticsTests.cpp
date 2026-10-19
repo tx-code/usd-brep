@@ -71,7 +71,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 116,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 117,
             "Catalog identity leaked across source profiles"
         );
         Require(
@@ -97,6 +97,35 @@ int main(int argc, char** argv)
         Require(
             derivedReferenceRefused && derivedDimensions.Value().kind == step_source::ValueKind::Derived,
             "Owning derived field must survive outcome release without inventing a reference"
+        );
+        ++groups;
+
+        auto angleText = Read(corpus / "S203-P01/input.step");
+        angleText.replace(angleText.find(originalSchema), originalSchema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+        const std::string siAngle = "#11=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));";
+        angleText.replace(
+            angleText.find(siAngle),
+            siAngle.size(),
+            "#11=(CONVERSION_BASED_UNIT('source angle',#902) NAMED_UNIT(*) PLANE_ANGLE_UNIT());\n"
+            "#901=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));\n"
+            "#902=PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(+0.0174532925199433E+0),#901);"
+        );
+        auto angleRaw = step_source::InspectBytes(angleText, step_source::Limits::PlanarFixtures());
+        auto angleResult = Check(angleRaw, Limits{});
+        Require(angleResult.snapshot && angleResult.unitDependencies == "Passed", "AP214 plane-angle source dependencies");
+        auto angleValue = angleResult.snapshot->Field(Index(*angleResult.snapshot, "902"), "value_component");
+        auto angleUnit = angleResult.snapshot->Field(Index(*angleResult.snapshot, "902"), "unit_component");
+        const auto radianIndex = Index(*angleResult.snapshot, "901");
+        Require(
+            &angleValue.Value() == &angleRaw.source->Find("902")->components[0].parameters[0],
+            "Inherited angle value must borrow the immutable original source slot"
+        );
+        angleRaw = {};
+        angleResult = {};
+        Require(
+            angleValue.Value().text == "PLANE_ANGLE_MEASURE" && angleValue.Value().children.front().text == "+0.0174532925199433E+0" &&
+                angleUnit.ReferenceTarget() == radianIndex,
+            "Owning angle fields must retain the exact source lexeme and unit identity after caller release"
         );
         ++groups;
 

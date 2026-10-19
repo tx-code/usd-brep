@@ -10673,7 +10673,8 @@
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
         "TOROIDAL_SURFACE",
-        "TRIMMED_CURVE"
+        "TRIMMED_CURVE",
+        "PLANE_ANGLE_MEASURE_WITH_UNIT"
       ],
       "name_index": [
         {
@@ -10963,6 +10964,10 @@
         {
           "name": "PLANE",
           "id": 13
+        },
+        {
+          "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+          "id": 116
         },
         {
           "name": "PLANE_ANGLE_UNIT",
@@ -16393,6 +16398,31 @@
               "local_field_index": 4
             }
           ]
+        },
+        {
+          "id": 116,
+          "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+          "parents": [
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            63,
+            116
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 63,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 63,
+              "local_field_index": 1
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16662,6 +16692,11 @@
           "RATIONAL_B_SPLINE_SURFACE",
           "REPRESENTATION_ITEM",
           "SURFACE"
+        ],
+        [
+          "CONVERSION_BASED_UNIT",
+          "NAMED_UNIT",
+          "PLANE_ANGLE_UNIT"
         ]
       ],
       "measure_branches": [
@@ -16670,7 +16705,8 @@
         "POSITIVE_LENGTH_MEASURE",
         "MASS_MEASURE",
         "RATIO_MEASURE",
-        "POSITIVE_RATIO_MEASURE"
+        "POSITIVE_RATIO_MEASURE",
+        "PLANE_ANGLE_MEASURE"
       ],
       "derived_slots": [
         {
@@ -16908,7 +16944,8 @@
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
         "TOROIDAL_SURFACE",
-        "TRIMMED_CURVE"
+        "TRIMMED_CURVE",
+        "PLANE_ANGLE_MEASURE_WITH_UNIT"
       ],
       "name_index": [
         {
@@ -17218,6 +17255,10 @@
         {
           "name": "PLANE",
           "id": 13
+        },
+        {
+          "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+          "id": 122
         },
         {
           "name": "PLANE_ANGLE_UNIT",
@@ -22961,6 +23002,31 @@
               "local_field_index": 4
             }
           ]
+        },
+        {
+          "id": 122,
+          "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+          "parents": [
+            "MEASURE_WITH_UNIT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            65,
+            122
+          ],
+          "flattened": [
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "MEASURE_WITH_UNIT",
+              "declaring_type_id": 65,
+              "local_field_index": 1
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -23242,6 +23308,11 @@
           "RATIONAL_B_SPLINE_SURFACE",
           "REPRESENTATION_ITEM",
           "SURFACE"
+        ],
+        [
+          "CONVERSION_BASED_UNIT",
+          "NAMED_UNIT",
+          "PLANE_ANGLE_UNIT"
         ]
       ],
       "measure_branches": [
@@ -23250,7 +23321,8 @@
         "POSITIVE_LENGTH_MEASURE",
         "MASS_MEASURE",
         "RATIO_MEASURE",
-        "POSITIVE_RATIO_MEASURE"
+        "POSITIVE_RATIO_MEASURE",
+        "PLANE_ANGLE_MEASURE"
       ],
       "derived_slots": [
         {
