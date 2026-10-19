@@ -1,5 +1,27 @@
 # STEP_IMPORT（内部 C++20）
 
+显式通用路径可构建 AP214 所选 CGR/CGRR 的独立辅助几何：直接三维坐标框架、点、
+无界解析 PLANE，以及已支持的独立有限曲线子集（单层裁剪 LINE/CIRCLE/ELLIPSE、
+完整圆/椭圆、带显式节点的多项式/有理 B 样条）。其他必需成员在原生调用前拒绝。
+`SupportingGeometry()` 返回 owning 只读 view，保留源表示、关系、成员和原生存档索引。
+坐标与长度归一化为 mm；方向无量纲；曲线查询使用实际原生参数。
+`EvaluatePlane` 的 u/v 为 mm，`ClosestPlane` 显式选择无限平面，不参与材料分类。
+原生有限参数哨兵不是源裁剪边界；超出可表示范围即查询失败，不静默钳制。
+坐标框架只定义坐标，不被当成额外点、曲面轨迹或实例变换。
+
+辅助几何和材料 BRep 分开持有，材料数量、范围、面积、体积、分类及边界查询仍只针对
+所选 BRep。完整 `CopyForModeling` 拒绝混合模型；应用可明确选择独立
+`CopyBrepForModeling`。全体 native owner 在 context 之前、同一原生互斥锁下释放，
+沿用整个请求的取消、资源边界和原子报告发布。
+
+完整原生存档保存独立曲线、解析平面和点适配 BRep。坐标框架通过明确标注的 canonical
+plane adapter 保存原点与轴；它不是源 PLANE 或 BRep 面。回读核对全部成员库存、
+曲线定义、解析平面/框架的原点、轴、UV 尺度和参数域，以及点和材料边界。
+同一源成员跨线框/辅助表示复用原生定义，坐标相同而源身份不同的点保留独立身份。
+STEP 身份与角色对应保留在 owning 快照/报告中，原生 part 格式本身不编码这些语义。
+`supporting_geometry` 报告只在有该内容时增加；开发路径仍未建立全局连续误差界或完整
+AP 符合性。公开独立真值见 [合成辅助几何样件](tests/fixtures/supporting_geometry.md)。
+
 源层可在显式通用范围中保留 BRep 与独立关联线框，具体图、角色与必要规则见
 [源检查合同](../STEP_SEMANTICS/README.md)。原生通用路径分别持有材料 BRep、独立曲线和点，
 不从关联关系推断合并、变换或材料边界。线框支持 CARTESIAN_POINT、单层 LINE／CIRCLE／ELLIPSE

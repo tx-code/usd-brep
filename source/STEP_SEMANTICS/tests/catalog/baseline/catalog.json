@@ -10802,7 +10802,10 @@
         "GEOMETRIC_CURVE_SET",
         "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
         "PRODUCT_CATEGORY_RELATIONSHIP",
-        "INVISIBILITY"
+        "INVISIBILITY",
+        "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+        "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+        "PARAMETRIC_REPRESENTATION_CONTEXT"
       ],
       "name_index": [
         {
@@ -10896,6 +10899,14 @@
         {
           "name": "CONNECTED_FACE_SET",
           "id": 27
+        },
+        {
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+          "id": 124
+        },
+        {
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+          "id": 125
         },
         {
           "name": "CONVERSION_BASED_UNIT",
@@ -11100,6 +11111,10 @@
         {
           "name": "ORIENTED_EDGE",
           "id": 18
+        },
+        {
+          "name": "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "id": 126
         },
         {
           "name": "PATH",
@@ -16825,6 +16840,96 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 124,
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+          "parents": [
+            "REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            124
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 125,
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+          "parents": [
+            "REPRESENTATION_RELATIONSHIP"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            82,
+            125
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 82,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 82,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 82,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 82,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 126,
+          "name": "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "parents": [
+            "REPRESENTATION_CONTEXT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            52,
+            126
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 52,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 52,
+              "local_field_index": 1
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -17114,6 +17219,24 @@
           "CONVERSION_BASED_UNIT",
           "NAMED_UNIT",
           "PLANE_ANGLE_UNIT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "REPRESENTATION_CONTEXT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "REPRESENTATION_CONTEXT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+          "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "REPRESENTATION_CONTEXT"
         ]
       ],
       "measure_branches": [
@@ -17379,7 +17502,10 @@
         "GEOMETRIC_CURVE_SET",
         "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
         "PRODUCT_CATEGORY_RELATIONSHIP",
-        "INVISIBILITY"
+        "INVISIBILITY",
+        "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+        "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+        "PARAMETRIC_REPRESENTATION_CONTEXT"
       ],
       "name_index": [
         {
@@ -17473,6 +17599,14 @@
         {
           "name": "CONNECTED_FACE_SET",
           "id": 27
+        },
+        {
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+          "id": 139
+        },
+        {
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+          "id": 140
         },
         {
           "name": "CONVERSION_BASED_UNIT",
@@ -17717,6 +17851,10 @@
         {
           "name": "OVER_RIDING_STYLED_ITEM",
           "id": 116
+        },
+        {
+          "name": "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "id": 141
         },
         {
           "name": "PATH",
@@ -23956,6 +24094,96 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 139,
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+          "parents": [
+            "REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            139
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 140,
+          "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+          "parents": [
+            "REPRESENTATION_RELATIONSHIP"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            84,
+            140
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 2
+            },
+            {
+              "declaring_type": "REPRESENTATION_RELATIONSHIP",
+              "declaring_type_id": 84,
+              "local_field_index": 3
+            }
+          ]
+        },
+        {
+          "id": 141,
+          "name": "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "parents": [
+            "REPRESENTATION_CONTEXT"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            54,
+            141
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION_CONTEXT",
+              "declaring_type_id": 54,
+              "local_field_index": 1
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -24258,6 +24486,24 @@
           "CONVERSION_BASED_UNIT",
           "NAMED_UNIT",
           "PLANE_ANGLE_UNIT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "REPRESENTATION_CONTEXT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "REPRESENTATION_CONTEXT"
+        ],
+        [
+          "GEOMETRIC_REPRESENTATION_CONTEXT",
+          "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+          "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+          "PARAMETRIC_REPRESENTATION_CONTEXT",
+          "REPRESENTATION_CONTEXT"
         ]
       ],
       "measure_branches": [

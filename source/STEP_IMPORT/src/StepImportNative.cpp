@@ -44,6 +44,7 @@ ModelData::~ModelData()
 {
     std::lock_guard lock(NativeMutex());
     wireCurves.clear();
+    supportingSurfaces.clear();
     brep.reset();
     context.reset();
 }
@@ -1433,7 +1434,7 @@ void EditableBrep::Edit(const std::function<void(SmBrep&)>& edit)
 }
 EditableCopyOutcome ModelSnapshot::CopyForModeling() const
 {
-    if (!m_data->wireframes.empty())
+    if (!m_data->wireframes.empty() || !m_data->supportingGeometry.empty())
     {
         return { Status::Unsupported, {}, "LinkedGeometryRequiresExplicitBrepCopy", "Select CopyBrepForModeling for the material boundary only" };
     }
@@ -1513,7 +1514,7 @@ void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
-    if (!m_data->wireframes.empty())
+    if (!m_data->wireframes.empty() || !m_data->supportingGeometry.empty())
     {
         // Linked geometry has its own complete part writer; body-only archives
         // keep their existing representation and bytes.

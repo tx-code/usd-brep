@@ -1,5 +1,36 @@
 # STEP source semantics: ticket 03
 
+The two fixed AP214 source profiles also admit one directed
+`CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP` from an already selected
+shape representation to one `CONSTRUCTIVE_GEOMETRY_REPRESENTATION`. These
+retain separate `construction_relationship` / `construction_representation`
+roles. They are physical supporting geometry, not orphan metadata, a wireframe
+shape representation, an inferred transform or a material boundary.
+
+The pinned AP214E3_2010.exp (`71ab140f...`) CGRR.WR1-WR3 require identical
+geometric context identity, CGR as rep_2, and exactly one shape/CGR category for
+rep_1. The selected-subset guard additionally requires a direct already selected
+shape endpoint, one CGR/link, general geometry scope and the body's same unit
+context. CGR.WR1/WR2 check dimension and exactly one of its fixed eight item
+categories; a direct GEOMETRIC_CURVE_SET has zero, FACE_SURFACE has two.
+The real selected CGRR.rep_2 reference supplies CGR.WR3's incoming use.
+Closed catalogs still reject REPRESENTATION_MAP and
+REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION: this excludes CGR.WR4's mapped
+use and CGRR.WR4's transformed subtype within this subset, not a general map
+or transformation evaluator. Unsupported physical members cannot become
+nongeometric exceptions. Presentation ownership and physical exclusion include
+the selected supporting closure.
+
+The same profiles preserve `PARAMETRIC_REPRESENTATION_CONTEXT`, a zero-field
+subtype in that fixed artifact. Its admitted external mappings combine it with
+geometric contexts, with explicit units and optional uncertainty, or a unitless
+parameter context. The selected physical model still requires its own explicit
+unit assignment; parameter-context transport cannot supply a default. This
+marker does not supply units, change dimension or authorize UV reparameterizing.
+N2635's CGRR endpoint redeclarations differ and are not borrowed; N2635, modified
+N916 and P0 do not acquire these declarations. Source checking grants no native
+construction or continuous-error qualification.
+
 The two fixed AP214 catalogs admit ordinary `PRODUCT_CATEGORY` and
 `PRODUCT_CATEGORY_RELATIONSHIP` with the pinned AP214E3_2010.exp
 (`71ab140f...`) transport: category name/optional description, and relationship

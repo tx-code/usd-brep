@@ -6,6 +6,7 @@
 #include <SmBrep.h>
 #include <SmContext.h>
 #include <SmCurve.h>
+#include <SmSurface.h>
 #include <mutex>
 
 class SmEdge;
@@ -38,9 +39,13 @@ struct ModelData
     std::vector<SmVertex*> vertices;
     std::vector<SmEdge*> edges;
     std::vector<SmLine*> curves; // Legacy affine verifier only; native edges own all defining curves.
-    std::vector<std::unique_ptr<SmCurve>> wireCurves; // Detached definitions; must be destroyed before context, under NativeMutex.
-    std::vector<WireframePointInfo> wirePoints; // Coordinates do not imply source vertices or connection to the material BRep.
+    std::vector<std::unique_ptr<SmCurve>> wireCurves; // Detached definitions shared across wire/support roles; clear before context under NativeMutex.
+    std::vector<WireframePointInfo> wirePoints; // Shared source points, not source vertices or connections to the material BRep.
     std::vector<WireframeInfo> wireframes;
+    // Includes canonical plane adapters for coordinate frames. No adapter is
+    // inserted into the material BRep or presented as a source PLANE.
+    std::vector<std::unique_ptr<SmSurface>> supportingSurfaces;
+    std::vector<SupportingGeometryInfo> supportingGeometry;
     SmRegion* material = nullptr;
     SmRegion* bounded = nullptr;
     SmShell* outside = nullptr;

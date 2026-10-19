@@ -168,6 +168,52 @@ private:
     std::shared_ptr<detail::ModelData> m_data;
     std::size_t m_set = 0;
 };
+struct CoordinateFrame
+{
+    Point originMm{}, x{}, y{}, z{}; // Orthonormal STEP build_axes; directions dimensionless.
+};
+struct SupportingFrameInfo
+{
+    std::string sourceId;
+    std::size_t nativeSurfaceIndex = 0; // Explicit frame adapter in the archive, never a source surface.
+    CoordinateFrame frame;
+};
+struct SupportingPlaneInfo
+{
+    std::string sourceId, positionId;
+    std::size_t nativeSurfaceIndex = 0;
+    CoordinateFrame frame;
+    std::array<double, 4> parameterDomain{}; // Native finite sentinels, not source trims or geometric bounds.
+};
+struct SupportingGeometryInfo
+{
+    std::string representationId, relationshipId;
+    // Primitive mappings share the detached archive arrays with wireframes;
+    // the containing representation, not these value types, establishes role.
+    std::vector<WireframeCurveInfo> curves;
+    std::vector<WireframePointInfo> points;
+    std::vector<SupportingFrameInfo> frames;
+    std::vector<SupportingPlaneInfo> planes;
+};
+class SupportingGeometryView
+{
+public:
+
+    SupportingGeometryInfo Info() const;
+    step_semantics::SchemaInterpretation AppliedSourceInterpretation() const;
+    Point EvaluateCurve(std::size_t curve, double parameter) const;
+    Point EvaluatePlane(std::size_t plane, double uMm, double vMm) const;
+    ClosestPoint ClosestPlane(std::size_t plane, const Point& pointMm) const;
+    // Frames are coordinate definitions, not added point/plane loci. Queries
+    // explicitly select a primitive and never classify material or transform it.
+
+private:
+
+    friend class ModelSnapshot;
+    explicit SupportingGeometryView(std::shared_ptr<detail::ModelData> data, std::size_t set);
+    std::shared_ptr<detail::ModelData> m_data;
+    std::size_t m_set = 0;
+};
 struct EditableCopyOutcome;
 enum class PointClass
 {
@@ -212,13 +258,14 @@ public:
     FaceView Face(std::size_t index = 0) const; // Source face order; owning view retains the model and context.
     std::vector<FaceView> Faces() const;
     std::vector<WireframeView> Wireframes() const; // Separate associated source sets; no connectivity or composition inferred.
-    ClosestPoint Closest(const Point& pointMm) const; // Whole selected BRep boundary; associated wireframes have separate queries.
+    std::vector<SupportingGeometryView> SupportingGeometry() const;
+    ClosestPoint Closest(const Point& pointMm) const; // Whole selected BRep boundary; associated geometry has separate queries.
     std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
     void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
-    EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; linked geometry requires an explicit body-copy choice.
-    EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated wireframes are outside this scope.
+    EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
+    EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
 
 private:
 
@@ -313,6 +360,7 @@ struct Report
     std::vector<RepresentationNormalization> normalizations;
     std::vector<ParameterMapping> parameterMappings; // Derived native maps; never changes source parameters or entities.
     std::vector<WireframeInfo> wireframes; // Owning values/source identities only, never native owners.
+    std::vector<SupportingGeometryInfo> supportingGeometry;
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
     std::optional<step_semantics::SchemaSelection> sourceSchema; // Owning HEADER identity, including unsupported profile selection.
     std::shared_ptr<const step_source::SourceSnapshot> source;

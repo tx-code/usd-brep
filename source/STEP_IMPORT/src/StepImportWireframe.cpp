@@ -5,6 +5,7 @@
 #include <SmAssertArray.h>
 #include <SmBSplineCurve.h>
 #include <SmBrepData.h>
+#include <SmPlane.h>
 #include <SmSurface.h>
 #include <SmVertex.h>
 #include <algorithm>
@@ -91,6 +92,26 @@ void CompareCurve(const SmCurve& source, const SmCurve& read, double toleranceMm
     {
         Require(ka[i] == kb[i], "Linked archive curve knot changed");
     }
+}
+void ComparePlane(const SmSurface& source, const SmSurface& read, double toleranceMm)
+{
+    const auto a = dynamic_cast<const SmPlane*>(&source), b = dynamic_cast<const SmPlane*>(&read);
+    Require(a && b && source.GetType() == read.GetType(), "Supporting archive analytic plane type changed");
+    const auto& pa = a->GetPosition();
+    const auto& pb = b->GetPosition();
+    Require(pa.GetOriginRef().DistanceBetween(pb.GetOriginRef()) <= toleranceMm, "Supporting archive origin changed");
+    const auto exact = [](const auto& x, const auto& y)
+    {
+        return x.x == y.x && x.y == y.y && x.z == y.z;
+    };
+    Require(exact(pa.GetXAxisRef(), pb.GetXAxisRef()) && exact(pa.GetYAxisRef(), pb.GetYAxisRef()), "Supporting archive frame axes changed");
+    const auto da = a->GetNaturalUVDomain(), db = b->GetNaturalUVDomain();
+    const auto sa = a->GetUVScale(), sb = b->GetUVScale();
+    Require(
+        da.GetMin().x == db.GetMin().x && da.GetMin().y == db.GetMin().y && da.GetMax().x == db.GetMax().x && da.GetMax().y == db.GetMax().y &&
+            sa.x == sb.x && sa.y == sb.y,
+        "Supporting archive plane domain or scale changed"
+    );
 }
 void Validate(SmBrep& brep, const char* role)
 {
@@ -209,6 +230,88 @@ ClosestPoint WireframeView::Closest(const Point& point) const
     return result;
 }
 
+SupportingGeometryView::SupportingGeometryView(std::shared_ptr<detail::ModelData> data, std::size_t set) : m_data(std::move(data)), m_set(set)
+{
+}
+SupportingGeometryInfo SupportingGeometryView::Info() const
+{
+    return m_data->supportingGeometry.at(m_set);
+}
+step_semantics::SchemaInterpretation SupportingGeometryView::AppliedSourceInterpretation() const
+{
+    return m_data->source->AppliedInterpretation();
+}
+std::vector<SupportingGeometryView> ModelSnapshot::SupportingGeometry() const
+{
+    std::vector<SupportingGeometryView> result;
+    result.reserve(m_data->supportingGeometry.size());
+    for (std::size_t i = 0; i < m_data->supportingGeometry.size(); ++i)
+    {
+        result.push_back(SupportingGeometryView(m_data, i));
+    }
+    return result;
+}
+Point SupportingGeometryView::EvaluateCurve(std::size_t curve, double parameter) const
+{
+    const auto& info = m_data->supportingGeometry.at(m_set).curves.at(curve);
+    if (!std::isfinite(parameter) || parameter < info.parameterDomain[0] || parameter > info.parameterDomain[1])
+    {
+        throw std::out_of_range("Supporting curve query outside native interval");
+    }
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard lock(m_data->mutex);
+    SmPoint3d point;
+    Good(m_data->wireCurves.at(info.nativeIndex)->EvaluatePoint(parameter, point));
+    const auto result = Coordinates(point);
+    FinitePoint(result);
+    return result;
+}
+Point SupportingGeometryView::EvaluatePlane(std::size_t plane, double u, double v) const
+{
+    const auto& info = m_data->supportingGeometry.at(m_set).planes.at(plane);
+    if (!std::isfinite(u) || !std::isfinite(v) || u < info.parameterDomain[0] || v < info.parameterDomain[1] || u > info.parameterDomain[2] ||
+        v > info.parameterDomain[3])
+    {
+        throw std::out_of_range("Supporting plane query outside native representable chart");
+    }
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard lock(m_data->mutex);
+    SmPoint3d point;
+    Good(m_data->supportingSurfaces.at(info.nativeSurfaceIndex)->EvaluatePoint(SmPoint2d(u, v), point));
+    const auto result = Coordinates(point);
+    FinitePoint(result);
+    return result;
+}
+ClosestPoint SupportingGeometryView::ClosestPlane(std::size_t plane, const Point& point) const
+{
+    FinitePoint(point);
+    const auto& info = m_data->supportingGeometry.at(m_set).planes.at(plane);
+    double dx = 0, dy = 0, xx = 0, xy = 0, yy = 0;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        const auto delta = point[axis] - info.frame.originMm[axis];
+        dx += delta * info.frame.x[axis];
+        dy += delta * info.frame.y[axis];
+        xx += info.frame.x[axis] * info.frame.x[axis];
+        xy += info.frame.x[axis] * info.frame.y[axis];
+        yy += info.frame.y[axis] * info.frame.y[axis];
+    }
+    // Binary64 build_axes is only approximately orthonormal. Solve the small
+    // Gram system for the actual retained native axes, rather than assuming
+    // unit norms and zero cross term when projecting onto their exact span.
+    const auto determinant = xx * yy - xy * xy;
+    Require(std::isfinite(determinant) && determinant > 0, "Supporting plane projection frame unestablished");
+    const auto u = (dx * yy - dy * xy) / determinant;
+    const auto v = (dy * xx - dx * xy) / determinant;
+    // The source plane has no trim. Its native chart uses finite sentinels:
+    // inability to represent a projection is an explicit query failure, never
+    // an answer clamped to an artificial boundary. This is not material scope.
+    const auto projected = EvaluatePlane(plane, u, v);
+    const auto distance = Distance(projected, point);
+    Require(std::isfinite(distance), "Supporting plane distance unestablished");
+    return { projected, distance };
+}
+
 namespace detail
 {
 void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path)
@@ -219,6 +322,7 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     // These vertex-only BReps are an archive format adapter, not STEP vertices.
     auto context = std::make_unique<SmContext>();
     std::vector<std::unique_ptr<SmCurve>> curveOwners;
+    std::vector<std::unique_ptr<SmSurface>> surfaceOwners;
     std::vector<std::unique_ptr<SmBrep>> brepOwners;
     SmTArray<SmCurve*> curves;
     SmTArray<SmSurface*> surfaces;
@@ -233,6 +337,16 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
         Require(copy && copy->GetContext() == context.get(), "Linked archive curve copy context mismatch");
         curves.Add(copy.get());
         curveOwners.push_back(std::move(copy));
+    }
+    for (const auto& source : model.supportingSurfaces)
+    {
+        SmSurface* raw = nullptr;
+        const auto status = source->Copy(*context, raw);
+        std::unique_ptr<SmSurface> copy(raw);
+        Good(status);
+        Require(copy && copy->GetContext() == context.get(), "Supporting archive surface copy context mismatch");
+        surfaces.Add(copy.get());
+        surfaceOwners.push_back(std::move(copy));
     }
     std::unique_ptr<SmBrep> body(new (*context) SmBrep(*model.brep, nullptr, nullptr, TRUE, FALSE));
     brepOwners.push_back(std::move(body)); // Own before any vector growth can fail.
@@ -261,7 +375,7 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     ReadPart read;
     Good(SmBrepData::ReadPartFromFile(read.context, path.c_str(), read.curves, read.surfaces, read.trees, read.breps, SM_BINARY));
     Require(
-        read.curves.GetSize() == curves.GetSize() && read.breps.GetSize() == breps.GetSize() && read.surfaces.GetSize() == 0 &&
+        read.curves.GetSize() == curves.GetSize() && read.breps.GetSize() == breps.GetSize() && read.surfaces.GetSize() == surfaces.GetSize() &&
             read.trees.GetSize() == 0,
         "Linked archive inventory incomplete"
     );
@@ -270,6 +384,11 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     {
         Require(read.curves[i], "Linked archive curve missing");
         CompareCurve(*model.wireCurves[i], *read.curves[i], archiveToleranceMm);
+    }
+    for (ULONG i = 0; i < surfaces.GetSize(); ++i)
+    {
+        Require(read.surfaces[i], "Supporting archive surface missing");
+        ComparePlane(*model.supportingSurfaces[i], *read.surfaces[i], archiveToleranceMm);
     }
     for (ULONG i = 0; i < read.breps.GetSize(); ++i)
     {

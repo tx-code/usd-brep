@@ -233,6 +233,7 @@ public:
         ObserveTolerances();
         Measure();
         BuildWireframes(); // The same unpublished candidate owns every selected representation.
+        BuildSupportingGeometry();
         return m_model;
     }
 
@@ -253,6 +254,9 @@ private:
     double consistency = 0, uvGap = 0;
     std::vector<Index> derivedEdgeFaces;
     std::optional<Index> wireframeRepresentation;
+    std::optional<Index> supportingRepresentation;
+    std::map<Index, WireframeCurveInfo> detachedCurveInfo;
+    std::map<Index, WireframePointInfo> detachedPointInfo;
     double Tol() const
     {
         return Q(m_options.quality.initialWorkToleranceMm);
@@ -419,6 +423,10 @@ private:
             {
                 wireframeRepresentation = role.recordIndex;
             }
+            if (role.name == "construction_representation")
+            {
+                supportingRepresentation = role.recordIndex;
+            }
         }
         Need(m_source->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
         shape = Role("shape");
@@ -514,6 +522,22 @@ private:
             }
         }
         m_report.units = UnitNormalization{ Id(m_source->UnitContext().lengthUnit), Fraction(num, den), {} };
+        if (supportingRepresentation)
+        {
+            // Physical content cannot be an interoperability exception. Reject
+            // unsupported required items before allocating a native candidate.
+            for (const auto geometry : Refs(*supportingRepresentation, "items"))
+            {
+                const auto basis = Is(geometry, "TRIMMED_CURVE") ? Ref(geometry, "basis_curve") : geometry;
+                const bool curve = Is(geometry, "TRIMMED_CURVE") ?
+                                       Is(basis, "LINE") || Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") :
+                                       Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") || Is(basis, "B_SPLINE_CURVE_WITH_KNOTS");
+                if (!Is(geometry, "CARTESIAN_POINT") && !Is(geometry, "AXIS2_PLACEMENT_3D") && !Is(geometry, "PLANE") && !curve)
+                {
+                    Fail("GeneralSupportingGeometryUnsupported", geometry, Status::Unsupported);
+                }
+            }
+        }
         if (wireframeRepresentation)
         {
             for (const auto set : Refs(*wireframeRepresentation, "items"))
@@ -701,7 +725,7 @@ private:
         }
         return result;
     }
-    WireframeCurveInfo AddWireCurve(Index record, double& sourceConsistency, double& definitionEndpoints)
+    WireframeCurveInfo AddWireCurve(Index record, double& sourceConsistency, double& definitionEndpoints, bool supporting = false)
     {
         const bool trimmed = Is(record, "TRIMMED_CURVE");
         const auto basis = trimmed ? Ref(record, "basis_curve") : record;
@@ -779,7 +803,7 @@ private:
             const auto status = SmLine::CreateLineSegment(*m_model->context, 3, P((*expectedEnds)[0]), P((*expectedEnds)[1]), raw);
             curve.reset(raw);
             Good(status);
-            mapping.kind = "WireframeTrimmedLine";
+            mapping.kind = supporting ? "SupportingTrimmedLine" : "WireframeTrimmedLine";
             mapping.equation = "basis_t=lerp(basis_range,(native_t-native_begin)/(native_end-native_begin)); source_s=sign*(basis_t-trim_1)";
             mapping.parameters = { { "basis_trim_parameters", { first, last } },
                                    { "basis_range", { low, high } },
@@ -812,7 +836,7 @@ private:
                 return Add(frame.o, Add(Mul(frame.x, rx * std::cos(angle)), Mul(frame.y, ry * std::sin(angle))));
             };
             expectedEnds = std::array{ evaluate(trim.low), evaluate(trim.high) };
-            mapping.kind = "WireframeConicRationalParameter";
+            mapping.kind = supporting ? "SupportingConicRationalParameter" : "WireframeConicRationalParameter";
             mapping.equation =
                 "basis_angle_rad=atan2(dot(P(native_t)-origin,y)/ry,dot(P(native_t)-origin,x)/rx),unwrapped_to_basis_range_rad; native_t_is_not_angle";
             mapping.parameters = { { "basis_trim_rad", { trim.first, trim.last } },     { "basis_range_rad", { trim.low, trim.high } },
@@ -827,7 +851,7 @@ private:
         else
         {
             curve = MakeSplineCurve(basis, record);
-            mapping.kind = "WireframeSplineIdentity";
+            mapping.kind = supporting ? "SupportingSplineIdentity" : "WireframeSplineIdentity";
             mapping.equation = "source_t=native_t; entire_source_natural_interval; defining_coefficients_unchanged";
         }
         Need(bool(curve) && curve->GetDim() == 3, "GeneralWireCurveAllocation", record);
@@ -858,8 +882,8 @@ private:
         {
             return;
         }
-        std::map<Index, WireframeCurveInfo> curveInfo;
-        std::map<Index, WireframePointInfo> pointInfo;
+        auto& curveInfo = detachedCurveInfo;
+        auto& pointInfo = detachedPointInfo;
         double sourceConsistency = 0, definitionEndpoints = 0;
         for (const auto set : Refs(*wireframeRepresentation, "items"))
         {
@@ -922,6 +946,89 @@ private:
         m_report.wireframes = m_model->wireframes;
         m_report.tolerances.push_back({ "Postcheck", "MeasuredWireframeSourceTrimResidual", Id(*wireframeRepresentation), sourceConsistency });
         m_report.tolerances.push_back({ "Postcheck", "MeasuredWireframeDefinitionEndpointError", Id(*wireframeRepresentation), definitionEndpoints });
+    }
+    void BuildSupportingGeometry()
+    {
+        if (!supportingRepresentation)
+        {
+            return;
+        }
+        SupportingGeometryInfo group;
+        group.representationId = Id(*supportingRepresentation);
+        group.relationshipId = Id(Role("construction_relationship"));
+        double sourceConsistency = 0, definitionEndpoints = 0;
+        for (const auto geometry : Refs(*supportingRepresentation, "items"))
+        {
+            m_execution.Check(Phase::BeforeNativeCall);
+            if (Is(geometry, "CARTESIAN_POINT"))
+            {
+                if (!detachedPointInfo.contains(geometry))
+                {
+                    WireframePointInfo point{ Id(geometry), m_model->wirePoints.size(), Position(geometry) };
+                    m_model->wirePoints.push_back(point);
+                    detachedPointInfo.emplace(geometry, std::move(point));
+                }
+                group.points.push_back(detachedPointInfo.at(geometry));
+            }
+            else if (Is(geometry, "AXIS2_PLACEMENT_3D") || Is(geometry, "PLANE"))
+            {
+                const bool plane = Is(geometry, "PLANE");
+                const auto position = plane ? Ref(geometry, "position") : geometry;
+                const auto frame = Placement(position);
+                // STEP PLANE is unbounded. CreateCanonical retains its analytic
+                // axes and native sentinel domain, without a finite source trim.
+                // For a direct placement this same native storage is explicitly
+                // an archive frame adapter, not an added surface or locus.
+                SmPlane* raw = nullptr;
+                Step(geometry);
+                const auto status = SmPlane::CreateCanonical(*m_model->context, frame.Native(), raw);
+                std::unique_ptr<SmPlane> owned(raw);
+                Good(status);
+                Need(bool(owned), "GeneralSupportingPlaneAllocation", geometry);
+                const auto& actual = owned->GetPosition();
+                const auto axesEqual = [&](const auto& value, const V& expected)
+                {
+                    return value.x == expected[0] && value.y == expected[1] && value.z == expected[2];
+                };
+                Need(
+                    axesEqual(actual.GetOriginRef(), frame.o) && axesEqual(actual.GetXAxisRef(), frame.x) && axesEqual(actual.GetYAxisRef(), frame.y),
+                    "GeneralSupportingFrameChanged",
+                    geometry
+                );
+                const CoordinateFrame coordinates{ frame.o, frame.x, frame.y, frame.z };
+                const auto index = m_model->supportingSurfaces.size();
+                if (plane)
+                {
+                    const auto domain = owned->GetNaturalUVDomain();
+                    group.planes.push_back(
+                        { Id(geometry),
+                          Id(position),
+                          index,
+                          coordinates,
+                          { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y } }
+                    );
+                }
+                else
+                {
+                    group.frames.push_back({ Id(geometry), index, coordinates });
+                }
+                m_model->supportingSurfaces.push_back(std::move(owned));
+            }
+            else
+            {
+                if (!detachedCurveInfo.contains(geometry))
+                {
+                    detachedCurveInfo.emplace(geometry, AddWireCurve(geometry, sourceConsistency, definitionEndpoints, true));
+                }
+                group.curves.push_back(detachedCurveInfo.at(geometry));
+            }
+        }
+        m_model->supportingGeometry.push_back(std::move(group));
+        m_report.supportingGeometry = m_model->supportingGeometry;
+        m_report.tolerances.push_back({ "Postcheck", "MeasuredSupportingSourceTrimResidual", Id(*supportingRepresentation), sourceConsistency });
+        m_report.tolerances.push_back(
+            { "Postcheck", "MeasuredSupportingDefinitionEndpointError", Id(*supportingRepresentation), definitionEndpoints }
+        );
     }
     void MakeCurve(Curve& c)
     {

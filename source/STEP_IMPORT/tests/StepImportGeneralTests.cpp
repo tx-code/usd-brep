@@ -120,8 +120,13 @@ struct ReloadedNative
     std::unique_ptr<SmBrep> brep;
     std::vector<std::unique_ptr<SmCurve>> curves;
     std::vector<std::unique_ptr<SmBrep>> pointAdapters;
+    std::vector<std::unique_ptr<SmSurface>> supportingSurfaces;
 };
-ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vector<step_import::WireframeView>& wireframes = {})
+ReloadedNative ReloadNative(
+    const std::filesystem::path& archive,
+    const std::vector<step_import::WireframeView>& wireframes = {},
+    const std::vector<step_import::SupportingGeometryView>& supporting = {}
+)
 {
     ReloadedNative result;
     result.context = std::make_unique<SmContext>();
@@ -136,10 +141,9 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vec
         SmBrepData::ReadPartFromFile(*result.context, archive.c_str(), curves, surfaces, trees, breps, SM_BINARY) == SM_SUCCESS,
         "native archive reload"
     );
-    std::set<std::size_t> curveIndices, pointIndices;
-    for (const auto& view : wireframes)
+    std::set<std::size_t> curveIndices, pointIndices, surfaceIndices;
+    const auto registerPrimitives = [&](const auto& info)
     {
-        const auto info = view.Info();
         for (const auto& curve : info.curves)
         {
             curveIndices.insert(curve.nativeIndex);
@@ -148,9 +152,27 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vec
         {
             pointIndices.insert(point.nativeIndex);
         }
+    };
+    for (const auto& view : wireframes)
+    {
+        registerPrimitives(view.Info());
+    }
+    for (const auto& view : supporting)
+    {
+        const auto info = view.Info();
+        registerPrimitives(info);
+        for (const auto& frame : info.frames)
+        {
+            surfaceIndices.insert(frame.nativeSurfaceIndex);
+        }
+        for (const auto& plane : info.planes)
+        {
+            surfaceIndices.insert(plane.nativeSurfaceIndex);
+        }
     }
     Require(
-        breps.GetSize() == 1 + pointIndices.size() && curves.GetSize() == curveIndices.size() && surfaces.GetSize() == 0 && trees.GetSize() == 0,
+        breps.GetSize() == 1 + pointIndices.size() && curves.GetSize() == curveIndices.size() && surfaces.GetSize() == surfaceIndices.size() &&
+            trees.GetSize() == 0,
         "archive complete selected root inventory"
     );
     result.brep.reset(breps[0]);
@@ -160,6 +182,11 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vec
         result.curves.emplace_back(curves[i]);
         curves[i] = nullptr;
     }
+    for (ULONG i = 0; i < surfaces.GetSize(); ++i)
+    {
+        result.supportingSurfaces.emplace_back(surfaces[i]);
+        surfaces[i] = nullptr;
+    }
     for (ULONG i = 1; i < breps.GetSize(); ++i)
     {
         result.pointAdapters.emplace_back(breps[i]);
@@ -168,7 +195,7 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vec
     SmAssertArray pointers, deep;
     Require(result.brep->ValidatePointers(&pointers) == SM_SUCCESS && pointers.GetSize() == 0, "reloaded pointers");
     Require(result.brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0, "reloaded level2");
-    for (const auto& view : wireframes)
+    const auto verifyPrimitives = [&](const auto& view)
     {
         const auto info = view.Info();
         for (const auto& point : info.points)
@@ -198,6 +225,53 @@ ReloadedNative ReloadNative(const std::filesystem::path& archive, const std::vec
                 Require(read.EvaluatePoint(parameter, actual) == SM_SUCCESS, "reloaded linked curve evaluation");
                 Near(actual.DistanceBetween(SmPoint3d(expected[0], expected[1], expected[2])), 0, 1e-9, "reloaded linked curve sample");
             }
+        }
+    };
+    for (const auto& view : wireframes)
+    {
+        verifyPrimitives(view);
+    }
+    const auto verifyFrame = [&](std::size_t index, const step_import::CoordinateFrame& frame)
+    {
+        const auto plane = dynamic_cast<const SmPlane*>(result.supportingSurfaces.at(index).get());
+        Require(plane, "reloaded canonical plane/frame adapter type");
+        const auto& position = plane->GetPosition();
+        const auto compare = [&](const auto& actual, const step_import::Point& expected, double tolerance)
+        {
+            Near(actual.x, expected[0], tolerance, "reloaded supporting coordinate x");
+            Near(actual.y, expected[1], tolerance, "reloaded supporting coordinate y");
+            Near(actual.z, expected[2], tolerance, "reloaded supporting coordinate z");
+        };
+        compare(position.GetOriginRef(), frame.originMm, 1e-9);
+        compare(position.GetXAxisRef(), frame.x, 1e-12);
+        compare(position.GetYAxisRef(), frame.y, 1e-12);
+        Require(plane->GetUVScale().x == 1 && plane->GetUVScale().y == 1, "reloaded plane UV units");
+    };
+    for (const auto& view : supporting)
+    {
+        verifyPrimitives(view);
+        const auto info = view.Info();
+        for (const auto& frame : info.frames)
+        {
+            verifyFrame(frame.nativeSurfaceIndex, frame.frame);
+        }
+        for (std::size_t i = 0; i < info.planes.size(); ++i)
+        {
+            const auto& plane = info.planes[i];
+            verifyFrame(plane.nativeSurfaceIndex, plane.frame);
+            const auto domain = result.supportingSurfaces.at(plane.nativeSurfaceIndex)->GetNaturalUVDomain();
+            Require(
+                domain.GetMin().x == plane.parameterDomain[0] && domain.GetMin().y == plane.parameterDomain[1] &&
+                    domain.GetMax().x == plane.parameterDomain[2] && domain.GetMax().y == plane.parameterDomain[3],
+                "reloaded supporting chart unchanged"
+            );
+            const auto expected = view.EvaluatePlane(i, 2, 3);
+            SmPoint3d actual;
+            Require(
+                result.supportingSurfaces.at(plane.nativeSurfaceIndex)->EvaluatePoint(SmPoint2d(2, 3), actual) == SM_SUCCESS,
+                "reloaded supporting plane evaluation"
+            );
+            Near(actual.DistanceBetween(SmPoint3d(expected[0], expected[1], expected[2])), 0, 1e-9, "supporting sample after reload");
         }
     }
     return result;
@@ -880,7 +954,21 @@ void DevelopmentContract(
             Near(wireframe.Closest(sample).distanceMm, 0, 1e-5, "development whole-set curve query");
         }
     }
-    auto loaded = ReloadNative(archive, wireframes);
+    const auto supporting = result.model->SupportingGeometry();
+    for (const auto& supportingView : supporting)
+    {
+        const auto supportingInfo = supportingView.Info();
+        for (std::size_t i = 0; i < supportingInfo.planes.size(); ++i)
+        {
+            auto point = supportingInfo.planes[i].frame.originMm;
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                point[axis] += 1.25 * supportingInfo.planes[i].frame.z[axis];
+            }
+            Near(supportingView.ClosestPlane(i, point).distanceMm, 1.25, 1e-7, "development supporting plane query");
+        }
+    }
+    auto loaded = ReloadNative(archive, wireframes, supporting);
     SmTArray<SmFace*> faces;
     SmTArray<SmEdge*> edges;
     SmTArray<SmVertex*> vertices;
@@ -925,6 +1013,17 @@ void DevelopmentContract(
         checks << ",\"linked_sets\":" << wireframes.size() << ",\"linked_curves\":" << loaded.curves.size()
                << ",\"linked_points\":" << loaded.pointAdapters.size()
                << ",\"linked_archive_inventory_and_queries_checked\":true,\"linked_curve_reload_samples_per_curve\":9";
+    }
+    if (!supporting.empty())
+    {
+        std::size_t frames = 0, planes = 0;
+        for (const auto& supportingView : supporting)
+        {
+            frames += supportingView.Info().frames.size();
+            planes += supportingView.Info().planes.size();
+        }
+        checks << ",\"supporting_groups\":" << supporting.size() << ",\"supporting_frames\":" << frames << ",\"supporting_planes\":" << planes
+               << ",\"supporting_archive_and_queries_checked\":true";
     }
     checks << "}\n";
     Require(bool(checks), "development check receipt");

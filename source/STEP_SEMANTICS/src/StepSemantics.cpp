@@ -353,6 +353,7 @@ private:
     std::size_t m_context = 0;
     std::size_t m_representation = 0;
     std::optional<std::size_t> m_wireframeRepresentation;
+    std::optional<std::size_t> m_constructionRepresentation;
 
     [[noreturn]] void Fail(
         std::string key,
@@ -1459,11 +1460,170 @@ private:
         std::optional<std::size_t> relationship;
         std::optional<std::size_t> wireframe;
         std::optional<std::size_t> wireframeRelationship;
+        std::optional<std::size_t> construction;
+        std::optional<std::size_t> constructionRelationship;
     };
+    void SelectAp214Construction(SourceRepresentations& selected)
+    {
+        if (!IsAp214SourceProfile(m_data->profile.kind))
+        {
+            return;
+        }
+        const auto& representations = Population("CONSTRUCTIVE_GEOMETRY_REPRESENTATION");
+        const auto& relationships = Population("CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP");
+        if (representations.empty() && relationships.empty())
+        {
+            return;
+        }
+        const auto unsupported = [&](std::size_t owner, const char* message)
+        {
+            Fail(
+                "UnsupportedConstructionGeometryGraph",
+                "D2",
+                message,
+                Record(owner).span,
+                Status::Unsupported,
+                owner,
+                0,
+                {},
+                {},
+                {},
+                "project single selected supporting representation guard"
+            );
+        };
+        if (m_data->geometryScope != GeometryScope::GeneralBrep || representations.size() != 1 || relationships.size() != 1)
+        {
+            unsupported(selected.definition, "General source scope requires exactly one supporting representation and directed construction link");
+        }
+        const auto representation = representations[0], relationship = relationships[0];
+        const auto& firstValue = FieldValue(relationship, "rep_1");
+        const auto& secondValue = FieldValue(relationship, "rep_2");
+        const auto first = Target(firstValue), second = Target(secondValue);
+        const auto firstContext = Target(FieldValue(first, "context_of_items"));
+        const auto secondContext = Target(FieldValue(second, "context_of_items"));
+        Visit(Record(relationship).span);
+        // Fixed AP214 CGRR.WR1-WR3, in source order. Unlike ordinary SRR,
+        // endpoints are directed: reversing the source link is not equivalent.
+        if (firstContext != secondContext || !IsA(*m_data, firstContext, "GEOMETRIC_REPRESENTATION_CONTEXT"))
+        {
+            FieldFailure(
+                "SourceRuleViolation:CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR1",
+                "D3",
+                "Construction relationship requires the identical geometric context",
+                secondValue.span,
+                Status::Rejected,
+                relationship,
+                "rep_2",
+                FieldDetail::AttributePath,
+                "same GRC identity",
+                secondValue.text,
+                "AP214E3_2010.exp CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR1"
+            );
+        }
+        if (!IsA(*m_data, second, "CONSTRUCTIVE_GEOMETRY_REPRESENTATION"))
+        {
+            FieldFailure(
+                "SourceRuleViolation:CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR2",
+                "D3",
+                "rep_2 must be a constructive geometry representation",
+                secondValue.span,
+                Status::Rejected,
+                relationship,
+                "rep_2",
+                FieldDetail::AttributePath,
+                "CGR",
+                secondValue.text,
+                "AP214E3_2010.exp CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR2"
+            );
+        }
+        const auto firstCategories = std::size_t(IsA(*m_data, first, "SHAPE_REPRESENTATION")) +
+                                     std::size_t(IsA(*m_data, first, "CONSTRUCTIVE_GEOMETRY_REPRESENTATION"));
+        if (firstCategories != 1)
+        {
+            FieldFailure(
+                "SourceRuleViolation:CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR3",
+                "D3",
+                "rep_1 must have exactly one shape/construction category",
+                firstValue.span,
+                Status::Rejected,
+                relationship,
+                "rep_1",
+                FieldDetail::AttributePath,
+                "one SHAPE_REPRESENTATION/CGR category",
+                firstValue.text,
+                "AP214E3_2010.exp CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR3"
+            );
+        }
+        // RR_WITH_TRANSFORMATION and REPRESENTATION_MAP remain unregistered;
+        // closed simple mappings exclude CGRR.WR4's forbidden subtype and
+        // CGR.WR4's mapped usage. This is not a general transformation/map check.
+        if (second != representation || (first != selected.definition && first != selected.body && selected.wireframe != first))
+        {
+            unsupported(relationship, "Supporting geometry must link directly from an already selected shape; construction chains are not selected");
+        }
+        const auto context = Target(FieldValue(representation, "context_of_items"));
+        const auto& dimension = FieldValue(context, "coordinate_space_dimension");
+        Visit(dimension.span);
+        if (CompareSourceReals(dimension.text, "2") < 0 || CompareSourceReals(dimension.text, "3") > 0)
+        {
+            FieldFailure(
+                "SourceRuleViolation:CONSTRUCTIVE_GEOMETRY_REPRESENTATION.WR1",
+                "D3",
+                "Supporting representation context dimension must be 2 or 3",
+                dimension.span,
+                Status::Rejected,
+                context,
+                "coordinate_space_dimension",
+                FieldDetail::AttributePath,
+                "2 <= dimension <= 3",
+                dimension.text,
+                "AP214E3_2010.exp CONSTRUCTIVE_GEOMETRY_REPRESENTATION.WR1"
+            );
+        }
+        const auto& items = FieldValue(representation, "items");
+        constexpr std::string_view categories[] = { "PLACEMENT", "CURVE", "EDGE", "FACE", "POINT", "SURFACE", "FACE_SURFACE", "VERTEX_POINT" };
+        for (const auto& item : items.children)
+        {
+            Visit(item.span);
+            const auto target = Target(item);
+            std::size_t count = 0;
+            for (const auto category : categories)
+            {
+                count += IsA(*m_data, target, category) ? 1 : 0;
+            }
+            if (count != 1)
+            {
+                FieldFailure(
+                    "SourceRuleViolation:CONSTRUCTIVE_GEOMETRY_REPRESENTATION.WR2",
+                    "D3",
+                    "Supporting item must have exactly one fixed-source geometry category",
+                    item.span,
+                    Status::Rejected,
+                    representation,
+                    "items",
+                    FieldDetail::AttributePath,
+                    "one source category",
+                    item.text,
+                    "AP214E3_2010.exp CONSTRUCTIVE_GEOMETRY_REPRESENTATION.WR2"
+                );
+            }
+        }
+        // The selected, actually typed CGRR.rep_2 reference above supplies
+        // CGR.WR3's required incoming RR use; no synthetic inverse is added.
+        if (context != Target(FieldValue(selected.body, "context_of_items")))
+        {
+            unsupported(
+                representation,
+                "Supporting geometry must share the selected physical unit/context identity; no relation transform is inferred"
+            );
+        }
+        selected.construction = representation;
+        selected.constructionRelationship = relationship;
+    }
     SourceRepresentations SelectAp214Representations(std::size_t sdr)
     {
         const auto root = Target(FieldValue(sdr, "used_representation"));
-        SourceRepresentations selected{ root, root, {}, {}, {} };
+        SourceRepresentations selected{ root, root, {}, {}, {}, {}, {} };
         const auto isBody = [&](std::size_t record)
         {
             return IsA(*m_data, record, "ADVANCED_BREP_SHAPE_REPRESENTATION") || IsA(*m_data, record, "MANIFOLD_SURFACE_SHAPE_REPRESENTATION");
@@ -1592,13 +1752,15 @@ private:
             }
             selected.relationship = relationship;
         }
+        SelectAp214Construction(selected);
         for (const auto representation : Population("REPRESENTATION"))
         {
             Visit(Record(representation).span);
             // A plain representation is only a metadata candidate here. Closure
             // grants ownership only after proving its property link and part.
             if (representation != selected.definition && representation != selected.body && selected.wireframe != representation &&
-                !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION") && !IsPlainRepresentation(representation))
+                selected.construction != representation && !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION") &&
+                !IsPlainRepresentation(representation))
             {
                 unsupported(representation, "Additional representation is outside the selected root/body/presentation graph");
             }
@@ -1637,6 +1799,7 @@ private:
         std::size_t definitionRepresentation = 0;
         std::optional<std::size_t> shapeRelationship;
         std::optional<std::size_t> wireframeRelationship;
+        std::optional<std::size_t> constructionRelationship;
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             // Source SDR selects the root; presentation order and representation counts
@@ -1647,6 +1810,8 @@ private:
             shapeRelationship = selected.relationship;
             m_wireframeRepresentation = selected.wireframe;
             wireframeRelationship = selected.wireframeRelationship;
+            m_constructionRepresentation = selected.construction;
+            constructionRelationship = selected.constructionRelationship;
             m_context = Target(FieldValue(m_representation, "context_of_items"));
         }
         else
@@ -1680,6 +1845,12 @@ private:
             Expects(wireframeRelationship.has_value());
             m_data->part.roles.push_back({ "wireframe_representation", *m_wireframeRepresentation });
             m_data->part.roles.push_back({ "wireframe_shape_relationship", *wireframeRelationship });
+        }
+        if (m_constructionRepresentation)
+        {
+            Expects(constructionRelationship.has_value());
+            m_data->part.roles.push_back({ "construction_representation", *m_constructionRepresentation });
+            m_data->part.roles.push_back({ "construction_relationship", *constructionRelationship });
         }
         if (apd)
         {
@@ -2265,6 +2436,13 @@ private:
         if (m_wireframeRepresentation)
         {
             for (const auto& value : FieldValue(*m_wireframeRepresentation, "items").children)
+            {
+                items.push_back(Target(value));
+            }
+        }
+        if (m_constructionRepresentation)
+        {
+            for (const auto& value : FieldValue(*m_constructionRepresentation, "items").children)
             {
                 items.push_back(Target(value));
             }
@@ -2989,6 +3167,10 @@ private:
         {
             physicalRoots.push_back(*m_wireframeRepresentation);
         }
+        if (m_constructionRepresentation)
+        {
+            physicalRoots.push_back(*m_constructionRepresentation);
+        }
         const auto physical = Reach(std::move(physicalRoots), false);
         std::optional<std::vector<unsigned char>> presentationUse;
         std::optional<std::vector<unsigned char>> propertyUse;
@@ -3204,6 +3386,25 @@ private:
     }
     void UnitContext()
     {
+        if (!IsA(*m_data, m_context, "GLOBAL_UNIT_ASSIGNED_CONTEXT"))
+        {
+            // PARAMETRIC_REPRESENTATION_CONTEXT may legally label a unitless
+            // parameter space. It does not establish physical model units or
+            // inherit them from some other representation sharing the file.
+            Fail(
+                "UnsupportedPhysicalUnitContext",
+                "D2",
+                "Selected physical representation requires explicit unit assignment",
+                Record(m_context).span,
+                Status::Unsupported,
+                m_context,
+                0,
+                {},
+                {},
+                {},
+                "project physical unit guard; no defaults"
+            );
+        }
         const auto& dimension = FieldValue(m_context, "coordinate_space_dimension");
         if (!PositiveInteger(dimension.text))
         {

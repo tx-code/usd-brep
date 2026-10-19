@@ -57,6 +57,117 @@ void FractionJson(Writer& writer, Fraction value)
     writer.String(std::to_string(value.Denominator()));
     writer.Add("}");
 }
+void FrameJson(Writer& w, const CoordinateFrame& frame)
+{
+    w.Add("{\"origin_mm\":");
+    PointJson(w, frame.originMm);
+    w.Add(",\"x\":");
+    PointJson(w, frame.x);
+    w.Add(",\"y\":");
+    PointJson(w, frame.y);
+    w.Add(",\"z\":");
+    PointJson(w, frame.z);
+    w.Add("}");
+}
+void SupportingJson(Writer& w, const std::vector<SupportingGeometryInfo>& groups)
+{
+    w.Add(",\"supporting_geometry\":[");
+    for (std::size_t i = 0; i < groups.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& group = groups[i];
+        w.Add("{\"source_representation\":");
+        w.String(group.representationId);
+        w.Add(",\"source_relationship\":");
+        w.String(group.relationshipId);
+        w.Add(",\"role\":\"ConstructiveSupportingGeometry\",\"material_boundary\":false,\"curves\":[");
+        for (std::size_t j = 0; j < group.curves.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            const auto& curve = group.curves[j];
+            w.Add("{\"source_id\":");
+            w.String(curve.sourceId);
+            w.Add(",\"source_basis\":");
+            w.String(curve.basisId);
+            w.Add(",\"native_curve_index\":");
+            w.Number(curve.nativeIndex);
+            w.Add(",\"native_parameter_domain\":[");
+            Number(w, curve.parameterDomain[0]);
+            w.Add(",");
+            Number(w, curve.parameterDomain[1]);
+            w.Add("],\"source_forward_in_native\":");
+            w.Bool(curve.sourceForwardInNative);
+            w.Add("}");
+        }
+        w.Add("],\"points\":[");
+        for (std::size_t j = 0; j < group.points.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            const auto& point = group.points[j];
+            w.Add("{\"source_id\":");
+            w.String(point.sourceId);
+            w.Add(",\"archive_point_brep_index\":");
+            w.Number(point.nativeIndex + 1);
+            w.Add(",\"point_mm\":");
+            PointJson(w, point.pointMm);
+            w.Add("}");
+        }
+        w.Add("],\"frames\":[");
+        for (std::size_t j = 0; j < group.frames.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            const auto& frame = group.frames[j];
+            w.Add("{\"source_id\":");
+            w.String(frame.sourceId);
+            w.Add(",\"archive_frame_surface_adapter_index\":");
+            w.Number(frame.nativeSurfaceIndex);
+            w.Add(",\"archive_encoding\":\"CanonicalPlaneFrameAdapter\",\"is_source_surface\":false,\"frame\":");
+            FrameJson(w, frame.frame);
+            w.Add("}");
+        }
+        w.Add("],\"planes\":[");
+        for (std::size_t j = 0; j < group.planes.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            const auto& plane = group.planes[j];
+            w.Add("{\"source_id\":");
+            w.String(plane.sourceId);
+            w.Add(",\"source_position\":");
+            w.String(plane.positionId);
+            w.Add(",\"native_surface_index\":");
+            w.Number(plane.nativeSurfaceIndex);
+            w.Add(",\"unbounded_source_plane\":true,\"frame\":");
+            FrameJson(w, plane.frame);
+            w.Add(",\"native_chart_sentinels\":[");
+            for (std::size_t k = 0; k < 4; ++k)
+            {
+                if (k)
+                {
+                    w.Add(",");
+                }
+                Number(w, plane.parameterDomain[k]);
+            }
+            w.Add("]}");
+        }
+        w.Add("]}");
+    }
+    w.Add("]");
+}
 void Optional(Writer& writer, const std::optional<double>& value)
 {
     if (value)
@@ -538,6 +649,10 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                         w.Add("]}");
                     }
                     w.Add("]");
+                }
+                if (!report.supportingGeometry.empty())
+                {
+                    SupportingJson(w, report.supportingGeometry);
                 }
                 w.Add("}");
                 return;

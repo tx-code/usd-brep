@@ -3,6 +3,7 @@
 #pragma once
 #include "StepAp203GeneralCatalogData.h"
 #include "StepAp203N916CatalogData.h"
+#include "StepAp214ConstructionCatalogData.h"
 #include "StepAp214MbxCatalogData.h"
 #include "StepAp214PresentationCatalogData.h"
 #include "StepAp214SourceRolesCatalogData.h"
@@ -515,6 +516,7 @@ constexpr Recipe ProfileRecipe()
     if constexpr (IsAp214SourceProfile(Profile))
     {
         ap214_source_roles::AppendDeclarations(recipe, Profile == ProfileKind::Ap214MbxSource);
+        ap214_construction::AppendDeclarations(recipe);
     }
     return recipe;
 }
