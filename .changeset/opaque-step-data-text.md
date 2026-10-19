@@ -6,10 +6,11 @@ An explicit DATA-string preservation policy captures unknown non-ASCII text as
 owning `OpaqueString` values with original bytes and unavailable decoded text.
 Default parsing and the independent HEADER-name option retain their contracts.
 
-General interoperability may retain this unavailable text only in four exact
-nondefining fields after selected-product, representation or layer-attachment
+General interoperability may retain this unavailable text only in three exact
+nondefining fields after selected-product or layer-attachment
 proof. Original unestablished-text diagnostics remain; all other fields and
-unsupported protocols fail without publishing a model.
+unsupported protocols fail without publishing a model. Representation names that
+participate in the current purpose guard remain unsupported when opaque.
 
 ## Scope
 

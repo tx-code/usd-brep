@@ -19,8 +19,14 @@ void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
     out.Add(",\"text\":");
     if (value.kind == ValueKind::OpaqueString)
     {
-        out.Add(
-            "null,\"interpretation\":\"Unestablished\",\"notice\":\"Nonstandard HEADER filename retained as original bytes; no code page inferred\""
+        const auto& header = source.Header();
+        const bool headerName = header.size() > 1 && !header[1].parameters.empty() && &value == &header[1].parameters[0];
+        out.Add("null,\"interpretation\":\"Unestablished\",\"notice\":");
+        // Preserve the existing HEADER notice bytes; DATA tokens cannot inherit
+        // its filename provenance merely because they share an opaque ValueKind.
+        out.String(
+            headerName ? "Nonstandard HEADER filename retained as original bytes; no code page inferred" :
+                         "Nonstandard DATA string retained as original bytes; no code page inferred"
         );
     }
     else

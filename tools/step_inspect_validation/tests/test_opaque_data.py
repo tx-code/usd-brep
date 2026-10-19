@@ -30,6 +30,8 @@ class OpaqueDataTests(unittest.TestCase):
         record = next(r for r in result["records"] if r["id"] == "4")
         value = record["components"][0]["parameters"][0]
         self.assertEqual("OpaqueString", value["kind"])
+        self.assertIn("DATA", value["notice"])
+        self.assertNotIn("HEADER", value["notice"])
         self.assertIsNone(value["text"])
         self.assertEqual(b"'\x80\xfe\\unknown''quote'", value["raw"].encode("latin1"))
         self.assertIn("OpaqueDataStringsRetained", [d["key"] for d in result["diagnostics"]])

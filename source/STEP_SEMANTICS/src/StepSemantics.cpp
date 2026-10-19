@@ -210,7 +210,7 @@ public:
         {
             const auto& key = diagnostic.source.key;
             if (key == "RequiredAttributeMissing" || key == "AttributeTypeMismatch" || key == "ReferenceTypeMismatch" ||
-                key == "DerivedSlotMarkerRequired" || key == "UnsupportedEntityType")
+                key == "DerivedSlotMarkerRequired" || key == "UnsupportedEntityType" || key == "OpaqueDataTextUnestablished")
             {
                 m_outcome.types = "CheckedWithDiagnostics";
             }
@@ -780,9 +780,11 @@ private:
                     catch (Failure& failure)
                     {
                         const auto& issue = failure.diagnostic;
+                        // REPRESENTATION.name is excluded: Product() still uses
+                        // it for the project's special-purpose exclusion. Unknown
+                        // text cannot silently satisfy that check as "".
                         const bool display = (issue.declaredIn == "PRODUCT" && (issue.field == "id" || issue.field == "name")) ||
-                                             ((issue.declaredIn == "REPRESENTATION" || issue.declaredIn == "PRESENTATION_LAYER_ASSIGNMENT") &&
-                                              issue.field == "name");
+                                             (issue.declaredIn == "PRESENTATION_LAYER_ASSIGNMENT" && issue.field == "name");
                         if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep || !display || path.size() != 1)
                         {
                             throw;
@@ -2658,10 +2660,8 @@ private:
             const auto& key = issue.diagnostic.source.key;
             if (issue.proof == SemanticData::PreservationProof::OpaqueDisplayText)
             {
-                // These FOUR fields are labels/identifiers, not geometry or
-                // unit definitions (pinned N2635/AP214 declarations). A record-
-                // level physical exclusion would be wrong for REPRESENTATION:
-                // its items own the body, whereas its name does not define it.
+                // These THREE fields are labels/identifiers, not geometry or
+                // unit definitions (pinned N2635/AP214 declarations).
                 // Prove actual selected/attached ownership, not mere type/name.
                 const auto& field = issue.diagnostic.field;
                 const auto& owner = issue.diagnostic.declaredIn;
@@ -2674,11 +2674,10 @@ private:
                                                      return role.name == "product" && role.recordIndex == record;
                                                  }
                                              );
-                const bool selectedRepresentation = owner == "REPRESENTATION" && field == "name" && record == m_representation;
                 const bool attachedLayer = owner == "PRESENTATION_LAYER_ASSIGNMENT" && field == "name" &&
                                            record < m_administrativeAttachments.size() && m_administrativeAttachments[record] && !physical[record];
                 if (m_data->geometryScope != GeometryScope::GeneralBrep || FieldValue(record, field).kind != ValueKind::OpaqueString ||
-                    !(selectedProduct || selectedRepresentation || attachedLayer))
+                    !(selectedProduct || attachedLayer))
                 {
                     State(Phase::Types) = FailureProgress(issue.status);
                     State(Phase::Interoperability) = FailureProgress(issue.status);

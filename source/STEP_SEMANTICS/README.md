@@ -1,13 +1,15 @@
 # STEP source semantics: ticket 03
 
 Explicit general interoperability may preserve unavailable DATA text in exactly
-`PRODUCT.id`, `PRODUCT.name`, `REPRESENTATION.name` and
+`PRODUCT.id`, `PRODUCT.name` and
 `PRESENTATION_LAYER_ASSIGNMENT.name`. Source capture must separately select its
 raw DATA-string policy. Typing retains `OpaqueDataTextUnestablished` as
 `ProfileUnsupported`, never a decoded/empty label or a proven malformed value.
-Final approval requires the actual selected product/representation, or a layer
-whose complete attachment was already proved. A representation's nondefining name
-is distinct from its geometry-owning item dependencies. Other fields, protocol
+Final approval requires the actual selected product, or a layer
+whose complete attachment was already proved. `REPRESENTATION.name` remains
+unsupported when opaque: the current profile consults that name for special
+representation-purpose exclusions, which unknown text cannot silently satisfy.
+Other fields, protocol
 claims, property-rule names, units and unapproved owners remain unsupported.
 `CheckedWithDiagnostics` and owning `OpaqueString` values expose this limitation;
 the source bytes, field roles, scope and all other checks remain intact. Strict

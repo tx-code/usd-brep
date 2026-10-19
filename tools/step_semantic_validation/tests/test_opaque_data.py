@@ -20,13 +20,15 @@ class OpaqueSemanticTests(unittest.TestCase):
                                   "--preserve-opaque-data-strings", *args], capture_output=True, timeout=30)
         return run, json.loads(run.stdout) if run.stdout else None
 
-    def test_selected_product_representation_and_attached_layer_keep_unknown_text(self):
-        for field, count in [("product", 2), ("representation", 1), ("layer", 1)]:
+    def test_selected_product_and_attached_layer_keep_unknown_text(self):
+        for field, count in [("product", 2), ("layer", 1)]:
             with self.subTest(field=field):
                 data = opaque_source(field)
                 run, result = self.invoke(data, "--interop-nongeometric", "--general-brep-source")
                 self.assertEqual(0, run.returncode, run.stderr or result)
                 self.assertEqual("CheckedWithDiagnostics", result["status"])
+                self.assertEqual("CheckedWithDiagnostics", result["checks"]["type_fields"])
+                self.assertEqual("Passed", result["checks"]["unit_dependencies"])
                 diagnostics = [d for d in result["preserved_diagnostics"] if d["key"] == "OpaqueDataTextUnestablished"]
                 self.assertEqual(count, len(diagnostics))
                 self.assertTrue(all(d["classification"] == "ProfileUnsupported" for d in diagnostics))
@@ -41,7 +43,7 @@ class OpaqueSemanticTests(unittest.TestCase):
 
     def test_descriptions_predefined_names_and_protocol_claims_are_not_whitelisted(self):
         original = opaque_source("product").replace(b"'\x80\xfe','\x81\xff'", b"'P0-PART','P0 analytic fixture'")
-        variants = [opaque_source("defining"),
+        variants = [opaque_source("defining"), opaque_source("representation"),
                     original.replace(b"'P0-PART','P0 analytic fixture',$", b"'P0-PART','P0 analytic fixture','\x80'"),
                     original.replace(b"#100=CARTESIAN_POINT(''", b"#100=CARTESIAN_POINT('\x80'")]
         for source in variants:

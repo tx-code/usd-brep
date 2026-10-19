@@ -25,7 +25,7 @@ class OpaqueNativeTests(unittest.TestCase):
     invoke_bytes = test_general.GeneralTests.invoke_bytes
 
     def test_selected_nondefining_text_keeps_the_whole_analytic_cylinder(self):
-        for field, count in [("layer", 1), ("product", 2), ("representation", 1)]:
+        for field, count in [("layer", 1), ("product", 2)]:
             with self.subTest(field=field):
                 source = opaque_source(field)
                 run, result = self.invoke_bytes(source, "--interop-nongeometric", "--preserve-opaque-data-strings")
@@ -51,7 +51,7 @@ class OpaqueNativeTests(unittest.TestCase):
     def test_protocol_text_and_detached_layer_remain_fatal(self):
         detached = opaque_source().replace(b"'',(#21)", b"'',(#951)").replace(
             b"ENDSEC;\nEND-ISO", b"#951=CARTESIAN_POINT('',(100.,100.,100.));\nENDSEC;\nEND-ISO")
-        for source in [opaque_source("defining"), detached]:
+        for source in [opaque_source("defining"), opaque_source("representation"), detached]:
             with self.subTest(reason="unapproved meaning or owner"):
                 run, result = self.invoke_bytes(source, "--interop-nongeometric", "--preserve-opaque-data-strings")
                 self.assertNotEqual(0, run.returncode)
