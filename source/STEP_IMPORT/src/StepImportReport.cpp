@@ -370,7 +370,8 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 }
                 if (report.sourceSchema && report.sourceSchema->appliedInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly)
                 {
-                    w.Add(",\"source_binding_verified\":false,\"source_interpretation\":\"UnregisteredAp214As2010\"");
+                    w.Add(",\"source_binding_verified\":false,\"source_interpretation\":");
+                    w.String(step_semantics::SchemaInterpretationName(report.sourceSchema->appliedInterpretation));
                 }
                 const auto carrier = source.source ? source.source->AppliedCarrierAssumption() : report.carrierAssumption.get();
                 if (source.requestedCarrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly || carrier)

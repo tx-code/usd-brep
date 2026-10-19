@@ -3956,8 +3956,9 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
     {
         throw std::invalid_argument("Unknown source checking policy or geometry scope");
     }
-    if (interpretation != SchemaInterpretation::DeclaredOnly && (interpretation != SchemaInterpretation::UnregisteredAp214As2010 ||
-                                                                 policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
+    if (interpretation != SchemaInterpretation::DeclaredOnly &&
+        ((interpretation != SchemaInterpretation::UnregisteredAp214As2010 && interpretation != SchemaInterpretation::Ap214NameOnlyAs2010) ||
+         policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
     {
         throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
     }

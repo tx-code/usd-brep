@@ -1,5 +1,12 @@
 # STEP_IMPORT（内部 C++20）
 
+裸 `AUTOMOTIVE_DESIGN` 可另选 `SchemaInterpretation::Ap214NameOnlyAs2010`／CLI
+`--interpret-ap214-name-only-as-2010`，并显式选择通用质量和非几何互操作策略。
+它只选择固定 2010 兼容子集，不从裸名、APD 或年份认证源版次；原裸名、空 OID 和原拒绝
+诊断保持。完整结果为 `AcceptedUnderInterpretation`，仍与普通结果分开。该选项与旧的
+八段标识解释互不替代，也不能覆盖其他协议、多 schema 或任意未知 OID；CLI 不允许冲突选择。
+已登记标识不因请求该选项而获得假设；类型、单位、几何、限额、取消和发布检查不放宽。
+
 通用开发请求可独立选择 `Options.carrierInterpretation=Level1AsCorrectedEncoding`／CLI
 `--interpret-level1-as-corrected`，并须同时显式选择通用质量与非几何互操作策略。
 它只让声明 `1` 在未验证的修正版编码假设下进入现有读取链路，保留原始声明、字节、

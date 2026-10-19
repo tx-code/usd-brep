@@ -16,6 +16,25 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_name_only_policy_is_distinct_from_the_eight_arc_policy(self):
+        from tools.step_semantic_validation.tests.test_name_only_interpretation import name_only_box
+
+        with tempfile.TemporaryDirectory(prefix="step-name-only-probe-") as directory:
+            source = Path(directory) / "source.step"
+            source.write_bytes(name_only_box())
+            flags = ("--quality", "Q-AP214-development-mm-01", "--source-policy", "PreserveNonGeometric")
+            (old,) = self.invoke(
+                "native", "import", source, *flags, "--schema-interpretation", "UnregisteredAp214As2010"
+            )["trials"]
+            self.assertFalse(old["has_model"])
+            (new,) = self.invoke(
+                "native", "import", source, *flags, "--schema-interpretation", "Ap214NameOnlyAs2010"
+            )["trials"]
+            self.assertEqual("AcceptedUnderInterpretation", new["status"])
+            self.assertTrue(new["schema_interpretation_applied"])
+            self.assertFalse(new["source_binding_verified"])
+            self.assertAlmostEqual(6000, new["model"]["volume_mm3"], delta=1e-5)
+
     def test_carrier_assumption_is_separate_from_schema_identity_and_ordinary_acceptance(self):
         from tools.step_semantic_validation.tests.test_carrier_level1 import level1_box
 
@@ -233,6 +252,9 @@ class ProbeTests(unittest.TestCase):
                 ("occt", "transfer", ["--carrier-interpretation", "Level1AsCorrectedEncoding"]),
                 ("native", "import", ["--carrier-interpretation", "Level1AsCorrectedEncoding"]),
                 ("native", "import", ["--carrier-interpretation", "unknown"]),
+                ("source", "source", ["--schema-interpretation", "Ap214NameOnlyAs2010"]),
+                ("occt", "transfer", ["--schema-interpretation", "Ap214NameOnlyAs2010"]),
+                ("native", "import", ["--schema-interpretation", "Ap214NameOnlyAs2010"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

@@ -180,19 +180,38 @@ SchemaSelection SelectSchema(const step_source::SourceSnapshot& source, Geometry
     }
     return selection;
 }
+const char* SchemaInterpretationName(SchemaInterpretation interpretation)
+{
+    switch (interpretation)
+    {
+        case SchemaInterpretation::DeclaredOnly:
+            return "DeclaredOnly";
+        case SchemaInterpretation::UnregisteredAp214As2010:
+            return "UnregisteredAp214As2010";
+        case SchemaInterpretation::Ap214NameOnlyAs2010:
+            return "Ap214NameOnlyAs2010";
+    }
+    return "Unknown";
+}
 std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaSelection& selection, SchemaInterpretation interpretation)
 {
-    if (interpretation != SchemaInterpretation::UnregisteredAp214As2010 || selection.qualified || selection.identifiers.size() != 1)
+    if (selection.qualified || selection.identifiers.size() != 1)
     {
         return {};
     }
     const auto& identity = selection.identifiers.front();
-    if (identity.name != "AUTOMOTIVE_DESIGN" || identity.match != SchemaMatch::UnregisteredVersion || identity.oid != Words("1 0 10303 214 3 1 1 1"))
+    const bool eightArc = interpretation == SchemaInterpretation::UnregisteredAp214As2010 && identity.match == SchemaMatch::UnregisteredVersion &&
+                          identity.oid == Words("1 0 10303 214 3 1 1 1");
+    const bool nameOnly = interpretation == SchemaInterpretation::Ap214NameOnlyAs2010 && identity.match == SchemaMatch::NameOnly &&
+                          identity.oid.empty();
+    if (identity.name != "AUTOMOTIVE_DESIGN" || (!eightArc && !nameOnly))
     {
         return {};
     }
     // The pinned AP214E3_2010.exp (71ab140f...) identifies seven arcs; no
-    // authority establishes this eight-arc literal as the same schema. The
+    // authority establishes either an eight-arc literal or a bare family name
+    // as this particular edition. The two explicit policies have disjoint
+    // eligibility: neither is a general unknown-schema override. The
     // caller explicitly selects the already audited implementation, including
     // its separately proved compatibility transport. Keep HEADER identity,
     // original unsupported-binding diagnostic and assumption qualification.

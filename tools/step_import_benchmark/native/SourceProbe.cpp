@@ -47,6 +47,10 @@ bench::Trial Run(const bench::Args& args)
             {
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
             }
+            else if (args.schemaInterpretation == "Ap214NameOnlyAs2010")
+            {
+                options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
+            }
             if (args.carrierInterpretation == "Level1AsCorrectedEncoding")
             {
                 options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;

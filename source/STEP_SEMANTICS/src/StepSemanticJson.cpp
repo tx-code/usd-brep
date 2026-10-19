@@ -238,7 +238,9 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     if (result.requestedInterpretation != SchemaInterpretation::DeclaredOnly)
     {
         const bool applied = result.schemaSelection && result.schemaSelection->appliedInterpretation != SchemaInterpretation::DeclaredOnly;
-        out.Add(",\"schema_interpretation\":{\"requested\":\"UnregisteredAp214As2010\",\"applied\":");
+        out.Add(",\"schema_interpretation\":{\"requested\":");
+        out.String(SchemaInterpretationName(result.requestedInterpretation));
+        out.Add(",\"applied\":");
         out.Add(applied ? "true" : "false");
         if (applied)
         {

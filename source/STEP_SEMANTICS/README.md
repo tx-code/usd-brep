@@ -1,5 +1,14 @@
 # STEP source semantics: ticket 03
 
+An independent explicit `--interpret-ap214-name-only-as-2010` /
+`SchemaInterpretation::Ap214NameOnlyAs2010` policy applies only to one exact bare
+`AUTOMOTIVE_DESIGN` identifier. It selects the pinned 2010 compatibility subset;
+it does not infer an edition from APD/year, add an OID, or authenticate the family
+name. HEADER identity and the original binding refusal remain owning evidence.
+General geometry and nongeometric interoperability are required. The existing
+eight-arc policy has disjoint eligibility and is unchanged; neither option is a
+general unknown-schema override. Conflicting CLI policies are refused.
+
 Source-only exploration may use the explicit
 `--interpret-level1-as-corrected --general-brep-source --interop-nongeometric`
 combination. See the [carrier qualification contract](../STEP_SOURCE/README.md).

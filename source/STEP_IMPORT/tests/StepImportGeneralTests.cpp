@@ -1262,6 +1262,24 @@ void InterpretationContract(const std::filesystem::path& fixture)
         rejected = true;
     }
     Require(rejected, "unknown interpretation policy rejected before capture");
+    const std::string unregistered = "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1 1}";
+    const auto identity = text.find(unregistered);
+    Require(identity != std::string::npos, "synthetic name-only identity");
+    text.replace(identity, unregistered.size(), "AUTOMOTIVE_DESIGN");
+    options.schemaInterpretation = SchemaInterpretation::Ap214NameOnlyAs2010;
+    result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::AcceptedUnderInterpretation && result.model, "name-only result remains interpreted");
+    source = result.model->Source();
+    Require(
+        source->AppliedInterpretation() == SchemaInterpretation::Ap214NameOnlyAs2010 &&
+            source->SchemaIdentity().match == step_semantics::SchemaMatch::NameOnly && source->SchemaIdentity().oid.empty() &&
+            source->Source().Bytes() == text && source->InterpretationDiagnostics().at(0).source.key == "UnsupportedSchemaBinding",
+        "fixed catalog does not invent a source edition or OID"
+    );
+    view = result.model->Face();
+    result = {};
+    source.reset();
+    Require(view.AppliedSourceInterpretation() == SchemaInterpretation::Ap214NameOnlyAs2010, "owning name-only view lifetime");
 }
 void DevelopmentContract(
     const std::filesystem::path& source,
@@ -1272,7 +1290,8 @@ void DevelopmentContract(
     bool interpret,
     bool restrictSupport = false,
     bool workStudy = false,
-    bool carrier = false
+    bool carrier = false,
+    bool nameOnly = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1304,6 +1323,11 @@ void DevelopmentContract(
     if (interpret)
     {
         options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+    }
+    if (nameOnly)
+    {
+        Require(!interpret, "choose one schema interpretation");
+        options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
     }
     auto result = step_import::ImportFile(source, options);
     std::filesystem::create_directories(directory);
@@ -1408,7 +1432,8 @@ void DevelopmentContract(
     checks << std::setprecision(17) << "{\"status\":\"Passed\"";
     if (schemaAssumed)
     {
-        checks << ",\"source_interpretation\":\"UnregisteredAp214As2010\",\"source_binding_verified\":false";
+        checks << ",\"source_interpretation\":\"" << step_semantics::SchemaInterpretationName(result.model->Source()->AppliedInterpretation())
+               << "\",\"source_binding_verified\":false";
     }
     if (carrierAssumed)
     {
@@ -1448,14 +1473,15 @@ int main(int argc, char** argv)
     {
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
-            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false;
+            bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
                 Require(
                     flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
-                        flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected",
+                        flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
+                        flag == "--interpret-ap214-name-only-as-2010",
                     "unknown explicit source flag"
                 );
                 if (flag == "--interpret-unregistered-ap214-2010")
@@ -1474,12 +1500,27 @@ int main(int argc, char** argv)
                 {
                     carrier = true;
                 }
+                else if (flag == "--interpret-ap214-name-only-as-2010")
+                {
+                    nameOnly = true;
+                }
                 else
                 {
                     (flag == "--preserve-opaque-header-name" ? header : data) = true;
                 }
             }
-            DevelopmentContract(argv[2], argv[3], std::string_view(argv[4]) == "study", header, data, interpret, restrictSupport, workStudy, carrier);
+            DevelopmentContract(
+                argv[2],
+                argv[3],
+                std::string_view(argv[4]) == "study",
+                header,
+                data,
+                interpret,
+                restrictSupport,
+                workStudy,
+                carrier,
+                nameOnly
+            );
             return 0;
         }
         Require(argc == 3, "fixture and local output directory required");

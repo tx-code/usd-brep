@@ -1,5 +1,10 @@
 # STEP 模型库画像与测量工具
 
+原生探针可另传 `--schema-interpretation Ap214NameOnlyAs2010`，与显式通用质量及
+`PreserveNonGeometric` 配合，仅为裸 `AUTOMOTIVE_DESIGN` 选择固定源解释。源版次未验证，
+完成模型仍为 `AcceptedUnderInterpretation`。旧八段标识策略与它的适用身份互不替代；
+其他引擎／模式、错误配置在输入预算跳过前拒绝。两类解释结果按实际策略单列。
+
 原生 import 探针可显式传 `--carrier-interpretation Level1AsCorrectedEncoding`，并同时
 选择通用质量与 `--source-policy PreserveNonGeometric`。它与 schema 解释独立，可显式组合；
 实际采用载体假设时为 `AcceptedUnderInterpretation`，记录请求、应用及

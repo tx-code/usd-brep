@@ -53,8 +53,10 @@ enum class SchemaInterpretation
     DeclaredOnly,
     // Application assumption for exactly one unregistered AP214 identifier.
     // This chooses a fixed implementation; it does not authenticate the HEADER.
-    UnregisteredAp214As2010
+    UnregisteredAp214As2010,
+    Ap214NameOnlyAs2010 // Exact bare AUTOMOTIVE_DESIGN; caller selects the fixed 2010 compatibility subset.
 };
+const char* SchemaInterpretationName(SchemaInterpretation interpretation);
 
 enum class Protocol
 {

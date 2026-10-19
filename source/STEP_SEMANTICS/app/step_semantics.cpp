@@ -62,7 +62,21 @@ int main(int argc, char** argv)
             }
             else if (arg == "--interpret-unregistered-ap214-2010")
             {
+                if (interpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&
+                    interpretation != step_semantics::SchemaInterpretation::UnregisteredAp214As2010)
+                {
+                    throw std::invalid_argument("Choose one schema interpretation");
+                }
                 interpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+            }
+            else if (arg == "--interpret-ap214-name-only-as-2010")
+            {
+                if (interpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&
+                    interpretation != step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010)
+                {
+                    throw std::invalid_argument("Choose one schema interpretation");
+                }
+                interpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
             }
             else if (arg == "--preserve-opaque-header-name")
             {

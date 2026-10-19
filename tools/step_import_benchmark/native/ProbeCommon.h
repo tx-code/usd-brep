@@ -240,7 +240,7 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
                 (!args.headerNamePolicy.empty() && args.headerNamePolicy != "StrictAscii" && args.headerNamePolicy != "PreserveOpaqueBytes") ||
                 (!args.dataStringPolicy.empty() && args.dataStringPolicy != "StrictAscii" && args.dataStringPolicy != "PreserveOpaqueBytes") ||
                 (!args.schemaInterpretation.empty() && args.schemaInterpretation != "DeclaredOnly" &&
-                 args.schemaInterpretation != "UnregisteredAp214As2010") ||
+                 args.schemaInterpretation != "UnregisteredAp214As2010" && args.schemaInterpretation != "Ap214NameOnlyAs2010") ||
                 (!args.carrierInterpretation.empty() && args.carrierInterpretation != "DeclaredOnly" &&
                  args.carrierInterpretation != "Level1AsCorrectedEncoding"))
             {
@@ -251,7 +251,7 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
             {
                 throw std::invalid_argument("Opaque text requires explicit general quality and nongeometric interoperability");
             }
-            if (args.schemaInterpretation == "UnregisteredAp214As2010" &&
+            if ((args.schemaInterpretation == "UnregisteredAp214As2010" || args.schemaInterpretation == "Ap214NameOnlyAs2010") &&
                 (args.sourcePolicy != "PreserveNonGeometric" || !GeneralQuality(args.quality)))
             {
                 throw std::invalid_argument("Schema interpretation requires explicit general interoperability");
