@@ -220,7 +220,7 @@ class Ap214EntityTests(unittest.TestCase):
         data = presentation_source().replace(b"AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}", AP203)
         self.assert_failure(data, "UnsupportedEntityType")
         other_colour = presentation_source().replace(b"COLOUR_RGB('RGB',0.25,0.5,0.75)",
-                                                     b"DRAUGHTING_PRE_DEFINED_COLOUR('red')")
+                                                     b"EXTERNALLY_DEFINED_COLOUR('red')")
         self.assert_failure(other_colour, "UnsupportedEntityType")
         transformed = linked_source().replace(
             b"SHAPE_REPRESENTATION_RELATIONSHIP('source link',$,#910,#20)",
