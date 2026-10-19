@@ -8,6 +8,7 @@
 #include "StepCatalogBuilder.h"
 #include "StepDateTimeCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
+#include "StepWireframeCatalogData.h"
 
 namespace step_semantics::catalog_build
 {
@@ -503,6 +504,13 @@ constexpr Recipe Describe(ProfileKind profile)
 template <ProfileKind Profile>
 constexpr Recipe ProfileRecipe()
 {
-    return Describe(Profile);
+    auto recipe = Describe(Profile);
+    if constexpr (Profile != ProfileKind::Ap203e2Planar)
+    {
+        // Finalize after protocol-specific recipes (including N916's copied
+        // recipe and MBx's foreign declarations), so no prior type ID moves.
+        wireframe::AppendDeclarations(recipe);
+    }
+    return recipe;
 }
 } // namespace step_semantics::catalog_build

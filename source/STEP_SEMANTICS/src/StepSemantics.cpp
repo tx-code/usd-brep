@@ -352,6 +352,7 @@ private:
     std::unordered_set<std::size_t> m_preservedStyleOverrides; // Proven style-only invalid references into the selected body.
     std::size_t m_context = 0;
     std::size_t m_representation = 0;
+    std::optional<std::size_t> m_wireframeRepresentation;
 
     [[noreturn]] void Fail(
         std::string key,
@@ -619,7 +620,8 @@ private:
         {
             return;
         }
-        const auto foreign = n916 ? std::span<const std::string_view>(ap203_n916::ForeignDeclarations) : std::span<const std::string_view>(mbxForeignDeclarations);
+        const auto foreign = n916 ? std::span<const std::string_view>(ap203_n916::ForeignDeclarations) :
+                                    std::span<const std::string_view>(mbxForeignDeclarations);
         for (const auto name : foreign)
         {
             for (const auto record : Population(name))
@@ -1455,11 +1457,13 @@ private:
         std::size_t definition;
         std::size_t body;
         std::optional<std::size_t> relationship;
+        std::optional<std::size_t> wireframe;
+        std::optional<std::size_t> wireframeRelationship;
     };
     SourceRepresentations SelectAp214Representations(std::size_t sdr)
     {
         const auto root = Target(FieldValue(sdr, "used_representation"));
-        SourceRepresentations selected{ root, root, {} };
+        SourceRepresentations selected{ root, root, {}, {}, {} };
         const auto isBody = [&](std::size_t record)
         {
             return IsA(*m_data, record, "ADVANCED_BREP_SHAPE_REPRESENTATION") || IsA(*m_data, record, "MANIFOLD_SURFACE_SHAPE_REPRESENTATION");
@@ -1481,7 +1485,65 @@ private:
             );
         };
         const auto& relationships = Population("SHAPE_REPRESENTATION_RELATIONSHIP");
-        if (isBody(root))
+        const auto& wireframes = Population("GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION");
+        if (!wireframes.empty())
+        {
+            // Ordinary SRR expresses association, not definition containment,
+            // equivalence, Boolean composition or display priority. This closed
+            // project selection retains one distinct linked wireframe alongside
+            // the unique BRep; it never merges or demotes its physical geometry.
+            if (m_data->geometryScope != GeometryScope::GeneralBrep || wireframes.size() != 1 || wireframes[0] == root ||
+                !IsA(*m_data, root, "SHAPE_REPRESENTATION") || relationships.size() != (isBody(root) ? 1 : 2))
+            {
+                unsupported(root, "The linked wireframe requires the explicit general source scope and one unambiguous root/BRep/wireframe graph");
+            }
+            selected.wireframe = wireframes[0];
+            for (const auto relationship : relationships)
+            {
+                Visit(Record(relationship).span);
+                const auto a = Target(FieldValue(relationship, "rep_1")), b = Target(FieldValue(relationship, "rep_2"));
+                if ((a == root) == (b == root))
+                {
+                    unsupported(relationship, "Each linked shape relationship must join the selected root to one distinct representation");
+                }
+                const auto other = a == root ? b : a;
+                if (other == *selected.wireframe && !selected.wireframeRelationship)
+                {
+                    selected.wireframeRelationship = relationship;
+                }
+                else if (isBody(other) && !isBody(root) && !selected.relationship)
+                {
+                    selected.body = other;
+                    selected.relationship = relationship;
+                }
+                else
+                {
+                    unsupported(relationship, "Duplicate, ambiguous or additional linked geometry is outside the selected source graph");
+                }
+            }
+            if (!selected.wireframeRelationship || !isBody(selected.body))
+            {
+                unsupported(root, "The selected root must identify both the BRep and its separate linked wireframe");
+            }
+            const auto context = Target(FieldValue(root, "context_of_items"));
+            if (Target(FieldValue(selected.body, "context_of_items")) != context ||
+                Target(FieldValue(*selected.wireframe, "context_of_items")) != context)
+            {
+                unsupported(root, "Linked geometry requires the identical source context; no transform or scale is inferred from a relationship");
+            }
+            if (root != selected.body)
+            {
+                for (const auto& value : FieldValue(root, "items").children)
+                {
+                    Visit(value.span);
+                    if (!IsA(*m_data, Target(value), "AXIS2_PLACEMENT_3D"))
+                    {
+                        unsupported(root, "The source wrapper may contain only retained placement items");
+                    }
+                }
+            }
+        }
+        else if (isBody(root))
         {
             if (!relationships.empty())
             {
@@ -1535,7 +1597,7 @@ private:
             Visit(Record(representation).span);
             // A plain representation is only a metadata candidate here. Closure
             // grants ownership only after proving its property link and part.
-            if (representation != selected.definition && representation != selected.body &&
+            if (representation != selected.definition && representation != selected.body && selected.wireframe != representation &&
                 !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION") && !IsPlainRepresentation(representation))
             {
                 unsupported(representation, "Additional representation is outside the selected root/body/presentation graph");
@@ -1574,6 +1636,7 @@ private:
         const auto pd = One("PRODUCT_DEFINITION"), pds = One("PRODUCT_DEFINITION_SHAPE"), sdr = One("SHAPE_DEFINITION_REPRESENTATION");
         std::size_t definitionRepresentation = 0;
         std::optional<std::size_t> shapeRelationship;
+        std::optional<std::size_t> wireframeRelationship;
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             // Source SDR selects the root; presentation order and representation counts
@@ -1582,6 +1645,8 @@ private:
             definitionRepresentation = selected.definition;
             m_representation = selected.body;
             shapeRelationship = selected.relationship;
+            m_wireframeRepresentation = selected.wireframe;
+            wireframeRelationship = selected.wireframeRelationship;
             m_context = Target(FieldValue(m_representation, "context_of_items"));
         }
         else
@@ -1609,6 +1674,12 @@ private:
         {
             m_data->part.roles.push_back({ "definition_representation", definitionRepresentation });
             m_data->part.roles.push_back({ "shape_representation_relationship", *shapeRelationship });
+        }
+        if (m_wireframeRepresentation)
+        {
+            Expects(wireframeRelationship.has_value());
+            m_data->part.roles.push_back({ "wireframe_representation", *m_wireframeRepresentation });
+            m_data->part.roles.push_back({ "wireframe_shape_relationship", *wireframeRelationship });
         }
         if (apd)
         {
@@ -2191,7 +2262,14 @@ private:
         {
             items.push_back(Target(value));
         }
-        const auto bodyUse = Reach(std::move(items), true);
+        if (m_wireframeRepresentation)
+        {
+            for (const auto& value : FieldValue(*m_wireframeRepresentation, "items").children)
+            {
+                items.push_back(Target(value));
+            }
+        }
+        const auto selectedGeometryUse = Reach(std::move(items), true);
         const auto& presentations = Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION");
         for (std::size_t i = 0; i < presentations.size(); ++i)
         {
@@ -2215,9 +2293,9 @@ private:
                 }
                 const auto& target = FieldValue(styled, "item");
                 // This is a project attachment guard, not MDGPR WHERE evaluation. Prove
-                // the style refers to the body's existing RI closure before granting it
+                // the style refers to the selected BRep/wireframe RI closure before granting it
                 // ownership. A style/management path cannot smuggle in another shape.
-                if (!bodyUse[Target(target)])
+                if (!selectedGeometryUse[Target(target)])
                 {
                     FieldFailure(
                         "UnsupportedPresentationAttachment",
@@ -2235,7 +2313,7 @@ private:
                 }
                 if (IsA(*m_data, styled, "OVER_RIDING_STYLED_ITEM"))
                 {
-                    // Every ancestor style must target the same selected body
+                    // Every ancestor style must target the same selected geometry
                     // closure. Following the override reference without this
                     // proof could otherwise grant ownership to foreign geometry.
                     auto current = styled;
@@ -2252,7 +2330,7 @@ private:
                             // error; do not reinterpret the shell as an ancestor
                             // style or change either geometric reference.
                             if (m_data->profile.kind == ProfileKind::Ap214MbxSource && Interoperability() && IsA(*m_data, current, "CLOSED_SHELL") &&
-                                bodyUse[current])
+                                selectedGeometryUse[current])
                             {
                                 m_preservedStyleOverrides.insert(owner);
                                 break;
@@ -2270,7 +2348,7 @@ private:
                         }
                         const auto& ancestorItem = FieldValue(current, "item");
                         Visit(ancestorItem.span);
-                        if (!bodyUse[Target(ancestorItem)])
+                        if (!selectedGeometryUse[Target(ancestorItem)])
                         {
                             FieldFailure(
                                 "UnsupportedPresentationAttachment",
@@ -2775,7 +2853,12 @@ private:
         // All property roots are now proven. A bad MRI may be retained only if
         // it is an actual metadata item and is absent from body geometry and
         // physical-unit dependencies (including conversion-factor references).
-        const auto physical = Reach({ m_representation, m_context }, false);
+        std::vector<std::size_t> physicalRoots{ m_representation, m_context };
+        if (m_wireframeRepresentation)
+        {
+            physicalRoots.push_back(*m_wireframeRepresentation);
+        }
+        const auto physical = Reach(std::move(physicalRoots), false);
         std::optional<std::vector<unsigned char>> presentationUse;
         std::optional<std::vector<unsigned char>> propertyUse;
         std::vector<std::size_t> propertyItems;

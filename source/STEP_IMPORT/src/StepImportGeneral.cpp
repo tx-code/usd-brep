@@ -410,6 +410,16 @@ private:
     }
     void Prepare()
     {
+        for (const auto& role : m_source->PartDefinition().roles)
+        {
+            if (role.name == "wireframe_representation")
+            {
+                // A typed linked representation is still required geometry.
+                // Until its native owner/report/query path is complete, refuse
+                // before allocating a candidate instead of publishing only BRep.
+                Fail("GeneralLinkedWireframeUnsupported", role.recordIndex, Status::Unsupported);
+            }
+        }
         Need(m_source->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
         shape = Role("shape");
         shell = Role("shell");

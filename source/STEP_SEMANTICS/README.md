@@ -36,7 +36,7 @@ gain this binding. APD/year values cannot select or certify the implementation.
 The new catalog reuses compared transport descriptions at constant evaluation,
 with N916's required descriptions, direct PDR property reference, actual
 administrative SELECT branches, UTC type aliases and two-value offset enum.
-Its 134 registered transport descriptors comprise 114 declarations present in
+Its 137 registered transport descriptors comprise 117 declarations present in
 the fixed artifact and 20 borrowed N2635 diagnostic descriptions. Registration
 and `IsA` do not prove source conformance: every explicitly instantiated foreign
 type is refused. Only `PRESENTATION_LAYER_ASSIGNMENT` may survive explicit
@@ -86,6 +86,40 @@ rejection establishes a finite trimmed-basis dependency chain as a project
 prerequisite, not an additional EXPRESS WHERE rule. Source checking alone does
 not establish that a point lies on the basis or that dual representations agree;
 those require the selected numerical/native checks. P0 remains closed.
+
+General source scope also admits `GEOMETRIC_CURVE_SET` and
+`GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION` from the pinned AP214,
+N2635 and modified N916 artifacts. `GEOMETRIC_SET` is a guarded ancestor;
+its ordinary leaf is not admitted. The inherited `elements` field is a nonempty
+SET of POINT/CURVE/SURFACE references; GCS.WR1 excludes surfaces but permits
+points. Source order does not create connectivity, and coincident distinct
+source points retain their identities. Computed GRI.dim has no transmitted slot.
+
+For an admitted wireframe representation, WR1/WR2 check the permitted item
+categories and at least one curve set. WR3/WR4 use the fixed-source curve/point
+predicates restricted to registered branches; WR5 checks direct conic placement.
+Bare LINE is not a bounded wireframe member; a TRIMMED_CURVE with LINE basis
+is. Trimmed dependency cycles fail before evaluating the wireframe predicates.
+MAPPED_ITEM, POLYLINE, replicas and composite curves remain unsupported at typed
+binding, so their WR6/WR7 branches are not executed or claimed as checked.
+These checks establish source prerequisites, not geometric trim consistency,
+continuous numerical bounds or complete AP/AIC conformance.
+
+The closed source graph may retain one BRep and one **distinct** wireframe,
+joined by ordinary `SHAPE_REPRESENTATION_RELATIONSHIP` instances to the selected
+root. The root is either the BRep itself with one wireframe link, or a retained
+placement-only SHAPE_REPRESENTATION with two links. Relation endpoints may be
+reversed; their source order is preserved. Every representation must use the
+identical source context. These are project selection restrictions: no transform,
+unit scaling, equivalence, composition, Boolean union or display priority is
+inferred from a simple relationship. Separate roles
+`wireframe_representation` and `wireframe_shape_relationship` retain its source
+identities alongside the existing BRep/root roles. `source_shape_role` still
+describes the selected BRep branch, not the relationship as a material whole.
+Physical-dependency exclusion and selected-geometry presentation attachment
+include the wireframe; it is never demoted to nongeometric metadata. Additional
+or ambiguous geometry blocks the request. Native construction has a separate
+[linked-wireframe gate](../STEP_IMPORT/README.md).
 
 The three explicit general source profiles admit `TOROIDAL_SURFACE` with its
 inherited elementary-surface placement and two original positive length radii.
@@ -161,8 +195,8 @@ surfaces with explicit knot facets. `weights_data` retains source REAL tokens,
 U-row/V-entry order and dimensionless values. Cardinality, rectangular shape and
 strict positivity are checked before construction; exact source predicates do
 not round tiny positive values to zero. The derived `weights` value has no P21
-transport slot. The general catalogs contain 134/119 declarations respectively;
-the separate MBx general catalog contains 134 declarations;
+transport slot. The general catalogs contain 137/122 declarations respectively;
+the separate MBx general catalog contains 137 declarations;
 the default P0 catalog remains at 72. This is not admission of other rational
 uniform/quasi-uniform mappings or complete EXPRESS conformance.
 

@@ -3592,7 +3592,10 @@
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
         "TOROIDAL_SURFACE",
-        "TRIMMED_CURVE"
+        "TRIMMED_CURVE",
+        "GEOMETRIC_SET",
+        "GEOMETRIC_CURVE_SET",
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
       ],
       "name_index": [
         {
@@ -3832,12 +3835,24 @@
           "id": 69
         },
         {
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "id": 136
+        },
+        {
+          "name": "GEOMETRIC_CURVE_SET",
+          "id": 135
+        },
+        {
           "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
           "id": 55
         },
         {
           "name": "GEOMETRIC_REPRESENTATION_ITEM",
           "id": 1
+        },
+        {
+          "name": "GEOMETRIC_SET",
+          "id": 134
         },
         {
           "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
@@ -10138,6 +10153,102 @@
               "local_field_index": 4
             }
           ]
+        },
+        {
+          "id": 134,
+          "name": "GEOMETRIC_SET",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "elements",
+              "type": "GEOMETRIC_SET_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            134
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 134,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 135,
+          "name": "GEOMETRIC_CURVE_SET",
+          "parents": [
+            "GEOMETRIC_SET"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            134,
+            135
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 134,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 136,
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            136
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -10255,6 +10366,14 @@
           "name": "TRIMMING_SELECT",
           "branches": [
             "CARTESIAN_POINT"
+          ]
+        },
+        {
+          "name": "GEOMETRIC_SET_SELECT",
+          "branches": [
+            "POINT",
+            "CURVE",
+            "SURFACE"
           ]
         }
       ],
@@ -10678,7 +10797,10 @@
         "TRIMMED_CURVE",
         "PLANE_ANGLE_MEASURE_WITH_UNIT",
         "PRE_DEFINED_COLOUR",
-        "DRAUGHTING_PRE_DEFINED_COLOUR"
+        "DRAUGHTING_PRE_DEFINED_COLOUR",
+        "GEOMETRIC_SET",
+        "GEOMETRIC_CURVE_SET",
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
       ],
       "name_index": [
         {
@@ -10886,12 +11008,24 @@
           "id": 67
         },
         {
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "id": 121
+        },
+        {
+          "name": "GEOMETRIC_CURVE_SET",
+          "id": 120
+        },
+        {
           "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
           "id": 53
         },
         {
           "name": "GEOMETRIC_REPRESENTATION_ITEM",
           "id": 1
+        },
+        {
+          "name": "GEOMETRIC_SET",
+          "id": 119
         },
         {
           "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
@@ -16479,6 +16613,102 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 119,
+          "name": "GEOMETRIC_SET",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "elements",
+              "type": "GEOMETRIC_SET_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            119
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 119,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 120,
+          "name": "GEOMETRIC_CURVE_SET",
+          "parents": [
+            "GEOMETRIC_SET"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            119,
+            120
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 119,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 121,
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            121
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -16569,6 +16799,14 @@
           "name": "TRIMMING_SELECT",
           "branches": [
             "CARTESIAN_POINT"
+          ]
+        },
+        {
+          "name": "GEOMETRIC_SET_SELECT",
+          "branches": [
+            "POINT",
+            "CURVE",
+            "SURFACE"
           ]
         }
       ],
@@ -17013,7 +17251,10 @@
         "SIMPLE_NUMERIC_EXPRESSION",
         "LITERAL_NUMBER",
         "REAL_LITERAL",
-        "REAL_REPRESENTATION_ITEM"
+        "REAL_REPRESENTATION_ITEM",
+        "GEOMETRIC_SET",
+        "GEOMETRIC_CURVE_SET",
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
       ],
       "name_index": [
         {
@@ -17245,12 +17486,24 @@
           "id": 129
         },
         {
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "id": 136
+        },
+        {
+          "name": "GEOMETRIC_CURVE_SET",
+          "id": 135
+        },
+        {
           "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
           "id": 55
         },
         {
           "name": "GEOMETRIC_REPRESENTATION_ITEM",
           "id": 1
+        },
+        {
+          "name": "GEOMETRIC_SET",
+          "id": 134
         },
         {
           "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
@@ -23368,6 +23621,102 @@
               "local_field_index": 0
             }
           ]
+        },
+        {
+          "id": 134,
+          "name": "GEOMETRIC_SET",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "elements",
+              "type": "GEOMETRIC_SET_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            134
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 134,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 135,
+          "name": "GEOMETRIC_CURVE_SET",
+          "parents": [
+            "GEOMETRIC_SET"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            134,
+            135
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 134,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 136,
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            136
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -23470,6 +23819,14 @@
           "name": "TRIMMING_SELECT",
           "branches": [
             "CARTESIAN_POINT"
+          ]
+        },
+        {
+          "name": "GEOMETRIC_SET_SELECT",
+          "branches": [
+            "POINT",
+            "CURVE",
+            "SURFACE"
           ]
         }
       ],
@@ -23925,7 +24282,10 @@
         "RATIONAL_B_SPLINE_CURVE",
         "RATIONAL_B_SPLINE_SURFACE",
         "TOROIDAL_SURFACE",
-        "TRIMMED_CURVE"
+        "TRIMMED_CURVE",
+        "GEOMETRIC_SET",
+        "GEOMETRIC_CURVE_SET",
+        "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION"
       ],
       "name_index": [
         {
@@ -24165,12 +24525,24 @@
           "id": 69
         },
         {
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "id": 136
+        },
+        {
+          "name": "GEOMETRIC_CURVE_SET",
+          "id": 135
+        },
+        {
           "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
           "id": 55
         },
         {
           "name": "GEOMETRIC_REPRESENTATION_ITEM",
           "id": 1
+        },
+        {
+          "name": "GEOMETRIC_SET",
+          "id": 134
         },
         {
           "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
@@ -30471,6 +30843,102 @@
               "local_field_index": 4
             }
           ]
+        },
+        {
+          "id": 134,
+          "name": "GEOMETRIC_SET",
+          "parents": [
+            "GEOMETRIC_REPRESENTATION_ITEM"
+          ],
+          "simple": false,
+          "fields": [
+            {
+              "name": "elements",
+              "type": "GEOMETRIC_SET_SELECT",
+              "kind": "Aggregate",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 1,
+              "maximum": null,
+              "unique": "Set",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            134
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 134,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 135,
+          "name": "GEOMETRIC_CURVE_SET",
+          "parents": [
+            "GEOMETRIC_SET"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            0,
+            1,
+            134,
+            135
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "GEOMETRIC_SET",
+              "declaring_type_id": 134,
+              "local_field_index": 0
+            }
+          ]
+        },
+        {
+          "id": 136,
+          "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            136
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
         }
       ],
       "reference_selects": [
@@ -30588,6 +31056,14 @@
           "name": "TRIMMING_SELECT",
           "branches": [
             "CARTESIAN_POINT"
+          ]
+        },
+        {
+          "name": "GEOMETRIC_SET_SELECT",
+          "branches": [
+            "POINT",
+            "CURVE",
+            "SURFACE"
           ]
         }
       ],

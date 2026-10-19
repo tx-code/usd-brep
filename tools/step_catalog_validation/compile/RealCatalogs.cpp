@@ -14,6 +14,6 @@ using Mbx = CompiledCatalog<ProfileRecipe<ProfileKind::Ap214MbxSource>>;
 using N916 = CompiledCatalog<ProfileRecipe<ProfileKind::Ap203N916Source>>;
 static_assert(Planar::analysis.code == Error::None && General::analysis.code == Error::None);
 static_assert(Ap214::analysis.code == Error::None && Mbx::analysis.code == Error::None);
-static_assert(N916::analysis.code == Error::None && N916::catalog.names.size() == 134);
+static_assert(N916::analysis.code == Error::None && N916::catalog.names.size() == 137);
 static_assert(Planar::catalog.names.size() && General::catalog.names.size() && Ap214::catalog.names.size() && Mbx::catalog.names.size());
 #endif

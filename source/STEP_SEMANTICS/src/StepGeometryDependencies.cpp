@@ -140,6 +140,7 @@ public:
             }
         }
         TrimmedClosure(trimmed);
+        WireframeChecks();
     }
 
 private:
@@ -237,7 +238,8 @@ private:
         std::string actual,
         std::vector<std::size_t> suffix = {},
         bool dependency = false,
-        std::string_view authorityOverride = {}
+        std::string_view authorityOverride = {},
+        std::vector<Span> related = {}
     )
     {
         const auto& record = m_data.source->Records()[r];
@@ -253,6 +255,7 @@ private:
         issue.source.primary = value.span;
         issue.source.recordId = record.id;
         issue.source.component = record.components[bound.component].name;
+        issue.source.related = std::move(related);
         issue.source.parameterPath = { bound.parameter + 1 };
         issue.source.parameterPath.insert(issue.source.parameterPath.end(), suffix.begin(), suffix.end());
         issue.classification = "SourceInvalid";
@@ -267,6 +270,157 @@ private:
             issue.responsibility = authorityOverride;
         }
         throw Stop{ std::move(issue) };
+    }
+    bool ValidWireCurve(std::size_t record, std::vector<signed char>& memo)
+    {
+        // Fixed valid_geometrically_bounded_wf_curve, restricted to registered
+        // branches. TrimmedClosure has already established a finite basis graph.
+        // A LINE is valid as a TRIMMED_CURVE basis, not as a bare set element.
+        std::vector<std::size_t> path;
+        auto current = record;
+        while (memo[current] < 0)
+        {
+            m_visit(m_data.source->Records()[current].span);
+            if (IsA(current, "B_SPLINE_CURVE") || IsA(current, "CIRCLE") || IsA(current, "ELLIPSE"))
+            {
+                memo[current] = 1;
+                break;
+            }
+            if (!IsA(current, "TRIMMED_CURVE"))
+            {
+                memo[current] = 0;
+                break;
+            }
+            const auto& basis = *Field(current, "basis_curve").declaration.value;
+            m_visit(basis.span);
+            const auto next = m_data.referenceTargets.at(&basis);
+            if (IsA(next, "LINE"))
+            {
+                memo[current] = 1;
+                break;
+            }
+            path.push_back(current);
+            current = next;
+        }
+        for (const auto parent : path)
+        {
+            memo[parent] = memo[current];
+        }
+        return memo[record] != 0;
+    }
+    void WireframeChecks()
+    {
+        const auto& catalog = Schema(m_data);
+        const auto sets = catalog.Find("GEOMETRIC_CURVE_SET");
+        const auto representations = catalog.Find("GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION");
+        if (!sets || !representations)
+        {
+            return;
+        }
+        // Population traversal avoids another full-record pass and preserves
+        // existing predicate/visit counts when this source has no wireframes.
+        for (const auto record : m_data.populations[*sets])
+        {
+            const auto& bound = Field(record, "elements");
+            const auto& value = *bound.declaration.value;
+            Count(value.span);
+            for (std::size_t i = 0; i < value.children.size(); ++i)
+            {
+                const auto& member = value.children[i];
+                m_visit(member.span);
+                if (IsA(m_data.referenceTargets.at(&member), "SURFACE"))
+                {
+                    Fail(record, bound, member, "GEOMETRIC_CURVE_SET.WR1", "POINT or CURVE", "SURFACE", { i + 1 });
+                }
+            }
+        }
+        if (m_data.populations[*representations].empty())
+        {
+            return;
+        }
+        std::vector<signed char> validCurves(m_data.types.size(), -1);
+        constexpr std::string_view prefix = "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION.";
+        for (const auto record : m_data.populations[*representations])
+        {
+            const auto& bound = Field(record, "items");
+            const auto& value = *bound.declaration.value;
+            std::size_t curveSets = 0;
+            Count(value.span); // WR1, followed by WR2, in source WHERE order.
+            for (std::size_t i = 0; i < value.children.size(); ++i)
+            {
+                const auto& item = value.children[i];
+                m_visit(item.span);
+                const auto target = m_data.referenceTargets.at(&item);
+                const auto categories = std::size_t(IsA(target, "GEOMETRIC_CURVE_SET")) + std::size_t(IsA(target, "AXIS2_PLACEMENT_3D"));
+                if (categories != 1)
+                {
+                    Fail(record, bound, item, std::string(prefix) + "WR1", "one admitted GCS/AXIS2_PLACEMENT_3D category", "other RI", { i + 1 });
+                }
+                curveSets += IsA(target, "GEOMETRIC_CURVE_SET") ? 1 : 0;
+            }
+            Count(value.span);
+            if (!curveSets)
+            {
+                Fail(record, bound, value, std::string(prefix) + "WR2", "at least one GEOMETRIC_CURVE_SET", "placements only");
+            }
+            // MAPPED_ITEM, POLYLINE and replicated/composite geometry are not
+            // registered here. Their WR6/WR7 branches cannot bypass the closed
+            // type guard. Direct conics already require a 3D placement in the
+            // bound SELECT; still check their actual WR5 below.
+            for (const auto clause : { "WR3", "WR4", "WR5" })
+            {
+                Count(value.span);
+                for (const auto& item : value.children)
+                {
+                    const auto target = m_data.referenceTargets.at(&item);
+                    if (!IsA(target, "GEOMETRIC_CURVE_SET"))
+                    {
+                        continue;
+                    }
+                    const auto& members = Field(target, "elements");
+                    const auto& elements = members.declaration.value->children;
+                    for (std::size_t i = 0; i < elements.size(); ++i)
+                    {
+                        const auto& member = elements[i];
+                        m_visit(member.span);
+                        const auto geometry = m_data.referenceTargets.at(&member);
+                        bool valid = true;
+                        if (clause == std::string_view("WR3") && IsA(geometry, "CURVE"))
+                        {
+                            valid = ValidWireCurve(geometry, validCurves);
+                        }
+                        if (clause == std::string_view("WR4") && IsA(geometry, "POINT"))
+                        {
+                            valid = IsA(geometry, "CARTESIAN_POINT");
+                        }
+                        if (clause == std::string_view("WR5") && IsA(geometry, "CONIC"))
+                        {
+                            const auto& position = *Field(geometry, "position").declaration.value;
+                            m_visit(position.span);
+                            valid = IsA(m_data.referenceTargets.at(&position), "AXIS2_PLACEMENT_3D");
+                        }
+                        if (!valid)
+                        {
+                            // The primary path stays inside the owning GCS
+                            // field; a reference hop is a related span, never a
+                            // fictitious nested parameter index in the parent.
+                            Fail(
+                                target,
+                                members,
+                                member,
+                                std::string(prefix) + clause,
+                                "valid fixed-source wireframe predicate",
+                                "FALSE",
+                                { i + 1 },
+                                false,
+                                {},
+                                { item.span }
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
     void Weights(std::size_t r, bool surface)
     {

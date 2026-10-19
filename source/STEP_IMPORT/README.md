@@ -1,5 +1,11 @@
 # STEP_IMPORT（内部 C++20）
 
+源层可在显式通用范围中保留 BRep 与独立关联线框，具体图、角色与必要规则见
+[源检查合同](../STEP_SEMANTICS/README.md)。原生构建尚未实现该线框的完整对象、查询和存档路径；
+遇到 `wireframe_representation` 时，在任何原生调用前返回
+`GeneralLinkedWireframeUnsupported`，不发布只含 BRep 的部分模型。
+类型识别或源检查成功不授予这种组合的原生导入资格。
+
 通用开发请求可显式设置 `Options.schemaInterpretation=UnregisteredAp214As2010`，
 并同时选择通用质量与非几何互操作策略。它只为未登记的八段 AP214 标识选择固定源解释，
 具体范围见[源检查合同](../STEP_SEMANTICS/README.md)。默认路径继续拒绝该标识；
