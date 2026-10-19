@@ -24,8 +24,9 @@ struct GeneralSolidIntegrals
     std::vector<GeneralFaceIntegral> faces; // Same order as ModelData::faces.
 };
 
-// Internal general-development measurement policy, retaining its existing 1e-4
-// relative accuracy. This is not a production quality default or an error bound.
+// Internal general-development measurement policy. The default retains 1e-4;
+// explicit requests tighten its numerical stopping control, without clamping.
+// This is not a production quality default or an error bound.
 // The caller owns/serializes the unpublished, qualified single-material model.
 // beforeFace must charge/check cancellation before each fused native face query;
 // its exceptions propagate. No output is assigned until every integral succeeds.
@@ -33,6 +34,7 @@ SmStatus IntegrateGeneralSolid(
     const ModelData& model,
     const Point& volumeOriginMm,
     const std::function<void(std::size_t)>& beforeFace,
-    GeneralSolidIntegrals& output
+    GeneralSolidIntegrals& output,
+    double relativeAccuracy = 1e-4
 );
 } // namespace step_import::detail

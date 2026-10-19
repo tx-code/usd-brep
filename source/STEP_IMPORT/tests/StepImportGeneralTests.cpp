@@ -23,8 +23,10 @@
 #include <SmPlane.h>
 #include <SmRegion.h>
 #include <SmShell.h>
+#include <SmTopoTypes.h>
 #include <SmVertex.h>
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -532,7 +534,7 @@ ReloadedNative ReloadNative(
     }
     return result;
 }
-double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::Point, 2>& bounds)
+double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::Point, 2>& bounds, double accuracy = 1e-4)
 {
     // Use the legacy mass query as a separate numerical observation, retaining
     // the import origin and requested relative accuracy. The fused import now
@@ -547,6 +549,26 @@ double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::
     double area = 0, volume = 0, mass = 0;
     SmPoint3d centroid;
     SmVector3d moments, products;
+    if (accuracy < 1e-4)
+    {
+        // The SM_API mass wrapper intentionally clamps below 1e-4. These
+        // unedited, attribute-free modeling/archive copies must instead use
+        // the kernel's actual tighter control for an independent observation.
+        SmTArray<SmVector3d> allMoments;
+        Require(
+            brep.ComputePreciseProperties(
+                accuracy,
+                SmPoint3d(origin[0], origin[1], origin[2]),
+                SmMassPropertyBehavior(1),
+                area,
+                volume,
+                mass,
+                allMoments
+            ) == SM_SUCCESS,
+            "unclamped numerical copy measurement"
+        );
+        return volume;
+    }
     Require(
         SmApiBrepComputeMassProperties(&brep, 1e-4, 1, SmPoint3d(origin[0], origin[1], origin[2]), area, volume, mass, centroid, moments, products) ==
             SM_SUCCESS,
@@ -1106,6 +1128,12 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     auto outcome = step_import::ImportFile(source, options);
     Require(outcome.status == step_import::Status::Accepted && bool(outcome.model), "owning general import");
     auto model = outcome.model;
+    const auto legacyIntegration = model->NumericalIntegration();
+    Require(
+        legacyIntegration && legacyIntegration->requestedRelativeAccuracy == 1e-4 && legacyIntegration->appliedRelativeAccuracy == 1e-4 &&
+            legacyIntegration->completed,
+        "default general snapshot owns its documented numerical control"
+    );
     Near(*model->MaterialVolumeMm3(), 6000, 1e-5, "independent box volume");
     const auto closest = model->Closest({ 20, 7, 20 });
     Near(closest.distanceMm, 8, 1e-6, "independent boundary query");
@@ -1193,6 +1221,63 @@ void LifecycleContract(const std::filesystem::path& source, const std::filesyste
     outcome = {};
     model.reset();
     Require(!identity.empty() && std::isfinite(retained.Closest({ 20, 7, 20 }).distanceMm), "owning face view lifetime");
+}
+void NumericalIntegrationContract(const std::filesystem::path& source)
+{
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    options.numericalIntegration = step_import::NumericalIntegrationSettings{ 1e-7 };
+    auto outcome = step_import::ImportFile(source, options);
+    Require(outcome.status == step_import::Status::Accepted && outcome.model, "explicit numerical import");
+    Require(
+        outcome.report.numericalIntegration && outcome.report.numericalIntegration->completed &&
+            outcome.report.numericalIntegration->appliedRelativeAccuracy == 1e-7,
+        "report records the actual un-clamped numerical request"
+    );
+    auto owner = outcome.model;
+    outcome = {};
+    auto observed = owner->NumericalIntegration();
+    Require(
+        observed && observed->completed && observed->requestedRelativeAccuracy == 1e-7 && observed->appliedRelativeAccuracy == 1e-7,
+        "snapshot evidence survives outcome and report disposal"
+    );
+    observed->requestedRelativeAccuracy = 1;
+    Require(owner->NumericalIntegration()->requestedRelativeAccuracy == 1e-7, "returned observation cannot mutate snapshot evidence");
+    auto cancel = options;
+    cancel.execution.control = std::make_shared<step_import::ImportControl>();
+    cancel.execution.progress = [&](step_import::Progress progress)
+    {
+        if (progress.phase == step_import::Phase::NativeReady)
+        {
+            cancel.execution.control->RequestCancel();
+        }
+    };
+    const auto cancelled = step_import::ImportFile(source, cancel);
+    Require(
+        cancelled.status == step_import::Status::Cancelled && !cancelled.model && cancelled.report.numericalIntegration &&
+            cancelled.report.numericalIntegration->completed,
+        "completed numerical work does not bypass final cancellation or publish a candidate"
+    );
+    auto bounded = options;
+    bounded.nativeLimits.reportBytes = 64;
+    const auto noReport = step_import::ImportFile(source, bounded);
+    Require(noReport.status == step_import::Status::ResourceLimit && !noReport.model, "numerical request still requires the mandatory report");
+    for (const auto value : { 0., -1., 1e-9, 1e-3, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN() })
+    {
+        auto invalid = options;
+        invalid.numericalIntegration->relativeAccuracy = value;
+        bool refused = false;
+        try
+        {
+            step_import::ImportBytes({}, invalid);
+        }
+        catch (const std::invalid_argument&)
+        {
+            refused = true;
+        }
+        Require(refused, "invalid numerical controls fail before source capture");
+    }
 }
 void CarrierContract(const std::filesystem::path& fixture, const std::filesystem::path& directory)
 {
@@ -1401,12 +1486,17 @@ void DevelopmentContract(
     bool workStudy = false,
     bool carrier = false,
     bool nameOnly = false,
-    bool lowercaseHex = false
+    bool lowercaseHex = false,
+    std::optional<double> integrationAccuracy = {}
 )
 {
     auto options = step_import::Options::PlanarFixture();
     options.generalBrep = true;
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    if (integrationAccuracy)
+    {
+        options.numericalIntegration = step_import::NumericalIntegrationSettings{ *integrationAccuracy };
+    }
     if (opaqueHeaderName)
     {
         options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
@@ -1477,11 +1567,11 @@ void DevelopmentContract(
     editable.model->Edit(
         [&](SmBrep& brep)
         {
-            copiedVolume = VolumeWithImportPolicy(brep, info.boundsMm);
+            copiedVolume = VolumeWithImportPolicy(brep, info.boundsMm, integrationAccuracy.value_or(1e-4));
         }
     );
     const auto expected = *result.model->MaterialVolumeMm3();
-    // Both integrators request relative 1e-4. Their 2e-4 comparison screen is
+    // Both integrators use the selected stopping control (legacy 1e-4). The 2e-4 comparison screen is
     // not a certified error bound and must not be mistaken for a geometry
     // tolerance; copy/archive defining coefficients and UV are still checked.
     Near(copiedVolume, expected, std::max(1e-6, expected * 2e-4), "copy numerical volume agreement");
@@ -1524,8 +1614,8 @@ void DevelopmentContract(
     loaded.brep->GetEdges(edges);
     loaded.brep->GetVertices(vertices);
     Require(faces.GetSize() == info.faces && edges.GetSize() == info.edges && vertices.GetSize() == info.vertices, "archive topology preserved");
-    const double volume = VolumeWithImportPolicy(*loaded.brep, info.boundsMm);
-    // The native integrator requests relative 1e-4, not bitwise deterministic
+    const double volume = VolumeWithImportPolicy(*loaded.brep, info.boundsMm, integrationAccuracy.value_or(1e-4));
+    // The selected numerical control does not imply bitwise deterministic
     // quadrature after cache-free reload. Coefficient identity is checked below;
     // this separate measure comparison allows the two numerical integrations.
     Near(volume, expected, std::max(1e-6, expected * 2e-4), "archive numerical volume agreement");
@@ -1563,6 +1653,16 @@ void DevelopmentContract(
         << ",\"reloaded_distance_mm\":" << queryDistance << ",\"archive_spline_to_extrusion_surfaces\":" << changes.extrusionSurfaces
         << ",\"archive_spline_to_linear_uv\":" << changes.linearUv << ",\"archive_spline_to_plane_surfaces\":" << changes.planeSurfaces
         << ",\"defining_coefficients_and_uv_checked\":true,\"native_pointer_reports\":0,\"native_level2_reports\":0,\"reloaded_pointer_reports\":0,\"reloaded_level2_reports\":0";
+    if (integrationAccuracy)
+    {
+        const auto observation = result.model->NumericalIntegration();
+        Require(
+            observation && observation->completed && observation->appliedRelativeAccuracy == integrationAccuracy &&
+                observation->requestedRelativeAccuracy == *integrationAccuracy,
+            "development snapshot retains the actual numerical control"
+        );
+        checks << ",\"integration_relative_accuracy\":" << *integrationAccuracy;
+    }
     if (!wireframes.empty())
     {
         checks << ",\"linked_sets\":" << wireframes.size() << ",\"linked_curves\":" << loaded.curves.size()
@@ -1592,9 +1692,20 @@ int main(int argc, char** argv)
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
                  lowercaseHex = false;
+            std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
+                if (flag == "--integration-relative-accuracy")
+                {
+                    Require(i + 1 < argc, "numerical integration value required");
+                    const std::string_view token(argv[++i]);
+                    double value = 0;
+                    const auto parsed = std::from_chars(token.data(), token.data() + token.size(), value);
+                    Require(parsed.ec == std::errc{} && parsed.ptr == token.data() + token.size(), "numerical integration number required");
+                    integrationAccuracy = value;
+                    continue;
+                }
                 Require(
                     flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
@@ -1642,7 +1753,8 @@ int main(int argc, char** argv)
                 workStudy,
                 carrier,
                 nameOnly,
-                lowercaseHex
+                lowercaseHex,
+                integrationAccuracy
             );
             return 0;
         }
@@ -1672,6 +1784,7 @@ int main(int argc, char** argv)
         InterpretationContract(argv[1]);
         CarrierContract(argv[1], argv[2]);
         LifecycleContract(argv[1], argv[2]);
+        NumericalIntegrationContract(argv[1]);
     }
     catch (const std::exception& error)
     {

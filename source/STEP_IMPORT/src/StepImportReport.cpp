@@ -388,6 +388,26 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 }
                 w.Add(",\"repair\":\"None\",\"quality_id\":");
                 w.String(quality.id);
+                if (report.numericalIntegration)
+                {
+                    const auto& integration = *report.numericalIntegration;
+                    w.Add(
+                        ",\"numerical_integration\":{\"method\":\"SMLibFusedFaceProperties\",\"control_scope\":\"DimensionlessNumericalStoppingOnly\",\"requested_relative_accuracy\":"
+                    );
+                    Number(w, integration.requestedRelativeAccuracy);
+                    w.Add(",\"applied_relative_accuracy\":");
+                    if (integration.appliedRelativeAccuracy)
+                    {
+                        Number(w, *integration.appliedRelativeAccuracy);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
+                    w.Add(",\"completed\":");
+                    w.Bool(integration.completed);
+                    w.Add(",\"continuous_error_bound_established\":false}");
+                }
                 w.Add(",\"quality\":{");
                 const std::pair<const char*, Fraction> budgets[] = { { "definition_mm", quality.definitionMm },
                                                                      { "consistency_mm", quality.consistencyMm },

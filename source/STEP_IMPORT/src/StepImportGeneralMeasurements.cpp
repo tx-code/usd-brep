@@ -10,6 +10,7 @@
 #include <SmRegion.h>
 #include <SmShell.h>
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <utility>
 
@@ -33,10 +34,12 @@ SmStatus IntegrateGeneralSolid(
     const ModelData& model,
     const Point& origin,
     const std::function<void(std::size_t)>& beforeFace,
-    GeneralSolidIntegrals& output
+    GeneralSolidIntegrals& output,
+    double relativeAccuracy
 )
 {
-    if (!model.brep || !model.material || !beforeFace || !model.brep->IsManifoldSolid())
+    if (!std::isfinite(relativeAccuracy) || relativeAccuracy < 1e-8 || relativeAccuracy > 1e-4 || !model.brep || !model.material || !beforeFace ||
+        !model.brep->IsManifoldSolid())
     {
         return SM_ERR_INVALID_INPUT;
     }
@@ -81,7 +84,6 @@ SmStatus IntegrateGeneralSolid(
     }
     const double modelEstimate = AreaEstimate(modelBox);
     const SmPoint3d volumeOrigin(origin[0], origin[1], origin[2]);
-    constexpr double relativeAccuracy = 1e-4;
     constexpr ULONG groups = SM_PPF_AREA | SM_PPF_AREA_FIRST_MOMENTS | SM_PPF_VOLUME | SM_PPF_VOLUME_FIRST_MOMENTS;
     GeneralSolidIntegrals result;
     result.faces.resize(model.faces.size());

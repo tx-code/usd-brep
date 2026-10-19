@@ -101,6 +101,18 @@ struct Limits
     std::optional<std::size_t> processPrivateBytes; // Cooperative, process-wide commit charge at safe boundaries; not a hard cap.
     std::optional<std::size_t> hardMemoryBytes; // Unsupported in this in-process execution mode; never silently relaxed.
 };
+struct NumericalIntegrationSettings
+{
+    // Dimensionless stopping control for general face integration, in [1e-8, 1e-4].
+    // Neither a certified relative volume error nor a geometric/repair tolerance.
+    double relativeAccuracy = 1e-4;
+};
+struct NumericalIntegrationObservation
+{
+    double requestedRelativeAccuracy = 1e-4;
+    std::optional<double> appliedRelativeAccuracy; // Present once a native face query starts; never silently clamped.
+    bool completed = false; // All fused face integrals completed, not a continuous error certificate.
+};
 struct Options
 {
     step_source::Limits sourceLimits{};
@@ -116,6 +128,7 @@ struct Options
     step_semantics::SchemaInterpretation schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
     bool restrictUnusedSupportDomains = false; // Explicit equivalent target representation; general development path only.
     step_source::CarrierInterpretation carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
+    std::optional<NumericalIntegrationSettings> numericalIntegration; // Explicit general-only control; absent retains legacy 1e-4.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -269,6 +282,7 @@ public:
     std::optional<MaterialPointClass> ClassifyMaterial(const Point& pointMm) const; // null: surface role has no material classification.
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
     std::optional<double> MaterialVolumeMm3() const; // Any surface role: NotApplicable, never a fabricated zero.
+    std::optional<NumericalIntegrationObservation> NumericalIntegration() const; // Owning snapshot evidence; null for the proved planar path.
     void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
@@ -362,6 +376,7 @@ struct Report
 {
     bool generalBrep = false;
     bool supportDomainRestrictionRequested = false;
+    std::optional<NumericalIntegrationObservation> numericalIntegration; // Explicit requests only; survives failure without a model.
     std::optional<step_semantics::Outcome> generalSource; // Source diagnostics and original records survive native failure.
     std::vector<std::pair<std::string, std::string>> classifiedOuterBounds; // Derived face/bound IDs, never source relabeling.
     std::vector<RepresentationNormalization> normalizations;

@@ -130,6 +130,17 @@ int main(int argc, char** argv)
                 }
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
             }
+            else if (arg == "--integration-relative-accuracy" && i + 1 < argc)
+            {
+                double value = 0;
+                const std::string_view token(argv[++i]);
+                const auto parsed = std::from_chars(token.data(), token.data() + token.size(), value);
+                if (parsed.ec != std::errc{} || parsed.ptr != token.data() + token.size() || !std::isfinite(value))
+                {
+                    throw std::invalid_argument("Finite numerical integration relative accuracy required");
+                }
+                options.numericalIntegration = step_import::NumericalIntegrationSettings{ value };
+            }
             else if (arg == "--interpret-ap214-name-only-as-2010")
             {
                 if (options.schemaInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&

@@ -88,6 +88,10 @@ bench::Trial Run(const bench::Args& args)
                 options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
             }
             options.restrictUnusedSupportDomains = args.restrictUnusedSupportDomains.value_or(false);
+            if (args.integrationRelativeAccuracy)
+            {
+                options.numericalIntegration = step_import::NumericalIntegrationSettings{ *args.integrationRelativeAccuracy };
+            }
             std::vector<std::pair<std::size_t, double>> intervals;
             std::optional<std::pair<std::size_t, bench::Clock::time_point>> previous;
             if (args.nativeBoundaryTiming.value_or(false))
@@ -160,7 +164,16 @@ bench::Trial Run(const bench::Args& args)
                 bench::N(double(options.quality.derivedUvMm.Numerator()) / double(options.quality.derivedUvMm.Denominator())) +
                 ",\"work_tolerance_mm\":" +
                 bench::N(double(options.quality.initialWorkToleranceMm.Numerator()) / double(options.quality.initialWorkToleranceMm.Denominator())) +
+                (args.integrationRelativeAccuracy ? ",\"integration_relative_accuracy\":" + bench::N(*args.integrationRelativeAccuracy) : "") +
                 ",\"operation_scope\":\"public ImportFile including source validation, construction, postchecks, integrals, mandatory report and commit\"}";
+            if (result.report.numericalIntegration)
+            {
+                const auto& observation = *result.report.numericalIntegration;
+                row.extra += ",\"numerical_integration\":{\"requested_relative_accuracy\":" + bench::N(observation.requestedRelativeAccuracy) +
+                             ",\"applied_relative_accuracy\":" +
+                             (observation.appliedRelativeAccuracy ? bench::N(*observation.appliedRelativeAccuracy) : "null") +
+                             ",\"completed\":" + (observation.completed ? "true" : "false") + ",\"continuous_error_bound_established\":false}";
+            }
             if (args.restrictUnusedSupportDomains.has_value())
             {
                 row.extra += ",\"support_domain_restriction_requested\":" + std::string(options.restrictUnusedSupportDomains ? "true" : "false");

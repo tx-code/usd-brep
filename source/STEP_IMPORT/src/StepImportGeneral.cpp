@@ -2122,15 +2122,30 @@ private:
             origin[axis] = std::midpoint(info.boundsMm[0][axis], info.boundsMm[1][axis]);
         }
         GeneralSolidIntegrals integrals;
+        const auto accuracy = m_options.numericalIntegration ? m_options.numericalIntegration->relativeAccuracy : 1e-4;
         Good(IntegrateGeneralSolid(
             *m_model,
             origin,
             [&](Index face)
             {
                 Step(faces[face].record);
+                if (m_report.numericalIntegration)
+                {
+                    m_report.numericalIntegration->appliedRelativeAccuracy = accuracy;
+                }
             },
-            integrals
+            integrals,
+            accuracy
         ));
+        // The face API honors this control directly. SmApiBrepComputeMassProperties
+        // clamps tighter requests to 1e-4 and must not substitute for this path.
+        // Completion records a numerical observation, never a certified volume
+        // bound or permission to modify source/geometry/working tolerances.
+        m_model->numericalIntegration = NumericalIntegrationObservation{ accuracy, accuracy, true };
+        if (m_report.numericalIntegration)
+        {
+            m_report.numericalIntegration = m_model->numericalIntegration;
+        }
         info.areaMm2 = integrals.areaMm2;
         const double volume = integrals.volumeMm3;
         Need(std::isfinite(volume) && volume > 0 && std::isfinite(info.areaMm2) && info.areaMm2 > 0, "GeneralSolidMeasures", shape);

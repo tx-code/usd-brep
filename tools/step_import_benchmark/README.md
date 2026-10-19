@@ -1,5 +1,11 @@
 # STEP 模型库画像与测量工具
 
+原生 import 探针可显式传 `--integration-relative-accuracy 1e-6`，配合通用质量配置。
+仅接受有限的 `[1e-8,1e-4]`，其他引擎／模式及 P0 在输入预算跳过前拒绝该选项。
+实际请求进入 trial 的 `settings.integration_relative_accuracy`，执行观察进入
+`numerical_integration`；失败时不把未运行的积分记为完成。默认输出保持原样。
+该参数是无量纲数值停止控制，不是几何容差或连续误差界；性能组须同时匹配这项配置。
+
 原生探针可另选 --carrier-interpretation Level1AsCorrectedEncodingWithLowercaseHex，
 与显式通用质量及 PreserveNonGeometric 配合。它只作用于已解释声明 1 的 DATA 转义，
 完成结果保持单列解释资格；旧策略及其他声明不变，其他引擎／模式拒绝该原生参数。

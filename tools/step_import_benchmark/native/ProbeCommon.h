@@ -108,6 +108,7 @@ struct Args
     std::string carrierInterpretation; // Independent carrier evidence, not a schema alias.
     std::optional<bool> restrictUnusedSupportDomains;
     std::optional<bool> nativeBoundaryTiming; // Presence is distinct from enabled; never silently ignore a foreign engine's flag.
+    std::optional<double> integrationRelativeAccuracy;
     std::size_t warmup = 0, repeat = 1, maximumInput = 64 * 1024 * 1024;
 };
 inline Args Parse(const std::vector<std::string>& tokens)
@@ -130,6 +131,16 @@ inline Args Parse(const std::vector<std::string>& tokens)
         else if (key == "--mode")
         {
             args.mode = value;
+        }
+        else if (key == "--integration-relative-accuracy")
+        {
+            double number = 0;
+            const auto parsed = std::from_chars(value.data(), value.data() + value.size(), number);
+            if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || !std::isfinite(number) || number < 1e-8 || number > 1e-4)
+            {
+                throw std::invalid_argument("Finite numerical integration relative accuracy in [1e-8, 1e-4] required");
+            }
+            args.integrationRelativeAccuracy = number;
         }
         else if (key == "--schema-interpretation")
         {
@@ -229,7 +240,7 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
         // reader. Invalid policies are rejected even for an input-budget skip.
         if (!args.quality.empty() || !args.sourcePolicy.empty() || !args.headerNamePolicy.empty() || !args.dataStringPolicy.empty() ||
             !args.schemaInterpretation.empty() || !args.carrierInterpretation.empty() || args.nativeBoundaryTiming.has_value() ||
-            args.restrictUnusedSupportDomains.has_value())
+            args.restrictUnusedSupportDomains.has_value() || args.integrationRelativeAccuracy.has_value())
         {
             if (std::string_view(engine) != "self-native" || args.mode != "import")
             {
@@ -267,6 +278,10 @@ int Main(const std::vector<std::string>& tokens, const char* engine, const std::
         if (args.restrictUnusedSupportDomains.value_or(false) && !GeneralQuality(args.quality))
         {
             throw std::invalid_argument("Support restriction requires explicit general quality");
+        }
+        if (args.integrationRelativeAccuracy && !GeneralQuality(args.quality))
+        {
+            throw std::invalid_argument("Numerical integration control requires explicit general quality");
         }
         const auto bytes = std::filesystem::file_size(args.input);
         std::ostringstream out;

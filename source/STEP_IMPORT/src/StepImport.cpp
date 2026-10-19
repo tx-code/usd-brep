@@ -48,6 +48,14 @@ namespace
 void Validate(const Options& options)
 {
     const auto& q = options.quality;
+    if (options.numericalIntegration)
+    {
+        const auto accuracy = options.numericalIntegration->relativeAccuracy;
+        if (!options.generalBrep || !std::isfinite(accuracy) || accuracy < 1e-8 || accuracy > 1e-4)
+        {
+            throw std::invalid_argument("Numerical integration requires general geometry and finite relative accuracy in [1e-8, 1e-4]");
+        }
+    }
     if (options.restrictUnusedSupportDomains && !options.generalBrep)
     {
         throw std::invalid_argument("Support-domain restriction requires the explicit general geometry path");
@@ -129,6 +137,10 @@ Outcome Import(const Options& options, Capture capture)
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
+    if (options.numericalIntegration)
+    {
+        report.numericalIntegration = NumericalIntegrationObservation{ options.numericalIntegration->relativeAccuracy, {}, false };
+    }
     step_source::InspectOutcome raw;
     raw.limits = options.sourceLimits;
     raw.headerNamePolicy = options.headerNamePolicy;

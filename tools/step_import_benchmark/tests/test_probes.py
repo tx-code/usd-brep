@@ -16,6 +16,25 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_explicit_integration_control_is_applied_and_part_of_settings(self):
+        from tools.step_import_native_validation.tests.test_integration import bernstein_roof_source
+
+        with tempfile.TemporaryDirectory(prefix="step-integration-probe-") as directory:
+            source = Path(directory) / "source.step"
+            source.write_bytes(bernstein_roof_source())
+            flags = ("--quality", "Q-AP214-development-mm-01")
+            (legacy,) = self.invoke("native", "import", source, *flags)["trials"]
+            (trial,) = self.invoke("native", "import", source, *flags,
+                                   "--integration-relative-accuracy", "1e-7")["trials"]
+            self.assertEqual("Accepted", trial["status"])
+            self.assertNotIn("integration_relative_accuracy", legacy["settings"])
+            self.assertEqual(1e-7, trial["settings"]["integration_relative_accuracy"])
+            self.assertEqual(1e-7, trial["numerical_integration"]["applied_relative_accuracy"])
+            self.assertTrue(trial["numerical_integration"]["completed"])
+            self.assertFalse(trial["numerical_integration"]["continuous_error_bound_established"])
+            truth = 726200 / 121
+            self.assertAlmostEqual(truth, trial["model"]["volume_mm3"], delta=truth * 1e-7)
+
     def test_lowercase_hex_is_an_independent_explicit_carrier_policy(self):
         from tools.step_import_native_validation.tests.test_lowercase_hex import hex_box
 
@@ -268,6 +287,11 @@ class ProbeTests(unittest.TestCase):
                 ("occt", "transfer", ["--restrict-unused-support-domains", "1"]),
                 ("native", "import", ["--restrict-unused-support-domains", "1"]),
                 ("native", "import", ["--restrict-unused-support-domains", "2"]),
+                ("source", "source", ["--integration-relative-accuracy", "1e-6"]),
+                ("occt", "transfer", ["--integration-relative-accuracy", "1e-4"]),
+                ("native", "import", ["--integration-relative-accuracy", "1e-6"]),
+                ("native", "import", ["--quality", "Q-AP214-development-mm-01", "--integration-relative-accuracy", "nan"]),
+                ("native", "import", ["--quality", "Q-AP214-development-mm-01", "--integration-relative-accuracy", "1e-3"]),
                 ("source", "source", ["--carrier-interpretation", "DeclaredOnly"]),
                 ("occt", "transfer", ["--carrier-interpretation", "Level1AsCorrectedEncoding"]),
                 ("native", "import", ["--carrier-interpretation", "Level1AsCorrectedEncoding"]),

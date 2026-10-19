@@ -1712,4 +1712,10 @@ std::optional<MaterialPointClass> ModelSnapshot::ClassifyMaterial(const Point& p
     }
     return kind == SM_PC_FACE ? MaterialPointClass::Face : kind == SM_PC_EDGE ? MaterialPointClass::Edge : MaterialPointClass::Vertex;
 }
+std::optional<NumericalIntegrationObservation> ModelSnapshot::NumericalIntegration() const
+{
+    // Immutable owning snapshot data; editable copies/native archives do not
+    // inherit this source request's measurement qualification.
+    return m_data->numericalIntegration;
+}
 } // namespace step_import
