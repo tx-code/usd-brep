@@ -10,12 +10,305 @@
 #include <SmBSplineCurve.h>
 #include <nurbs.h>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <limits>
+
+#if defined(_M_X64) || defined(__SSE2__)
+#include <xmmintrin.h>
+#endif
+
 #ifdef SM_DEBUG_CODE
 #include <SmBrep.h>
 #include <SmCrvOnSurf.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
 #endif
+
+namespace
+{
+struct RegularityProof
+{
+    bool speed = false;
+    bool radius = false;
+};
+
+// A proof only enables an early pass. It never rejects a curve, modifies its
+// representation, or supplies a fabricated worst-case parameter for a report.
+// Unsupported arithmetic environments and inconclusive bounds use the GPA path.
+#if (defined(_M_X64) || defined(__SSE2__)) && !defined(__FAST_MATH__) && !defined(_M_FP_FAST) &&                                                     \
+    (!defined(__FINITE_MATH_ONLY__) || __FINITE_MATH_ONLY__ == 0)
+#    ifdef _MSC_VER
+#        pragma float_control(precise, on, push)
+#    endif
+struct Interval
+{
+    double lo = 0;
+    double hi = 0;
+
+    bool finite() const
+    {
+        return std::isfinite(lo) && std::isfinite(hi) && lo <= hi;
+    }
+};
+
+double lower(double value)
+{
+    return std::nextafter(value, -std::numeric_limits<double>::infinity());
+}
+double upper(double value)
+{
+    return std::nextafter(value, std::numeric_limits<double>::infinity());
+}
+Interval point(double value)
+{
+    return { value, value };
+}
+Interval operator+(Interval a, Interval b)
+{
+    if (!a.finite() || !b.finite())
+    {
+        return { 1, -1 };
+    }
+    return { lower(a.lo + b.lo), upper(a.hi + b.hi) };
+}
+Interval operator-(Interval a, Interval b)
+{
+    if (!a.finite() || !b.finite())
+    {
+        return { 1, -1 };
+    }
+    return { lower(a.lo - b.hi), upper(a.hi - b.lo) };
+}
+Interval operator*(Interval a, Interval b)
+{
+    if (!a.finite() || !b.finite())
+    {
+        return { 1, -1 };
+    }
+    const std::array values{ a.lo * b.lo, a.lo * b.hi, a.hi * b.lo, a.hi * b.hi };
+    return { lower(*std::min_element(values.begin(), values.end())), upper(*std::max_element(values.begin(), values.end())) };
+}
+Interval operator/(Interval a, Interval positive)
+{
+    if (!positive.finite() || positive.lo <= 0)
+    {
+        return { 1, -1 };
+    }
+    return a * Interval{ lower(1.0 / positive.hi), upper(1.0 / positive.lo) };
+}
+Interval hull(Interval a, Interval b)
+{
+    if (!a.finite() || !b.finite())
+    {
+        return { 1, -1 };
+    }
+    return { std::min(a.lo, b.lo), std::max(a.hi, b.hi) };
+}
+
+using Pole = std::array<Interval, 4>;
+using Bezier = std::array<Pole, 4>;
+
+RegularityProof boundBezier(const Bezier& poles, int degree, int dimension, Interval length, double tolerance)
+{
+    // Translate homogeneous coordinates before taking hulls to reduce interval
+    // dependency on a large common origin. The origin may be any finite double:
+    // subtraction and multiplication below enclose the exact translated curve.
+    Bezier translated = poles;
+    for (int axis = 0; axis < dimension; ++axis)
+    {
+        const double origin = poles[0][axis].lo / poles[0][3].lo;
+        if (!std::isfinite(origin))
+        {
+            return {};
+        }
+        for (int i = 0; i <= degree; ++i)
+        {
+            translated[i][axis] = poles[i][axis] - point(origin) * poles[i][3];
+        }
+    }
+
+    Pole position = translated[0];
+    Pole first{}, second{};
+    Bezier differences{};
+    for (int axis = 0; axis < 4; ++axis)
+    {
+        for (int i = 1; i <= degree; ++i)
+        {
+            position[axis] = hull(position[axis], translated[i][axis]);
+        }
+        for (int i = 0; i < degree; ++i)
+        {
+            differences[i][axis] = (translated[i + 1][axis] - translated[i][axis]) * point(degree) / length;
+            first[axis] = i == 0 ? differences[i][axis] : hull(first[axis], differences[i][axis]);
+        }
+        for (int i = 0; i < degree - 1; ++i)
+        {
+            const Interval value = (differences[i + 1][axis] - differences[i][axis]) * point(degree - 1) / length;
+            second[axis] = i == 0 ? value : hull(second[axis], value);
+        }
+        if (!position[axis].finite() || !first[axis].finite() || !second[axis].finite())
+        {
+            return {};
+        }
+    }
+    if (position[3].lo <= 0)
+    {
+        return {};
+    }
+
+    double speedLower = 0;
+    double accelerationUpper = 0;
+    for (int axis = 0; axis < dimension; ++axis)
+    {
+        // H=(X,w), C=X/w. Differentiate w*C=X twice, retaining the
+        // ORIGINAL knot parameter: C'=(X'-w'*C)/w,
+        // C''=(X''-2*w'*C'-w''*C)/w. Bezier hulls cover every parameter,
+        // including endpoints; this is not a sampled error estimate.
+        const Interval coordinate = position[axis] / position[3];
+        const Interval velocity = (first[axis] - first[3] * coordinate) / position[3];
+        const Interval acceleration = (second[axis] - point(2) * first[3] * velocity - second[3] * coordinate) / position[3];
+        if (!coordinate.finite() || !velocity.finite() || !acceleration.finite())
+        {
+            return {};
+        }
+        speedLower = std::max(speedLower, std::max(velocity.lo, -velocity.hi));
+        accelerationUpper = upper(accelerationUpper + std::max(std::abs(acceleration.lo), std::abs(acceleration.hi)));
+    }
+    // Infinity norm is a lower bound for speed; 1-norm is an upper bound for
+    // acceleration. rho=|C'|^3/|C' x C''| >= |C'|^2/|C''| in both 2D and 3D.
+    // Cross-multiply with outward rounding; straight lines need no division by 0.
+    const bool speed = speedLower >= tolerance;
+    const bool radius = speed && std::isfinite(accelerationUpper) && lower(speedLower * speedLower) >= upper(tolerance * accelerationUpper);
+    return { speed, radius };
+}
+
+RegularityProof subdivideBezier(const Bezier& poles, int degree, int dimension, Interval length, double tolerance, int depth)
+{
+    const RegularityProof whole = boundBezier(poles, degree, dimension, length, tolerance);
+    if ((whole.speed && whole.radius) || depth == 0)
+    {
+        return whole;
+    }
+    // Bounded work: at most eight subintervals. Positive rational Bezier
+    // weights remain positive under de Casteljau; every operation is enclosed.
+    Bezier work = poles, left{}, right{};
+    left[0] = work[0];
+    right[degree] = work[degree];
+    for (int level = 1; level <= degree; ++level)
+    {
+        for (int i = 0; i <= degree - level; ++i)
+        {
+            for (int axis = 0; axis < 4; ++axis)
+            {
+                work[i][axis] = (work[i][axis] + work[i + 1][axis]) * point(0.5);
+            }
+        }
+        left[level] = work[0];
+        right[degree - level] = work[degree - level];
+    }
+    const Interval halfLength = length * point(0.5);
+    const RegularityProof a = subdivideBezier(left, degree, dimension, halfLength, tolerance, depth - 1);
+    const RegularityProof b = subdivideBezier(right, degree, dimension, halfLength, tolerance, depth - 1);
+    return { whole.speed || (a.speed && b.speed), whole.radius || (a.radius && b.radius) };
+}
+#    ifdef _MSC_VER
+#        pragma float_control(pop)
+#    endif
+#endif
+
+RegularityProof proveBezierRegularity(const gw_CURVE* curve, ULONG dimension, double tolerance)
+{
+#if (defined(_M_X64) || defined(__SSE2__)) && !defined(__FAST_MATH__) && !defined(_M_FP_FAST) &&                                                     \
+    (!defined(__FINITE_MATH_ONLY__) || __FINITE_MATH_ONLY__ == 0)
+    // FTZ/DAZ would invalidate outward rounding near underflow. Do not change
+    // caller floating-point state. Other architectures conservatively fall back.
+    const unsigned arithmeticState = _mm_getcsr();
+    if ((arithmeticState & ((1U << 15) | (1U << 6))) != 0 || (arithmeticState & 0x1F80U) != 0x1F80U || !std::numeric_limits<double>::is_iec559 ||
+        !curve || !curve->pol || !curve->knt || dimension < 2 || dimension > 3 || !std::isfinite(tolerance) || tolerance <= 0)
+    {
+        return {};
+    }
+    const int degree = curve->p;
+    // Accept a bounded chain of already-separated Bezier spans. No knot
+    // insertion, normalization, or representation mutation is performed here.
+    if (degree < 1 || degree > 3 || curve->pol->n < degree || curve->pol->n > 16 * degree || curve->pol->n % degree != 0 ||
+        curve->knt->m != curve->pol->n + degree + 1 || !curve->pol->Pw || !curve->knt->U)
+    {
+        return {};
+    }
+    const int lastPole = static_cast<int>(curve->pol->n);
+    const auto* knots = curve->knt->U;
+    for (int i = 0; i <= degree; ++i)
+    {
+        if (knots[i] != knots[0] || knots[curve->knt->m - i] != knots[curve->knt->m])
+        {
+            return {};
+        }
+    }
+    const bool polynomial = curve->pol->Pw[0].w == NL_NOW;
+    RegularityProof result{ true, true };
+    for (int startPole = 0; startPole < lastPole; startPole += degree)
+    {
+        const double start = knots[startPole + degree], end = knots[startPole + degree + 1];
+        const Interval length = point(end) - point(start);
+        if (!length.finite() || length.lo <= 0)
+        {
+            return {};
+        }
+        for (int repeat = 1; repeat <= degree; ++repeat)
+        {
+            if (knots[startPole + degree + repeat] != end)
+            {
+                return {}; // lower knot multiplicity requires actual Bezier extraction
+            }
+        }
+        Bezier poles{};
+        for (int i = 0; i <= degree; ++i)
+        {
+            const auto& p = curve->pol->Pw[startPole + i];
+            // NLib's NL_NOW denotes polynomial XYZ, not a negative rational
+            // weight (NL_Geometry.h). Its effective homogeneous weight is one.
+            if ((p.w == NL_NOW) != polynomial || (!polynomial && p.w <= 0))
+            {
+                return {};
+            }
+            // The dimension tag does not itself project arbitrary stored Z.
+            // NLib evaluates non-sentinel Z coordinates even on a curve tagged
+            // 2D. Certify only explicit zero/absent Z there; anomalous data must
+            // retain the evaluator/GPA path instead of proving a different curve.
+            if ((dimension == 2 && p.z != 0 && p.z != NL_NOZ) || (dimension == 3 && p.z == NL_NOZ))
+            {
+                return {};
+            }
+            poles[i] = { point(p.x), point(p.y), point(dimension == 2 ? 0 : p.z), point(polynomial ? 1 : p.w) };
+            for (Interval coordinate : poles[i])
+            {
+                if (!coordinate.finite())
+                {
+                    return {};
+                }
+            }
+        }
+        // Bounds include one-sided derivatives at span joins. The existing
+        // interior-knot continuity checks above still execute independently.
+        const RegularityProof span = subdivideBezier(poles, degree, static_cast<int>(dimension), length, tolerance, 3);
+        result.speed &= span.speed;
+        result.radius &= span.radius;
+        if (!result.speed && !result.radius)
+        {
+            return {};
+        }
+    }
+    return result;
+
+#else
+    SM_REF3(curve, dimension, tolerance);
+    return {};
+#endif
+}
+} // namespace
 
 /*******************************************************************//**
 PURPOSE: AssertValid() Test reporting static labels
@@ -348,9 +641,17 @@ static       ULONG lFoundItem ;
       //      double dMinSep = IsBounded() ? dSizeXYZ / smos_Max(20., dSizeT) // min separation between solutions
       //                                   : 5.0 ;                            //
 
+      // Only the concrete B-spline evaluator is certified by its control data;
+      // derived curve types may implement different parameter/evaluation rules.
+      const RegularityProof proof = GetClassType() == SmBSplineCurve_TYPE
+                                        ? proveBezierRegularity(m_pNurb, GetDim(), dTol)
+                                        : RegularityProof{};
       SmSolutionArray rSolutionArray;
-      this->GlobalPropertyAnalysis( sDomain, SM_CP_MINIMIZE_FIRST_DERIVATIVE,
-                                    NULL, NULL, dMinSep, rSolutionArray );
+      if (!proof.speed)
+        {
+          this->GlobalPropertyAnalysis( sDomain, SM_CP_MINIMIZE_FIRST_DERIVATIVE,
+                                        NULL, NULL, dMinSep, rSolutionArray );
+        }
 
 
       // Note: the solution value is not necessarily the length of
@@ -415,7 +716,7 @@ static       ULONG lFoundItem ;
 
       // Release report macros only compare levels. Gate explicitly so a
       // request for an unrelated test does not acquire a new radius failure.
-      if (SM_ASSERT_TEST_NEED(GetDim() == 2 ? 13 : 14, SM_LEVEL_0))
+      if (!proof.radius && SM_ASSERT_TEST_NEED(GetDim() == 2 ? 13 : 14, SM_LEVEL_0))
         {
         // Keep the historical threshold above, including its parameter dependence.
         // A small radius is a validator quality finding, not a claim that the
