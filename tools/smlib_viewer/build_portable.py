@@ -31,6 +31,7 @@ def main():
     command = [sys.executable, "-m", "PyInstaller", "--onedir", "--name", "brep-view", "--console",
                "--hide-console", "hide-early", "--noupx", "--noconfirm", "--distpath", str(output / "dist"),
                "--workpath", str(output / "work"), "--specpath", str(output), "--paths", str(repo),
+               "--additional-hooks-dir", str(Path(__file__).with_name("pyinstaller_hooks")),
                "--paths", str(repo / "tools/scripts"), "--collect-all", "vtkmodules", "--collect-all", "pyvista",
                "--hidden-import", "smlib_runtime", "--exclude-module", "_omni_solid",
                "--exclude-module", "_smlib_dev", "--exclude-module", "_smlib_tests"]

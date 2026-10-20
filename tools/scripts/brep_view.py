@@ -7,6 +7,10 @@ import sys
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+else:
+    # Application modules are ordinary files in the portable runtime. Avoid
+    # writing into an installation and timestamp-cache reuse after quick edits.
+    sys.dont_write_bytecode = True
 
 from tools.smlib_viewer.cli import main
 

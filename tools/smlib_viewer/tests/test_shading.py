@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "windows" if os.name == "nt" else "offs
 
 import numpy as np
 import pyvista as pv
-from PySide6 import QtWidgets
+from PySide6 import QtGui, QtWidgets
 from vtkmodules.vtkRenderingCore import vtkCoordinate
 
 from tools.smlib_viewer.app import ViewerWindow
@@ -77,3 +77,18 @@ class ShadingTests(unittest.TestCase):
         points = [(np.cos(a), np.sin(a), 0) for a in np.deg2rad([-100, -60, -20, 20])]
         values = [luminance_at(self.window, image, p) for p in points]
         self.assertGreater(np.ptp(values), 25, f"Flat cylinder side luminances: {values}")
+
+    def test_hud_repaint_is_opaque_after_resize_and_reload(self):
+        mesh = pv.Cube().triangulate().clean()
+        self.load_mesh(mesh)
+        for width, height in [(520, 360), (900, 500), (520, 360)]:
+            self.window.resize(width, height)
+            self.application.processEvents()
+            self.load_mesh(mesh)
+            image = self.window.hud.grab().toImage().convertToFormat(QtGui.QImage.Format_RGBA8888)
+            pixels = np.frombuffer(image.constBits(), dtype=np.uint8).reshape(image.height(), image.bytesPerLine())
+            rgba = pixels[:, :image.width() * 4].reshape(image.height(), image.width(), 4)
+            # Exclude rounded corners. Every interior pixel, including the
+            # background between glyphs, must overwrite the previous Qt frame.
+            # A native VTK framebuffer cannot provide Qt's alpha-blend backdrop.
+            self.assertTrue(np.all(rgba[12:-12, 12:-12, 3] == 255), "HUD retains translucent repaint pixels")

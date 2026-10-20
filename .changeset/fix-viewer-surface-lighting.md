@@ -5,7 +5,9 @@ change: fix
 Mesh redraw preserves the renderer's lights in the viewer and workbench. Faces
 retain directional shading after loading or changing display modes, so shapes
 remain readable with edge lines disabled. The standalone viewer uses a camera
-light rig, satin material, a compact toolbar and a smaller corner HUD.
+light rig, satin material, a compact toolbar and a smaller corner HUD. An opaque HUD
+prevents doubled text after window resizing or model reload.
+Portable application modules can be updated with the matching runtime unchanged.
 
 ## Scope
 

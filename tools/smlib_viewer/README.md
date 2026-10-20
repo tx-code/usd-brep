@@ -20,6 +20,8 @@ material distinguish face directions and curved surfaces without outlines.
 Redraw preserves the light rig; display shading never changes model positions,
 connectivity, source geometry or import acceptance. The toolbar and corner HUD
 leave most of the window to the model; fit commands retain a small viewing margin.
+The HUD uses an opaque background to avoid stale text from Qt/OpenGL compositing
+after window resizing or model reload.
 
 The progress bar stays busy while work remains unknown. Its caption reports the
 actual phase and measured stage counts where available. It reaches 100 only
@@ -84,6 +86,13 @@ python -m tools.smlib_viewer.build_portable --worker BUILD/Release/step_view_exp
 Output must be new; the build never cleans an existing directory. PyInstaller's
 onedir bundle lives in `dist/brep-view`. Preserve its dependency licenses.
 Private models, inventories and screenshots are not packaging inputs.
+
+Our two application packages are ordinary Python modules under
+`_internal/tools/smlib_viewer` and `_internal/tools/smlib_gui`; Qt/VTK remain in the
+bundled runtime. With the same pinned dependencies and native worker, UI-only
+updates can replace the matching application modules in a fresh copy and restart,
+without recollecting the runtime. The frozen entry disables bytecode-cache writes.
+Dependency, native-worker or entry-point changes require a full bundle build.
 
 The native worker publishes a complete request-relative scene manifest only
 after import, modeling-copy validation, full tessellation and payload writing.

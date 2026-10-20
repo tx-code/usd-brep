@@ -92,7 +92,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.hud = QtWidgets.QLabel(self.plot.interactor)
         self.hud.setTextFormat(QtCore.Qt.PlainText)
         self.hud.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-        self.hud.setStyleSheet("background:rgba(18,23,31,135);color:#dce3ed;"
+        # QVTK is a native OpenGL child, not part of Qt's backing store. Alpha
+        # blending a label over that store can blend against its own previous
+        # text after resize/reload, leaving doubled glyphs. Paint an opaque HUD.
+        self.hud.setStyleSheet("background:#12171f;color:#dce3ed;"
                                "padding:9px 12px;border-radius:5px;font-size:10pt;")
         self.hud.move(14, 14)
         self.hud.setText("拖入模型\nCtrl+O 打开 · H 隐藏信息")
