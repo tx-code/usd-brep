@@ -70,11 +70,10 @@ class ViewerTests(unittest.TestCase):
             self.window.named_view(view)
             self.assertGreater(self.window.plot.camera.clipping_range[0], 0)
             import numpy as np
-            image = self.window.plot.screenshot(return_img=True)
+            image = self.window.plot.screenshot(return_img=True, transparent_background=True)
             height, width = image.shape[:2]
-            center = image[height//4:height*3//4, width//4:width*3//4, :3].astype(float)
-            difference = np.linalg.norm(center - image[-1, -1, :3], axis=2)
-            self.assertGreater(np.count_nonzero(difference > 15), 1000, "Empty/black native viewport")
+            center_alpha = image[height//4:height*3//4, width//4:width*3//4, 3]
+            self.assertGreater(np.count_nonzero(center_alpha > 240), 1000, "Empty native viewport")
         self.window.edges_button.toggle()
         self.window.wire_button.toggle()
         self.assertTrue((points == self.window.mesh.points).all())

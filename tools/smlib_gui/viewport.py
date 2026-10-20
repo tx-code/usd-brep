@@ -191,7 +191,13 @@ class ViewportController:
             render_surface and color_mode_uses_orientation_backfaces(color_mode)
         )
 
+        # PyVista's clear() removes lights as well as actors. Replacing a mesh
+        # must preserve the caller's illumination (including camera-relative
+        # lights); otherwise every front-facing surface becomes the same color.
+        lights = tuple(self._plotter.renderer.lights)
         self._plotter.clear()
+        for light in lights:
+            self._plotter.add_light(light)
         self._topology_pick_marker_actors = []
         if render_surface or is_mesh_wireframe_only:
             for poly in meshes:

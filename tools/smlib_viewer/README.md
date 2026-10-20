@@ -15,9 +15,16 @@ Open with Ctrl+O; F fits, I selects the isometric view, 1/2/3 select front/top/r
 E toggles boundary lines, W toggles mesh edges, H toggles the HUD, R reloads and
 Escape cancels loading. Closing the window also terminates its workers.
 
+Edge lines are off by default. Camera-relative lighting and a satin surface
+material distinguish face directions and curved surfaces without outlines.
+Redraw preserves the light rig; display shading never changes model positions,
+connectivity, source geometry or import acceptance. The toolbar and corner HUD
+leave most of the window to the model; fit commands retain a small viewing margin.
+
 The progress bar stays busy while work remains unknown. Its caption reports the
 actual phase and measured stage counts where available. It reaches 100 only
-after the complete scene is displayed. Failure/cancellation stops it at zero,
+after the complete scene is displayed, then hides after a short delay.
+Failure/cancellation stops it at zero,
 shows the reason and retains any previous scene with its original filename.
 
 ## Input and quality scope

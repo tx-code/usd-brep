@@ -10,7 +10,8 @@ from tools.smlib_gui.runtime import QtCore, QtGui, QtWidgets, QtInteractor, np, 
 from tools.smlib_gui.camera_fit import fit_depth
 from tools.smlib_gui.viewport import ViewportController
 from tools.smlib_gui.settings import DISPLAY_MODE_SHADED_MESH_WIREFRAME, DISPLAY_MODE_SHADED, COLOR_MODE_MATERIAL
-from .backend import CAD_EXTENSIONS, MESH_EXTENSIONS, ImportSettings, SceneLoader
+from .backend import ImportSettings, SceneLoader
+from .appearance import SURFACE_COLOR, configure_scene, style_surface
 
 
 class ViewerWindow(QtWidgets.QMainWindow):
@@ -35,64 +36,90 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.loader.cancelled.connect(lambda: self._failed("已取消载入", ""))
         frame = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(frame)
-        layout.setContentsMargins(8, 6, 8, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         self.setCentralWidget(frame)
-        bar = QtWidgets.QHBoxLayout()
+        toolbar = QtWidgets.QFrame()
+        toolbar.setObjectName("toolbar")
+        toolbar.setFixedHeight(44)
+        bar = QtWidgets.QHBoxLayout(toolbar)
+        bar.setContentsMargins(14, 4, 10, 4)
+        bar.setSpacing(4)
         self.file_label = QtWidgets.QLabel("BRep Viewer")
+        self.file_label.setMinimumWidth(0)
+        self.file_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.file_label.setTextFormat(QtCore.Qt.PlainText)
         bar.addWidget(self.file_label, 1)
-        actions = [("打开", self.open_dialog), ("适配 F", self.fit),
-                   ("斜视 I", lambda: self.named_view("isometric"))]
-        for text, callback in actions:
-            button = QtWidgets.QPushButton(text)
+        actions = [("打开", "打开文件 · Ctrl+O", self.open_dialog), ("适配", "适配视图 · F", self.fit),
+                   ("斜视", "等轴测视图 · I", lambda: self.named_view("isometric"))]
+        for text, tip, callback in actions:
+            button = QtWidgets.QToolButton()
+            button.setText(text)
+            button.setToolTip(tip)
             button.clicked.connect(callback)
             bar.addWidget(button)
-        self.edges_button = QtWidgets.QPushButton("边界 E")
+        separator = QtWidgets.QFrame()
+        separator.setFixedSize(1, 18)
+        separator.setStyleSheet("background:#3a4350;")
+        bar.addSpacing(5)
+        bar.addWidget(separator)
+        bar.addSpacing(5)
+        self.edges_button = QtWidgets.QToolButton()
+        self.edges_button.setText("边线")
+        self.edges_button.setToolTip("显示 BRep 边线 · E")
         self.edges_button.setCheckable(True)
         self.edges_button.setChecked(edges)
         self.edges_button.toggled.connect(self._boundary_style)
         bar.addWidget(self.edges_button)
-        self.wire_button = QtWidgets.QPushButton("网格 W")
+        self.wire_button = QtWidgets.QToolButton()
+        self.wire_button.setText("网格")
+        self.wire_button.setToolTip("显示三角网格 · W")
         self.wire_button.setCheckable(True)
         self.wire_button.setChecked(wireframe)
         self.wire_button.toggled.connect(self._redraw)
         bar.addWidget(self.wire_button)
-        self.cancel_button = QtWidgets.QPushButton("取消")
+        self.cancel_button = QtWidgets.QToolButton()
+        self.cancel_button.setText("取消")
+        self.cancel_button.setToolTip("取消加载 · Escape")
         self.cancel_button.clicked.connect(self.loader.cancel)
         self.cancel_button.hide()
         bar.addWidget(self.cancel_button)
-        layout.addLayout(bar)
+        layout.addWidget(toolbar)
         self.plot = QtInteractor(frame, auto_update=False)
-        self.plot.set_background("#25303b")
+        configure_scene(self.plot)
         layout.addWidget(self.plot.interactor, 1)
         self.viewport = ViewportController(self.plot)
         self.hud = QtWidgets.QLabel(self.plot.interactor)
         self.hud.setTextFormat(QtCore.Qt.PlainText)
         self.hud.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-        self.hud.setStyleSheet("background:rgba(21,29,39,220);color:#e4edf6;padding:10px;border-radius:6px;")
+        self.hud.setStyleSheet("background:rgba(18,23,31,135);color:#dce3ed;"
+                               "padding:9px 12px;border-radius:5px;font-size:10pt;")
         self.hud.move(14, 14)
-        self.hud.setText("拖入模型或按 Ctrl+O 打开\nSTEP · STL · OBJ · PLY · VTP · VTK")
+        self.hud.setText("拖入模型\nCtrl+O 打开 · H 隐藏信息")
         self.hud.adjustSize()
-        self.status = QtWidgets.QLabel(
-            "F 适配  ·  I 斜视  ·  1/2/3 正/俯/右视  ·  E 边界  ·  W 网格  ·  H 信息")
+        self.status = QtWidgets.QLabel("就绪")
         self.status.setTextFormat(QtCore.Qt.PlainText)
+        self.status.setContentsMargins(14, 0, 14, 0)
+        self.status.setFixedHeight(26)
+        self.status.setStyleSheet("color:#9aa6b5;font-size:9pt;")
         layout.addWidget(self.status)
         self.progress_bar = QtWidgets.QProgressBar()
-        self.progress_bar.setFixedHeight(8)
+        self.progress_bar.setFixedHeight(3)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.hide()
         layout.addWidget(self.progress_bar)
         self.setStyleSheet("""
-            QMainWindow,QWidget { background:#1c2530; color:#dfe9f2;
-                                  font-family:'Microsoft YaHei UI'; font-size:11pt; }
-            QPushButton { background:#2a3949; color:#edf5ff; border:1px solid #4f657b;
+            QMainWindow { background:#171c24; }
+            QWidget { color:#d6dee9; font-family:'Microsoft YaHei UI'; font-size:10pt; }
+            QFrame#toolbar { background:#1b212b; border-bottom:1px solid #303946; }
+            QToolButton { background:transparent; color:#bfcad9; border:1px solid transparent;
                           border-radius:4px; padding:5px 10px; }
-            QPushButton:hover { background:#3b5269; }
-            QPushButton:checked { background:#326792; border-color:#81b7df; }
+            QToolButton:hover { background:#2c3644; color:#ffffff; }
+            QToolButton:checked { background:#263f50; border-color:#426377; color:#a7dbf2; }
+            QToolTip { background:#26303d; color:#e2e9f2; border:1px solid #48566a; padding:5px; }
             QLabel { background:transparent; }
-            QProgressBar { background:#121a23; border:0; border-radius:3px; }
-            QProgressBar::chunk { background:#67b9ef; border-radius:3px; }
+            QProgressBar { background:#202936; border:0; }
+            QProgressBar::chunk { background:#73b8cc; }
         """)
         self.shortcuts = []
         for key, action in [("Ctrl+O", self.open_dialog), ("F", self.fit),
@@ -126,6 +153,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.load_started = time.perf_counter()
         self.cancel_button.show()
         self.status.setToolTip("")
+        self.status.setStyleSheet("color:#9aa6b5;font-size:9pt;")
         self.progress_bar.setRange(0, 0)
         self.progress_bar.show()
         self.status.setText("正在载入 " + Path(filename).name + " …")
@@ -141,7 +169,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self.mesh, self.boundary, self.metadata, self.filename = mesh, boundary, metadata, filename
             self._redraw()
             self.named_view("isometric")
-            self.file_label.setText(Path(filename).name)
+            self._arrange_overlays()
+            self.file_label.setToolTip(Path(filename).name)
             self.setWindowTitle(Path(filename).name + " — BRep Viewer")
             roles = {"MaterialSolid": "实体", "SurfaceModel": "表面模型", "Mesh": "网格"}
             role = roles.get(metadata.get("role"), "BRep")
@@ -155,14 +184,17 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 )
             study = self.loader.settings.profile != "development" and metadata.get("units") == "mm"
             policy = "\n研究配置" if study else ""
-            self.hud.setText(f"{role}  ·  只读预览{policy}\n{counts}\n尺寸 ≈ {size}  {unit}")
+            self.hud.setText(f"{role}{policy}\n{counts}\n≈ {size}  {unit}")
             self.hud.adjustSize()
             self.cancel_button.hide()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(100)
             self.status.setText(
-                f"载入完成 · {time.perf_counter()-self.load_started:.3f} s    |    F 适配 · I 斜视 · E 边界 · W 网格 · H 信息"
+                f"已载入 · {time.perf_counter()-self.load_started:.3f} s · 只读预览"
             )
+            self._arrange_overlays()
+            generation = self.loader.generation
+            QtCore.QTimer.singleShot(1500, lambda: self._hide_completed_progress(generation))
             self.load_complete.emit(True)
         except Exception as error:
             self.mesh, self.boundary, self.metadata, self.filename = previous
@@ -179,9 +211,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.progress_bar.setValue(0)
         self.status.setText(title + ("：" + details.splitlines()[0] if details else ""))
         self.status.setToolTip(details)
+        self.status.setStyleSheet("color:#efb18d;font-size:9pt;")
         if self.mesh is None:
             self.hud.setText(title + "\n" + details[:700])
             self.hud.adjustSize()
+            self._arrange_overlays()
         # Keep an existing accepted scene labelled with its original filename.
         # A failed new request never re-labels it as the failed file.
         self.load_complete.emit(False)
@@ -190,15 +224,18 @@ class ViewerWindow(QtWidgets.QMainWindow):
         if self.mesh is None:
             return
         mesh = self.mesh.copy(deep=True)
-        mesh.field_data["DisplayColor"] = np.array([.76, .83, .9])
+        mesh.field_data["DisplayColor"] = np.array(SURFACE_COLOR)
         mode = DISPLAY_MODE_SHADED_MESH_WIREFRAME if self.wire_button.isChecked() else DISPLAY_MODE_SHADED
         self.viewport.render_meshes([mesh], mode, COLOR_MODE_MATERIAL, render=False, preserve_sharp_edges=True)
+        for actor in self.plot.renderer.actors.values():
+            if isinstance(actor, pv.Actor):
+                style_surface(actor)
         self.boundary_actor = None
         if self.boundary is not None and self.boundary.n_cells:
             self.boundary_actor = self.plot.add_mesh(self.boundary, color="#101923", line_width=1.3,
                                                     lighting=False, render=False, reset_camera=False)
             self.boundary_actor.SetVisibility(self.edges_button.isChecked())
-        self.plot.add_axes()
+        self.plot.add_axes(color="#c8d0dc", viewport=(0.88, 0, 1, 0.16))
         self._fit_depth()
 
     def _boundary_style(self, *_):
@@ -209,11 +246,13 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def fit(self):
         if self.mesh is not None:
             self.viewport.fit_view(render=False)
+            self.plot.camera.parallel_scale *= 1.12
             self._fit_depth()
 
     def named_view(self, name):
         if self.mesh is not None:
             self.viewport.set_named_view(name)
+            self.plot.camera.parallel_scale *= 1.12
             self._fit_depth()
 
     def _camera_changed(self, *_):
@@ -243,7 +282,26 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self.load(event.mimeData().urls()[0].toLocalFile())
             event.acceptProposedAction()
 
+    def _arrange_overlays(self):
+        if not hasattr(self, "hud"):
+            return
+        self.hud.move(16, max(12, self.plot.interactor.height() - self.hud.height() - 16))
+        title = Path(self.filename).name if self.filename else "BRep Viewer"
+        self.file_label.setText(self.file_label.fontMetrics().elidedText(
+            title, QtCore.Qt.ElideMiddle, max(30, self.file_label.width() - 4)))
+
+    def _hide_completed_progress(self, generation):
+        if generation == self.loader.generation and self.progress_bar.value() == 100:
+            self.progress_bar.hide()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "hud"):
+            QtCore.QTimer.singleShot(0, self._arrange_overlays)
+
     def eventFilter(self, target, event):
+        if event.type() == QtCore.QEvent.Resize:
+            QtCore.QTimer.singleShot(0, self._arrange_overlays)
         if event.type() == QtCore.QEvent.DragEnter:
             self.dragEnterEvent(event)
             return event.isAccepted()
@@ -261,6 +319,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
 def run(options):
     application = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     application.setStyle("Fusion")
+    application.styleHints().setColorScheme(QtCore.Qt.ColorScheme.Dark)
     settings = ImportSettings(options.profile, options.normalize_periodic_faces,
                               options.restrict_unused_support_domains, options.strict_source)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
