@@ -45,6 +45,11 @@ option(STEP_BUILD_TOOLS "Build STEP inspection CLIs" ON)
 if(STEP_BUILD_TOOLS)
     add_executable(step_native_import app/step_import.cpp)
     target_link_libraries(step_native_import PRIVATE STEP_IMPORT)
+    add_executable(step_view_export app/StepViewExport.cpp)
+    target_link_libraries(step_view_export PRIVATE STEP_IMPORT)
+    target_include_directories(step_view_export SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_view_export PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
 endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
@@ -191,7 +196,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_import_surface_proof_tests step_native_import step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

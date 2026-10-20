@@ -81,6 +81,10 @@ The GUI loads `.smb` / `.smp` native files and runs geometry scripts. Native
 STEP import remains a C++ library/optional CLI; see
 [STEP_IMPORT](source/STEP_IMPORT/README.md) for supported profiles and limitations.
 
+The optional [BRep Viewer](tools/smlib_viewer/README.md) opens STEP and mesh files
+from the CLI in a minimal read-only window with a HUD and loading progress.
+Its Windows portable directory includes its runtime and isolated native worker.
+
 ## Python and packaging
 
 Set `PYTHONPATH` to the runtime directory above, then:

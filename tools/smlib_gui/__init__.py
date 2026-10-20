@@ -1,86 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""SMLib Python GUI package."""
-
-from .app import MainWindow, main
-from .headless import (
-    DEFAULT_VIEW_NAMES,
-    HeadlessRenderResult,
-    HeadlessRenderSession,
-    HeadlessRenderSettings,
-    SUPPORTED_VIEW_NAMES,
-    discover_model_files,
-    output_directory_for,
-    write_contact_sheet,
-)
-from .history import SourceHistory
-from .inspection import object_summary_text
-from .model import ActiveObject
-from .operations.booleans import apply_boolean_operation, boolean_source_line
-from .operations.file_io import (
-    LOAD_FILE_FILTER,
-    SAVE_FILE_FILTER,
-    SUPPORTED_LOAD_EXTENSIONS,
-    ensure_extension_for_filter,
-    export_native_brep,
-    extension_for_filter,
-    file_kind_for_path,
-    import_file_objects,
-    import_native_brep_object,
-    native_brep_file_is_ascii,
-    native_brep_load_unavailable_reason,
-)
-from .operations.modify import ModifyResult, apply_modify_operation
-from .operations.overlays import (
-    BoxOverlay,
-    CurveSampleOverlay,
-    DrawBatchOverlay,
-    LineOverlay,
-    NormalOverlay,
-    PickOverlay,
-    PointOverlay,
-    PolylineOverlay,
-    SectionOverlay,
-    SurfaceSampleOverlay,
-    TopologyOverlay,
-    brep_edge_highlight,
-    brep_edge_polylines,
-    brep_face_highlight,
-    brep_face_normals,
-    brep_vertex_highlight,
-    make_overlay_object,
-    sample_curve_overlay,
-    sample_surface_overlay,
-    section_overlay,
-)
-from .operations.test_runner import (
-    DEBUG_GUIDANCE,
-    PROG_TEST_SUITES,
-    SMLIB_TESTS_UNAVAILABLE_HINT,
-    draw_events_to_overlays,
-    list_prog_test_suites,
-    run_prog_test_suite,
-    tests_available,
-    unavailable_reason,
-)
-from .runtime import QtCore, QtGui, QtWidgets, REPO, np, pv, sm, smdev
-from .scripting import execute_script
-from .settings import (
-    DISPLAY_MODE_MESH_WIREFRAME,
-    DISPLAY_MODE_OPTIONS,
-    DISPLAY_MODE_SHADED,
-    DISPLAY_MODE_SHADED_MESH_WIREFRAME,
-    DISPLAY_MODE_SHADED_WIREFRAME,
-    DISPLAY_MODE_WIREFRAME,
-    DisplaySettings,
-    TessellationSettings,
-)
-from .tessellation import (
-    objects_to_pyvista,
-    objects_to_pyvista_batches,
-    tessellate_objects,
-)
-from .viewport import CameraState, ViewportController
+"""Public workbench exports, loaded only when requested."""
 
 __all__ = [
     "ActiveObject",
@@ -162,3 +82,12 @@ __all__ = [
     "unavailable_reason",
     "write_contact_sheet",
 ]
+
+def __getattr__(name):
+    # Importing a shared viewport/runtime helper must not boot the full editor.
+    # Preserve the historical package exports for existing scripts and smoke tests.
+    if name not in __all__:
+        raise AttributeError(name)
+    from . import _exports
+    globals().update({key: getattr(_exports, key) for key in __all__})
+    return globals()[name]

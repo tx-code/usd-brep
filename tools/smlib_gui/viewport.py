@@ -179,7 +179,8 @@ class ViewportController:
 
     def render_meshes(self, meshes: list[pv.PolyData], display_mode: str,
                       color_mode: str = COLOR_MODE_BREP_ORIENTATION,
-                      reset_camera: bool = False, render: bool = True) -> None:
+                      reset_camera: bool = False, render: bool = True,
+                      preserve_sharp_edges: bool = False) -> None:
         """Render current meshes using disposable PyVista actors."""
         import vtk as _vtk
 
@@ -202,6 +203,8 @@ class ViewportController:
                 actor = self._plotter.add_mesh(
                     poly, color=color,
                     smooth_shading=not is_mesh_wireframe_only,
+                    split_sharp_edges=preserve_sharp_edges and not is_mesh_wireframe_only,
+                    feature_angle=30,
                     style=style,
                     show_edges=render_mesh_wireframe and not is_mesh_wireframe_only,
                     edge_color="#00000040", line_width=0.5,
