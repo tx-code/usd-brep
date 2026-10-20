@@ -16,6 +16,7 @@ from unittest.mock import patch
 from tools.smlib_viewer.receipt import RequestReceipt
 from tools.smlib_viewer.progress import Progress
 from tools.smlib_viewer.scan import discover, run_case, run_scan
+from tools.smlib_viewer.receipt import write_json
 
 REPO = Path(__file__).resolve().parents[3]
 BOX = REPO / "tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step"
@@ -83,8 +84,9 @@ class ScanContracts(unittest.TestCase):
             script = directory / "public_worker.py"
             pid_file = directory / "grandchild.pid"
             script.write_text(
-                "import subprocess,sys,time\nfrom pathlib import Path\n"
+                "import subprocess,sys,time,tempfile\nfrom pathlib import Path\n"
                 "assert sys.stdin.readline().strip()=='start'\n"
+                "(Path(tempfile.gettempdir())/'public-unpublished-payload').write_bytes(b'public payload')\n"
                 "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])\n"
                 f"Path({str(pid_file)!r}).write_text(str(p.pid))\n"
                 "print('@brep-view:capture,0,0',flush=True)\ntime.sleep(60)\n", encoding="utf-8")
@@ -95,6 +97,8 @@ class ScanContracts(unittest.TestCase):
                 result = run_case(BOX.resolve(), directory, options(timeout=3), caption)
             self.assertEqual("Cancelled" if cancelled else "Timeout", result["outcome"])
             self.assertIsNotNone(result["process_exit_code"])
+            self.assertTrue(result["temporary_payloads_cleaned"])
+            self.assertFalse(list(directory.glob(".work-*")), "Unpublished payloads survived cancellation/timeout")
             self.assertTrue(pid_file.is_file(), "Synthetic descendant never started")
             pid = int(pid_file.read_text())
             if os.name == "nt":
@@ -124,6 +128,77 @@ class ScanContracts(unittest.TestCase):
                        return_value=[sys.executable, "-c", "import sys;sys.stdin.readline()"]):
                 result = run_case(BOX.resolve(), Path(name), options(), lambda _: None)
             self.assertEqual("WorkerFailure", result["outcome"])
+
+    def test_report_publication_does_not_rewrite_history_quadratically(self):
+        volumes = []
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for count in (16, 32):
+                source = root / f"input-{count}"
+                source.mkdir()
+                for index in range(count):
+                    (source / f"public-{index:03}.step").write_text(f"public input {index}", encoding="ascii")
+                output = root / f"output-{count}"
+                written = []
+                def publish(path, value):
+                    written.append(len(json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8")))
+                    write_json(path, value)
+                # Stub only the external renderer: this checks report I/O and
+                # journal integrity, independently of Qt startup/geometry cost.
+                observed = {"outcome": "LoadFailure", "details": "public diagnostic " * 500}
+                with patch("tools.smlib_viewer.scan.run_case", return_value=observed), \
+                        patch("tools.smlib_viewer.scan.write_json", side_effect=publish), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(1, run_scan(options(scan=[source], output=output)))
+                journal = output / "records.jsonl"
+                rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+                final = json.loads((output / "scan.json").read_text(encoding="utf-8"))
+                self.assertEqual(count, len(rows))
+                self.assertEqual(rows, final["records"])
+                volumes.append(sum(written) + journal.stat().st_size)
+            self.assertLess(volumes[1] / volumes[0], 2.5, "Doubling models must not quadruple report bytes")
+
+    def test_cancel_preserves_completed_journal_and_incomplete_summary(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            source = root / "input"
+            source.mkdir()
+            for index in range(3):
+                (source / f"public-{index}.step").write_text(f"public {index}", encoding="ascii")
+            output = root / "output"
+            with patch("tools.smlib_viewer.scan.run_case", return_value={"outcome": "Cancelled"}), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(130, run_scan(options(scan=[source], output=output)))
+            final = json.loads((output / "scan.json").read_text(encoding="utf-8"))
+            self.assertFalse(final["complete"])
+            self.assertEqual(1, final["summary"]["processed"])
+            self.assertEqual(2, final["summary"]["not_run"])
+            self.assertEqual(final["records"], [json.loads((output / "records.jsonl").read_text(encoding="utf-8"))])
+
+    def test_changed_source_cannot_suppress_unchanged_alias(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            source = root / "input"
+            source.mkdir()
+            data = b"public same bytes"
+            for filename in ["a.step", "b.stp"]:
+                (source / filename).write_bytes(data)
+            identity = hashlib.sha256(data).hexdigest()
+            def external_reader(path, *_):
+                if path.name == "a.step":
+                    # Simulate another application editing only this disposable
+                    # public input. The scanner must not repair/restore it or
+                    # skip an unchanged alias of the originally selected bytes.
+                    path.write_bytes(b"external edit to public fixture")
+                return {"outcome": "Rendered", "source_sha256": identity}
+            output = root / "output"
+            with patch("tools.smlib_viewer.scan.run_case", side_effect=external_reader), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, run_scan(options(scan=[source], output=output)))
+            final = json.loads((output / "scan.json").read_text(encoding="utf-8"))
+            self.assertEqual(["SourceChanged", "Rendered"], [r["outcome"] for r in final["records"]])
+            self.assertEqual(b"external edit to public fixture", (source / "a.step").read_bytes())
+            self.assertEqual(data, (source / "b.stp").read_bytes())
 
 
 class ScanViewerIntegration(unittest.TestCase):

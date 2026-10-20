@@ -123,8 +123,16 @@ existing native and display budgets still apply. Timeout/crash/failure is record
 before continuing. Ctrl+C terminates the active tree, retains completed results,
 marks the summary incomplete, and returns 130. This edition is qualified on
 Windows; POSIX uses process groups without the Windows memory cap.
+Worker scratch directories belong to the scanner parent, so hard-killed GUI
+processes cannot abandon their unpublished payloads in the system temp directory.
+The result records cleanup completion; an unsuccessful cleanup cannot qualify a
+successful attempt. Diagnostic case records remain in the requested output.
 
-`scan.json` is atomically checkpointed after each attempt. It records settings,
+`records.jsonl` appends each observation once; `scan.json` atomically checkpoints
+small counters after each attempt and embeds all records once on normal/cancelled
+completion. During a run, use the journal's first `summary.processed` rows; a hard
+crash may leave a partial last row outside that committed prefix. This keeps
+report I/O linear in recorded data. The final report records settings,
 input identities, duplicates, outcomes, and separate import/mesh/render completion
 observations. Unestablished native acceptance remains null. Entering a phase is
 not evidence of completing it. Phase timestamps are observed transitions, not CPU

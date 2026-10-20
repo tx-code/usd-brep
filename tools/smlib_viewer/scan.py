@@ -8,9 +8,11 @@ import math
 import os
 from pathlib import Path
 import queue
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -88,11 +90,14 @@ def run_case(path, directory, options, caption):
     if options.thumbnails:
         command.extend(["--screenshot", str(directory / "thumbnail.png")])
     updates = queue.Queue(maxsize=64)
+    scratch = Path(tempfile.mkdtemp(prefix=".work-", dir=directory))
+    environment = dict(os.environ, TEMP=str(scratch), TMP=str(scratch), TMPDIR=str(scratch))
     process = guard = reader = None
     started = time.perf_counter()
     outcome, last_phase = None, None
     try:
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                   env=environment,
                                    start_new_session=os.name != "nt",
                                    creationflags=0x4 if os.name == "nt" else 0)  # Win32 CREATE_SUSPENDED
         # The child waits before importing Qt/VTK or opening a model. Assign the
@@ -140,6 +145,22 @@ def run_case(path, directory, options, caption):
                 reader.join(timeout=2)
             elif process.stdout:
                 process.stdout.close()
+        # The GUI can be hard-killed before its TemporaryDirectory destructor.
+        # All descendants inherit this parent-owned scratch root. Never derive
+        # cleanup targets from a source/worker manifest. Retry briefly while
+        # Windows finishes terminating descendants and releasing file handles.
+        scratch_cleaned = False
+        if scratch.resolve().is_relative_to(directory.resolve()):
+            for attempt in range(20):
+                try:
+                    shutil.rmtree(scratch)
+                    scratch_cleaned = True
+                    break
+                except OSError:
+                    if attempt < 19:
+                        time.sleep(0.05)
+        if not scratch_cleaned and outcome not in {"Cancelled", "Timeout"}:
+            outcome = "CleanupFailure"
     result = {"outcome": outcome or "WorkerFailure", "last_phase_observed": last_phase}
     if outcome is None:
         try:
@@ -156,7 +177,7 @@ def run_case(path, directory, options, caption):
         except (OSError, ValueError, KeyError, TypeError):
             result["outcome"] = "WorkerFailure"
     result.update(process_exit_code=process.returncode if process else None,
-                  process_seconds=time.perf_counter() - started)
+                  process_seconds=time.perf_counter() - started, temporary_payloads_cleaned=scratch_cleaned)
     return result
 
 
@@ -172,10 +193,12 @@ def run_scan(options):
         raise ValueError("ScanSelectionEmpty")
     output.mkdir(parents=True, exist_ok=False)
     records, seen = [], {}
+    counts = Counter()
     started = time.perf_counter()
     cancelled = False
     for index, path in enumerate(paths, 1):
         record = {"id": f"case-{index:06d}", "input": str(path)}
+        key = None
         caption = lambda text: print(f"[{index}/{len(paths)}] {text}", flush=True)
         try:
             caption("读取内容身份")
@@ -210,22 +233,32 @@ def run_scan(options):
         except KeyboardInterrupt:
             record["outcome"] = "Cancelled"
         except (OSError, ValueError) as error:
+            if key is not None:
+                seen.pop(key, None)
             record.update(outcome="InputFailure", details=str(error)[:4096])
         records.append(record)
-        write_json(output / "scan.json", _summary(roots, records, len(paths), started, options, False))
+        counts.update([record["outcome"]])
+        # Append each observation once. Checkpoint only small counters while
+        # running, rather than rewriting every preceding model's diagnostics
+        # after each file (quadratic report I/O). A crash can leave a partial
+        # last journal row; the atomic checkpoint's processed count is the
+        # committed prefix. The complete/incomplete final summary embeds it once.
+        with (output / "records.jsonl").open("a", encoding="utf-8") as journal:
+            journal.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+        write_json(output / "scan.json", _summary(
+            roots, records, len(paths), started, options, False, counts, include_records=False))
         caption(record["outcome"])
         if record["outcome"] == "Cancelled":
             cancelled = True
             break
-    report = _summary(roots, records, len(paths), started, options, not cancelled)
+    report = _summary(roots, records, len(paths), started, options, not cancelled, counts)
     write_json(output / "scan.json", report)
     print(json.dumps(report["summary"], ensure_ascii=False), flush=True)
     return 130 if cancelled else 1 if report["summary"]["failures"] else 0
 
 
-def _summary(roots, records, count, started, options, complete):
-    counts = Counter(record["outcome"] for record in records)
-    return {
+def _summary(roots, records, count, started, options, complete, counts, *, include_records=True):
+    result = {
         "format": "brep-view-scan.v1", "complete": complete, "qualification": "ViewerPipelineOnly",
         "roots": list(map(str, roots)),
         "settings": {"profile": options.profile, "strict_source": options.strict_source,
@@ -237,5 +270,9 @@ def _summary(roots, records, count, started, options, complete):
                     "duplicates": counts["Duplicate"],
                     "failures": len(records) - counts["Rendered"] - counts["Duplicate"],
                     "not_run": count - len(records)},
-        "outcomes": dict(counts), "elapsed_seconds": time.perf_counter() - started, "records": records,
+        "outcomes": dict(counts), "elapsed_seconds": time.perf_counter() - started,
+        "journal": "records.jsonl",
     }
+    if include_records:
+        result["records"] = records
+    return result
