@@ -10,6 +10,7 @@ LABELS = {
     "mesh-points": "写入网格顶点", "mesh-faces": "写入网格面片", "boundary": "生成边界线",
     "boundary-points": "写入边界顶点", "boundary-lines": "写入边界线", "publish": "准备显示数据",
     "display": "载入显示数据", "render": "绘制模型",
+    "auxiliary": "准备关联线框／构造几何",
 }
 
 

@@ -179,7 +179,7 @@ class SceneLoader(QtCore.QObject):
             if not manifest_path.is_file() or manifest_path.stat().st_size > 65536:
                 raise ValueError("WorkerFailedOrCrashed")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if manifest.get("format") != "brep-view-scene.v1":
+            if manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2"}:
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -195,10 +195,16 @@ class SceneLoader(QtCore.QObject):
                     or mesh.n_points > 6000000 or not np.isfinite(mesh.points).all()):
                 raise ValueError("InvalidDisplayMesh")
             boundary = pv.read(scene_file(directory, manifest["boundary"])) if manifest.get("boundary") else None
+            metadata = manifest
+            if manifest["format"] == "brep-view-scene.v2":
+                from .auxiliary import read_auxiliary
+                auxiliary = read_auxiliary(scene_file(directory, manifest["auxiliary"]))
+                metadata = {**manifest, "_auxiliary": auxiliary}
+                self.worker_result["auxiliary_inventory"] = dict(auxiliary.counts)
             self.progress.emit(Progress("render"))
             if generation != self.generation or job["stopped"]:
                 return
-            self.loaded.emit(str(job["path"]), mesh, boundary, manifest)
+            self.loaded.emit(str(job["path"]), mesh, boundary, metadata)
         except Exception as error:
             if generation == self.generation:
                 self.failed.emit("显示数据载入失败", str(error))

@@ -188,6 +188,13 @@ class ViewerWindow(QtWidgets.QMainWindow):
             study = self.loader.settings.profile != "development" and metadata.get("units") == "mm"
             policy = "\n研究配置" if study else ""
             self.hud.setText(f"{role}{policy}\n{counts}\n≈ {size}  {unit}")
+            auxiliary = metadata.get("_auxiliary")
+            if auxiliary:
+                info = auxiliary.counts
+                text = f"\n附属：线框 {info['wireframe_groups']} · 构造 {info['supporting_groups']}"
+                if info["planes"]:
+                    text += "\n无限平面以预览窗口显示"
+                self.hud.setText(self.hud.text() + text)
             self.hud.adjustSize()
             self.cancel_button.hide()
             self.progress_bar.setRange(0, 100)
@@ -238,6 +245,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self.boundary_actor = self.plot.add_mesh(self.boundary, color="#101923", line_width=1.3,
                                                     lighting=False, render=False, reset_camera=False)
             self.boundary_actor.SetVisibility(self.edges_button.isChecked())
+        self.auxiliary_actors = []
+        auxiliary = self.metadata.get("_auxiliary")
+        self._scene_bounds = auxiliary.combined_bounds(self.mesh.bounds) if auxiliary else self.mesh.bounds
+        if auxiliary:
+            self.auxiliary_actors = auxiliary.render(self.plot)
         self.plot.add_axes(color="#c8d0dc", viewport=(0.88, 0, 1, 0.16))
         self._fit_depth()
 
@@ -249,12 +261,14 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def fit(self):
         if self.mesh is not None:
             self.viewport.fit_view(render=False)
+            self.plot.reset_camera(bounds=self._scene_bounds, render=False)
             self.plot.camera.parallel_scale *= 1.12
             self._fit_depth()
 
     def named_view(self, name):
         if self.mesh is not None:
             self.viewport.set_named_view(name)
+            self.plot.reset_camera(bounds=self._scene_bounds, render=False)
             self.plot.camera.parallel_scale *= 1.12
             self._fit_depth()
 
@@ -269,7 +283,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
             return
         self._fitting_depth = True
         try:
-            fit_depth(self.plot.camera, self.mesh.bounds)
+            fit_depth(self.plot.camera, self._scene_bounds)
             self.plot.render()
         finally:
             self._fitting_depth = False

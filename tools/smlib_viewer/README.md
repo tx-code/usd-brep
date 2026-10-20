@@ -42,11 +42,35 @@ research configurations. Optional `--normalize-periodic-faces` and
 `--restrict-unused-support-domains` retain their existing verified normalization
 contracts. These options do not grant production or whole-STEP qualification.
 
-Initial CAD display supports complete BRep-only requests. A request containing
-associated wireframe/support geometry is explicitly refused until the viewer can
-display that required content. Source surface-model and material-solid roles
-remain distinct. Display meshing uses 0.01 mm chord height and 15 degree angle
+CAD display retains the BRep and all imported associated wireframe/supporting
+groups. Wireframe curves/points are cyan; construction curves/points and plane
+grids are amber, with separate coordinate-frame axes. E toggles only BRep boundary
+lines; it never hides required associated content. Source surface-model and
+material-solid roles remain distinct. Display meshing uses 0.01 mm chord height and 15 degree angle
 tolerances; these are preview settings, separate from import acceptance.
+
+Finite associated curves are sampled through owning snapshot queries across the
+whole native parameter interval, respecting source use direction. Quarter/midpoint
+chord observations refine 32 initial spans at 0.01 mm; this is sampled display
+evidence, not a continuous error bound or a change to defining curves. Export
+limits are 10,000 source primitives, 200,000 curve sample points, 500,000 evaluator
+calls, 20 s, and 16 MiB of auxiliary JSON. A reached limit fails the entire scene.
+IDs, relationships, native domains/parameters and point coordinates remain with
+the display projection. Coincident source items retain separate provenance.
+
+Frames are labelled coordinate glyphs, not new STEP point/plane loci or transforms.
+An unbounded supporting PLANE uses a marked finite display window around its
+source origin, with half-width 0.6 times the BRep bounds diagonal. Its actual
+finite native chart sentinels remain metadata and never become source trims.
+The HUD marks the plane preview. Body dimensions/topology stay BRep-only, while
+fit/clipping includes associated geometry and these display proxies.
+
+Mixed scenes use `brep-view-scene.v2` with a required auxiliary payload. The GUI
+validates/adopts that whole payload before replacing a scene. Missing/corrupt
+required auxiliary data cannot publish a body-only result. Body-only v1 remains
+compatible; the SDK's complete `CopyForModeling` still refuses mixed models.
+The worker explicitly copies the BRep component and exports every other role
+from the unchanged owning source snapshot before publishing a complete manifest.
 
 STL/OBJ/PLY/VTP/VTK inputs must be finite, nonempty PolyData; their source units
 remain unknown. The viewer does not repair mesh or CAD input. Preview limits are
@@ -93,7 +117,10 @@ Our two application packages are ordinary Python modules under
 bundled runtime. With the same pinned dependencies and native worker, UI-only
 updates can replace the matching application modules in a fresh copy and restart,
 without recollecting the runtime. The frozen entry disables bytecode-cache writes.
-Dependency, native-worker or entry-point changes require a full bundle build.
+SDK/CRT, dependency or entry-point changes require a full bundle build. A worker-only
+application rebuild can update a fresh copy when the SDK/CRT bytes and PE import
+dependencies match, the worker and Python scene protocol are updated together,
+and clean-environment portable tests pass. This does not qualify an ABI migration.
 
 The native worker publishes a complete request-relative scene manifest only
 after import, modeling-copy validation, full tessellation and payload writing.

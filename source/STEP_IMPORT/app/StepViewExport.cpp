@@ -3,6 +3,7 @@
 // Isolated display worker: no native handle crosses the process boundary.
 #include "StepImport.h"
 #include "StepSourceReport.h"
+#include "StepViewAuxiliary.h"
 
 #include <SmApiBrep.h>
 #include <SmBrep.h>
@@ -164,7 +165,8 @@ void Publish(
     const step_import::Report& report,
     const step_import::Statistics* info,
     std::size_t triangles,
-    std::size_t points
+    std::size_t points,
+    bool auxiliary = false
 )
 {
     std::string json;
@@ -174,7 +176,10 @@ void Publish(
             json,
             [&](Writer& w)
             {
-                w.Add("{\"format\":\"brep-view-scene.v1\",\"status\":");
+                w.Add(
+                    auxiliary ? "{\"format\":\"brep-view-scene.v2\",\"auxiliary\":\"auxiliary.json\",\"status\":" :
+                                "{\"format\":\"brep-view-scene.v1\",\"status\":"
+                );
                 w.String(status);
                 w.Add(",\"key\":");
                 w.String(key);
@@ -295,12 +300,19 @@ int Run(
             Publish(output, step_import::StatusName(result.status), "ImportFailed", result.report, nullptr, 0, 0);
             return 1;
         }
-        // BRep-only initial display scope. Associated physical geometry must
-        // gain a display path before these complete requests can be shown.
-        Good(result.model->Wireframes().empty() && result.model->SupportingGeometry().empty(), "AssociatedGeometryDisplayUnsupported");
+        // CopyBrepForModeling explicitly selects the body component. Complete
+        // CopyForModeling still refuses mixed requests; we retain the owning
+        // source snapshot and export EVERY associated role before publication.
+        step_view::AuxiliaryExport auxiliaryExport(
+            [](auto completed, auto total)
+            {
+                Progress("auxiliary", completed, total);
+            }
+        );
+        const bool auxiliary = auxiliaryExport.Write(*result.model, output);
         const auto info = result.model->Info();
         Progress("copy");
-        auto copy = result.model->CopyForModeling();
+        auto copy = result.model->CopyBrepForModeling();
         Good(copy.status == step_import::Status::Accepted && bool(copy.model), "DisplayCopyFailed");
         std::size_t triangles = 0, points = 0;
         copy.model->Edit(
@@ -310,7 +322,7 @@ int Run(
             }
         );
         Progress("publish");
-        Publish(output, "Ready", "", result.report, &info, triangles, points);
+        Publish(output, "Ready", "", result.report, &info, triangles, points, auxiliary);
         return 0;
     }
     catch (const std::exception& error)
