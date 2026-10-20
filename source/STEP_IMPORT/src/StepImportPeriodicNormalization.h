@@ -3,11 +3,30 @@
 #pragma once
 #include "StepImport.h"
 
+#include <SmTypes.h>
 #include <span>
+
+class SmBSplineSurface;
+class SmContext;
+class SmExtent2d;
+class SmSurface;
 
 namespace step_import::detail
 {
 struct ModelData;
+// Creates an unpublished, independently owned restriction with the ORIGINAL
+// native parameters. Output must be empty; failure leaves it empty. The caller
+// still proves whole-domain equivalence and validates the final BRep/UV.
+// Supports ordinary B-splines, cylinders and cones; other classes are refused.
+// Every allocation/native work boundary invokes checkpoint; its exceptions
+// unwind the private candidate before its context. No tolerance is enlarged.
+SmStatus RestrictPeriodicSupport(
+    const SmBSplineSurface& source,
+    const SmContext& context,
+    SmExtent2d& domain,
+    std::unique_ptr<SmSurface>& output,
+    const std::function<void()>& checkpoint
+);
 // All indices refer to the immutable model.source snapshot; source arrays in
 // ModelData retain original vertices/edges. Native handles never leave this
 // serialized unpublished-candidate operation. Failure discards the ENTIRE BRep.

@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportPeriodicNormalization.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportSurfaceProof.h"
 
 #include <SmBSplineSurface.h>
 #include <SmBrep.h>
 #include <SmContext.h>
+#include <SmCylinder.h>
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
@@ -15,6 +17,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
 #if defined(_M_X64) || defined(__SSE2__)
 #    include <xmmintrin.h>
 #endif
@@ -126,6 +129,108 @@ int main()
     try
     {
         SmContext context;
+        {
+            // Independent public cylinder. These U bounds lie inside its old
+            // quarter-circle knot spans; rebuilding the arc changes interior
+            // parameterization although its four corners remain coincident.
+            std::unique_ptr<SmCylinder> cylinder(new (
+                context
+            ) SmCylinder(SmPoint3d(2, -3, 5), SmVector3d(1, 0, 0), SmVector3d(0, 1, 0), 3., 0., 360., 7., FALSE, FALSE, FALSE, &context));
+            const auto full = cylinder->GetNaturalUVDomain();
+            SmExtent2d domain(
+                full.GetMin().x + .13 * full.GetUInterval().GetLength(),
+                full.GetMin().y + .2 * full.GetVInterval().GetLength(),
+                full.GetMin().x + .89 * full.GetUInterval().GetLength(),
+                full.GetMin().y + .8 * full.GetVInterval().GetLength()
+            );
+            struct Sample
+            {
+                SmPoint2d uv;
+                SmPoint3d point;
+            };
+            std::vector<Sample> samples;
+            for (unsigned u = 0; u < 5; ++u)
+            {
+                for (unsigned v = 0; v < 5; ++v)
+                {
+                    SmPoint2d uv(
+                        domain.GetMin().x + domain.GetUInterval().GetLength() * u / 4.,
+                        domain.GetMin().y + domain.GetVInterval().GetLength() * v / 4.
+                    );
+                    SmPoint3d point;
+                    Require(cylinder->EvaluatePoint(uv, point) == SM_SUCCESS, "original analytic evaluation");
+                    samples.push_back({ uv, point });
+                }
+            }
+            std::unique_ptr<SmSurface> restricted;
+            Require(
+                step_import::detail::RestrictPeriodicSupport(
+                    *cylinder,
+                    context,
+                    domain,
+                    restricted,
+                    []
+                    {
+                    }
+                ) == SM_SUCCESS &&
+                    restricted,
+                "periodic restriction candidate"
+            );
+            const auto basis = dynamic_cast<const SmBSplineSurface*>(restricted.get());
+            Require(basis, "periodic restriction NURBS basis");
+            const auto proof = step_import::detail::ProveSurfaceRestriction(
+                *cylinder,
+                *basis,
+                1e-9,
+                10000,
+                100000,
+                []
+                {
+                }
+            );
+            Require(proof.established && proof.maximumMm && *proof.maximumMm <= 1e-9, "periodic crop preserves original native parameters");
+            Require(restricted->GetType() == SmCylinder_TYPE, "restriction retains ordinary cylinder class");
+            for (const auto& sample : samples)
+            {
+                SmPoint3d a, b;
+                Require(
+                    cylinder->EvaluatePoint(sample.uv, a) == SM_SUCCESS && restricted->EvaluatePoint(sample.uv, b) == SM_SUCCESS,
+                    "restricted analytic evaluation"
+                );
+                Require(
+                    a.DistanceBetween(sample.point) == 0 && b.DistanceBetween(sample.point) <= 1e-9,
+                    "source unchanged and analytic evaluator uses original UV"
+                );
+            }
+            for (std::size_t stop = 1; stop <= 7; ++stop)
+            {
+                auto window = domain;
+                std::unique_ptr<SmSurface> partial;
+                std::size_t calls = 0;
+                bool stopped = false;
+                try
+                {
+                    step_import::detail::RestrictPeriodicSupport(
+                        *cylinder,
+                        context,
+                        window,
+                        partial,
+                        [&]
+                        {
+                            if (++calls == stop)
+                            {
+                                throw std::runtime_error("restriction-stop");
+                            }
+                        }
+                    );
+                }
+                catch (const std::runtime_error& error)
+                {
+                    stopped = std::string_view(error.what()) == "restriction-stop";
+                }
+                Require(stopped && !partial, "partial restriction is released on cancellation");
+            }
+        }
         for (bool rational : { false, true })
         {
             auto source = Plane(context, rational), target = Restricted(*source, context);

@@ -10,7 +10,9 @@
 #include <SmAttribute.h>
 #include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
+#include <SmCone.h>
 #include <SmCurveClass.h>
+#include <SmCylinder.h>
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
@@ -29,6 +31,117 @@ namespace step_import::detail
 namespace
 {
 constexpr ULONG FaceLineage = SM_AI_USER_3 + 413, EdgeLineage = SM_AI_USER_3 + 414;
+template <class Base>
+class ParameterRestriction final : public Base
+{
+public:
+
+    explicit ParameterRestriction(const Base& source) : Base(source)
+    {
+    }
+
+    SmStatus Restrict(SmExtent2d& domain, const std::function<void()>& checkpoint)
+    {
+        // SmSurfOfRevolution::TrimWithDomain (SmSurfOfRevolution.cpp,
+        // contract above that method) rebuilds the arc and preserves only its
+        // corner parameters. Existing UV data instead requires the old basis.
+        // First find the exact extraction's actual, possibly snapped domain.
+        SmSurface* raw = nullptr;
+        checkpoint();
+        const auto copied = this->SmBSplineSurface::Copy(*this->GetContext(), raw);
+        if (raw == this)
+        {
+            return SM_ERR;
+        }
+        std::unique_ptr<SmSurface> dryRun(raw);
+        if (copied != SM_SUCCESS || !dryRun)
+        {
+            return copied == SM_SUCCESS ? SM_ERR : copied;
+        }
+        dryRun->SetOwner(nullptr);
+        const auto basis = dynamic_cast<SmBSplineSurface*>(raw);
+        if (!basis)
+        {
+            return SM_ERR;
+        }
+        auto actual = domain;
+        checkpoint();
+        auto status = basis->SmBSplineSurface::TrimWithDomain(actual);
+        if (status != SM_SUCCESS)
+        {
+            return status;
+        }
+
+        // The analytic conversion must see the UNTRIMMED NURBS domain while
+        // converting its new corners. Then extract the original basis without
+        // MakeNurb/Reparameterize, and rebuild the converter from that basis.
+        checkpoint();
+        status = this->UpdateAnalyticalDomain(actual);
+        if (status != SM_SUCCESS)
+        {
+            return status;
+        }
+        const auto planned = actual;
+        checkpoint();
+        status = this->SmBSplineSurface::TrimWithDomain(actual);
+        if (status != SM_SUCCESS)
+        {
+            return status;
+        }
+        if (actual.GetMin().x != planned.GetMin().x || actual.GetMin().y != planned.GetMin().y || actual.GetMax().x != planned.GetMax().x ||
+            actual.GetMax().y != planned.GetMax().y)
+        {
+            return SM_ERR; // Never retain analytic helpers for a different domain.
+        }
+        checkpoint();
+        status = this->RebuildPolarConverter();
+        if (status != SM_SUCCESS)
+        {
+            return status;
+        }
+        domain = actual;
+        return SM_SUCCESS;
+    }
+};
+
+template <class Base>
+SmStatus RestrictAnalytic(
+    const Base& source,
+    const SmContext& context,
+    SmExtent2d& domain,
+    std::unique_ptr<SmSurface>& output,
+    const std::function<void()>& checkpoint
+)
+{
+    checkpoint();
+    std::unique_ptr<ParameterRestriction<Base>> work(new (context) ParameterRestriction<Base>(source));
+    work->SetOwner(nullptr); // Mutations must never notify the source face.
+    auto actual = domain;
+    const auto restricted = work->Restrict(actual, checkpoint);
+    if (restricted != SM_SUCCESS)
+    {
+        return restricted;
+    }
+
+    // The access adapter owns no extra state and is never delivered. Ordinary
+    // virtual Copy restores the native cylinder/cone class before publication.
+    SmSurface* raw = nullptr;
+    checkpoint();
+    const auto copied = work->Copy(context, raw);
+    if (raw == work.get() || raw == &source)
+    {
+        return SM_ERR;
+    }
+    std::unique_ptr<SmSurface> candidate(raw);
+    if (copied != SM_SUCCESS || !candidate)
+    {
+        return copied == SM_SUCCESS ? SM_ERR : copied;
+    }
+    candidate->SetOwner(nullptr);
+    domain = actual;
+    output = std::move(candidate);
+    return SM_SUCCESS;
+}
 struct SavedUv
 {
     SmEdgeuse* owner;
@@ -667,22 +780,25 @@ private:
             record,
             Status::Indeterminate
         );
-        SmSurface* raw = nullptr;
-        Step(record);
-        // Retain the native analytic subclass and its parameter correspondence.
-        // A generic base copy can be recognized as a different analytic chart on
-        // archive readback; equal control nets alone do not qualify that change.
-        // The whole retained NURBS rectangle must still pass the proof below,
-        // and the final native validators check the analytic/NURBS consistency.
-        Good(original->Copy(*m.context, raw), record);
-        std::unique_ptr<SmSurface> candidate(raw);
+        SmExtent2d requested(loU, loV, hiU, hiV);
+        std::unique_ptr<SmSurface> candidate;
+        Good(
+            RestrictPeriodicSupport(
+                *original,
+                *m.context,
+                requested,
+                candidate,
+                [&]
+                {
+                    Step(record);
+                }
+            ),
+            record
+        );
+        auto raw = candidate.get();
         Need(raw && raw != original, "PeriodicNormalizationSurfaceAlias", record);
-        raw->SetOwner(nullptr);
         const auto restricted = dynamic_cast<SmBSplineSurface*>(raw);
         Need(restricted, "PeriodicNormalizationSurfaceType", record);
-        SmExtent2d requested(loU, loV, hiU, hiV);
-        Step(record);
-        Good(restricted->TrimWithDomain(requested), record);
         const auto actual = restricted->GetNaturalUVDomain();
         Need(
             actual.GetMin().x <= loU && actual.GetMax().x >= hiU && actual.GetMin().y <= loV && actual.GetMax().y >= hiV,
@@ -721,6 +837,60 @@ private:
     }
 };
 } // namespace
+SmStatus RestrictPeriodicSupport(
+    const SmBSplineSurface& source,
+    const SmContext& context,
+    SmExtent2d& domain,
+    std::unique_ptr<SmSurface>& output,
+    const std::function<void()>& checkpoint
+)
+{
+    if (output || !checkpoint)
+    {
+        return SM_ERR;
+    }
+    // Cylinder derives from cone, so preserve the most specific class first.
+    if (const auto cylinder = dynamic_cast<const SmCylinder*>(&source))
+    {
+        return RestrictAnalytic(*cylinder, context, domain, output, checkpoint);
+    }
+    if (const auto cone = dynamic_cast<const SmCone*>(&source))
+    {
+        return RestrictAnalytic(*cone, context, domain, output, checkpoint);
+    }
+    if (source.GetType() != SmBSplineSurface_TYPE)
+    {
+        return SM_ERR; // Other analytic subclasses need their own helper contract.
+    }
+    SmSurface* raw = nullptr;
+    checkpoint();
+    const auto copied = source.Copy(context, raw);
+    if (raw == &source)
+    {
+        return SM_ERR;
+    }
+    std::unique_ptr<SmSurface> candidate(raw);
+    if (copied != SM_SUCCESS || !candidate)
+    {
+        return copied == SM_SUCCESS ? SM_ERR : copied;
+    }
+    raw->SetOwner(nullptr);
+    const auto restricted = dynamic_cast<SmBSplineSurface*>(raw);
+    if (!restricted)
+    {
+        return SM_ERR;
+    }
+    checkpoint();
+    auto actual = domain;
+    const auto status = restricted->SmBSplineSurface::TrimWithDomain(actual);
+    if (status != SM_SUCCESS)
+    {
+        return status;
+    }
+    domain = actual;
+    output = std::move(candidate);
+    return SM_SUCCESS;
+}
 void NormalizePeriodicTopology(
     ModelData& model,
     std::span<const std::size_t> faces,
