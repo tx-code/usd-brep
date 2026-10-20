@@ -11,7 +11,7 @@ from tools.smlib_gui.camera_fit import fit_depth
 from tools.smlib_gui.viewport import ViewportController
 from tools.smlib_gui.settings import DISPLAY_MODE_SHADED_MESH_WIREFRAME, DISPLAY_MODE_SHADED, COLOR_MODE_MATERIAL
 from .backend import ImportSettings, SceneLoader
-from .appearance import SURFACE_COLOR, configure_scene, style_surface
+from .appearance import SURFACE_COLOR, configure_scene, style_surface, verify_model_frame
 
 
 class ViewerWindow(QtWidgets.QMainWindow):
@@ -320,31 +320,57 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
 
 def run(options):
+    from .receipt import RequestReceipt, write_json
+    receipt = RequestReceipt(options.file) if options.result else None
     application = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     application.setStyle("Fusion")
     application.styleHints().setColorScheme(QtCore.Qt.ColorScheme.Dark)
     settings = ImportSettings(options.profile, options.normalize_periodic_faces,
                               options.restrict_unused_support_domains, options.strict_source)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
-    result = [0]
+    result = [1 if options.quit_after_load else 0]
+    cancelled = [False]
+
+    def progress(update):
+        if receipt:
+            receipt.progress(update)
+        if options.scan_child:
+            print(f"@brep-view:{update.phase},{update.completed},{update.total}", flush=True)
+    window.loader.progress.connect(progress)
+    window.loader.cancelled.connect(lambda: cancelled.__setitem__(0, True))
 
     def finished(success):
         result[0] = 0 if success else 1
         def complete():
+            outcome = "Rendered" if success else "Cancelled" if cancelled[0] else "LoadFailure"
             try:
+                if success and receipt:
+                    verify_model_frame(window.plot)
                 if success and options.screenshot:
                     options.screenshot.parent.mkdir(parents=True, exist_ok=True)
                     # QWidget.grab cannot capture the native VTK child window.
                     # Read the rendered viewport; Qt HUD/widgets stay on screen.
-                    window.plot.screenshot(str(options.screenshot))
+                    window.plot.screenshot(str(options.screenshot), transparent_background=False)
             except Exception as error:
                 result[0] = 1
+                outcome = "RenderFailure"
                 window.status.setText("Screenshot failed: " + str(error))
             finally:
+                if receipt:
+                    try:
+                        write_json(options.result, receipt.finish(
+                            outcome, window.loader.worker_result, window.status.text()))
+                    except OSError as error:
+                        result[0] = 1
+                        window.status.setText("Result write failed: " + str(error))
                 if options.quit_after_load:
                     window.close()
         QtCore.QTimer.singleShot(150, complete)
     window.load_complete.connect(finished)
+    if options.scan_child:
+        # Keep Qt's normal layout/VTK rendering path, but never show batch
+        # windows on the desktop. OFF_SCREEN was selected before PyVista import.
+        window.setAttribute(QtCore.Qt.WA_DontShowOnScreen, True)
     window.show()
     if options.file:
         QtCore.QTimer.singleShot(0, lambda: window.load(options.file))
@@ -352,4 +378,6 @@ def run(options):
         window.close()
         return 2
     application.exec()
+    if receipt and receipt.result is None:
+        write_json(options.result, receipt.finish("Closed", window.loader.worker_result))
     return result[0]

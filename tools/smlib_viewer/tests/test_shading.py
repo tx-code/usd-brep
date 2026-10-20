@@ -13,6 +13,7 @@ from PySide6 import QtGui, QtWidgets
 from vtkmodules.vtkRenderingCore import vtkCoordinate
 
 from tools.smlib_viewer.app import ViewerWindow
+from tools.smlib_viewer.appearance import verify_model_frame
 
 
 def luminance_at(window, image, point):
@@ -92,3 +93,20 @@ class ShadingTests(unittest.TestCase):
             # background between glyphs, must overwrite the previous Qt frame.
             # A native VTK framebuffer cannot provide Qt's alpha-blend backdrop.
             self.assertTrue(np.all(rgba[12:-12, 12:-12, 3] == 255), "HUD retains translucent repaint pixels")
+
+    def test_axes_alone_do_not_establish_model_rendered(self):
+        self.load_mesh(pv.Cube().triangulate().clean())
+        verify_model_frame(self.window.plot)
+        for actor in self.window.plot.renderer.actors.values():
+            actor.SetVisibility(False)
+        with self.assertRaisesRegex(ValueError, "EmptyModelFramebuffer"):
+            verify_model_frame(self.window.plot)
+        for actor in self.window.plot.renderer.actors.values():
+            actor.SetVisibility(True)
+        # Visible actors outside the camera frustum also cannot pass merely
+        # because they exist or because the coordinate widget still renders.
+        self.window.plot.camera.position = (100, 100, 100)
+        self.window.plot.camera.focal_point = (101, 101, 100)
+        with self.assertRaisesRegex(ValueError, "EmptyModelFramebuffer"):
+            verify_model_frame(self.window.plot)
+        self.assertTrue(all(actor.GetVisibility() for actor in self.window.plot.renderer.actors.values()))

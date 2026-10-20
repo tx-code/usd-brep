@@ -7,6 +7,8 @@ import sys
 
 
 def main(argv=None):
+    from .runtime_cache import configure
+    configure()
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["--mesh-worker"]:
         from .mesh_worker import run
@@ -23,6 +25,39 @@ def main(argv=None):
     parser.add_argument("--wireframe", action="store_true", help="显示三角网格")
     parser.add_argument("--screenshot", type=Path, help="仅在本地保存画面")
     parser.add_argument("--quit-after-load", action="store_true", help="载入/截图完成后退出；失败返回非零")
+    parser.add_argument("--result", type=Path, help="将本次查看结果写入新的本地 JSON 文件")
+    parser.add_argument("--scan", type=Path, action="append", help="递归扫描目录，可重复指定多个目录")
+    parser.add_argument("--output", type=Path, help="扫描结果目录，必须是不存在的新目录")
+    parser.add_argument("--thumbnails", action="store_true", help="扫描时保存本地缩略图")
+    parser.add_argument("--timeout", type=float, default=150, help="扫描单文件完整查看流程的秒数上限（默认 150）")
+    parser.add_argument("--scan-child", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args(args)
+    if options.scan:
+        if options.file or not options.output or options.result or options.screenshot or options.scan_child:
+            parser.error("--scan 需要 --output，不能同时指定单文件、--result 或 --screenshot")
+        from .scan import run_scan
+        try:
+            return run_scan(options)
+        except (OSError, ValueError) as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        except KeyboardInterrupt:
+            print("扫描已取消", file=sys.stderr)
+            return 130
+    if options.output or options.thumbnails:
+        parser.error("--output 和 --thumbnails 仅适用于 --scan")
+    if options.result and (not options.file or not options.quit_after_load or options.result.exists()):
+        parser.error("--result 需要单文件输入和 --quit-after-load，且目标文件必须不存在")
+    if options.file:
+        source = Path(options.file).expanduser().resolve()
+        for output in (options.result, options.screenshot):
+            if output and (output.resolve() == source or
+                           (source.exists() and output.exists() and output.samefile(source))):
+                parser.error("输出不能覆盖输入模型")
+    if options.scan_child:
+        if not options.result or not options.quit_after_load or sys.stdin.readline().strip() != "start":
+            return 2
+        import os
+        os.environ["PYVISTA_OFF_SCREEN"] = "true"
     from .app import run
     return run(options)

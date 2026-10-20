@@ -9,6 +9,7 @@ installation or development checkout.
 .\brep-view.exe "D:\Models\part.step"
 .\brep-view.exe "D:\Models\mesh.stl" --edges
 .\brep-view.exe --help
+.\brep-view.exe --scan "D:\Models" --output "D:\LocalScan\run-001" --thumbnails
 ```
 
 Open with Ctrl+O; F fits, I selects the isometric view, 1/2/3 select front/top/right,
@@ -100,10 +101,46 @@ The application rejects stale generations and failed workers before adopting a
 scene. CAD owners never cross processes. The shared GUI viewport and camera
 helpers draw disposable projections; the workbench's modeling APIs are unchanged.
 
-## Next batch interface
+## Local directory scan
 
-Directory scanning is the next layer above this same load/display pipeline:
-content deduplication, isolated files, categorized failures, per-stage timing and
-optional local thumbnails. Start sequentially; add concurrency after measuring
-memory and renderer limits. A successful scan must distinguish import, meshing
-and display success. This release does not yet provide a directory scan command.
+`--scan DIRECTORY` recursively selects the supported model extensions; repeat it
+to select multiple roots. Directory symlinks/junctions are not traversed. Input
+enumeration errors fail explicitly. `--output` must name a new directory outside
+all selected roots. Existing results are never overwritten.
+
+The scanner hashes each selected file and processes unique content sequentially.
+STEP/STP share a deduplication key; mesh reader formats remain distinct. Duplicate
+paths/content are reported separately and never counted as additional successful
+imports. File identities are checked before/after each attempt and bound to the
+worker-captured bytes on success. Originals are never rewritten.
+
+Each unique file runs the actual viewer in a fresh, hidden process, including
+scene adoption, the same lighting/camera, and framebuffer readback. On Windows
+the process starts suspended, enters a 4 GiB job, then resumes; this includes
+bootloader/venv descendants and the existing native-worker isolation. The default
+150 s whole-file `--timeout` includes startup, import, meshing and rendering;
+existing native and display budgets still apply. Timeout/crash/failure is recorded
+before continuing. Ctrl+C terminates the active tree, retains completed results,
+marks the summary incomplete, and returns 130. This edition is qualified on
+Windows; POSIX uses process groups without the Windows memory cap.
+
+`scan.json` is atomically checkpointed after each attempt. It records settings,
+input identities, duplicates, outcomes, and separate import/mesh/render completion
+observations. Unestablished native acceptance remains null. Entering a phase is
+not evidence of completing it. Phase timestamps are observed transitions, not CPU
+profiles or continuous error bounds; process elapsed time includes startup.
+Success means this viewer pipeline completed, not full STEP or SDK qualification.
+`--thumbnails` additionally saves local viewport PNGs. Per-file `result.json` and
+any diagnostics remain in their local case directories. All paths, hashes,
+geometry, dimensions and images in these results are private local data.
+
+Exit codes: 0 when all unique attempts render, 1 for file failures, 2 for invalid
+selection/configuration, 130 for cancellation. Unsupported/rejected models remain
+failures; scan never retries with relaxed settings or a different reader. Explicit
+profile/normalization/source-policy options match single-file viewing.
+
+Single-file automation can use `--result NEW.json --quit-after-load` without a scan.
+The frozen onedir runtime reuses its Matplotlib font cache under
+`%LOCALAPPDATA%/BRepViewer/Cache`, keyed by runtime directory and executable identity.
+Moving/replacing the installation selects a new cache. This cache contains font
+discovery data; source models and render payloads are not cached there.

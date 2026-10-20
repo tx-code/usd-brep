@@ -63,9 +63,11 @@ class SceneLoader(QtCore.QObject):
         self.settings = settings
         self.generation = 0
         self.jobs = {}
+        self.worker_result = None
 
     def load(self, filename: str) -> None:
         self.cancel(notify=False)
+        self.worker_result = None
         path = Path(filename).expanduser().resolve()
         if not path.is_file():
             self.failed.emit("文件不存在", str(path))
@@ -179,6 +181,9 @@ class SceneLoader(QtCore.QObject):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if manifest.get("format") != "brep-view-scene.v1":
                 raise ValueError("SceneVersionMismatch")
+            # Retain only the current request's bounded manifest, before its
+            # temporary payloads are released. No borrowed paths escape here.
+            self.worker_result = {**manifest, "exit_code": code}
             if code != 0 or manifest.get("status") != "Ready":
                 messages = [f"{d['key']}: {d['message']}" for d in manifest.get("diagnostics", [])]
                 self.failed.emit("模型未能载入", "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))

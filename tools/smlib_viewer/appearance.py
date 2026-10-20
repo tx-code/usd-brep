@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 """Viewer illumination and material; never changes mesh positions/connectivity."""
-from tools.smlib_gui.runtime import pv
+from tools.smlib_gui.runtime import np, pv
 
 SURFACE_COLOR = (0.76, 0.79, 0.83)
 
@@ -35,3 +35,28 @@ def style_surface(actor):
             prop.SetDiffuse(0.80)
             prop.SetSpecular(0.24)
             prop.SetSpecularPower(32)
+
+
+def verify_model_frame(plot):
+    plot.render()
+    image = plot.screenshot(return_img=True, transparent_background=False)
+    if image.ndim != 3 or image.shape[2] < 3 or not image.size:
+        raise ValueError("InvalidModelFramebuffer")
+    actors = [(actor, actor.GetVisibility()) for actor in plot.renderer.actors.values()
+              if isinstance(actor, pv.Actor)]
+    # With this gradient/FXAA pipeline, readback alpha can be opaque even on
+    # background pixels. Compare with the same frame minus model actors instead.
+    # Axes remain in both frames; sparse parts need not cover the image center.
+    # Do not service Qt events while visibility is temporarily changed, and
+    # restore every disposable actor on failure. Geometry/camera stay unchanged.
+    try:
+        for actor, _ in actors:
+            actor.SetVisibility(False)
+        plot.render()
+        background = plot.screenshot(return_img=True, transparent_background=False)
+    finally:
+        for actor, visible in actors:
+            actor.SetVisibility(visible)
+        plot.render()
+    if image.shape != background.shape or not np.any(image[:, :, :3] != background[:, :, :3]):
+        raise ValueError("EmptyModelFramebuffer")
