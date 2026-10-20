@@ -5,6 +5,7 @@
 #include <SmAssertArray.h>
 #include <SmBSplineCurve.h>
 #include <SmBrepData.h>
+#include <SmNativeArchive.h>
 #include <SmPlane.h>
 #include <SmSurface.h>
 #include <SmVertex.h>
@@ -382,7 +383,7 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     // an import-wide continuous geometry bound; source correspondence is in the
     // owning snapshot/report and is not encoded by the native part container.
     ReadPart read;
-    Good(SmBrepData::ReadPartFromFile(read.context, path.c_str(), read.curves, read.surfaces, read.trees, read.breps, SM_BINARY));
+    Good(SmNativeArchive::ReadPartFromFile(read.context, path.c_str(), read.curves, read.surfaces, read.trees, read.breps, SM_BINARY));
     Require(
         read.curves.GetSize() == curves.GetSize() && read.breps.GetSize() == breps.GetSize() && read.surfaces.GetSize() == surfaces.GetSize() &&
             read.trees.GetSize() == 0,

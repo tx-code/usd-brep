@@ -318,6 +318,16 @@ UV 安装与误差检查后，经原生曲线相交/包含分类证明唯一外�
 不承诺它是源 UV 或以毫米计。`WriteNative(path)` 保存不拟合解析定义的二进制原生
 `.smb`，`CopyForModeling()` 生成独立 context/BRep；报告对应原快照。
 
+存档复核使用 `SmNativeArchive::ReadPartFromFile`（`SmNativeArchive.h`）。它复用原生
+part 解码器，关闭自动解析类型识别、UV 重新生成及版本触发的 healing，保留存储的
+定义类型、NURBS/UV 参数和正工作容差；原生格式不变。完整读取后才移交输出，
+失败不交付已读取的部分对象。调用者须销毁返回对象后再销毁其 context，并自行
+执行有效性／定义／UV 验收；这不是 STEP 来源资格的持久化。
+通用回归要求回读曲面、三维曲线及 UV 曲线类型一致，继续比较完整系数、节点和边参数，
+不再借用历史解析识别作为回读类型例外。旧 `SmBrepData`／`SmApiReadPartFromFile`
+入口保留原来的识别与 healing 行为，不能用于声称上述存储定义保真。
+使用此新入口的消费者需要与包含该符号的新内核 SDK 一起链接；C++ 布局与文件格式不变。
+
 以下说明专指既有已资格的平面路径。
 
 

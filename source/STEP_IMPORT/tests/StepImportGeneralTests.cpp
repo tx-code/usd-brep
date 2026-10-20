@@ -20,6 +20,7 @@
 #include <SmFace.h>
 #include <SmFaceuse.h>
 #include <SmLine.h>
+#include <SmNativeArchive.h>
 #include <SmPlane.h>
 #include <SmRegion.h>
 #include <SmShell.h>
@@ -396,7 +397,7 @@ ReloadedNative ReloadNative(
     SmObjsDelete<SmSurface*> deleteSurfaces(&surfaces);
     SmObjsDelete<SmBrep*> deleteBreps(&breps);
     Require(
-        SmBrepData::ReadPartFromFile(*result.context, archive.c_str(), curves, surfaces, trees, breps, SM_BINARY) == SM_SUCCESS,
+        SmNativeArchive::ReadPartFromFile(*result.context, archive.c_str(), curves, surfaces, trees, breps, SM_BINARY) == SM_SUCCESS,
         "native archive reload"
     );
     std::set<std::size_t> curveIndices, pointIndices, surfaceIndices;
@@ -576,11 +577,11 @@ double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::
     );
     return volume;
 }
-void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b, bool definingCurve = true)
+void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b)
 {
-    // Native archive reload may canonicalize a derived linear UV spline to SmLine;
-    // allow only that lossless UV representation change, never a 3D promotion.
-    const bool sameClass = a.GetType() == b.GetType() || (!definingCurve && a.GetType() == SmBSplineCurve_TYPE && b.GetType() == SmLine_TYPE);
+    // The stored-definition reader never promotes 3D or UV curves. Keep the
+    // class gate in addition to all coefficient and parameter comparisons.
+    const bool sameClass = a.GetType() == b.GetType();
     if (!sameClass || a.GetDegree() != b.GetDegree())
     {
         throw std::runtime_error(
@@ -647,24 +648,7 @@ ArchiveClassChanges CompareNativeDefinitions(SmBrep& a, SmBrep& b)
     {
         const auto first = dynamic_cast<SmBSplineSurface*>(fa[i]->GetSurface());
         const auto second = dynamic_cast<SmBSplineSurface*>(fb[i]->GetSurface());
-        if (first && second && first->GetType() != second->GetType())
-        {
-            // The reader recognizes exact extrusion/plane subclasses. Class
-            // labels can differ only if EVERY coefficient, weight, degree and
-            // knot below remains identical, preserving evaluator parameters.
-            Require(
-                first->GetType() == SmBSplineSurface_TYPE && (second->GetType() == SmSurfOfExtrusion_TYPE || second->GetType() == SmPlane_TYPE),
-                "unqualified archive surface reclassification"
-            );
-            if (second->GetType() == SmPlane_TYPE)
-            {
-                ++changes.planeSurfaces;
-            }
-            else
-            {
-                ++changes.extrusionSurfaces;
-            }
-        }
+        Require(first && second && first->GetType() == second->GetType(), "unqualified archive surface reclassification");
         Require(first && second, "admitted exact native surface net");
         Require(
             first->GetDegree(SM_SP_U) == second->GetDegree(SM_SP_U) && first->GetDegree(SM_SP_V) == second->GetDegree(SM_SP_V),
@@ -704,7 +688,7 @@ ArchiveClassChanges CompareNativeDefinitions(SmBrep& a, SmBrep& b)
         for (ULONG k = 0; k < ua.GetSize(); ++k)
         {
             Require(ua[k]->GetUVTrimCurve() && ub[k]->GetUVTrimCurve(), "archive UV present");
-            CompareCurveCoefficients(*ua[k]->GetUVTrimCurve(), *ub[k]->GetUVTrimCurve(), false);
+            CompareCurveCoefficients(*ua[k]->GetUVTrimCurve(), *ub[k]->GetUVTrimCurve());
             changes.linearUv += ua[k]->GetUVTrimCurve()->GetType() != ub[k]->GetUVTrimCurve()->GetType();
         }
     }

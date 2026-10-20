@@ -9,6 +9,7 @@
 #include "StdAfx.h"
 
 #include <SmBrepData.h>
+#include <SmNativeArchive.h>
 
 #ifndef __SMBREP_H__
 #include <SmBrep.h>
@@ -1342,13 +1343,14 @@ PURPOSE: Read a part using the database corresponding to rDB.
 
 NOTES:
 ***********************************************************************/
-SmStatus SmBrepData::ReadPartFromDB
+static SmStatus sm_ReadNativePartFromDB
   (const SmContext      & crContext,         // in : context for constructing objects from stream
    SmTArray<SmCurve*>   & r3DCurves,         // out: Array of curves to get from stream
    SmTArray<SmSurface*> & rSurfaces,         // out: Array of surfaces to get from stream
    SmTArray<long>       & rBooleanTreeNodes, // out: Boolean Trees to get from stream (see SmMerge::BooleanTreeNodes)
    SmTArray<SmBrep*>    & rBreps,            // out: Array of SmBrep objects to get from stream
-   SmDatabaseIO         & rDB)               // in : contains target stream
+   SmDatabaseIO         & rDB,                   // in : contains target stream
+   SmBoolean              bPreserveDefinitions)   // in : disable recognition and healing
 
 {
     SmFileType eType = rDB.GetFileType();
@@ -1358,6 +1360,9 @@ SmStatus SmBrepData::ReadPartFromDB
     ULONG lHealerVersion   = 0;
 
     SmTArray<SmAttribute*> sAttributes;
+    // Placeholders can already have users when decoding/construction fails.
+    // Remove them on every return, including before the real attribute table.
+    SmObjsDelete<SmAttribute*> sCleanAttributes(&sAttributes);
 
     SER(rDB.BeginReading());
 
@@ -1543,23 +1548,21 @@ SmStatus SmBrepData::ReadPartFromDB
         rBreps[k] = new (crContext) SmBrep();
 
         // read the BrepData
-        SER(SmBrepData::ReadFromDB(crContext,lDBVersionNumber,sAttributes,pBrepData,rDB,TRUE));
+        const SmStatus sReadStatus = SmBrepData::ReadFromDB(crContext,lDBVersionNumber,sAttributes,pBrepData,rDB,TRUE);
+        SmObjDelete sDataCleanup(pBrepData);
+        SER(sReadStatus);
 
         // Set pBrepData Healer Version
         pBrepData->SetHealerVersion( lHealerVersion );
 
-        // Build Brep Model from BrepData
-        //   FALSE: do not force creation of uv trim curves.
-        // This is a native part archive, not an external translator. Preserve
-        // its stored work tolerance (SmBrep.h: bForceSameTol); the default
-        // external-data policy clamps tolerance to a coordinate-size estimate.
-        // That turns a valid origin-point BRep's tolerance into zero and can
-        // enlarge the tolerance of a distant point. Keep recognition/healing
-        // options unchanged and do not modify the serialized geometry.
-        SER(rBreps[k]->MakeTopologyFromData(pBrepData,sAttributes,FALSE,TRUE,TRUE));
-
-        // clean up
-        SM_ASSERT(pBrepData != NULL) ; delete pBrepData ; pBrepData = NULL ;
+        // SmBrep::MakeTopologyFromData copies the decoded geometry; pBrepData
+        // remains owned here on success and failure. Native archives retain
+        // positive stored tolerance. Definition-preserving reload additionally
+        // disables CopyAndAddAnalytics, UV regeneration and versioned healing:
+        // those may replace a generic NURBS net and invalidate its stored UV.
+        SER(rBreps[k]->MakeTopologyFromData(
+            pBrepData,sAttributes,FALSE,!bPreserveDefinitions,TRUE,
+            FALSE,FALSE,!bPreserveDefinitions));
 
       } // end iter every Brep model
 
@@ -1572,7 +1575,6 @@ SmStatus SmBrepData::ReadPartFromDB
       {
         // read total attribute count
         ULONG lTotalAttributes;
-        SmObjsDelete<SmAttribute *> sCleanAttributes( &sAttributes );
         if (eType == SM_ASCII)
           {
             std::istream & fin = *rDB.GetInStreamPtr();
@@ -1630,7 +1632,72 @@ SmStatus SmBrepData::ReadPartFromDB
 
     return SM_SUCCESS;
 
-} // end SmBrepData::ReadPartFromDB
+} // end sm_ReadNativePartFromDB
+
+SmStatus SmBrepData::ReadPartFromDB(
+    const SmContext& context,
+    SmTArray<SmCurve*>& curves,
+    SmTArray<SmSurface*>& surfaces,
+    SmTArray<long>& trees,
+    SmTArray<SmBrep*>& breps,
+    SmDatabaseIO& database)
+{
+    // Historical native/translator callers retain analytic recognition/healing.
+    return sm_ReadNativePartFromDB(context,curves,surfaces,trees,breps,database,FALSE);
+}
+
+SmStatus SmNativeArchive::ReadPartFromFile(
+    const SmContext& context,
+    const TCHAR* filename,
+    SmTArray<SmCurve*>& curves,
+    SmTArray<SmSurface*>& surfaces,
+    SmTArray<long>& trees,
+    SmTArray<SmBrep*>& breps,
+    SmFileType type)
+{
+    if (!filename || !*filename || (type != SM_ASCII && type != SM_BINARY) ||
+        curves.GetSize() || surfaces.GetSize() || trees.GetSize() || breps.GetSize())
+    {
+        return SM_ERR;
+    }
+    SmDatabaseIOFile database;
+    SER(database.OpenFileForRead(filename,type));
+    return SmNativeArchive::ReadPartFromDB(context,curves,surfaces,trees,breps,database);
+}
+
+SmStatus SmNativeArchive::ReadPartFromDB(
+    const SmContext& context,
+    SmTArray<SmCurve*>& curves,
+    SmTArray<SmSurface*>& surfaces,
+    SmTArray<long>& trees,
+    SmTArray<SmBrep*>& breps,
+    SmDatabaseIO& database)
+{
+    if (curves.GetSize() || surfaces.GetSize() || trees.GetSize() || breps.GetSize())
+    {
+        return SM_ERR;
+    }
+    SmTArray<SmCurve*> pendingCurves;
+    SmTArray<SmSurface*> pendingSurfaces;
+    SmTArray<long> pendingTrees;
+    SmTArray<SmBrep*> pendingBreps;
+    SmObjsDelete<SmCurve*> cleanCurves(&pendingCurves);
+    SmObjsDelete<SmSurface*> cleanSurfaces(&pendingSurfaces);
+    SmObjsDelete<SmBrep*> cleanBreps(&pendingBreps);
+    SER(sm_ReadNativePartFromDB(
+        context,pendingCurves,pendingSurfaces,pendingTrees,pendingBreps,database,TRUE));
+
+    // Publish only the complete decoded part, never a prefix of its bodies.
+    curves = pendingCurves;
+    surfaces = pendingSurfaces;
+    trees = pendingTrees;
+    breps = pendingBreps;
+    cleanCurves.Clear();
+    cleanSurfaces.Clear();
+    cleanBreps.Clear();
+    return SM_SUCCESS;
+}
+
 
 /*******************************************************************//**
 PURPOSE: Write an SMLib SmBrep Geometry translated into a SmBrepData
@@ -2952,6 +3019,7 @@ SmStatus SmBrepData::ReadFromDB
   // allocate new BrepData object
   SmBrepData * pBrepData = new(crContext) SmBrepData(TRUE, SM_DS_SMLIB);
   NER(pBrepData);
+  SmObjDelete sDataCleanup(pBrepData); // decoding may return before assigning the output
 
   // local file type
   SmFileType eType = rDB.GetFileType();
@@ -3457,6 +3525,7 @@ SmStatus SmBrepData::ReadFromDB
     }
 
   rpNewBrepData = pBrepData;
+  sDataCleanup.Clear();
 
   return SM_SUCCESS;
 
