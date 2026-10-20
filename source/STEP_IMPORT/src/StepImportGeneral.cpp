@@ -7,6 +7,7 @@
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportGeometryConstruction.h"
 #include "StepImportNativeData.h"
+#include "StepImportPeriodicNormalization.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
 #include "StepImportUnits.h"
@@ -152,6 +153,31 @@ public:
         {
             RestrictSupports();
         }
+        if (m_options.normalizePeriodicFaces)
+        {
+            std::vector<Index> sourceFaces, sourceEdges;
+            for (const auto& face : faces)
+            {
+                sourceFaces.push_back(face.record);
+            }
+            for (const auto& edge : curves)
+            {
+                sourceEdges.push_back(edge.record);
+            }
+            NormalizePeriodicTopology(
+                *m_model,
+                sourceFaces,
+                sourceEdges,
+                vertices,
+                derivedEdgeFaces,
+                m_options,
+                m_report,
+                [&](Index record)
+                {
+                    Step(record);
+                }
+            );
+        }
         Validate();
         ObserveTolerances();
         Measure();
@@ -163,7 +189,7 @@ public:
             BuildSupportingGeometry(definitions);
             m_model->curvePointDefinitions = std::move(definitions).Finish();
         }
-        if (m_rebuiltUv)
+        if (m_rebuiltUv || m_model->topologyNormalization)
         {
             // Validators and measured queries can fill/fix UV caches. Check
             // the final private candidate after those consumers, before return.
@@ -186,6 +212,26 @@ private:
     std::vector<Index> derivedEdgeFaces;
     std::optional<Index> wireframeRepresentation;
     std::optional<Index> supportingRepresentation;
+    Index SourceFaceIndex(Index target) const
+    {
+        return m_model->topologyNormalization ? m_model->targetFaceSources.at(target) : target;
+    }
+    const std::vector<SmEdge*>& TargetEdges() const
+    {
+        return m_model->topologyNormalization ? m_model->targetEdges : m_model->edges;
+    }
+    const std::vector<SmVertex*>& TargetVertices() const
+    {
+        return m_model->topologyNormalization ? m_model->targetVertices : m_model->vertices;
+    }
+    Index EdgeOwner(Index target) const
+    {
+        if (m_model->topologyNormalization)
+        {
+            return m_model->targetEdgeOwners.at(target);
+        }
+        return target < curves.size() ? curves[target].record : derivedEdgeFaces.at(target - curves.size());
+    }
     double Tol() const
     {
         return Q(m_options.quality.initialWorkToleranceMm);
@@ -1876,9 +1922,9 @@ private:
         // Recheck every installed face trim because native validation can visit
         // neighboring caches. This is still sampled development evidence; loop,
         // seam/pole validity and the original mm quality gate remain required.
-        for (Index i = 0; i < faces.size(); ++i)
+        for (Index i = 0; i < m_model->faces.size(); ++i)
         {
-            const auto& face = faces[i];
+            const auto& face = faces[SourceFaceIndex(i)];
             const auto native = m_model->faces[i].face;
             SmTArray<SmEdgeuse*> uses;
             native->GetUpwardEdgeuses(uses);
@@ -2013,11 +2059,11 @@ private:
         {
             Need(Norm(Sub(P(m_model->vertices[i]->GetPoint()), points[i])) == 0, "GeneralSourceVertexMoved", vertices[i]);
         }
-        for (Index i = 0; i < curves.size(); ++i)
+        for (Index i = 0; i < (m_model->topologyNormalization ? TargetEdges().size() : curves.size()); ++i)
         {
             SmTArray<SmEdgeuse*> uses;
-            Good(m_model->edges[i]->GetEdgeuses(uses));
-            Need(uses.GetSize() == 4, "GeneralNativeEdgeIncidence", curves[i].record);
+            Good(TargetEdges()[i]->GetEdgeuses(uses));
+            Need(uses.GetSize() == 4, "GeneralNativeEdgeIncidence", EdgeOwner(i));
         }
     }
     [[noreturn]] void AssertFailure(const SmAssertArray& reports, const char* key) const
@@ -2078,21 +2124,26 @@ private:
         {
             observe("FaceWorkTolerance", f.faceId, f.face);
         }
-        for (Index i = 0; i < m_model->edges.size(); ++i)
+        for (Index i = 0; i < TargetEdges().size(); ++i)
         {
-            observe("EdgeWorkTolerance", i < curves.size() ? Id(curves[i].record) : "derived-seam", m_model->edges[i]);
+            observe(
+                "EdgeWorkTolerance",
+                m_model->topologyNormalization ? (m_model->topologyNormalization->edges[i].sourceEdgeId.value_or("derived-periodic-cut")) :
+                                                 (i < curves.size() ? Id(curves[i].record) : "derived-seam"),
+                TargetEdges()[i]
+            );
         }
-        for (Index i = 0; i < m_model->vertices.size(); ++i)
+        for (Index i = 0; i < TargetVertices().size(); ++i)
         {
-            observe("VertexWorkTolerance", Id(vertices[i]), m_model->vertices[i]);
+            observe("VertexWorkTolerance", Id(m_model->topologyNormalization ? m_model->targetVertexOwners.at(i) : vertices[i]), TargetVertices()[i]);
         }
     }
     void Measure()
     {
         Statistics info;
-        info.faces = faces.size();
-        info.edges = m_model->edges.size();
-        info.vertices = vertices.size();
+        info.faces = m_model->faces.size();
+        info.edges = TargetEdges().size();
+        info.vertices = TargetVertices().size();
         info.shapeRole = "MaterialSolid";
         // This path has already checked a closed all-face material boundary:
         // there are no free curves/vertices outside these faces. Each required
@@ -2105,7 +2156,7 @@ private:
         {
             auto& f = m_model->faces[i];
             SmPoint3d faceMin, faceMax;
-            Step(faces[i].record);
+            Step(faces[SourceFaceIndex(i)].record);
             Good(SmApiFaceBoundingBox(f.face, TRUE, faceMin, faceMax));
             f.info.boundsMm = { P(faceMin), P(faceMax) };
             for (Index a = 0; a < 3; ++a)
@@ -2113,7 +2164,7 @@ private:
                 Need(
                     std::isfinite(f.info.boundsMm[0][a]) && std::isfinite(f.info.boundsMm[1][a]) && f.info.boundsMm[1][a] >= f.info.boundsMm[0][a],
                     "GeneralFiniteBounds",
-                    faces[i].record
+                    faces[SourceFaceIndex(i)].record
                 );
                 info.boundsMm[0][a] = firstFace ? f.info.boundsMm[0][a] : std::min(info.boundsMm[0][a], f.info.boundsMm[0][a]);
                 info.boundsMm[1][a] = firstFace ? f.info.boundsMm[1][a] : std::max(info.boundsMm[1][a], f.info.boundsMm[1][a]);
@@ -2147,7 +2198,7 @@ private:
             origin,
             [&](Index face)
             {
-                Step(faces[face].record);
+                Step(faces[SourceFaceIndex(face)].record);
                 if (m_report.numericalIntegration)
                 {
                     m_report.numericalIntegration->appliedRelativeAccuracy = accuracy;
@@ -2174,16 +2225,12 @@ private:
         {
             Need(std::isfinite(value), "GeneralFiniteCentroid", shape);
         }
-        for (Index i = 0; i < m_model->edges.size(); ++i)
+        for (Index i = 0; i < TargetEdges().size(); ++i)
         {
             double length = 0;
-            Step(i < curves.size() ? curves[i].record : derivedEdgeFaces.at(i - curves.size()));
-            Good(SmApiEdgeComputeLength(m_model->edges[i], m_model->queryTolerance, length));
-            Need(
-                std::isfinite(length) && length > 0,
-                "GeneralEdgeLength",
-                i < curves.size() ? curves[i].record : derivedEdgeFaces.at(i - curves.size())
-            );
+            Step(EdgeOwner(i));
+            Good(SmApiEdgeComputeLength(TargetEdges()[i], m_model->queryTolerance, length));
+            Need(std::isfinite(length) && length > 0, "GeneralEdgeLength", EdgeOwner(i));
             info.boundaryMm += length;
         }
         for (Index i = 0; i < m_model->faces.size(); ++i)
@@ -2201,18 +2248,34 @@ private:
                 f.info.centroidMm[axis] = integral.areaOriginMm[axis] + integral.areaFirstMomentMm3[axis] / integral.areaMm2;
             }
             std::set<Index> faceEdges, faceVertices;
-            for (const auto& loop : faces[i].loops)
+            if (m_model->topologyNormalization)
             {
-                for (const auto& use : loop.uses)
+                SmTArray<SmEdge*> edges;
+                SmTArray<SmVertex*> faceNativeVertices;
+                f.face->GetEdges(edges);
+                f.face->GetVertices(faceNativeVertices);
+                f.info.edges = edges.GetSize();
+                f.info.vertices = faceNativeVertices.GetSize();
+            }
+            else
+            {
+                for (const auto& loop : faces[i].loops)
                 {
-                    faceEdges.insert(use.edge);
-                    faceVertices.insert(curves[use.edge].v0);
-                    faceVertices.insert(curves[use.edge].v1);
+                    for (const auto& use : loop.uses)
+                    {
+                        faceEdges.insert(use.edge);
+                        faceVertices.insert(curves[use.edge].v0);
+                        faceVertices.insert(curves[use.edge].v1);
+                    }
                 }
             }
-            f.info.edges = faceEdges.size() + (MissingSeam(faces[i]) ? 1 : 0);
-            f.info.vertices = faceVertices.size();
-            m_report.faces.push_back({ f.faceId, Id(faces[i].surface), faces[i].same, f.info });
+            if (!m_model->topologyNormalization)
+            {
+                f.info.edges = faceEdges.size() + (MissingSeam(faces[i]) ? 1 : 0);
+                f.info.vertices = faceVertices.size();
+            }
+            const auto& sourceFace = faces[SourceFaceIndex(i)];
+            m_report.faces.push_back({ f.faceId, Id(sourceFace.surface), sourceFace.same, f.info });
         }
         m_model->info = info;
         m_report.native = info;

@@ -1487,7 +1487,8 @@ void DevelopmentContract(
     bool carrier = false,
     bool nameOnly = false,
     bool lowercaseHex = false,
-    std::optional<double> integrationAccuracy = {}
+    std::optional<double> integrationAccuracy = {},
+    bool normalizePeriodic = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1511,6 +1512,7 @@ void DevelopmentContract(
         options.quality = step_import::Quality::GeneralWorkToleranceStudy();
     }
     options.restrictUnusedSupportDomains = restrictSupport;
+    options.normalizePeriodicFaces = normalizePeriodic;
     if (carrier)
     {
         options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
@@ -1547,6 +1549,28 @@ void DevelopmentContract(
         "development native import"
     );
     const auto info = result.model->Info();
+    if (normalizePeriodic)
+    {
+        const auto origins = result.model->TopologyNormalization();
+        // A no-op request has no invented mapping. If normalization ran, EVERY
+        // delivered object is mapped; the original source snapshot is retained.
+        if (origins)
+        {
+            Require(
+                origins->completed && origins->sourceCurveIntervalsCovered && origins->sourceVerticesPreserved,
+                "complete normalized source correspondence"
+            );
+            Require(
+                origins->faces.size() == info.faces && origins->edges.size() == info.edges && origins->vertices.size() == info.vertices,
+                "normalized target inventory"
+            );
+            for (std::size_t i = 0; i < info.faces; ++i)
+            {
+                Require(result.model->Face(i).SourceId() == origins->faces[i].sourceFaceId, "normalized owning face source");
+                Require(result.model->Face(i).ParameterDomain() == origins->faces[i].nativeDomain, "normalized delivered face domain");
+            }
+        }
+    }
     step_import::Point outside = info.boundsMm[0];
     const double span = std::hypot(info.boundsMm[1][0] - outside[0], info.boundsMm[1][1] - outside[1], info.boundsMm[1][2] - outside[2]);
     outside[0] -= span + 1;
@@ -1626,6 +1650,33 @@ void DevelopmentContract(
             changes = CompareNativeDefinitions(copy, *loaded.brep);
         }
     );
+    if (normalizePeriodic && result.model->TopologyNormalization())
+    {
+        auto evidence = result.model->TopologyNormalization();
+        evidence->faces.front().sourceFaceId.clear();
+        Require(!result.model->TopologyNormalization()->faces.front().sourceFaceId.empty(), "returned mapping cannot mutate its snapshot");
+        auto cancelled = options;
+        cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+        cancelled.execution.progress = [&](step_import::Progress progress)
+        {
+            if (progress.phase == step_import::Phase::NativeReady)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        const auto stopped = step_import::ImportFile(source, cancelled);
+        Require(
+            stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.topologyNormalization &&
+                stopped.report.topologyNormalization->completed,
+            "completed topology normalization still obeys final cancellation"
+        );
+        auto limited = options;
+        limited.nativeLimits.nativeCalls = result.report.nativeCalls - 1;
+        const auto bounded = step_import::ImportFile(source, limited);
+        Require(bounded.status == step_import::Status::ResourceLimit && !bounded.model, "late normalized work limit prevents publication");
+        // Discarding another candidate cannot damage this delivered owner.
+        Require(std::isfinite(view.Closest(outside).distanceMm), "published owning face survives failed candidates");
+    }
     SmPoint3d point;
     double queryDistance = 0;
     Require(
@@ -1691,7 +1742,7 @@ int main(int argc, char** argv)
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
-                 lowercaseHex = false;
+                 lowercaseHex = false, normalizePeriodic = false;
             std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
@@ -1710,7 +1761,8 @@ int main(int argc, char** argv)
                     flag == "--preserve-opaque-header-name" || flag == "--preserve-opaque-data-strings" ||
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
                         flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
-                        flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex",
+                        flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex" ||
+                        flag == "--normalize-periodic-faces",
                     "unknown explicit source flag"
                 );
                 if (flag == "--interpret-unregistered-ap214-2010")
@@ -1724,6 +1776,10 @@ int main(int argc, char** argv)
                 else if (flag == "--work-tolerance-study")
                 {
                     workStudy = true;
+                }
+                else if (flag == "--normalize-periodic-faces")
+                {
+                    normalizePeriodic = true;
                 }
                 else if (flag == "--interpret-level1-as-corrected")
                 {
@@ -1754,7 +1810,8 @@ int main(int argc, char** argv)
                 carrier,
                 nameOnly,
                 lowercaseHex,
-                integrationAccuracy
+                integrationAccuracy,
+                normalizePeriodic
             );
             return 0;
         }

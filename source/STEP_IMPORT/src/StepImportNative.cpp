@@ -1521,6 +1521,10 @@ UnitNormalization ModelSnapshot::LengthUnits() const
     }
     return *m_data->lengthUnits;
 }
+std::optional<TopologyNormalizationInfo> ModelSnapshot::TopologyNormalization() const
+{
+    return m_data->topologyNormalization;
+}
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());

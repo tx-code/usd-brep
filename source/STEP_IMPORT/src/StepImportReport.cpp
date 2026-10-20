@@ -36,6 +36,113 @@ void Number(Writer& writer, double value)
     }
     writer.Add(std::string_view(buffer.data(), static_cast<std::size_t>(end.ptr - buffer.data())));
 }
+void TopologyJson(Writer& w, const TopologyNormalizationInfo& info)
+{
+    w.Add("{\"completed\":");
+    w.Bool(info.completed);
+    w.Add(",\"source_curve_intervals_covered\":");
+    w.Bool(info.sourceCurveIntervalsCovered);
+    w.Add(",\"source_vertices_preserved\":");
+    w.Bool(info.sourceVerticesPreserved);
+    w.Add(",\"parameter_convention\":\"OriginalNativeBasis\",\"faces\":[");
+    for (std::size_t i = 0; i < info.faces.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& f = info.faces[i];
+        w.Add("{\"target\":");
+        w.Number(f.target);
+        w.Add(",\"source_face_id\":");
+        w.String(f.sourceFaceId);
+        w.Add(",\"source_surface_id\":");
+        w.String(f.sourceSurfaceId);
+        const auto domain = [&](const std::array<double, 4>& values)
+        {
+            w.Add("[");
+            for (std::size_t j = 0; j < values.size(); ++j)
+            {
+                if (j)
+                {
+                    w.Add(",");
+                }
+                Number(w, values[j]);
+            }
+            w.Add("]");
+        };
+        w.Add(",\"native_domain\":");
+        domain(f.nativeDomain);
+        if (f.originalNativeDomain)
+        {
+            w.Add(",\"original_native_domain\":");
+            domain(*f.originalNativeDomain);
+        }
+        if (f.nativeSurfaceDifferenceBoundMm)
+        {
+            w.Add(",\"native_surface_difference_bound_mm\":");
+            Number(w, *f.nativeSurfaceDifferenceBoundMm);
+        }
+        w.Add("}");
+    }
+    w.Add("],\"edges\":[");
+    for (std::size_t i = 0; i < info.edges.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& e = info.edges[i];
+        w.Add("{\"target\":");
+        w.Number(e.target);
+        if (e.sourceEdgeId)
+        {
+            w.Add(",\"source_edge_id\":");
+            w.String(*e.sourceEdgeId);
+        }
+        if (e.derivedFromFaceId)
+        {
+            w.Add(",\"derived_from_face_id\":");
+            w.String(*e.derivedFromFaceId);
+        }
+        w.Add(",\"basis_parameter_interval\":[");
+        Number(w, e.basisParameterInterval[0]);
+        w.Add(",");
+        Number(w, e.basisParameterInterval[1]);
+        w.Add("]}");
+    }
+    w.Add("],\"vertices\":[");
+    for (std::size_t i = 0; i < info.vertices.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& v = info.vertices[i];
+        w.Add("{\"target\":");
+        w.Number(v.target);
+        if (v.sourceVertexId)
+        {
+            w.Add(",\"source_vertex_id\":");
+            w.String(*v.sourceVertexId);
+        }
+        w.Add(",\"basis_edge_parameters\":[");
+        for (std::size_t j = 0; j < v.basisEdgeParameters.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            w.Add("{\"source_edge_id\":");
+            w.String(v.basisEdgeParameters[j].first);
+            w.Add(",\"parameter\":");
+            Number(w, v.basisEdgeParameters[j].second);
+            w.Add("}");
+        }
+        w.Add("]}");
+    }
+    w.Add("]}");
+}
 void PointJson(Writer& writer, const Point& point)
 {
     writer.Add("[");
@@ -364,6 +471,18 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 // qualification for analytic/NURBS models or complete AP214 rules.
                 w.Add("{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":");
                 w.String(StatusName(outcome.status));
+                if (report.periodicNormalizationRequested)
+                {
+                    w.Add(",\"periodic_normalization_requested\":true,\"topology_normalization\":");
+                    if (report.topologyNormalization)
+                    {
+                        TopologyJson(w, *report.topologyNormalization);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
+                }
                 if (report.supportDomainRestrictionRequested)
                 {
                     w.Add(",\"support_domain_restriction_requested\":true");

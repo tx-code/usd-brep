@@ -55,6 +55,12 @@ struct ModelData
     Fraction queryBudget;
     std::optional<NumericalIntegrationObservation> numericalIntegration;
     std::optional<UnitNormalization> lengthUnits; // Independent of the caller's mutable report and output lifetime.
+    std::optional<TopologyNormalizationInfo> topologyNormalization;
+    std::vector<SmEdge*> targetEdges; // Populated by explicit topology normalization; original source arrays remain separate.
+    std::vector<SmVertex*> targetVertices;
+    std::vector<std::size_t> targetFaceSources; // Source face ordinal for every target face, including source-to-many children.
+    std::vector<std::size_t> targetEdgeOwners; // Source record for execution/diagnostics, also for derived cuts.
+    std::vector<std::size_t> targetVertexOwners;
     Statistics info;
     mutable std::mutex mutex;
 };

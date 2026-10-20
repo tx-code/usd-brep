@@ -83,6 +83,33 @@ CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex／CLI
 清除可变 outcome/report 不会清除模型或 view 的资格。取消、报告不足及失败仍禁止部分发布；
 建模副本、原生存档不继承源验收资格，保存存档时须另存原报告。默认和严格／P0 路径不变。
 
+显式通用选项 `Options.normalizePeriodicFaces`／CLI `--normalize-periodic-faces`
+可对圆柱／圆锥的 U 周期近缝面执行目标表示规范化。默认关闭，P0 拒绝；
+它不选择质量配置、不放宽容差、不修复源几何，也不承诺任意周期面的支持。
+首版仅处理一个近缝候选面，并要求单个显式 `FACE_OUTER_BOUND`；以精确等参数线切分目标拓扑，再限制
+未用支撑域。正权重 UV 控制包围盒必须被实际保留域完全覆盖，整个保留的
+原生 NURBS 矩形通过与 `definitionMm` 对比的连续差界检查；每个目标面还须与
+切分前捕获的原始原生支撑面比较，而非仅比较切分后的裁域输入。证明不成立即拒绝。
+该差界针对原生二进制 NURBS，不是原始十进制源或解析重分类的误差证书。
+保留原生解析子类／参数对应，并继续执行完整原生、最终 UV 和工作容差检查。
+
+每条原源边使用的完整原生基曲线及解析子类原样保留，目标子边仅选择其参数子区间；
+子区间按原参数精确、无重叠、无缺口覆盖原使用区间。原源顶点的位置与身份不变，
+派生顶点逐个验证其原基曲线端点对应。不能用拟合、重参数化或调整源点来通过检查。
+临时来源属性在完成前删除，失败／取消时整个未发布候选在 context 前释放。
+额外原生／证明工作沿用可取消的 `nativeCalls` 边界；保留曲线控制点总量和
+各次 UV／曲面证明的临时控制网受 `sourceLimits.values` 限制。
+
+`ModelSnapshot::TopologyNormalization()` 返回 owning 对应清单的独立副本：
+目标面映射到源面／源曲面，目标边映射到源边或明确的派生切线，目标顶点映射到
+源顶点或关联源边的原生基参数。`basisParameterInterval` 与派生顶点参数采用
+原始转换后原生基参数，源 STEP 参数关系仍由 `parameter_mappings` 解释。
+目标面按源面分组，子面可以共享 `FaceView::SourceId()`；不能将该 ID 当目标唯一键。
+没有实际规范化时返回空；显式报告以 `periodic_normalization_requested` 与
+`topology_normalization` 区分请求和实际执行。`completed` 仅表示这一步完成，
+后续失败／取消仍不得发布模型。建模副本和原生存档不自动继承这份源资格，
+须另存报告。绘图成功和原生 validator 通过也不代表完整源符合性或连续几何验收。
+
 显式通用选项 `Options.restrictUnusedSupportDomains`／CLI
 `--restrict-unused-support-domains` 可限制未使用的 B 样条支撑面域。默认关闭，P0 拒绝。
 首版要求源声明唯一外边界、非闭合／非周期参数图、正权重 UV 控制网，以及完整边参数

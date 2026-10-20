@@ -48,6 +48,10 @@ namespace
 void Validate(const Options& options)
 {
     const auto& q = options.quality;
+    if (options.normalizePeriodicFaces && !options.generalBrep)
+    {
+        throw std::invalid_argument("Periodic topology normalization requires explicit general geometry");
+    }
     if (options.numericalIntegration)
     {
         const auto accuracy = options.numericalIntegration->relativeAccuracy;
@@ -137,6 +141,7 @@ Outcome Import(const Options& options, Capture capture)
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
+    report.periodicNormalizationRequested = options.normalizePeriodicFaces;
     if (options.numericalIntegration)
     {
         report.numericalIntegration = NumericalIntegrationObservation{ options.numericalIntegration->relativeAccuracy, {}, false };

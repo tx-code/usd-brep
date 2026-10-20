@@ -130,6 +130,10 @@ int main(int argc, char** argv)
                 }
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
             }
+            else if (arg == "--normalize-periodic-faces")
+            {
+                options.normalizePeriodicFaces = true;
+            }
             else if (arg == "--integration-relative-accuracy" && i + 1 < argc)
             {
                 double value = 0;
