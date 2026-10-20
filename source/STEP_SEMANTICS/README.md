@@ -1,5 +1,25 @@
 # STEP source semantics: ticket 03
 
+The fixed AP214 catalogs additionally bind ordinary `GEOMETRIC_SET`,
+`GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION` and `SPHERICAL_SURFACE`.
+Their original identities, inherited fields, sphere radius lexeme and units
+remain source-owned. Spherical radii use the existing positive-length check.
+These declarations append without moving existing type IDs; other protocol
+catalogs retain their narrower mappings.
+
+After existing geometry dependency checks, the bounded surface representation's
+necessary WR7 requires at least one **direct** geometric-set item with a direct
+SURFACE element (including surface subtypes). Unrelated surfaces elsewhere in
+the file, curve dependencies and mapped representations do not satisfy it.
+Shared sets are visited through a bounded memoized membership check; every
+reference use still incurs a dependency visit. Missing evidence is a source
+rule rejection before native construction, including interoperability mode.
+Passing this clause does not check WR1--WR6 or establish representation ownership,
+units or native conversion. Such representations still stop at the explicit
+unsupported selected-representation guard; they are never converted to a
+wireframe or material solid. Ordinary sets in wireframe representations now
+reach their existing WR1 rejection instead of a mapping refusal. P0 is unchanged.
+
 An independent explicit `--interpret-ap214-name-only-as-2010` /
 `SchemaInterpretation::Ap214NameOnlyAs2010` policy applies only to one exact bare
 `AUTOMOTIVE_DESIGN` identifier. It selects the pinned 2010 compatibility subset;
@@ -252,8 +272,9 @@ those require the selected numerical/native checks. P0 remains closed.
 
 General source scope also admits `GEOMETRIC_CURVE_SET` and
 `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION` from the pinned AP214,
-N2635 and modified N916 artifacts. `GEOMETRIC_SET` is a guarded ancestor;
-its ordinary leaf is not admitted. The inherited `elements` field is a nonempty
+N2635 and modified N916 artifacts. `GEOMETRIC_SET` remains a guarded ancestor in
+N2635 and modified N916; AP214 also admits its ordinary mapping as described
+above, without granting curve-set semantics. The inherited `elements` field is a nonempty
 SET of POINT/CURVE/SURFACE references; GCS.WR1 excludes surfaces but permits
 points. Source order does not create connectivity, and coincident distinct
 source points retain their identities. Computed GRI.dim has no transmitted slot.

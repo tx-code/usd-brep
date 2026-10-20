@@ -135,14 +135,14 @@ class WireframeSourceTests(unittest.TestCase):
                 self.assertEqual("SourceRuleViolation:GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION." + clause,
                                  report["diagnostics"][0]["key"])
 
-    def test_unknown_maps_and_direct_parent_sets_do_not_gain_leaf_admission(self):
+    def test_unknown_maps_and_surface_sets_do_not_gain_wireframe_semantics(self):
         cases = ((linked_wire_source().replace(b"#910=GEOMETRIC_CURVE_SET", b"#910=GEOMETRIC_SET"),
-                  "UnsupportedEntityMapping"),
+                  "SourceRuleViolation:GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION.WR1", 1),
                  (append_records(linked_wire_source(), b"#950=MAPPED_ITEM('',#951,#904);\n"
-                                 b"#951=REPRESENTATION_MAP(#904,#920);\n"), "UnsupportedEntityType"))
-        for data, key in cases:
+                                 b"#951=REPRESENTATION_MAP(#904,#920);\n"), "UnsupportedEntityType", 2))
+        for data, key, code in cases:
             run, report = self.invoke(data, "--general-brep-source")
-            self.assertEqual(2, run.returncode)
+            self.assertEqual(code, run.returncode)
             self.assertEqual(key, report["diagnostics"][0]["key"])
 
     def test_context_mismatch_extra_relationships_and_rootless_wireframes_are_not_guessed(self):

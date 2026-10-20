@@ -8,6 +8,7 @@
 #include "StepAp214PointStyleCatalogData.h"
 #include "StepAp214PresentationCatalogData.h"
 #include "StepAp214SourceRolesCatalogData.h"
+#include "StepAp214SurfaceRoleCatalogData.h"
 #include "StepAp214ValueCatalogData.h"
 #include "StepCatalogBuilder.h"
 #include "StepCompositeCurveCatalogData.h"
@@ -526,6 +527,10 @@ constexpr Recipe ProfileRecipe()
     if constexpr (Profile != ProfileKind::Ap203e2Planar)
     {
         composite_curve::AppendDeclarations(recipe); // Append after every existing profile-specific identity.
+    }
+    if constexpr (IsAp214SourceProfile(Profile))
+    {
+        ap214_surface_role::AppendDeclarations(recipe);
     }
     return recipe;
 }

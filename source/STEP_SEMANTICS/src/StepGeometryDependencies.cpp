@@ -151,9 +151,68 @@ public:
             TrimmedClosure(trimmed); // Preserve existing no-composite charges and diagnostics.
         }
         WireframeChecks();
+        BoundedSurfaceRolePrerequisite();
     }
 
 private:
+
+    void BoundedSurfaceRolePrerequisite()
+    {
+        const auto type = Schema(m_data).Find("GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION");
+        if (!type || m_data.populations[*type].empty())
+        {
+            return; // Existing inputs retain their dependency visits and order.
+        }
+        // Pinned AP214E3_2010.exp (71ab140f...), GBSR.WR7 is an existential
+        // query over DIRECT GEOMETRIC_SET items and their DIRECT elements.
+        // A surface elsewhere in the file, in a curve's dependencies or only
+        // behind a mapped item cannot satisfy it. TYPEOF includes subtypes.
+        // This necessary clause does not establish WR1--WR6, ownership, units
+        // or native support: the later selected-representation guard remains.
+        std::vector<signed char> containsSurface(m_data.types.size(), -1);
+        for (const auto record : m_data.populations[*type])
+        {
+            const auto& bound = Field(record, "items");
+            const auto& items = *bound.declaration.value;
+            Count(items.span);
+            bool found = false;
+            for (const auto& item : items.children)
+            {
+                m_visit(item.span);
+                const auto set = m_data.referenceTargets.at(&item);
+                if (!IsA(set, "GEOMETRIC_SET"))
+                {
+                    continue;
+                }
+                auto& cached = containsSurface[set];
+                if (cached < 0)
+                {
+                    cached = 0;
+                    const auto& elements = *Field(set, "elements").declaration.value;
+                    m_visit(elements.span);
+                    for (const auto& member : elements.children)
+                    {
+                        m_visit(member.span);
+                        cached = (IsA(m_data.referenceTargets.at(&member), "SURFACE") || cached == 1) ? 1 : 0;
+                    }
+                }
+                // Repeated references still incur their own visit above;
+                // shared sets are inspected once, with no recursive expansion.
+                found = found || cached == 1;
+            }
+            if (!found)
+            {
+                Fail(
+                    record,
+                    bound,
+                    items,
+                    "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION.WR7",
+                    "at least one direct GEOMETRIC_SET containing a SURFACE element",
+                    "no direct surface-bearing set"
+                );
+            }
+        }
+    }
 
     const SemanticData& m_data;
     const std::function<void(Span)>& m_visit;

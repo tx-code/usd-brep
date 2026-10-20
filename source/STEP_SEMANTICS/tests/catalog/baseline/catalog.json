@@ -10951,7 +10951,9 @@
         "PRE_DEFINED_SYMBOL",
         "PRE_DEFINED_POINT_MARKER_SYMBOL",
         "COMPOSITE_CURVE",
-        "COMPOSITE_CURVE_SEGMENT"
+        "COMPOSITE_CURVE_SEGMENT",
+        "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+        "SPHERICAL_SURFACE"
       ],
       "name_index": [
         {
@@ -11173,6 +11175,10 @@
         {
           "name": "FOUNDED_ITEM",
           "id": 67
+        },
+        {
+          "name": "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+          "id": 134
         },
         {
           "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
@@ -11425,6 +11431,10 @@
         {
           "name": "SOLID_MODEL",
           "id": 30
+        },
+        {
+          "name": "SPHERICAL_SURFACE",
+          "id": 135
         },
         {
           "name": "STYLED_ITEM",
@@ -16819,7 +16829,7 @@
           "parents": [
             "GEOMETRIC_REPRESENTATION_ITEM"
           ],
-          "simple": false,
+          "simple": true,
           "fields": [
             {
               "name": "elements",
@@ -17402,6 +17412,82 @@
               "declaring_type": "COMPOSITE_CURVE_SEGMENT",
               "declaring_type_id": 133,
               "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 134,
+          "name": "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            134
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 135,
+          "name": "SPHERICAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            135
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SPHERICAL_SURFACE",
+              "declaring_type_id": 135,
+              "local_field_index": 0
             }
           ]
         }
@@ -18029,7 +18115,9 @@
         "PRE_DEFINED_SYMBOL",
         "PRE_DEFINED_POINT_MARKER_SYMBOL",
         "COMPOSITE_CURVE",
-        "COMPOSITE_CURVE_SEGMENT"
+        "COMPOSITE_CURVE_SEGMENT",
+        "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+        "SPHERICAL_SURFACE"
       ],
       "name_index": [
         {
@@ -18275,6 +18363,10 @@
         {
           "name": "GENERIC_LITERAL",
           "id": 129
+        },
+        {
+          "name": "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+          "id": 149
         },
         {
           "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
@@ -18563,6 +18655,10 @@
         {
           "name": "SOLID_MODEL",
           "id": 30
+        },
+        {
+          "name": "SPHERICAL_SURFACE",
+          "id": 150
         },
         {
           "name": "STYLED_ITEM",
@@ -24451,7 +24547,7 @@
           "parents": [
             "GEOMETRIC_REPRESENTATION_ITEM"
           ],
-          "simple": false,
+          "simple": true,
           "fields": [
             {
               "name": "elements",
@@ -25034,6 +25130,82 @@
               "declaring_type": "COMPOSITE_CURVE_SEGMENT",
               "declaring_type_id": 148,
               "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 149,
+          "name": "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+          "parents": [
+            "SHAPE_REPRESENTATION"
+          ],
+          "simple": true,
+          "fields": [],
+          "ancestors": [
+            33,
+            34,
+            149
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 1
+            },
+            {
+              "declaring_type": "REPRESENTATION",
+              "declaring_type_id": 33,
+              "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 150,
+          "name": "SPHERICAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            150
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SPHERICAL_SURFACE",
+              "declaring_type_id": 150,
+              "local_field_index": 0
             }
           ]
         }
