@@ -242,7 +242,7 @@ Other fields, protocol
 claims, property-rule names, units and unapproved owners remain unsupported.
 Additional field-specific proofs admit singleton selected PD/PDF identifiers,
 the selected MANIFOLD_SOLID_BREP's inherited RI caption, and attached
-APPROVAL.level / PERSON.id labels. PD/PDF preservation requires one definition
+APPROVAL.level / PERSON.id / PERSON.last_name / PERSON.first_name / ORGANIZATION.id / ORGANIZATION.name labels. PD/PDF preservation requires one definition
 and formation; administrative labels need actual selected attachment and complete
 physical exclusion. The MSB proof applies only to its caption: all shell/geometry
 fields remain required. No text, revision, name or locale is invented.

@@ -25,6 +25,16 @@ struct Failure
     Status status;
     Diagnostic diagnostic;
 };
+bool OpaqueAdministrativeField(std::string_view owner, std::string_view field)
+{
+    // The pinned N2635/AP214 declarations (StepAp203GeneralCatalogData.h)
+    // make these scalar labels, not roles, selectors or physical quantities.
+    // This is only a candidate whitelist: final approval additionally proves
+    // selected administrative attachment and exclusion from physical reach.
+    return (owner == "APPROVAL" && field == "level") ||
+           (owner == "PERSON" && (field == "id" || field == "last_name" || field == "first_name")) ||
+           (owner == "ORGANIZATION" && (field == "id" || field == "name"));
+}
 bool IsA(const SemanticData& data, std::size_t record, std::string_view name)
 {
     const auto type = Schema(data).Find(name);
@@ -918,8 +928,7 @@ private:
                                                   (issue.declaredIn == "PRODUCT_DEFINITION_FORMATION" || issue.declaredIn == "PRODUCT_DEFINITION");
                         const bool shapeCaption = issue.declaredIn == "REPRESENTATION_ITEM" && issue.field == "name" &&
                                                   IsA(*m_data, r, "MANIFOLD_SOLID_BREP");
-                        const bool administrative = (issue.declaredIn == "APPROVAL" && issue.field == "level") ||
-                                                    (issue.declaredIn == "PERSON" && issue.field == "id");
+                        const bool administrative = OpaqueAdministrativeField(issue.declaredIn, issue.field);
                         if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
                             !(display || partIdentity || shapeCaption || administrative) || path.size() != 1)
                         {
@@ -3677,8 +3686,7 @@ private:
                     // Administrative attachment already proved ALL assignment
                     // targets. Do not attach orphan labels by spelling/type.
                     approved = !physical[record] && (*selectedUse)[record] &&
-                               ((owner == "APPROVAL" && field == "level" && IsA(*m_data, record, "APPROVAL")) ||
-                                (owner == "PERSON" && field == "id" && IsA(*m_data, record, "PERSON")));
+                               OpaqueAdministrativeField(owner, field) && IsA(*m_data, record, owner);
                 }
                 if (m_data->geometryScope != GeometryScope::GeneralBrep || FieldValue(record, field).kind != ValueKind::OpaqueString || !approved)
                 {

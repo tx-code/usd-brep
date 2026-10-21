@@ -24,6 +24,18 @@ def opaque_source(field="layer"):
 class OpaqueNativeTests(unittest.TestCase):
     invoke_bytes = test_general.GeneralTests.invoke_bytes
 
+    def test_attached_administrative_text_preserves_analytic_box_and_source(self):
+        from tools.step_semantic_validation.tests.test_opaque_identity import administrative_names
+        source = administrative_names()
+        run, result = self.invoke_bytes(source, "--interop-nongeometric", "--preserve-opaque-data-strings")
+        self.assertEqual(0, run.returncode, run.stderr or result)
+        self.assertEqual('Accepted', result['status'])
+        self.assertEqual(source, result['source_inspection']['source']['input']['raw'].encode('latin1'))
+        self.assertEqual((6, 12, 8), tuple(result['model'][key] for key in ['faces', 'edges', 'vertices']))
+        self.assertAlmostEqual(6000, result['model']['material_volume']['value_mm3'], delta=1e-5)
+        self.assertEqual(9, sum(d['key'] == 'OpaqueDataTextUnestablished'
+                                for d in result['source_inspection']['preserved_diagnostics']))
+
     def test_selected_nondefining_text_keeps_the_whole_analytic_cylinder(self):
         for field, count in [("layer", 1), ("product", 2)]:
             with self.subTest(field=field):

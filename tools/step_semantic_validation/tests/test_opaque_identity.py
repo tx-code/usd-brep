@@ -25,7 +25,47 @@ def opaque_identity_box(admin=True):
     return data
 
 
+def administrative_names():
+    data = opaque_identity_box().replace(b"'tester',$", b"'\x85','\x88'")
+    data = data.replace(b"#905=APPROVAL_PERSON_ORGANIZATION(#903,#901,#904);",
+                        b"#905=APPROVAL_PERSON_ORGANIZATION(#907,#901,#904);\n"
+                        b"#906=ORGANIZATION('\x86','\x87',$);\n"
+                        b"#907=PERSON_AND_ORGANIZATION(#903,#906);")
+    return data
+
+
 class OpaqueIdentityTests(unittest.TestCase):
+    def test_attached_organization_identifier_and_person_surname_keep_original_bytes(self):
+        data = administrative_names()
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+        self.assertEqual("CheckedWithDiagnostics", report["status"])
+        preserved = [d for d in report['preserved_diagnostics'] if d['key'] == 'OpaqueDataTextUnestablished']
+        self.assertEqual(9, len(preserved))
+        self.assertIn(('ORGANIZATION', 'id'), {(d['declared_in'], d['field']) for d in preserved})
+        self.assertIn(('PERSON', 'last_name'), {(d['declared_in'], d['field']) for d in preserved})
+        self.assertEqual(data, report['source']['input']['raw'].encode('latin1'))
+        records = {r['id']: r for r in report['source']['records']}
+        for record, slot in [('903', 1), ('903', 2), ('906', 0), ('906', 1)]:
+            value = records[record]['components'][0]['parameters'][slot]
+            self.assertEqual('OpaqueString', value['kind'])
+            self.assertIsNone(value['text'])
+
+    def test_administrative_names_do_not_relax_strict_or_orphan_ownership(self):
+        data = administrative_names()
+        # Remove all older exceptions so these controls fail on the newly
+        # supported fields rather than an unrelated product/approval caption.
+        for byte in range(0x80, 0x85):
+            data = data.replace(bytes([byte]), b'public')
+        variants = [(data, False),
+                    (data.replace(b'#905=APPROVAL_PERSON_ORGANIZATION(#907,#901,#904);', b''), True),
+                    (data.replace(b"'\x87',$", b"'\x87','\x89'"), True)]
+        for candidate, interop in variants:
+            with self.subTest(interop=interop):
+                run, report = self.invoke(candidate, interop)
+                self.assertNotEqual(0, run.returncode)
+                self.assertIsNone(report['snapshot'])
+
     def invoke(self, data, interop=True, *flags):
         with tempfile.TemporaryDirectory(prefix="step-opaque-identity-") as directory:
             path = Path(directory) / "source.step"
