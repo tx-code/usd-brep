@@ -41,12 +41,16 @@ class RequestReceipt:
         is_cad = Path(self.filename).suffix.lower() in {".step", ".stp"}
         ready = scene.get("status") == "Ready"
         native_status = scene.get("status") if is_cad else None
-        import_complete = is_cad and (ready or "copy" in phases)
+        explicit_status = scene.get("native_import_status") if is_cad else None
+        import_complete = is_cad and (ready or "copy" in phases or
+                                     explicit_status in ("Accepted", "AcceptedUnderInterpretation"))
         if native_status in (None, "Ready", "DisplayFailure"):
             # Ready establishes this viewer's import stage completed. It does
             # not expose the core's exact acceptance/interpretation status, so
             # do not invent an unqualified native Accepted status from it.
             native_status = None
+        if explicit_status:
+            native_status = explicit_status
         self.result = {
             "format": "brep-view-result.v1", "input": self.filename, "outcome": outcome,
             "qualification": "ViewerPipelineOnly", "source_sha256": scene.get("source_sha256"),

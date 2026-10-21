@@ -202,6 +202,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 )
             study = self.loader.settings.profile != "development" and metadata.get("units") == "mm"
             policy = "\n研究配置" if study else ""
+            if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
+                policy += "\n源解释模式 · 身份未验证"
             self.hud.setText(f"{role}{policy}\n{counts}\n≈ {size}  {unit}")
             auxiliary = metadata.get("_auxiliary")
             if auxiliary:
@@ -462,7 +464,9 @@ def run(options):
     application.setStyle("Fusion")
     application.styleHints().setColorScheme(QtCore.Qt.ColorScheme.Dark)
     settings = ImportSettings(options.profile, options.normalize_periodic_faces,
-                              options.restrict_unused_support_domains, options.strict_source)
+                              options.restrict_unused_support_domains, options.strict_source,
+                              schema_interpretation=options.schema_interpretation,
+                              carrier_interpretation=options.carrier_interpretation)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

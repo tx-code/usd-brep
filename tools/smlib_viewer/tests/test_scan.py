@@ -25,7 +25,8 @@ BOX = REPO / "tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P
 def options(**values):
     defaults = dict(scan=[], output=None, profile="development", normalize_periodic_faces=False,
                     restrict_unused_support_domains=False, strict_source=False, edges=False,
-                    wireframe=False, thumbnails=False, timeout=150)
+                    wireframe=False, thumbnails=False, timeout=150,
+                    schema_interpretation="DeclaredOnly", carrier_interpretation="DeclaredOnly")
     return SimpleNamespace(**(defaults | values))
 
 

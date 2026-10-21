@@ -81,6 +81,8 @@ def run_case(path, directory, options, caption):
     result_file = directory / "result.json"
     command = [*viewer_command(), str(path), "--quit-after-load", "--result", str(result_file),
                "--scan-child", "--profile", options.profile]
+    command.extend(["--schema-interpretation", options.schema_interpretation,
+                    "--carrier-interpretation", options.carrier_interpretation])
     for enabled, flag in [(options.normalize_periodic_faces, "--normalize-periodic-faces"),
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
                           (options.strict_source, "--strict-source"), (options.edges, "--edges"),
@@ -262,6 +264,8 @@ def _summary(roots, records, count, started, options, complete, counts, *, inclu
         "format": "brep-view-scan.v1", "complete": complete, "qualification": "ViewerPipelineOnly",
         "roots": list(map(str, roots)),
         "settings": {"profile": options.profile, "strict_source": options.strict_source,
+                     "schema_interpretation": options.schema_interpretation,
+                     "carrier_interpretation": options.carrier_interpretation,
                      "normalize_periodic_faces": options.normalize_periodic_faces,
                      "restrict_unused_support_domains": options.restrict_unused_support_domains,
                      "edges": options.edges, "wireframe": options.wireframe, "thumbnails": options.thumbnails,

@@ -4,6 +4,7 @@
 import argparse
 from pathlib import Path
 import sys
+from .interpretation import SCHEMA_POLICIES, CARRIER_POLICIES, validate
 
 
 def main(argv=None):
@@ -21,6 +22,8 @@ def main(argv=None):
     parser.add_argument("--normalize-periodic-faces", action="store_true")
     parser.add_argument("--restrict-unused-support-domains", action="store_true")
     parser.add_argument("--strict-source", action="store_true", help="禁用非几何互操作；默认保留已证明无关的原诊断")
+    parser.add_argument("--schema-interpretation", choices=SCHEMA_POLICIES, default="DeclaredOnly")
+    parser.add_argument("--carrier-interpretation", choices=CARRIER_POLICIES, default="DeclaredOnly")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
     parser.add_argument("--wireframe", action="store_true", help="显示三角网格")
     parser.add_argument("--screenshot", type=Path, help="仅在本地保存画面")
@@ -32,6 +35,10 @@ def main(argv=None):
     parser.add_argument("--timeout", type=float, default=150, help="扫描单文件完整查看流程的秒数上限（默认 150）")
     parser.add_argument("--scan-child", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args(args)
+    try:
+        validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source)
+    except ValueError as error:
+        parser.error(str(error))
     if options.scan:
         if options.file or not options.output or options.result or options.screenshot or options.scan_child:
             parser.error("--scan 需要 --output，不能同时指定单文件、--result 或 --screenshot")

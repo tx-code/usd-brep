@@ -184,7 +184,10 @@ void Publish(
     const step_import::Statistics* info,
     std::size_t triangles,
     std::size_t points,
-    bool auxiliary = false
+    bool auxiliary = false,
+    std::string_view nativeStatus = {},
+    std::string_view schema = "DeclaredOnly",
+    std::string_view carrier = "DeclaredOnly"
 )
 {
     std::string json;
@@ -199,6 +202,12 @@ void Publish(
                            "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
+                w.Add(",\"native_import_status\":");
+                w.String(nativeStatus);
+                w.Add(",\"requested_schema_interpretation\":");
+                w.String(schema);
+                w.Add(",\"requested_carrier_interpretation\":");
+                w.String(carrier);
                 w.Add(",\"key\":");
                 w.String(key);
                 w.Add(",\"source_sha256\":");
@@ -259,11 +268,14 @@ int Run(
     const std::string& profile,
     bool normalize,
     bool restrictDomain,
-    bool strict
+    bool strict,
+    const std::string& schema,
+    const std::string& carrier
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
     step_import::Outcome result;
+    std::string nativeStatus; // Empty until the core actually returns an outcome.
     try
     {
         auto options = step_import::Options::PlanarFixture();
@@ -273,7 +285,7 @@ int Run(
                           profile == "work-tolerance-study" ? step_import::Quality::GeneralWorkToleranceStudy() :
                                                               throw std::invalid_argument("UnknownViewerProfile");
         // Application-selected development preview policy, not a production
-        // SDK default. No schema/carrier assumption or automatic tolerance retry.
+        // SDK default. Source assumptions require explicit arguments; no retry.
         options.sourceLimits = { 64 * 1024 * 1024, 1000000, 2000000, 2000000, 128, 1024 * 1024, 16 * 1024 * 1024, 16 * 1024 * 1024, 64 };
         options.semanticLimits.dependencyVisits = 10000000;
         options.nativeLimits.nativeCalls = 1000000;
@@ -314,16 +326,45 @@ int Run(
             options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
             options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
         }
+        // Match the core's closed policy enums, never infer an interpretation
+        // from file content or a failed default import. Strict mode cannot gain
+        // a carrier/schema exception through this transport entry point.
+        Good(!strict || (schema == "DeclaredOnly" && carrier == "DeclaredOnly"), "InterpretationRequiresInteroperability");
+        if (schema == "Ap214NameOnlyAs2010")
+        {
+            options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
+        }
+        else if (schema == "UnregisteredAp214As2010")
+        {
+            options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+        }
+        else
+        {
+            Good(schema == "DeclaredOnly", "UnknownSchemaInterpretation");
+        }
+        if (carrier == "Level1AsCorrectedEncoding")
+        {
+            options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
+        }
+        else if (carrier == "Level1AsCorrectedEncodingWithLowercaseHex")
+        {
+            options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
+        }
+        else
+        {
+            Good(carrier == "DeclaredOnly", "UnknownCarrierInterpretation");
+        }
         options.normalizePeriodicFaces = normalize;
         options.restrictUnusedSupportDomains = restrictDomain;
         result = step_import::ImportFile(input, options);
+        nativeStatus = step_import::StatusName(result.status);
         std::ofstream report(output / "import-report.json", std::ios::binary);
         report << result.report.json;
         report.close();
         Good(bool(report), "ImportReportWriteFailed");
         if (!result.model)
         {
-            Publish(output, step_import::StatusName(result.status), "ImportFailed", result.report, nullptr, 0, 0);
+            Publish(output, step_import::StatusName(result.status), "ImportFailed", result.report, nullptr, 0, 0, false, nativeStatus, schema, carrier);
             return 1;
         }
         // CopyBrepForModeling explicitly selects the body component. Complete
@@ -348,14 +389,14 @@ int Run(
             }
         );
         Progress("publish");
-        Publish(output, "Ready", "", result.report, &info, triangles, points, auxiliary);
+        Publish(output, "Ready", "", result.report, &info, triangles, points, auxiliary, nativeStatus, schema, carrier);
         return 0;
     }
     catch (const std::exception& error)
     {
         if (!std::filesystem::exists(output / "scene.json"))
         {
-            Publish(output, "DisplayFailure", error.what(), result.report, nullptr, 0, 0);
+            Publish(output, "DisplayFailure", error.what(), result.report, nullptr, 0, 0, false, nativeStatus, schema, carrier);
         }
         return 1;
     }
@@ -364,7 +405,7 @@ int Run(
 #ifdef _WIN32
 int wmain(int argc, wchar_t** argv)
 {
-    if (argc != 7)
+    if (argc != 7 && argc != 9)
     {
         return 2;
     }
@@ -378,7 +419,9 @@ int wmain(int argc, wchar_t** argv)
         {
             Good(std::wstring_view(argv[i]) == L"0" || std::wstring_view(argv[i]) == L"1", "InvalidFlag");
         }
-        return Run(argv[1], argv[2], std::filesystem::path(argv[3]).string(), argv[4][0] == L'1', argv[5][0] == L'1', argv[6][0] == L'1');
+        return Run(argv[1], argv[2], std::filesystem::path(argv[3]).string(), argv[4][0] == L'1', argv[5][0] == L'1', argv[6][0] == L'1',
+                   argc == 9 ? std::filesystem::path(argv[7]).string() : "DeclaredOnly",
+                   argc == 9 ? std::filesystem::path(argv[8]).string() : "DeclaredOnly");
     }
     catch (...)
     {
@@ -388,7 +431,7 @@ int wmain(int argc, wchar_t** argv)
 #else
 int main(int argc, char** argv)
 {
-    if (argc != 7)
+    if (argc != 7 && argc != 9)
     {
         return 2;
     }
@@ -400,7 +443,8 @@ int main(int argc, char** argv)
         {
             Good(std::string_view(argv[i]) == "0" || std::string_view(argv[i]) == "1", "InvalidFlag");
         }
-        return Run(argv[1], argv[2], argv[3], argv[4][0] == '1', argv[5][0] == '1', argv[6][0] == '1');
+        return Run(argv[1], argv[2], argv[3], argv[4][0] == '1', argv[5][0] == '1', argv[6][0] == '1',
+                   argc == 9 ? argv[7] : "DeclaredOnly", argc == 9 ? argv[8] : "DeclaredOnly");
     }
     catch (...)
     {

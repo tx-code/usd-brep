@@ -13,6 +13,7 @@ import tempfile
 from PySide6 import QtCore
 from .progress import Progress, ProgressReader
 from .process_guard import ProcessGuard
+from .interpretation import validate
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -25,6 +26,11 @@ class ImportSettings:
     restrict_domains: bool = False
     strict_source: bool = False
     timeout_seconds: int = 120
+    schema_interpretation: str = "DeclaredOnly"
+    carrier_interpretation: str = "DeclaredOnly"
+
+    def __post_init__(self):
+        validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source)
 
 
 def native_worker() -> Path:
@@ -89,6 +95,8 @@ class SceneLoader(QtCore.QObject):
             program = native_worker()
             arguments = [str(path), directory.name, self.settings.profile, str(int(self.settings.normalize_periodic)),
                          str(int(self.settings.restrict_domains)), str(int(self.settings.strict_source))]
+            if self.settings.schema_interpretation != "DeclaredOnly" or self.settings.carrier_interpretation != "DeclaredOnly":
+                arguments.extend([self.settings.schema_interpretation, self.settings.carrier_interpretation])
         else:
             program = Path(sys.executable)
             script = Path(__file__).resolve().parents[1] / "scripts/brep_view.py"

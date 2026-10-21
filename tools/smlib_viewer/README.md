@@ -37,6 +37,16 @@ configuration; see the [import contract](../../source/STEP_IMPORT/README.md).
 The default `--profile development` preserves proven nongeometric interoperability
 diagnostics and opaque source text. `--strict-source` disables those exceptions.
 No implicit schema assumption, tolerance retry or alternate reader is used.
+`--schema-interpretation` explicitly selects `DeclaredOnly` (default),
+`UnregisteredAp214As2010`, or `Ap214NameOnlyAs2010`. Independently,
+`--carrier-interpretation` selects `DeclaredOnly` (default),
+`Level1AsCorrectedEncoding`, or `Level1AsCorrectedEncodingWithLowercaseHex`.
+Nondefault interpretations require interoperability and cannot accompany
+`--strict-source`. These options work for single files and scans; they never
+trigger an automatic retry. When the core applies an assumption, the HUD marks
+the source interpretation and receipts retain `AcceptedUnderInterpretation`.
+Requested settings are distinct from the returned native status; rendering
+remains only viewer-pipeline evidence, not formal STEP qualification.
 `--profile tolerance-study` and `--profile work-tolerance-study` select explicit
 research configurations. Optional `--normalize-periodic-faces` and
 `--restrict-unused-support-domains` retain their existing verified normalization
