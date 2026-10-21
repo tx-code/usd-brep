@@ -1749,7 +1749,10 @@ private:
             double mean = 0, max = 0, meanVertex = 0, maxVertex = 0, meanParam = 0, maxParam = 0;
             Step(f.record);
             Good(native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam));
-            // FALSE forbids tolerance adjustment. Report kernel observations as
+            // FALSE requests no tolerance adjustment at the face level. Nested
+            // edgeuse projection retries can still change edge working tolerances;
+            // ObserveTolerances must reject any resulting budget excess.
+            // Report kernel observations as
             // measurements, never as the planar implementation's interval proof.
             // A failed budget still retains the finite observation; absence of
             // data must remain distinguishable from a measured excess.
@@ -2111,13 +2114,20 @@ private:
         const auto observe = [&](const char* kind, const std::string& id, const SmObject* object)
         {
             const double tolerance = SmTol::GetZoneTol3d(object);
+            // Retain the failing object's finite observation before discarding
+            // the candidate. This is millimetres of native working tolerance,
+            // not permission to enlarge the configured acceptance/repair budget.
+            // Nonfinite values remain a failure without invalid JSON numbers.
+            if (std::isfinite(tolerance))
+            {
+                m_report.tolerances.push_back({ "Postchecked", kind, id, tolerance });
+            }
             Need(
                 std::isfinite(tolerance) && tolerance > 0 && tolerance <= Q(m_options.quality.maximumWorkToleranceMm) &&
                     tolerance <= Tol() + Q(m_options.quality.toleranceGrowthMm),
                 "GeneralUnexpectedToleranceGrowth",
                 shape
             );
-            m_report.tolerances.push_back({ "Postchecked", kind, id, tolerance });
         };
         observe("BrepWorkTolerance", Id(shape), m_model->brep.get());
         for (const auto& f : m_model->faces)
