@@ -45,6 +45,8 @@ def native_worker() -> Path:
 
 def scene_file(directory: Path, name: str) -> Path:
     """Manifest paths are request-relative; no worker may redirect a GUI read."""
+    if not isinstance(name, str) or not name or Path(name).is_absolute():
+        raise ValueError("InvalidScenePath")
     target = (directory / name).resolve()
     if not target.is_relative_to(directory.resolve()) or not target.is_file():
         raise ValueError("InvalidScenePath")
@@ -179,7 +181,8 @@ class SceneLoader(QtCore.QObject):
             if not manifest_path.is_file() or manifest_path.stat().st_size > 65536:
                 raise ValueError("WorkerFailedOrCrashed")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2"}:
+            if (not isinstance(manifest, dict)
+                    or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3"}):
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -195,11 +198,27 @@ class SceneLoader(QtCore.QObject):
                     or mesh.n_points > 6000000 or not np.isfinite(mesh.points).all()):
                 raise ValueError("InvalidDisplayMesh")
             boundary = pv.read(scene_file(directory, manifest["boundary"])) if manifest.get("boundary") else None
-            metadata = manifest
-            if manifest["format"] == "brep-view-scene.v2":
+            metadata = dict(manifest)
+            auxiliary_required = manifest["format"] == "brep-view-scene.v2"
+            if manifest["format"] == "brep-view-scene.v3":
+                from .topology import read_topology
+                # v3 adds native display-copy provenance, not source STEP IDs or
+                # live kernel handles. Both required sidecars must be accepted
+                # before any scene can replace the previously published one.
+                auxiliary_required = manifest.get("auxiliary_required")
+                if type(auxiliary_required) is not bool:
+                    raise ValueError("InvalidAuxiliaryRequirement")
+                if not auxiliary_required and "auxiliary" in manifest:
+                    raise ValueError("UnexpectedAuxiliaryPayload")
+                topology = read_topology(scene_file(directory, manifest["topology"]), mesh, boundary, manifest)
+                metadata["_topology"] = topology
+                self.worker_result["topology_inventory"] = dict(
+                    faces=len(topology.faces), edges=len(topology.edges), vertices=len(topology.vertices),
+                    face_labels_complete=topology.face_labels_complete)
+            if auxiliary_required:
                 from .auxiliary import read_auxiliary
                 auxiliary = read_auxiliary(scene_file(directory, manifest["auxiliary"]))
-                metadata = {**manifest, "_auxiliary": auxiliary}
+                metadata["_auxiliary"] = auxiliary
                 self.worker_result["auxiliary_inventory"] = dict(auxiliary.counts)
             self.progress.emit(Progress("render"))
             if generation != self.generation or job["stopped"]:

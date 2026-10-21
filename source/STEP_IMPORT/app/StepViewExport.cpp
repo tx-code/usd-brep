@@ -4,6 +4,7 @@
 #include "StepImport.h"
 #include "StepSourceReport.h"
 #include "StepViewAuxiliary.h"
+#include "StepViewTopology.h"
 
 #include <SmApiBrep.h>
 #include <SmBrep.h>
@@ -72,6 +73,7 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
     mesh->GetPolyFaces(faces);
     points = vertices.GetSize();
     triangles = faces.GetSize();
+    step_view::DisplayTopology topology(body);
     Good(points && triangles && triangles <= 2000000 && points <= std::size_t(INT32_MAX), "DisplayMeshLimit");
     std::unordered_map<SmPolyVertex*, std::uint32_t> indices;
     indices.reserve(points);
@@ -106,6 +108,11 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
             Progress("mesh-faces", i + 1, triangles);
         }
     }
+    out << "\nCELL_DATA " << triangles << "\nSCALARS TopoFace int 1\nLOOKUP_TABLE default\n";
+    for (ULONG i = 0; i < faces.GetSize(); ++i)
+    {
+        Network(out, static_cast<std::uint32_t>(topology.Face(*faces[i])));
+    }
     out << '\n';
     out.close();
     Good(bool(out), "MeshWriteFailed");
@@ -114,6 +121,7 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
     SmTArray<SmEdge*> edges;
     Progress("boundary");
     Good(SmApiTessellateBoundaries(&body, 5., samples, counts, edges) == SM_SUCCESS, "BoundaryTessellationFailed");
+    Good(counts.GetSize() == edges.GetSize(), "DisplayEdgeProvenanceCount");
     std::size_t lines = 0, entries = 0;
     for (ULONG i = 0; i < counts.GetSize(); ++i)
     {
@@ -154,9 +162,19 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
             Progress("boundary-lines", i + 1, counts.GetSize());
         }
     }
+    wire << "\nCELL_DATA " << lines << "\nSCALARS TopoEdge int 1\nLOOKUP_TABLE default\n";
+    for (ULONG i = 0; i < counts.GetSize(); ++i)
+    {
+        if (counts[i] > 1)
+        {
+            Network(wire, topology.Edge(edges[i]));
+        }
+    }
     wire << '\n';
     wire.close();
     Good(bool(wire), "BoundaryWriteFailed");
+    Progress("measure");
+    topology.Write(output);
 }
 void Publish(
     const std::filesystem::path& output,
@@ -177,8 +195,8 @@ void Publish(
             [&](Writer& w)
             {
                 w.Add(
-                    auxiliary ? "{\"format\":\"brep-view-scene.v2\",\"auxiliary\":\"auxiliary.json\",\"status\":" :
-                                "{\"format\":\"brep-view-scene.v1\",\"status\":"
+                    info ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
+                           "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
                 w.Add(",\"key\":");
@@ -191,6 +209,14 @@ void Publish(
                 w.Number(points);
                 if (info)
                 {
+                    // v3 always declares whether the associated payload is
+                    // required. Losing its path cannot become a body-only scene.
+                    w.Add(",\"auxiliary_required\":");
+                    w.Bool(auxiliary);
+                    if (auxiliary)
+                    {
+                        w.Add(",\"auxiliary\":\"auxiliary.json\"");
+                    }
                     w.Add(",\"role\":");
                     w.String(info->shapeRole);
                     w.Add(",\"faces\":");

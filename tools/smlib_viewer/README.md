@@ -65,10 +65,10 @@ finite native chart sentinels remain metadata and never become source trims.
 The HUD marks the plane preview. Body dimensions/topology stay BRep-only, while
 fit/clipping includes associated geometry and these display proxies.
 
-Mixed scenes use `brep-view-scene.v2` with a required auxiliary payload. The GUI
+CAD scenes use `brep-view-scene.v3` with topology and an explicit auxiliary requirement. The GUI
 validates/adopts that whole payload before replacing a scene. Missing/corrupt
-required auxiliary data cannot publish a body-only result. Body-only v1 remains
-compatible; the SDK's complete `CopyForModeling` still refuses mixed models.
+required auxiliary data cannot publish a body-only result. Body-only v1 and mixed v2 remain
+compatible without topology selection; the SDK's complete `CopyForModeling` still refuses mixed models.
 The worker explicitly copies the BRep component and exports every other role
 from the unchanged owning source snapshot before publishing a complete manifest.
 
@@ -179,3 +179,23 @@ The frozen onedir runtime reuses its Matplotlib font cache under
 `%LOCALAPPDATA%/BRepViewer/Cache`, keyed by runtime directory and executable identity.
 Moving/replacing the installation selects a new cache. This cache contains font
 discovery data; source models and render payloads are not cached there.
+
+### Native topology selection
+
+Hover or click a face, edge or native vertex; Ctrl-click retains up to two selections,
+and Ctrl+D clears them. Two selected vertices display their Euclidean distance in mm.
+Orbit drags do not select. The existing HUD displays measurements without another overlay.
+Selection survives display-style redraws, clears on successful replacement, and remains
+with the prior scene when replacement fails. Unknown face labels remain unselectable.
+
+Scene v3 carries bounded, validated topology tables and cell labels, and explicitly states
+whether auxiliary geometry is required. Adoption requires every required payload. Distribute
+the matching worker and viewer together. Legacy v1/v2 and mesh scenes remain viewable without
+native CAD selection. Picks nominate IDs in the native display copy using the visible mesh
+and boundary; the worker has exited, so these are not live kernel ray queries or STEP IDs.
+
+Face area and edge length come from native queries before export, never mesh measures.
+Requested query accuracies are recorded separately (relative area 1e-4, length 1e-5 mm);
+they do not establish a continuous error bound. Failed queries and measurement-budget
+exhaustion remain unavailable, not zero. Vertex coordinates come from the native vertex
+table, not tessellation vertices. Current body occlusion prevents picking hidden topology.

@@ -41,7 +41,7 @@ class AuxiliaryViewerTests(unittest.TestCase):
     def test_complete_wireframe_keeps_identity_direction_and_body(self):
         original = WIRE.read_bytes()
         self.assertTrue(self.load(WIRE), self.window.status.toolTip())
-        self.assertEqual("brep-view-scene.v2", self.window.metadata["format"])
+        self.assertEqual("brep-view-scene.v3", self.window.metadata["format"])
         auxiliary = self.window.metadata["_auxiliary"]
         self.assertEqual(dict(wireframe_groups=1, supporting_groups=0, curves=2, points=1, frames=0, planes=0),
                          auxiliary.counts)
@@ -111,7 +111,7 @@ class AuxiliaryViewerTests(unittest.TestCase):
             return read_auxiliary(path)
         with patch("tools.smlib_viewer.auxiliary.read_auxiliary", side_effect=corrupt_owned_payload):
             self.assertFalse(self.load(SUPPORT))
-        self.assertEqual("brep-view-scene.v2", self.window.loader.worker_result["format"])
+        self.assertEqual("brep-view-scene.v3", self.window.loader.worker_result["format"])
         self.assertIn("InvalidAuxiliaryFormat", self.window.status.toolTip())
         self.assertIs(previous, self.window.mesh)
         self.assertEqual(filename, self.window.filename)

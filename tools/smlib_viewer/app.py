@@ -12,6 +12,7 @@ from tools.smlib_gui.viewport import ViewportController
 from tools.smlib_gui.settings import DISPLAY_MODE_SHADED_MESH_WIREFRAME, DISPLAY_MODE_SHADED, COLOR_MODE_MATERIAL
 from .backend import ImportSettings, SceneLoader
 from .appearance import SURFACE_COLOR, configure_scene, style_surface, verify_model_frame
+from .picking import TopologyPicker
 
 
 class ViewerWindow(QtWidgets.QMainWindow):
@@ -89,6 +90,17 @@ class ViewerWindow(QtWidgets.QMainWindow):
         configure_scene(self.plot)
         layout.addWidget(self.plot.interactor, 1)
         self.viewport = ViewportController(self.plot)
+        self.picker = TopologyPicker(self.plot)
+        self.selected = []
+        self.hover_hit = None
+        self._scene_summary = ""
+        self._mouse_press = self._mouse_position = None
+        self._mouse_dragged = False
+        self._hover_timer = QtCore.QTimer(self)
+        self._hover_timer.setSingleShot(True)
+        self._hover_timer.setInterval(40)
+        self._hover_timer.timeout.connect(self._update_hover)
+        self.plot.interactor.setMouseTracking(True)
         self.hud = QtWidgets.QLabel(self.plot.interactor)
         self.hud.setTextFormat(QtCore.Qt.PlainText)
         self.hud.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
@@ -130,6 +142,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
                             ("1", lambda: self.named_view("front")), ("2", lambda: self.named_view("top")),
                             ("3", lambda: self.named_view("right")), ("E", self.edges_button.toggle),
                             ("W", self.wire_button.toggle),
+                            ("Ctrl+D", self.clear_selection),
                             ("H", lambda: self.hud.setVisible(not self.hud.isVisible())),
                             ("R", self.reload), ("Ctrl+Q", self.close), ("Escape", self.loader.cancel)]:
             shortcut = QtGui.QShortcut(QtGui.QKeySequence(key), self)
@@ -167,8 +180,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.status.setText(update.text)
 
     def _loaded(self, filename, mesh, boundary, metadata):
-        previous = self.mesh, self.boundary, self.metadata, self.filename
+        previous = self.mesh, self.boundary, self.metadata, self.filename, self.selected, self._scene_summary
         try:
+            self.selected = []
+            self.hover_hit = None
             self.mesh, self.boundary, self.metadata, self.filename = mesh, boundary, metadata, filename
             self._redraw()
             self.named_view("isometric")
@@ -195,7 +210,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 if info["planes"]:
                     text += "\n无限平面以预览窗口显示"
                 self.hud.setText(self.hud.text() + text)
-            self.hud.adjustSize()
+            self._scene_summary = self.hud.text()
+            self._update_measurements()
             self.cancel_button.hide()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(100)
@@ -207,7 +223,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
             QtCore.QTimer.singleShot(1500, lambda: self._hide_completed_progress(generation))
             self.load_complete.emit(True)
         except Exception as error:
-            self.mesh, self.boundary, self.metadata, self.filename = previous
+            self.mesh, self.boundary, self.metadata, self.filename, self.selected, self._scene_summary = previous
             if self.mesh is not None:
                 try:
                     self._redraw()
@@ -236,7 +252,9 @@ class ViewerWindow(QtWidgets.QMainWindow):
         mesh = self.mesh.copy(deep=True)
         mesh.field_data["DisplayColor"] = np.array(SURFACE_COLOR)
         mode = DISPLAY_MODE_SHADED_MESH_WIREFRAME if self.wire_button.isChecked() else DISPLAY_MODE_SHADED
+        self.picker.clear()
         self.viewport.render_meshes([mesh], mode, COLOR_MODE_MATERIAL, render=False, preserve_sharp_edges=True)
+        body_actor = next((a for a in self.plot.renderer.actors.values() if isinstance(a, pv.Actor)), None)
         for actor in self.plot.renderer.actors.values():
             if isinstance(actor, pv.Actor):
                 style_surface(actor)
@@ -251,7 +269,84 @@ class ViewerWindow(QtWidgets.QMainWindow):
         if auxiliary:
             self.auxiliary_actors = auxiliary.render(self.plot)
         self.plot.add_axes(color="#c8d0dc", viewport=(0.88, 0, 1, 0.16))
+        self.picker.set_scene(mesh, self.boundary, self.metadata.get("_topology"), body_actor)
+        # Selection keys survive a redraw of this snapshot only. A new successful
+        # load clears them before rendering; stale picker hits never cross scenes.
+        self.hover_hit = None
+        self._restore_selection()
         self._fit_depth()
+
+    def _restore_selection(self):
+        # Rebind through the current picker, without manufacturing scene tokens.
+        hits = [self.picker.resolve(kind, index) for kind, index in self.selected]
+        self.picker.highlight_many([hit for hit in hits if hit is not None])
+        self._update_measurements()
+
+    def clear_selection(self):
+        self.selected = []
+        self.picker.clear_highlight("selection")
+        self._update_measurements()
+        self.plot.render()
+
+    def _device_position(self, position):
+        width, height = self.plot.render_window.GetSize()
+        widget = self.plot.interactor
+        return (position.x() * width / max(1, widget.width()),
+                height - 1 - position.y() * height / max(1, widget.height()))
+
+    def _update_hover(self):
+        if self._mouse_position is None or self._mouse_press is not None:
+            return
+        self.hover_hit = self.picker.pick(*self._device_position(self._mouse_position))
+        # A selected feature already owns an overlay. Do not stack another
+        # coplanar hover layer over it or change its selected color.
+        selected = self.hover_hit and (self.hover_hit.kind, self.hover_hit.id) in self.selected
+        self.picker.highlight(None if selected else self.hover_hit)
+        self._update_measurements()
+        self.plot.render()
+
+    def _select_at(self, position, additive=False):
+        hit = self.picker.pick(*self._device_position(position))
+        key = (hit.kind, hit.id) if hit else None
+        if not additive:
+            self.selected = [key] if key else []
+        elif key:
+            self.selected = ([item for item in self.selected if item != key] if key in self.selected
+                             else (self.selected + [key])[-2:])
+        self._restore_selection()
+        self.plot.render()
+
+    def _update_measurements(self):
+        if not hasattr(self, "hud") or not self._scene_summary:
+            return
+        lines = [self._scene_summary]
+        hits = [self.picker.resolve(kind, index) for kind, index in self.selected]
+        if self.hover_hit and (self.hover_hit.kind, self.hover_hit.id) not in self.selected:
+            hits.append(self.hover_hit)
+        for hit in hits:
+            info = self.picker.info(hit)
+            if info is None:
+                continue
+            prefix = "选中" if (hit.kind, hit.id) in self.selected else "悬停"
+            if hit.kind == "vertex":
+                value = " · ".join(f"{coordinate:.7g}" for coordinate in info.point_mm)
+                lines.append(f"{prefix} 点 {hit.id}：({value}) mm")
+            else:
+                face = hit.kind == "face"
+                value = info.area_mm2 if face else info.length_mm
+                measure = (f"≈ {value:.7g} {'mm²' if face else 'mm'}" if value is not None
+                           else f"不可用 ({info.measurement_status})")
+                lines.append(f"{prefix} {'面' if face else '边'} {hit.id}：{measure}")
+        if len(self.selected) == 2 and all(kind == "vertex" for kind, _ in self.selected):
+            points = [self.picker.info(self.picker.resolve(kind, index)) for kind, index in self.selected]
+            if all(point is not None for point in points):
+                distance = np.linalg.norm(np.array(points[0].point_mm) - points[1].point_mm)
+                lines.append(f"两点距离：{distance:.7g} mm")
+        if self.metadata.get("_topology"):
+            lines.append("点击选择 · Ctrl+点击双选 · Ctrl+D 清除")
+        self.hud.setText("\n".join(lines))
+        self.hud.adjustSize()
+        self._arrange_overlays()
 
     def _boundary_style(self, *_):
         if self.boundary_actor is not None:
@@ -273,6 +368,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self._fit_depth()
 
     def _camera_changed(self, *_):
+        if hasattr(self, "picker"):
+            self.hover_hit = None
+            self.picker.clear_highlight("hover")
+            self._update_measurements()
         if self.mesh is not None and not self._depth_pending and not self._fitting_depth:
             self._depth_pending = True
             QtCore.QTimer.singleShot(0, self._fit_depth)
@@ -317,6 +416,27 @@ class ViewerWindow(QtWidgets.QMainWindow):
             QtCore.QTimer.singleShot(0, self._arrange_overlays)
 
     def eventFilter(self, target, event):
+        if target is self.plot.interactor:
+            if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == QtCore.Qt.LeftButton:
+                self._mouse_press = event.position()
+                self._mouse_dragged = False
+                self._hover_timer.stop()
+            elif event.type() == QtCore.QEvent.MouseMove:
+                self._mouse_position = event.position()
+                if self._mouse_press is not None and (event.position() - self._mouse_press).manhattanLength() > 4:
+                    self._mouse_dragged = True
+                if not event.buttons():
+                    self._hover_timer.start()
+            elif event.type() == QtCore.QEvent.MouseButtonRelease and event.button() == QtCore.Qt.LeftButton:
+                press, self._mouse_press = self._mouse_press, None
+                if press is not None and not self._mouse_dragged and (event.position() - press).manhattanLength() <= 4:
+                    self._select_at(event.position(), bool(event.modifiers() & QtCore.Qt.ControlModifier))
+            elif event.type() == QtCore.QEvent.Leave:
+                self._hover_timer.stop()
+                self._mouse_position = self.hover_hit = None
+                self.picker.clear_highlight("hover")
+                self._update_measurements()
+        # Mouse events continue to VTK so orbit/pan/zoom retain their controls.
         if event.type() == QtCore.QEvent.Resize:
             QtCore.QTimer.singleShot(0, self._arrange_overlays)
         if event.type() == QtCore.QEvent.DragEnter:
@@ -328,6 +448,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
         return super().eventFilter(target, event)
 
     def closeEvent(self, event):
+        self._hover_timer.stop()
+        self.picker.clear()
         self.loader.close()
         self.plot.close()
         event.accept()
