@@ -247,6 +247,12 @@ and formation; administrative labels need actual selected attachment and complet
 physical exclusion. The MSB proof applies only to its caption: all shell/geometry
 fields remain required. No text, revision, name or locale is invented.
 
+Attached PERSON middle_names/prefix_titles/suffix_titles additionally preserve
+opaque LIST elements individually. Each retained diagnostic binds the exact
+one-based element path and byte span. Order, cardinality, optional absence and
+element types remain checked; a list is never replaced by a decoded or empty
+string. Nested aggregates and non-string elements receive no exception.
+
 In explicit general interoperability, distinct application contexts and their
 APDs may follow the unique selected PC/PDC reference chain. Every context and
 APD must be used by that chain, with at most one APD per selected application;

@@ -34,7 +34,44 @@ def administrative_names():
     return data
 
 
+def administrative_name_lists():
+    data = administrative_names()
+    for byte in range(0x80, 0x89):
+        data = data.replace(bytes([byte]), b'public')
+    return data.replace(b"'public','public','public',$,$,$",
+                        b"'public','public','public',('\x90','known','\x91'),('\x92'),('\x93')")
+
+
 class OpaqueIdentityTests(unittest.TestCase):
+    def test_person_lists_preserve_each_element_and_order_with_exact_paths(self):
+        data = administrative_name_lists()
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, run.stderr or run.stdout)
+        preserved = [d for d in report['preserved_diagnostics'] if d['key'] == 'OpaqueDataTextUnestablished']
+        self.assertEqual({(4, 1), (4, 3), (5, 1), (6, 1)}, {tuple(d['parameter_path']) for d in preserved})
+        self.assertEqual(4, len(preserved))
+        self.assertTrue(all(d['record_id'] == '903' for d in preserved))
+        records = {r['id']: r for r in report['source']['records']}
+        values = records['903']['components'][0]['parameters'][3]['children']
+        self.assertEqual(['OpaqueString', 'String', 'OpaqueString'], [v['kind'] for v in values])
+        self.assertEqual('known', values[1]['text'])
+        self.assertEqual(data, report['source']['input']['raw'].encode('latin1'))
+
+    def test_person_list_exception_does_not_bypass_shape_type_or_ownership(self):
+        data = administrative_name_lists()
+        for candidate, interop, flags in [
+            (data, False, ()),
+            (data.replace(b"('\x90','known','\x91')", b"()"), True, ()),
+            (data.replace(b"'known'", b"42"), True, ()),
+            (data.replace(b"'known'", b"('\x94')"), True, ()),
+            (data.replace(b'#905=APPROVAL_PERSON_ORGANIZATION(#907,#901,#904);', b''), True, ()),
+            (data, True, ('--max-preserved-diagnostics', 3)),
+        ]:
+            with self.subTest(interop=interop, flags=flags):
+                run, report = self.invoke(candidate, interop, *flags)
+                self.assertNotEqual(0, run.returncode)
+                self.assertIsNone(report['snapshot'])
+
     def test_attached_organization_identifier_and_person_surname_keep_original_bytes(self):
         data = administrative_names()
         run, report = self.invoke(data)

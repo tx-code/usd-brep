@@ -25,6 +25,10 @@ struct Failure
     Status status;
     Diagnostic diagnostic;
 };
+bool OpaqueAdministrativeList(std::string_view owner, std::string_view field)
+{
+    return owner == "PERSON" && (field == "middle_names" || field == "prefix_titles" || field == "suffix_titles");
+}
 bool OpaqueAdministrativeField(std::string_view owner, std::string_view field)
 {
     // The pinned N2635/AP214 declarations (StepAp203GeneralCatalogData.h)
@@ -33,7 +37,7 @@ bool OpaqueAdministrativeField(std::string_view owner, std::string_view field)
     // selected administrative attachment and exclusion from physical reach.
     return (owner == "APPROVAL" && field == "level") ||
            (owner == "PERSON" && (field == "id" || field == "last_name" || field == "first_name")) ||
-           (owner == "ORGANIZATION" && (field == "id" || field == "name"));
+           (owner == "ORGANIZATION" && (field == "id" || field == "name")) || OpaqueAdministrativeList(owner, field);
 }
 bool IsA(const SemanticData& data, std::size_t record, std::string_view name)
 {
@@ -929,8 +933,9 @@ private:
                         const bool shapeCaption = issue.declaredIn == "REPRESENTATION_ITEM" && issue.field == "name" &&
                                                   IsA(*m_data, r, "MANIFOLD_SOLID_BREP");
                         const bool administrative = OpaqueAdministrativeField(issue.declaredIn, issue.field);
+                        const bool listElement = administrative && OpaqueAdministrativeList(issue.declaredIn, issue.field);
                         if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                            !(display || partIdentity || shapeCaption || administrative) || path.size() != 1)
+                            !(display || partIdentity || shapeCaption || administrative) || path.size() != (listElement ? 2u : 1u))
                         {
                             throw;
                         }
@@ -3688,7 +3693,26 @@ private:
                     approved = !physical[record] && (*selectedUse)[record] &&
                                OpaqueAdministrativeField(owner, field) && IsA(*m_data, record, owner);
                 }
-                if (m_data->geometryScope != GeometryScope::GeneralBrep || FieldValue(record, field).kind != ValueKind::OpaqueString || !approved)
+                const Value* preservedValue = &FieldValue(record, field);
+                if (issue.proof == SemanticData::PreservationProof::OpaqueAdministrativeLabel && OpaqueAdministrativeList(owner, field))
+                {
+                    // N2635/AP214 PERSON name/title lists remain ordered LIST
+                    // values. Only the diagnosed one-based element may use this
+                    // proof; aggregate cardinality/type checks still run normally.
+                    const auto& path = issue.diagnostic.source.parameterPath;
+                    if (preservedValue->kind != ValueKind::Aggregate || path.size() != 2 || path[1] == 0 ||
+                        path[1] > preservedValue->children.size())
+                    {
+                        approved = false;
+                    }
+                    else
+                    {
+                        preservedValue = &preservedValue->children[path[1] - 1];
+                    }
+                }
+                const auto span = issue.diagnostic.source.primary;
+                if (m_data->geometryScope != GeometryScope::GeneralBrep || preservedValue->kind != ValueKind::OpaqueString ||
+                    preservedValue->span.begin != span.begin || preservedValue->span.end != span.end || !approved)
                 {
                     State(Phase::Types) = FailureProgress(issue.status);
                     State(Phase::Interoperability) = FailureProgress(issue.status);
