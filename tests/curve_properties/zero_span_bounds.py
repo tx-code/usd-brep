@@ -21,7 +21,10 @@ def cases():
                 case = copy.deepcopy(original)
                 case["points"] = [list(origin) for _ in range(5)]
                 case["points"][3][axis] += 1
-                case["domain"] = [-17, 29]
+                # Retain the unmodified frozen input as one control alongside
+                # the shifted actual-parameter domains.
+                if axis != 2 or origin != [0, 0, 0] or rational:
+                    case["domain"] = [-17, 29]
                 if rational:
                     case["weights"][3] = 2
                 maximum = 2 / 3 if rational else .5

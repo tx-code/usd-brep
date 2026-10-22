@@ -7,9 +7,15 @@ from pathlib import Path
 
 import explore
 import spline_oracle as spline
+import zero_span_bounds
 
 
 class SplineOracleTests(unittest.TestCase):
+    def test_stationary_suite_keeps_the_unmodified_frozen_input(self):
+        path = Path(__file__).with_name("fixtures") / "zero-span-quadratic-bounds.json"
+        original = json.loads(path.read_text(encoding="utf-8"))["case"]
+        self.assertTrue(any(case == original for _, case, _ in zero_span_bounds.cases()))
+
     def test_zero_span_witness_has_an_independent_half_unit_arch(self):
         path = Path(__file__).with_name("fixtures") / "zero-span-quadratic-bounds.json"
         case = json.loads(path.read_text(encoding="utf-8"))["case"]
