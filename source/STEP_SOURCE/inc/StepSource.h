@@ -71,12 +71,14 @@ enum class CarrierInterpretation
 {
     DeclaredOnly,
     Level1AsCorrectedEncoding, // Explicit unverified assumption; not support for original 1994 SELECT encoding.
-    Level1AsCorrectedEncodingWithLowercaseHex // Additionally interprets a-f in DATA X/X2/X4 payloads, only after a level1 assumption.
+    Level1AsCorrectedEncodingWithLowercaseHex, // Additionally interprets a-f in DATA X/X2/X4 payloads, only after a level1 assumption.
+    BlankLevelAsCorrectedEncoding // Explicit blank declaration assumption; never inferred from FILE_SCHEMA or APD.
 };
 constexpr bool IsExplicitCarrierInterpretation(CarrierInterpretation interpretation)
 {
     return interpretation == CarrierInterpretation::Level1AsCorrectedEncoding ||
-           interpretation == CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
+           interpretation == CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex ||
+           interpretation == CarrierInterpretation::BlankLevelAsCorrectedEncoding;
 }
 
 struct Value

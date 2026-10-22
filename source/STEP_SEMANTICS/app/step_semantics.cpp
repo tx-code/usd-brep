@@ -98,6 +98,15 @@ int main(int argc, char** argv)
                 }
                 dataStringPolicy = choice;
             }
+            else if (arg == "--interpret-blank-level-as-corrected")
+            {
+                if (carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+                    carrierInterpretation != step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding)
+                {
+                    throw std::invalid_argument("Choose one carrier interpretation");
+                }
+                carrierInterpretation = step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding;
+            }
             else if (arg == "--interpret-level1-as-corrected")
             {
                 if (carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&

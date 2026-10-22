@@ -381,6 +381,24 @@ int main()
             ++checks;
         }
         {
+            auto blank = File("#1=A();\n");
+            blank.replace(blank.find("'2;1'"), 5, "'   '");
+            auto assumedBlank = InspectBytes(
+                blank,
+                limits,
+                HeaderNamePolicy::StrictAscii,
+                DataStringPolicy::StrictAscii,
+                CarrierInterpretation::BlankLevelAsCorrectedEncoding
+            );
+            Require(assumedBlank.source && assumedBlank.source->AppliedCarrierAssumption(), "explicit blank carrier receipt");
+            auto retainedBlank = assumedBlank.source;
+            const auto* blankReceipt = retainedBlank->AppliedCarrierAssumption();
+            Require(
+                blankReceipt->declaredLevel == "   " && retainedBlank->Raw(blankReceipt->declaredSpan) == "'   '",
+                "blank declaration source identity"
+            );
+            assumedBlank = {};
+            Require(retainedBlank->AppliedCarrierAssumption() == blankReceipt && retainedBlank->Bytes() == blank, "immutable blank receipt ownership");
             auto input = File("#1=A(LENGTH_MEASURE(+1.2500E-2),#1);\n");
             const auto at = input.find("'2;1'");
             Require(at != std::string::npos, "carrier fixture declaration");

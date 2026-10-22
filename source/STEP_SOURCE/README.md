@@ -248,3 +248,16 @@ components and values. Recover each omitted fragment from the captured bytes at
 code points 0..255 back to individual bytes before slicing; UTF-8 re-encoding the
 JSON string or slicing decoded STEP `text` is incorrect. Failed captures and null
 source graphs retain their existing meaning. Default `InspectJson` stays v1.
+
+
+`CarrierInterpretation::BlankLevelAsCorrectedEncoding` / CLI
+`--interpret-blank-level-as-corrected` is a separate project development assumption
+for a missing implementation-level claim: only an empty or ASCII-space-only
+decoded FILE_DESCRIPTION level qualifies. It selects the existing corrected
+encoding grammar without changing source bytes or the blank value. The original
+`UnsupportedImplementationLevel` fact, exact span and unverified interpretation
+remain snapshot-owned. Valid `2;1` does not apply an unused request. Nonblank
+unknown declarations, padded nonblank values and level `1` do not qualify; the
+existing level1 choices likewise cannot admit blank declarations. Header/schema,
+syntax, references, typed dependencies and downstream validation are not relaxed.
+This does not grant lowercase hexadecimal decoding or establish carrier conformance.

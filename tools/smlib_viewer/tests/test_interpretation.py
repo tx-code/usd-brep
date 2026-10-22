@@ -179,3 +179,15 @@ class InterpretationWorkerTests(unittest.TestCase):
                     self.assertEqual(applied, '源解释模式' in window.hud.text())
                 finally:
                     window.close()
+
+    def test_blank_carrier_is_explicit_in_worker_and_native_qualification(self):
+        from tools.step_import_native_validation.tests.test_blank_carrier import blank_box
+        self.loader.settings = ImportSettings(carrier_interpretation='BlankLevelAsCorrectedEncoding')
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'public.step'
+            source = blank_box()
+            path.write_bytes(source)
+            _, _, _, metadata = self.load(path)
+            self.assertEqual('AcceptedUnderInterpretation', metadata['native_import_status'])
+            self.assertEqual('BlankLevelAsCorrectedEncoding', metadata['requested_carrier_interpretation'])
+            self.assertEqual(source, path.read_bytes())

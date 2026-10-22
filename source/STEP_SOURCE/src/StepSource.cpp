@@ -969,14 +969,29 @@ private:
             if (valid && p[1].text != "2;1")
             {
                 constexpr auto message = "Only FILE_DESCRIPTION implementation level 2;1 is supported";
-                if (p[1].text != "1" || !IsExplicitCarrierInterpretation(m_result.requestedCarrierInterpretation))
+                const auto choice = m_result.requestedCarrierInterpretation;
+                const bool level1 = p[1].text == "1" && (choice == CarrierInterpretation::Level1AsCorrectedEncoding ||
+                                                         choice == CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex);
+                // Empty/ASCII-space-only declarations carry no encoding claim.
+                // Only this explicit application choice selects corrected syntax;
+                // keep the original declaration/span and unverified receipt. Do
+                // not trim a nonblank value or derive a level from schema/year.
+                const bool blank = choice == CarrierInterpretation::BlankLevelAsCorrectedEncoding && std::all_of(
+                                                                                                         p[1].text.begin(),
+                                                                                                         p[1].text.end(),
+                                                                                                         [](char c)
+                                                                                                         {
+                                                                                                             return c == ' ';
+                                                                                                         }
+                                                                                                     );
+                if (!level1 && !blank)
                 {
                     Fail("UnsupportedImplementationLevel", message, p[1].span, Status::Unsupported);
                 }
                 // ISO10303-21:1994/Cor1:1996 replacement9.2.1 distinguishes
                 // declaration1 from corrected2;1. This application assumption
                 // selects the existing corrected grammar without rewriting any
-                // byte/value. Original SELECT semantics remain unverified; all
+                // byte/value. Declared/missing encoding semantics remain unverified; all
                 // syntax/reference/budget and downstream typed checks still run.
                 auto assumption = std::make_shared<CarrierAssumption>();
                 assumption->interpretation = m_result.requestedCarrierInterpretation;
@@ -1197,6 +1212,8 @@ const char* CarrierInterpretationName(CarrierInterpretation interpretation)
             return "Level1AsCorrectedEncoding";
         case CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex:
             return "Level1AsCorrectedEncodingWithLowercaseHex";
+        case CarrierInterpretation::BlankLevelAsCorrectedEncoding:
+            return "BlankLevelAsCorrectedEncoding";
     }
     return "Unknown";
 }

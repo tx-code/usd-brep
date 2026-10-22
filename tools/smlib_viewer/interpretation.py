@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Explicit source assumptions shared by CLI, worker transport and scan settings."""
 SCHEMA_POLICIES = ('DeclaredOnly', 'UnregisteredAp214As2010', 'Ap214NameOnlyAs2010')
-CARRIER_POLICIES = ('DeclaredOnly', 'Level1AsCorrectedEncoding', 'Level1AsCorrectedEncodingWithLowercaseHex')
+CARRIER_POLICIES = ('DeclaredOnly', 'Level1AsCorrectedEncoding', 'Level1AsCorrectedEncodingWithLowercaseHex',
+                    'BlankLevelAsCorrectedEncoding')
 
 
 def validate(schema, carrier, strict, file_name_text=False, ascii_invariant_data=False):

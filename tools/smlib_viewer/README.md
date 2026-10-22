@@ -257,3 +257,11 @@ The HUD reports an entity collection and body count. Mesh bounds fit the entire
 scene. Scans and receipts retain native import qualification and whole-scene
 completion. Unsupported collection associated geometry and assembly transforms
 retain their native refusal; the viewer does not drop them or retry another path.
+
+
+`--carrier-interpretation BlankLevelAsCorrectedEncoding` explicitly handles only
+empty/ASCII-space-only implementation-level declarations using the existing
+corrected grammar. It is unavailable in strict-source mode, never selected by
+schema/year or a failed load, and retains native interpreted qualification.
+Required unit/geometry errors still prevent a scene. Deliver a matching worker
+when selecting this additional closed enum value.

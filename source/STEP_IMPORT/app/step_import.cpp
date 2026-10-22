@@ -163,6 +163,15 @@ int main(int argc, char** argv)
                 }
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
             }
+            else if (arg == "--interpret-blank-level-as-corrected")
+            {
+                if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
+                    options.carrierInterpretation != step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding)
+                {
+                    throw std::invalid_argument("Choose one carrier interpretation");
+                }
+                options.carrierInterpretation = step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding;
+            }
             else if (arg == "--interpret-level1-as-corrected")
             {
                 if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&

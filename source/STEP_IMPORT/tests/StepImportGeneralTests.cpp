@@ -578,8 +578,8 @@ double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::
     );
     return volume;
 }
-using step_import_test::CompareNativeDefinitions;
 using step_import_test::ArchiveClassChanges;
+using step_import_test::CompareNativeDefinitions;
 
 void RationalContract(const std::filesystem::path& source, const std::filesystem::path& directory)
 {
@@ -1372,7 +1372,8 @@ void DevelopmentContract(
     bool normalizePeriodic = false,
     bool headerText = false,
     bool asciiInvariant = false,
-    bool compactReport = false
+    bool compactReport = false,
+    bool blankCarrier = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1431,6 +1432,11 @@ void DevelopmentContract(
     if (compactReport)
     {
         options.reportEncoding = step_import::ReportEncoding::CompactV2;
+    }
+    if (blankCarrier)
+    {
+        Require(!carrier && !lowercaseHex, "choose one carrier interpretation");
+        options.carrierInterpretation = step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding;
     }
     auto result = step_import::ImportFile(source, options);
     std::filesystem::create_directories(directory);
@@ -1647,7 +1653,8 @@ int main(int argc, char** argv)
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
-                 lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false, compactReport = false;
+                 lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false, compactReport = false,
+                 blankCarrier = false;
             std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
@@ -1668,10 +1675,15 @@ int main(int argc, char** argv)
                         flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
                         flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex" ||
                         flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text" ||
-                        flag == "--assume-ascii-invariant-data" || flag == "--compact-source-report",
+                        flag == "--assume-ascii-invariant-data" || flag == "--compact-source-report" ||
+                        flag == "--interpret-blank-level-as-corrected",
                     "unknown explicit source flag"
                 );
-                if (flag == "--compact-source-report")
+                if (flag == "--interpret-blank-level-as-corrected")
+                {
+                    blankCarrier = true;
+                }
+                else if (flag == "--compact-source-report")
                 {
                     compactReport = true;
                 }
@@ -1733,7 +1745,8 @@ int main(int argc, char** argv)
                 normalizePeriodic,
                 headerText,
                 asciiInvariant,
-                compactReport
+                compactReport,
+                blankCarrier
             );
             return 0;
         }

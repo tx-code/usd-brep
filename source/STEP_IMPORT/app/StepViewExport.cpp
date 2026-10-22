@@ -438,7 +438,11 @@ int Run(
         {
             Good(schema == "DeclaredOnly", "UnknownSchemaInterpretation");
         }
-        if (carrier == "Level1AsCorrectedEncoding")
+        if (carrier == "BlankLevelAsCorrectedEncoding")
+        {
+            options.carrierInterpretation = step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding;
+        }
+        else if (carrier == "Level1AsCorrectedEncoding")
         {
             options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncoding;
         }

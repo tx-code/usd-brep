@@ -725,3 +725,10 @@ Single-body associated geometry keeps the existing owner/export behavior; multip
 material bodies use the collection contract above. No retry/reparse or source
 interpretation fallback is introduced. Both publication alternatives are prepared
 before the one commit point; final variant ownership transfer is nonthrowing.
+
+
+显式 `CarrierInterpretation::BlankLevelAsCorrectedEncoding`／CLI
+`--interpret-blank-level-as-corrected` 可为实现级别声明为空字符串或纯 ASCII 空格的输入
+选择现有纠正编码语法。它要求 general 非几何互操作配置；原始声明、错误诊断和未验证
+身份保留，成功仍为 `AcceptedUnderInterpretation`。默认及旧 level1 选项不接纳空白声明。
+类型、物理单位、几何和原生验收继续执行，不自动改写声明或重试另一编码。
