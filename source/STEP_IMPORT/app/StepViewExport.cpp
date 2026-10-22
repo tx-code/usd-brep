@@ -187,7 +187,8 @@ void Publish(
     bool auxiliary = false,
     std::string_view nativeStatus = {},
     std::string_view schema = "DeclaredOnly",
-    std::string_view carrier = "DeclaredOnly"
+    std::string_view carrier = "DeclaredOnly",
+    std::size_t reportMiB = 16
 )
 {
     std::string json;
@@ -208,6 +209,8 @@ void Publish(
                 w.String(schema);
                 w.Add(",\"requested_carrier_interpretation\":");
                 w.String(carrier);
+                w.Add(",\"report_budget_mib\":");
+                w.Number(reportMiB);
                 w.Add(",\"key\":");
                 w.String(key);
                 w.Add(",\"source_sha256\":");
@@ -270,10 +273,14 @@ int Run(
     bool restrictDomain,
     bool strict,
     const std::string& schema,
-    const std::string& carrier
+    const std::string& carrier,
+    const std::string& reportBudget
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
+    Good(reportBudget == "16" || reportBudget == "32" || reportBudget == "64" || reportBudget == "128" || reportBudget == "256", "InvalidReportBudget");
+    const std::size_t reportMiB = reportBudget == "16" ? 16 : reportBudget == "32" ? 32 :
+                                  reportBudget == "64" ? 64 : reportBudget == "128" ? 128 : 256;
     step_import::Outcome result;
     std::string nativeStatus; // Empty until the core actually returns an outcome.
     try
@@ -289,7 +296,10 @@ int Run(
         options.sourceLimits = { 64 * 1024 * 1024, 1000000, 2000000, 2000000, 128, 1024 * 1024, 16 * 1024 * 1024, 16 * 1024 * 1024, 64 };
         options.semanticLimits.dependencyVisits = 10000000;
         options.nativeLimits.nativeCalls = 1000000;
-        options.nativeLimits.reportBytes = 32 * 1024 * 1024;
+        // Explicit capacity only: never retry with a larger budget, and never
+        // alter source/geometry/working-tolerance or repair policies here.
+        options.sourceLimits.reportBytes = reportMiB * 1024 * 1024;
+        options.nativeLimits.reportBytes = std::max<std::size_t>(32, reportMiB) * 1024 * 1024;
         options.nativeLimits.processPrivateBytes = 2ULL * 1024 * 1024 * 1024;
         options.execution.deadline = std::chrono::steady_clock::now() + std::chrono::seconds(90);
         const char* lastPhase = "";
@@ -364,7 +374,7 @@ int Run(
         Good(bool(report), "ImportReportWriteFailed");
         if (!result.model)
         {
-            Publish(output, step_import::StatusName(result.status), "ImportFailed", result.report, nullptr, 0, 0, false, nativeStatus, schema, carrier);
+            Publish(output, step_import::StatusName(result.status), "ImportFailed", result.report, nullptr, 0, 0, false, nativeStatus, schema, carrier, reportMiB);
             return 1;
         }
         // CopyBrepForModeling explicitly selects the body component. Complete
@@ -389,14 +399,14 @@ int Run(
             }
         );
         Progress("publish");
-        Publish(output, "Ready", "", result.report, &info, triangles, points, auxiliary, nativeStatus, schema, carrier);
+        Publish(output, "Ready", "", result.report, &info, triangles, points, auxiliary, nativeStatus, schema, carrier, reportMiB);
         return 0;
     }
     catch (const std::exception& error)
     {
         if (!std::filesystem::exists(output / "scene.json"))
         {
-            Publish(output, "DisplayFailure", error.what(), result.report, nullptr, 0, 0, false, nativeStatus, schema, carrier);
+            Publish(output, "DisplayFailure", error.what(), result.report, nullptr, 0, 0, false, nativeStatus, schema, carrier, reportMiB);
         }
         return 1;
     }
@@ -405,7 +415,7 @@ int Run(
 #ifdef _WIN32
 int wmain(int argc, wchar_t** argv)
 {
-    if (argc != 7 && argc != 9)
+    if (argc != 7 && argc != 9 && argc != 10)
     {
         return 2;
     }
@@ -420,8 +430,9 @@ int wmain(int argc, wchar_t** argv)
             Good(std::wstring_view(argv[i]) == L"0" || std::wstring_view(argv[i]) == L"1", "InvalidFlag");
         }
         return Run(argv[1], argv[2], std::filesystem::path(argv[3]).string(), argv[4][0] == L'1', argv[5][0] == L'1', argv[6][0] == L'1',
-                   argc == 9 ? std::filesystem::path(argv[7]).string() : "DeclaredOnly",
-                   argc == 9 ? std::filesystem::path(argv[8]).string() : "DeclaredOnly");
+                   argc >= 9 ? std::filesystem::path(argv[7]).string() : "DeclaredOnly",
+                   argc >= 9 ? std::filesystem::path(argv[8]).string() : "DeclaredOnly",
+                   argc == 10 ? std::filesystem::path(argv[9]).string() : "16");
     }
     catch (...)
     {
@@ -431,7 +442,7 @@ int wmain(int argc, wchar_t** argv)
 #else
 int main(int argc, char** argv)
 {
-    if (argc != 7 && argc != 9)
+    if (argc != 7 && argc != 9 && argc != 10)
     {
         return 2;
     }
@@ -444,7 +455,7 @@ int main(int argc, char** argv)
             Good(std::string_view(argv[i]) == "0" || std::string_view(argv[i]) == "1", "InvalidFlag");
         }
         return Run(argv[1], argv[2], argv[3], argv[4][0] == '1', argv[5][0] == '1', argv[6][0] == '1',
-                   argc == 9 ? argv[7] : "DeclaredOnly", argc == 9 ? argv[8] : "DeclaredOnly");
+                   argc >= 9 ? argv[7] : "DeclaredOnly", argc >= 9 ? argv[8] : "DeclaredOnly", argc == 10 ? argv[9] : "16");
     }
     catch (...)
     {

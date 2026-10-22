@@ -68,6 +68,22 @@ class SelectionWindowTests(unittest.TestCase):
         point = QtCore.QPointF(window.plot.interactor.width()/2, window.plot.interactor.height()/2)
         self.assertEqual((width/2, height/2-1), window._device_position(point))
 
+    def test_repeated_hover_reuses_highlight_but_clear_and_camera_invalidate_it(self):
+        window = self.window
+        window._mouse_position = QtCore.QPointF(100, 100)
+        hit = window.picker.resolve('face', 1)
+        with patch.object(window.picker, 'pick', return_value=hit), \
+                patch.object(window.picker, 'highlight', wraps=window.picker.highlight) as highlight:
+            window._update_hover()
+            window._update_hover()
+            self.assertEqual(1, highlight.call_count)
+            window.clear_selection()
+            window._update_hover()
+            self.assertEqual(2, highlight.call_count)
+            window._camera_changed()
+            window._update_hover()
+            self.assertEqual(3, highlight.call_count)
+
     def test_mouse_click_and_control_click_select_native_vertices(self):
         window = self.window
         window.plot.camera_position = [(7, 7, 90), (7, 7, 20), (0, 1, 0)]

@@ -87,6 +87,12 @@ remain unknown. The viewer does not repair mesh or CAD input. Preview limits are
 64 MiB input, two million cells, six million points, a 120 s worker timeout, and
 a Windows worker-tree commit cap of 2 GiB. The GUI/renderer has no hard OS memory
 cap. Native import additionally enforces its own budgets and 90 s deadline.
+`--report-budget-mib` explicitly selects 16 (default), 32, 64, 128 or 256 MiB
+for the mandatory report. Publication uses the minimum of source/native report
+allowances, so this option configures both layers; the previous effective default
+remains 16 MiB. Input, process-memory, deadline and geometry budgets are unchanged.
+The worker/scan record the selected capacity. There is no automatic larger-budget
+retry, and requesting more report capacity does not guarantee enough process memory.
 The worker waits for the parent's start handshake before allocating model data;
 Windows Job Objects cover its subsequent children and cleanup.
 

@@ -286,6 +286,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     def clear_selection(self):
         self.selected = []
+        self.hover_hit = None
+        self.picker.clear_highlight("hover")
         self.picker.clear_highlight("selection")
         self._update_measurements()
         self.plot.render()
@@ -299,7 +301,14 @@ class ViewerWindow(QtWidgets.QMainWindow):
     def _update_hover(self):
         if self._mouse_position is None or self._mouse_press is not None:
             return
-        self.hover_hit = self.picker.pick(*self._device_position(self._mouse_position))
+        hit = self.picker.pick(*self._device_position(self._mouse_position))
+        # Moving within the same current feature does not change its geometry,
+        # measurement or color. Avoid extracting its triangles and rendering a
+        # replacement actor on every mouse tick; camera/scene changes invalidate
+        # hover_hit separately, as do selection changes below.
+        if hit == self.hover_hit and (hit is None or self.picker.is_current(self.hover_hit)):
+            return
+        self.hover_hit = hit
         # A selected feature already owns an overlay. Do not stack another
         # coplanar hover layer over it or change its selected color.
         selected = self.hover_hit and (self.hover_hit.kind, self.hover_hit.id) in self.selected
@@ -309,6 +318,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
 
     def _select_at(self, position, additive=False):
         hit = self.picker.pick(*self._device_position(position))
+        self.hover_hit = None
+        self.picker.clear_highlight("hover")
         key = (hit.kind, hit.id) if hit else None
         if not additive:
             self.selected = [key] if key else []
@@ -466,7 +477,8 @@ def run(options):
     settings = ImportSettings(options.profile, options.normalize_periodic_faces,
                               options.restrict_unused_support_domains, options.strict_source,
                               schema_interpretation=options.schema_interpretation,
-                              carrier_interpretation=options.carrier_interpretation)
+                              carrier_interpretation=options.carrier_interpretation,
+                              report_budget_mib=options.report_budget_mib)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

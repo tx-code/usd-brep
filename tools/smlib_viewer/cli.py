@@ -24,6 +24,8 @@ def main(argv=None):
     parser.add_argument("--strict-source", action="store_true", help="禁用非几何互操作；默认保留已证明无关的原诊断")
     parser.add_argument("--schema-interpretation", choices=SCHEMA_POLICIES, default="DeclaredOnly")
     parser.add_argument("--carrier-interpretation", choices=CARRIER_POLICIES, default="DeclaredOnly")
+    parser.add_argument("--report-budget-mib", type=int, choices=(16, 32, 64, 128, 256), default=16,
+                        help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
     parser.add_argument("--wireframe", action="store_true", help="显示三角网格")
     parser.add_argument("--screenshot", type=Path, help="仅在本地保存画面")

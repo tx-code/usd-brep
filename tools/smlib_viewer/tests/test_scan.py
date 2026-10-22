@@ -26,7 +26,7 @@ def options(**values):
     defaults = dict(scan=[], output=None, profile="development", normalize_periodic_faces=False,
                     restrict_unused_support_domains=False, strict_source=False, edges=False,
                     wireframe=False, thumbnails=False, timeout=150,
-                    schema_interpretation="DeclaredOnly", carrier_interpretation="DeclaredOnly")
+                    schema_interpretation="DeclaredOnly", carrier_interpretation="DeclaredOnly", report_budget_mib=16)
     return SimpleNamespace(**(defaults | values))
 
 

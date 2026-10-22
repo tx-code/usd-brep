@@ -30,7 +30,8 @@ class InterpretationOptionsTests(unittest.TestCase):
     def test_strict_cannot_inherit_an_interpretation_and_enums_are_closed(self):
         for args in [dict(strict_source=True, schema_interpretation='Ap214NameOnlyAs2010'),
                      dict(strict_source=True, carrier_interpretation='Level1AsCorrectedEncoding'),
-                     dict(schema_interpretation='Guess')]:
+                     dict(schema_interpretation='Guess'), dict(report_budget_mib=0),
+                     dict(report_budget_mib=512), dict(report_budget_mib=True)]:
             with self.assertRaises(ValueError):
                 ImportSettings(**args)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
@@ -65,12 +66,16 @@ class InterpretationWorkerTests(unittest.TestCase):
         QtCore.QCoreApplication.sendPostedEvents(None, QtCore.QEvent.DeferredDelete)
 
     def test_explicit_worker_preserves_interpretation_and_native_topology(self):
+        self.loader.settings = ImportSettings(schema_interpretation='Ap214NameOnlyAs2010',
+                                             carrier_interpretation='Level1AsCorrectedEncodingWithLowercaseHex',
+                                             report_budget_mib=64)
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'public.step'
             source = interpreted_box()
             path.write_bytes(source)
             _, mesh, boundary, metadata = self.load(path)
             self.assertEqual('AcceptedUnderInterpretation', metadata['native_import_status'])
+            self.assertEqual(64, metadata['report_budget_mib'])
             self.assertEqual('Ap214NameOnlyAs2010', metadata['requested_schema_interpretation'])
             self.assertEqual('Level1AsCorrectedEncodingWithLowercaseHex', metadata['requested_carrier_interpretation'])
             self.assertEqual((6, 12, 8), tuple(metadata[key] for key in ['faces', 'edges', 'vertices']))
@@ -93,9 +98,10 @@ class InterpretationWorkerTests(unittest.TestCase):
                 self.assertEqual(1, run_scan(options(scan=[inputs], output=root/'default')))
                 self.assertEqual(0, run_scan(options(scan=[inputs], output=root/'explicit',
                     schema_interpretation='Ap214NameOnlyAs2010',
-                    carrier_interpretation='Level1AsCorrectedEncodingWithLowercaseHex')))
+                    carrier_interpretation='Level1AsCorrectedEncodingWithLowercaseHex', report_budget_mib=64)))
             report = json.loads((root/'explicit/scan.json').read_bytes())
             self.assertEqual('Ap214NameOnlyAs2010', report['settings']['schema_interpretation'])
+            self.assertEqual(64, report['settings']['report_budget_mib'])
             receipts = list((root/'explicit').rglob('result.json'))
             self.assertEqual(1, len(receipts))
             self.assertEqual('AcceptedUnderInterpretation', json.loads(receipts[0].read_bytes())['native_import_status'])
