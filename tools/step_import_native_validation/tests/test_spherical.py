@@ -111,3 +111,51 @@ class SphericalImportTests(unittest.TestCase):
         self.assertIsNone(report['model'])
         self.assertTrue(report['candidate_discarded'])
         self.assertEqual(source,report['source_inspection']['source']['input']['raw'].encode('latin1'))
+
+
+    def test_explicit_source_pole_uses_the_other_endpoint_for_chart_selection(self):
+        path = Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/analytic_hemisphere_explicit_seam.step'
+        original = path.read_bytes()
+        reversed_edge = original.replace(b"#132=EDGE_CURVE('',#120,#121,#112,.T.);",
+                                         b"#132=EDGE_CURVE('',#121,#120,#112,.F.);")
+        reversed_edge = reversed_edge.replace(b"#153=ORIENTED_EDGE('',*,*,#132,.T.);",
+                                               b"#153=ORIENTED_EDGE('',*,*,#132,.F.);")
+        reversed_edge = reversed_edge.replace(b"#155=ORIENTED_EDGE('',*,*,#132,.F.);",
+                                               b"#155=ORIENTED_EDGE('',*,*,#132,.T.);")
+        # Reverse the defining circle frame too, so increasing native curve
+        # parameter starts at the pole rather than the equatorial endpoint.
+        reversed_basis = original.replace(b"#117=AXIS2_PLACEMENT_3D('',#100,#105,#118);",
+                                          b"#117=AXIS2_PLACEMENT_3D('',#100,#119,#118);")
+        reversed_basis = reversed_basis.replace(b"#132=EDGE_CURVE('',#120,#121,#112,.T.);",
+                                                b"#132=EDGE_CURVE('',#120,#121,#112,.F.);")
+        reversed_basis = reversed_basis.replace(b'ENDSEC;\nEND-ISO',
+                                                b"#119=DIRECTION('',(-1.,0.,0.));\nENDSEC;\nEND-ISO")
+        self.assertEqual(3, len({original, reversed_edge, reversed_basis}))
+        for variant, data in enumerate((original, reversed_edge, reversed_basis)):
+            with self.subTest(variant=variant):
+                run, report = self.invoke_bytes(data, '--integration-relative-accuracy', '1e-6')
+                self.assertEqual(0, run.returncode, report['diagnostics'])
+                self.assertEqual((2, 2, 2), tuple(report['model'][k] for k in ('faces', 'edges', 'vertices')))
+                self.assertAlmostEqual(250*math.pi/3, report['model']['material_volume']['value_mm3'], delta=1e-3)
+                self.assertAlmostEqual(75*math.pi, report['model']['area_mm2'], delta=1e-3)
+                for actual, expected in zip(report['model']['bounds_mm'], ((-5, -5, 3), (5, 5, 8))):
+                    for a, b in zip(actual, expected):
+                        self.assertAlmostEqual(a, b, delta=1e-5)
+                self.assertEqual('None', report['repair'])
+                self.assertEqual(data, report['source_inspection']['source']['input']['raw'].encode('latin1'))
+
+
+    def test_explicit_pole_copy_and_archive_preserve_source_definition_and_uv(self):
+        source = Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/analytic_hemisphere_explicit_seam.step'
+        cli = Path(os.environ['STEP_NATIVE_BINARY'])
+        binary = os.environ.get('STEP_NATIVE_GENERAL_BINARY', str(cli.with_name('step_import_general_tests'+cli.suffix)))
+        with tempfile.TemporaryDirectory(prefix='step-explicit-pole-copy-') as directory:
+            output = Path(directory)/'result'
+            run = subprocess.run([binary, '--development-file', str(source), str(output), 'normal',
+                                  '--integration-relative-accuracy', '1e-6'], capture_output=True, timeout=30)
+            self.assertEqual(0, run.returncode, run.stderr)
+            checks = json.loads((output/'checks.json').read_bytes())
+        self.assertEqual('Passed', checks['status'])
+        self.assertTrue(checks['defining_coefficients_and_uv_checked'])
+        for key in ('native_pointer_reports', 'native_level2_reports', 'reloaded_pointer_reports', 'reloaded_level2_reports'):
+            self.assertEqual(0, checks[key])

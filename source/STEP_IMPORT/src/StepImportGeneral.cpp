@@ -1579,11 +1579,17 @@ private:
                 }
                 const auto a = Sub(curve.p0, frame.o), b = Sub(curve.p1, frame.o);
                 const double ax = Dot(a, frame.x), ay = Dot(a, frame.y), bx = Dot(b, frame.x), by = Dot(b, frame.y);
-                if (std::hypot(ax, ay) <= SM_EFF_ZERO || std::hypot(bx, by) <= SM_EFF_ZERO)
+                const bool firstHasLongitude = std::hypot(ax, ay) > SM_EFF_ZERO;
+                const bool lastHasLongitude = std::hypot(bx, by) > SM_EFF_ZERO;
+                if (!firstHasLongitude && !lastHasLongitude)
                 {
-                    continue; // A pole does not establish a unique longitude.
+                    continue; // Neither pole establishes a unique longitude.
                 }
-                const double first = std::atan2(ay, ax), last = std::atan2(by, bx);
+                // A source seam may terminate at a pole. Its other endpoint
+                // still supplies a chart-cut candidate; never assign atan2(0,0)
+                // to the pole or move its source vertex to establish longitude.
+                const double first = firstHasLongitude ? std::atan2(ay, ax) : std::atan2(by, bx);
+                const double last = lastHasLongitude ? std::atan2(by, bx) : first;
                 if (std::abs(std::remainder(first - last, 2 * std::numbers::pi)) > 1e-10)
                 {
                     continue;
