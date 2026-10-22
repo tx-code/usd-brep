@@ -478,7 +478,8 @@ def run(options):
                               options.restrict_unused_support_domains, options.strict_source,
                               schema_interpretation=options.schema_interpretation,
                               carrier_interpretation=options.carrier_interpretation,
-                              report_budget_mib=options.report_budget_mib)
+                              report_budget_mib=options.report_budget_mib,
+                              preserve_opaque_file_name_text=options.preserve_opaque_file_name_text)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

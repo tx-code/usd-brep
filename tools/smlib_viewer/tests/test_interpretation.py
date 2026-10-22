@@ -31,7 +31,9 @@ class InterpretationOptionsTests(unittest.TestCase):
         for args in [dict(strict_source=True, schema_interpretation='Ap214NameOnlyAs2010'),
                      dict(strict_source=True, carrier_interpretation='Level1AsCorrectedEncoding'),
                      dict(schema_interpretation='Guess'), dict(report_budget_mib=0),
-                     dict(report_budget_mib=512), dict(report_budget_mib=True)]:
+                     dict(report_budget_mib=512), dict(report_budget_mib=True),
+                     dict(strict_source=True, preserve_opaque_file_name_text=True),
+                     dict(preserve_opaque_file_name_text='false')]:
             with self.assertRaises(ValueError):
                 ImportSettings(**args)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
@@ -105,3 +107,28 @@ class InterpretationWorkerTests(unittest.TestCase):
             receipts = list((root/'explicit').rglob('result.json'))
             self.assertEqual(1, len(receipts))
             self.assertEqual('AcceptedUnderInterpretation', json.loads(receipts[0].read_bytes())['native_import_status'])
+
+    def test_scan_header_text_requires_its_own_explicit_option(self):
+        from tools.step_inspect_validation.tests.test_file_name_text import HEADER
+        source = interpreted_box()
+        start = source.index(b'FILE_NAME(')
+        end = source.index(b';', start)+1
+        source = source[:start]+HEADER+source[end:]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            inputs = root/'inputs'
+            inputs.mkdir()
+            path = inputs/'public.step'
+            path.write_bytes(source)
+            settings = dict(scan=[inputs], schema_interpretation='Ap214NameOnlyAs2010',
+                            carrier_interpretation='Level1AsCorrectedEncodingWithLowercaseHex')
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, run_scan(options(**settings, output=root/'default')))
+                self.assertEqual(0, run_scan(options(**settings, output=root/'explicit',
+                                                    preserve_opaque_file_name_text=True)))
+            report = json.loads((root/'explicit/scan.json').read_bytes())
+            self.assertTrue(report['settings']['preserve_opaque_file_name_text'])
+            receipt = json.loads(next((root/'explicit').rglob('result.json')).read_bytes())
+            self.assertTrue(receipt['worker']['preserve_opaque_file_name_text'])
+            self.assertEqual('AcceptedUnderInterpretation', receipt['native_import_status'])
+            self.assertEqual(source, path.read_bytes())

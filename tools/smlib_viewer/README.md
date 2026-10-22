@@ -47,6 +47,11 @@ trigger an automatic retry. When the core applies an assumption, the HUD marks
 the source interpretation and receipts retain `AcceptedUnderInterpretation`.
 Requested settings are distinct from the returned native status; rendering
 remains only viewer-pipeline evidence, not formal STEP qualification.
+`--preserve-opaque-file-name-text` additionally opts into lossless preservation of
+unknown-encoding FILE_NAME administrative strings. It is independent of schema
+and carrier assumptions, cannot accompany `--strict-source`, and is recorded in
+worker/scan results. Without it, the existing filename-only behavior remains.
+It neither guesses a code page nor permits malformed protocol/geometry data.
 `--profile tolerance-study` and `--profile work-tolerance-study` select explicit
 research configurations. Optional `--normalize-periodic-faces` and
 `--restrict-unused-support-domains` retain their existing verified normalization

@@ -24,6 +24,8 @@ def main(argv=None):
     parser.add_argument("--strict-source", action="store_true", help="禁用非几何互操作；默认保留已证明无关的原诊断")
     parser.add_argument("--schema-interpretation", choices=SCHEMA_POLICIES, default="DeclaredOnly")
     parser.add_argument("--carrier-interpretation", choices=CARRIER_POLICIES, default="DeclaredOnly")
+    parser.add_argument("--preserve-opaque-file-name-text", action="store_true",
+                        help="显式保留 FILE_NAME 未知编码元信息，不猜测代码页")
     parser.add_argument("--report-budget-mib", type=int, choices=(16, 32, 64, 128, 256), default=16,
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
@@ -38,7 +40,8 @@ def main(argv=None):
     parser.add_argument("--scan-child", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args(args)
     try:
-        validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source)
+        validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source,
+                 options.preserve_opaque_file_name_text)
     except ValueError as error:
         parser.error(str(error))
     if options.scan:

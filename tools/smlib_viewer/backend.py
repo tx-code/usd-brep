@@ -29,9 +29,13 @@ class ImportSettings:
     schema_interpretation: str = "DeclaredOnly"
     carrier_interpretation: str = "DeclaredOnly"
     report_budget_mib: int = 16
+    preserve_opaque_file_name_text: bool = False
 
     def __post_init__(self):
-        validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source)
+        if type(self.preserve_opaque_file_name_text) is not bool:
+            raise ValueError("InvalidFileNameTextPolicy")
+        validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
+                 self.preserve_opaque_file_name_text)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -99,10 +103,13 @@ class SceneLoader(QtCore.QObject):
             arguments = [str(path), directory.name, self.settings.profile, str(int(self.settings.normalize_periodic)),
                          str(int(self.settings.restrict_domains)), str(int(self.settings.strict_source))]
             if (self.settings.schema_interpretation != "DeclaredOnly" or
-                    self.settings.carrier_interpretation != "DeclaredOnly" or self.settings.report_budget_mib != 16):
+                    self.settings.carrier_interpretation != "DeclaredOnly" or self.settings.report_budget_mib != 16 or
+                    self.settings.preserve_opaque_file_name_text):
                 arguments.extend([self.settings.schema_interpretation, self.settings.carrier_interpretation])
-                if self.settings.report_budget_mib != 16:
+                if self.settings.report_budget_mib != 16 or self.settings.preserve_opaque_file_name_text:
                     arguments.append(str(self.settings.report_budget_mib))
+                if self.settings.preserve_opaque_file_name_text:
+                    arguments.append("1")
         else:
             program = Path(sys.executable)
             script = Path(__file__).resolve().parents[1] / "scripts/brep_view.py"

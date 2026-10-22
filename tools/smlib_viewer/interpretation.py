@@ -5,8 +5,10 @@ SCHEMA_POLICIES = ('DeclaredOnly', 'UnregisteredAp214As2010', 'Ap214NameOnlyAs20
 CARRIER_POLICIES = ('DeclaredOnly', 'Level1AsCorrectedEncoding', 'Level1AsCorrectedEncodingWithLowercaseHex')
 
 
-def validate(schema, carrier, strict):
+def validate(schema, carrier, strict, file_name_text=False):
     if schema not in SCHEMA_POLICIES or carrier not in CARRIER_POLICIES:
         raise ValueError('UnknownSourceInterpretation')
     if strict and (schema != 'DeclaredOnly' or carrier != 'DeclaredOnly'):
         raise ValueError('SourceInterpretationRequiresInteroperability')
+    if strict and file_name_text:
+        raise ValueError('FileNameTextRequiresInteroperability')
