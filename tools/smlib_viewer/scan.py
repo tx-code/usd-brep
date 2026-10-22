@@ -88,6 +88,7 @@ def run_case(path, directory, options, caption):
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
                           (options.strict_source, "--strict-source"), (options.edges, "--edges"),
                           (options.preserve_opaque_file_name_text, "--preserve-opaque-file-name-text"),
+                          (options.assume_ascii_invariant_data, "--assume-ascii-invariant-data"),
                           (options.wireframe, "--wireframe")]:
         if enabled:
             command.append(flag)
@@ -270,6 +271,7 @@ def _summary(roots, records, count, started, options, complete, counts, *, inclu
                      "carrier_interpretation": options.carrier_interpretation,
                      "report_budget_mib": options.report_budget_mib,
                      "preserve_opaque_file_name_text": options.preserve_opaque_file_name_text,
+                     "assume_ascii_invariant_data": options.assume_ascii_invariant_data,
                      "normalize_periodic_faces": options.normalize_periodic_faces,
                      "restrict_unused_support_domains": options.restrict_unused_support_domains,
                      "edges": options.edges, "wireframe": options.wireframe, "thumbnails": options.thumbnails,

@@ -220,3 +220,15 @@ Requested query accuracies are recorded separately (relative area 1e-4, length 1
 they do not establish a continuous error bound. Failed queries and measurement-budget
 exhaustion remain unavailable, not zero. Vertex coordinates come from the native vertex
 table, not tessellation vertices. Current body occlusion prevents picking hidden topology.
+
+
+`--assume-ascii-invariant-data` explicitly selects the native
+`PreserveAsciiInvariantBytes` interpretation. It is independent of schema,
+implementation-level and FILE_NAME choices, remains off by default, and is
+incompatible with `--strict-source`. No guessed encoding or automatic retry is
+introduced. Both scan settings and worker receipts record the request separately
+from actual application. Applied imports remain `AcceptedUnderInterpretation`;
+the HUD marks the text encoding unverified. An ASCII-only file does not acquire
+this marker merely because the option was requested. Deliver the updated worker
+and Python application modules together (the appended worker argument is rejected
+by older workers rather than silently ignored).

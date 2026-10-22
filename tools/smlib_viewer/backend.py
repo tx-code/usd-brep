@@ -30,12 +30,13 @@ class ImportSettings:
     carrier_interpretation: str = "DeclaredOnly"
     report_budget_mib: int = 16
     preserve_opaque_file_name_text: bool = False
+    assume_ascii_invariant_data: bool = False
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
-                 self.preserve_opaque_file_name_text)
+                 self.preserve_opaque_file_name_text, self.assume_ascii_invariant_data)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -104,11 +105,14 @@ class SceneLoader(QtCore.QObject):
                          str(int(self.settings.restrict_domains)), str(int(self.settings.strict_source))]
             if (self.settings.schema_interpretation != "DeclaredOnly" or
                     self.settings.carrier_interpretation != "DeclaredOnly" or self.settings.report_budget_mib != 16 or
-                    self.settings.preserve_opaque_file_name_text):
+                    self.settings.preserve_opaque_file_name_text or self.settings.assume_ascii_invariant_data):
                 arguments.extend([self.settings.schema_interpretation, self.settings.carrier_interpretation])
-                if self.settings.report_budget_mib != 16 or self.settings.preserve_opaque_file_name_text:
+                if (self.settings.report_budget_mib != 16 or self.settings.preserve_opaque_file_name_text or
+                        self.settings.assume_ascii_invariant_data):
                     arguments.append(str(self.settings.report_budget_mib))
-                if self.settings.preserve_opaque_file_name_text:
+                if self.settings.preserve_opaque_file_name_text or self.settings.assume_ascii_invariant_data:
+                    arguments.append(str(int(self.settings.preserve_opaque_file_name_text)))
+                if self.settings.assume_ascii_invariant_data:
                     arguments.append("1")
         else:
             program = Path(sys.executable)

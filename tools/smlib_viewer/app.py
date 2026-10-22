@@ -203,7 +203,9 @@ class ViewerWindow(QtWidgets.QMainWindow):
             study = self.loader.settings.profile != "development" and metadata.get("units") == "mm"
             policy = "\n研究配置" if study else ""
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
-                policy += "\n源解释模式 · 身份未验证"
+                policy += "\n源解释模式 · 条件接受"
+            if metadata.get("ascii_invariant_data_applied"):
+                policy += "\n文本编码未验证"
             self.hud.setText(f"{role}{policy}\n{counts}\n≈ {size}  {unit}")
             auxiliary = metadata.get("_auxiliary")
             if auxiliary:
@@ -479,7 +481,8 @@ def run(options):
                               schema_interpretation=options.schema_interpretation,
                               carrier_interpretation=options.carrier_interpretation,
                               report_budget_mib=options.report_budget_mib,
-                              preserve_opaque_file_name_text=options.preserve_opaque_file_name_text)
+                              preserve_opaque_file_name_text=options.preserve_opaque_file_name_text,
+                              assume_ascii_invariant_data=options.assume_ascii_invariant_data)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

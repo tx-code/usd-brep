@@ -17,7 +17,7 @@ remain unchanged.
 Rebuild STEP consumers and explicitly select PreserveAsciiInvariantBytes only
 when its carrier assumptions apply. Encoding remains unverified. CLI users may
 select --assume-ascii-invariant-data with general nongeometric interoperability.
-The viewer option is not yet wired.
+The standalone viewer also exposes the option; distribute its matching worker and application modules.
 
 ## Compatibility
 

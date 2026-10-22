@@ -33,11 +33,18 @@ class InterpretationOptionsTests(unittest.TestCase):
                      dict(schema_interpretation='Guess'), dict(report_budget_mib=0),
                      dict(report_budget_mib=512), dict(report_budget_mib=True),
                      dict(strict_source=True, preserve_opaque_file_name_text=True),
-                     dict(preserve_opaque_file_name_text='false')]:
+                     dict(preserve_opaque_file_name_text='false'),
+                     dict(strict_source=True, assume_ascii_invariant_data=True),
+                     dict(assume_ascii_invariant_data='false')]:
             with self.assertRaises(ValueError):
                 ImportSettings(**args)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
             main(['--strict-source', '--schema-interpretation', 'Ap214NameOnlyAs2010'])
+        self.assertEqual(2, error.exception.code)
+
+    def test_cli_rejects_strict_ascii_assumption_before_gui_startup(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+            main(['--strict-source', '--assume-ascii-invariant-data'])
         self.assertEqual(2, error.exception.code)
 
     def test_receipt_retains_exact_native_qualification(self):
@@ -132,3 +139,43 @@ class InterpretationWorkerTests(unittest.TestCase):
             self.assertTrue(receipt['worker']['preserve_opaque_file_name_text'])
             self.assertEqual('AcceptedUnderInterpretation', receipt['native_import_status'])
             self.assertEqual(source, path.read_bytes())
+
+    def test_opaque_purpose_choice_reaches_scan_worker_and_receipt(self):
+        from tools.step_import_native_validation.tests.test_opaque_data import opaque_source
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            inputs = root/'inputs'
+            inputs.mkdir()
+            path = inputs/'public.step'
+            source = opaque_source("representation")
+            path.write_bytes(source)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(1, run_scan(options(scan=[inputs], output=root/'default')))
+                self.assertEqual(0, run_scan(options(scan=[inputs], output=root/'explicit',
+                                                    assume_ascii_invariant_data=True)))
+            report = json.loads((root/'explicit/scan.json').read_bytes())
+            self.assertTrue(report['settings']['assume_ascii_invariant_data'])
+            receipt = json.loads(next((root/'explicit').rglob('result.json')).read_bytes())
+            self.assertTrue(receipt['worker']['assume_ascii_invariant_data'])
+            self.assertTrue(receipt['worker']['ascii_invariant_data_applied'])
+            self.assertEqual('AcceptedUnderInterpretation', receipt['native_import_status'])
+            self.assertEqual(source, path.read_bytes())
+
+    def test_hud_marks_applied_text_assumption_and_does_not_mark_unused_request(self):
+        from tools.step_import_native_validation.tests.test_opaque_data import opaque_source
+        from tools.smlib_viewer.app import ViewerWindow
+        self.loader.settings = ImportSettings(assume_ascii_invariant_data=True)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'public.step'
+            for source, applied in ((opaque_source("representation"), True),
+                                    (opaque_source("representation").replace(b"\x80\xfe", b"ordinary"), False)):
+                path.write_bytes(source)
+                _, mesh, boundary, metadata = self.load(path)
+                self.assertEqual(applied, metadata['ascii_invariant_data_applied'])
+                window = ViewerWindow(self.loader.settings)
+                try:
+                    window._loaded(str(path), mesh, boundary, metadata)
+                    self.assertEqual(applied, '文本编码未验证' in window.hud.text())
+                    self.assertEqual(applied, '源解释模式' in window.hud.text())
+                finally:
+                    window.close()

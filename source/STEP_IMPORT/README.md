@@ -628,8 +628,8 @@ AP214 表示名称，排除纯 ASCII 特殊用途；转义、控制字节、未�
 原始文本与诊断保留，几何、单位、预算、取消与原子提交规则保持不变。
 实际捕获到该解释的模型返回 `AcceptedUnderInterpretation`（CLI exit 11），报告含
 `data_string_interpretation`、`data_encoding_verified=false`；只请求但没有适用文本时
-不会把结果标为已应用。源 snapshot 持有不可变 token 证明。此选项当前通过 C++ 和
-inspect/native CLI 提供，独立查看器的启动选项尚未接入。
+不会把结果标为已应用。源 snapshot 持有不可变 token 证明。此选项通过 C++、inspect/native CLI 和独立查看器
+`--assume-ascii-invariant-data` 提供；查看器同时记录请求值与实际应用状态。
 
 面、线框和支撑几何 owning view 的 `HasAsciiInvariantDataAssumption()` 同样读取源内证明，
 释放导入结果后不会丢失该解释资格。
