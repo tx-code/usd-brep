@@ -198,6 +198,26 @@ struct DefinitionSelectionRequest
     std::string sourceSha256; // Bind explicit source definition IDs to the exact original file.
     std::vector<std::string> definitionIds; // Nonempty set; selected definitions are built in source order.
 };
+struct CylindricalBandRepairRequest
+{
+    std::string sourceSha256;
+    std::size_t maximumFaces = 0, maximumBoundEdits = 0, maximumProofOperations = 0;
+    std::vector<step_semantics::CylindricalBandRepairDeferral> faces;
+};
+struct CylindricalBandRepairAction
+{
+    step_semantics::CylindricalBandRepairDeferral edit;
+    std::string sourceSurfaceId;
+    std::array<std::string, 2> sourceCircleIds, heightOrderedBoundIds;
+};
+struct CylindricalBandRepairHistory
+{
+    std::string sourceSha256;
+    std::vector<CylindricalBandRepairAction> actions;
+    std::vector<step_semantics::Diagnostic> originalSourceDiagnostics;
+    std::size_t verticesCompared = 0, edgesCompared = 0, surfacesCompared = 0;
+    bool definitionsIdentical = false, workingTolerancesIdentical = false, sourceInterpretationApplied = false;
+};
 struct DefinitionSelectionReceipt
 {
     std::string sourceSha256;
@@ -227,6 +247,7 @@ struct Options
     std::optional<FaceOrientationRepairRequest> faceOrientationRepair; // Explicit zero-geometry pilot; absent remains Repair=None.
     std::optional<DefinitionSelectionRequest> definitionSelection; // General file/document entry only; never a failed-request fallback.
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly;
+    std::optional<CylindricalBandRepairRequest> cylindricalBandRepair;
     static Options PlanarFixture();
 };
 struct Statistics
@@ -394,6 +415,7 @@ public:
     UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
+    std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
     void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
@@ -536,6 +558,9 @@ struct Report
     bool productDocument = false;
     std::optional<DefinitionSelectionRequest> definitionSelectionRequest;
     std::optional<DefinitionSelectionReceipt> definitionSelection;
+    std::optional<CylindricalBandRepairRequest> cylindricalBandRepairRequest;
+    std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
+    std::size_t cylindricalBandProofOperations = 0;
     std::string sourceEvidenceScope;
     std::vector<ProductDefinitionReport> definitions;
     std::vector<MaterialBodyReport> bodies; // Per-body observations share the one root source report.

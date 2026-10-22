@@ -42,6 +42,11 @@ class ImportSettings:
     selection_source_sha256: str = ''
     selected_definitions: tuple[str, ...] = ()
     complex_mapping_interpretation: str = 'DeclaredOnly'
+    band_repair_source_sha256: str = ''
+    maximum_band_repair_faces: int = 0
+    maximum_band_bound_edits: int = 0
+    maximum_band_proof_operations: int = 0
+    cylindrical_band_repairs: tuple[str, ...] = ()
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:

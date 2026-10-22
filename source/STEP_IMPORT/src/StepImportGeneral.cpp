@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportCurvePointDefinitions.h"
 #include "StepImportCylinderChart.h"
+#include "StepImportCylindricalBandRepair.h"
 #include "StepImportDerivedUv.h"
 #include "StepImportExecution.h"
 #include "StepImportGeneralMeasurements.h"
@@ -135,6 +136,7 @@ public:
         {
             throw Failure{ Status::Indeterminate, "UnsupportedNativeNumericEnvironment", "Nearest binary64 environment required", {}, "GeneralBrep" };
         }
+        m_cylindricalBandTrial = PrepareCylindricalBandRepair(m_source, m_binding, m_options, m_report, m_execution);
         Prepare();
         Step(shape);
         m_model->context = std::make_unique<SmContext>();
@@ -179,6 +181,7 @@ public:
         Step(shape);
         Good(c.EndBrep());
         PreparePoleInventory();
+        CaptureCylindricalBandDefinitions(m_cylindricalBandTrial, m_model, m_report, m_execution);
         InstallUv();
         if (m_options.restrictUnusedSupportDomains)
         {
@@ -268,12 +271,14 @@ public:
         {
             RememberRepairSources();
         }
+        CompleteCylindricalBandRepair(m_cylindricalBandTrial, *m_model, m_report, m_execution);
         return m_model;
     }
 
 private:
 
     std::shared_ptr<ModelData> m_model;
+    std::shared_ptr<CylindricalBandRepairTrial> m_cylindricalBandTrial;
     std::optional<step_semantics::Part::Shape> m_binding;
     Index shape = 0, shell = 0;
     std::vector<Index> vertices;
@@ -460,7 +465,11 @@ private:
             for (const auto bound : Refs(a, "bounds"))
             {
                 const auto loop = Ref(bound, "bound");
-                Loop l{ loop, bound, Is(bound, "FACE_OUTER_BOUND"), B(bound, "orientation"), {} };
+                Loop l{ loop,
+                        bound,
+                        Is(bound, "FACE_OUTER_BOUND") && !NeutralizesCylindricalBandBounds(m_cylindricalBandTrial, a),
+                        B(bound, "orientation"),
+                        {} };
                 const auto oriented = Refs(loop, "edge_list");
                 // AP214E3_2010.exp ORIENTED_EDGE.orientation is relative to EC;
                 // FACE_BOUND.orientation reverses the whole source loop, while

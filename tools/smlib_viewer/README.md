@@ -41,6 +41,16 @@ keep the generic failure caption. The previous accepted scene remains intact.
 STEP/STP uses the native importer with an explicitly selected development preview
 configuration; see the [import contract](../../source/STEP_IMPORT/README.md).
 
+The explicit cylindrical-band repair uses `--band-repair-source-sha256 HASH`,
+`--max-band-repair-faces N`, `--max-band-bound-edits N`,
+`--max-band-proof-operations N`, and repeated
+`--repair-cylindrical-band DEFINITION:SHAPE:FACE:BOUND0:BOUND1`. It proves the exact
+finite oriented band before native construction, keeps the original failed
+source markers and retains a distinct repaired qualification/HUD. It does not
+allow arbitrary region repair, seam splitting or tolerance growth. The fixed
+plan is limited to one explicit file; other repair/selection/normalization plans
+cannot be combined with this pilot. See the native contract for exact scope.
+
 `--complex-mapping-interpretation RegisteredFacetNames` explicitly permits a
 nonstandard complex-facet order only after complete registered name/field binding
 and all later source/native checks. Original source and diagnostics remain; an

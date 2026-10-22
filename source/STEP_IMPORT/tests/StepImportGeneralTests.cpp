@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "../app/StepComplexMappingArguments.h"
+#include "../app/StepCylindricalBandArguments.h"
 #include "../app/StepRepairArguments.h"
 #include "StepImport.h"
 #include "StepImportCylinderChart.h"
@@ -1476,13 +1477,15 @@ void DevelopmentContract(
     bool blankCarrier = false,
     bool explicitDimensions = false,
     std::optional<step_import::FaceOrientationRepairRequest> repair = {},
-    step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly
+    step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
+    std::optional<step_import::CylindricalBandRepairRequest> bandRepair = {}
 )
 {
     auto options = step_import::Options::PlanarFixture();
     options.generalBrep = true;
     options.faceOrientationRepair = repair;
     options.complexMappingInterpretation = complexMappingInterpretation;
+    options.cylindricalBandRepair = bandRepair;
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
     if (integrationAccuracy)
     {
@@ -1556,15 +1559,16 @@ void DevelopmentContract(
     const bool carrierAssumed = result.model && result.model->Source()->Source().AppliedCarrierAssumption();
     const bool dataAssumed = result.model && result.model->Source()->Source().HasAsciiInvariantDataAssumption();
     const bool unitAssumed = result.model && result.model->Source()->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
-    const bool assumed = schemaAssumed || carrierAssumed || dataAssumed || unitAssumed;
+    const bool assumed = schemaAssumed || carrierAssumed || dataAssumed || unitAssumed ||
+                         (result.model && !result.model->Source()->ComplexMappingAssumptions().empty());
     if (result.model)
     {
         Require(result.model->Face().HasAsciiInvariantDataAssumption() == dataAssumed, "owning face retains DATA interpretation");
     }
     Require(
-        result.status == (repair  ? step_import::Status::AcceptedWithRepairs :
-                          assumed ? step_import::Status::AcceptedUnderInterpretation :
-                                    step_import::Status::Accepted) &&
+        result.status == (repair || bandRepair ? step_import::Status::AcceptedWithRepairs :
+                          assumed              ? step_import::Status::AcceptedUnderInterpretation :
+                                                 step_import::Status::Accepted) &&
             bool(result.model),
         "development native import"
     );
@@ -1576,6 +1580,15 @@ void DevelopmentContract(
             history && history->sourceSha256 == repair->sourceSha256 && history->actions.size() == repair->edits.size() &&
                 history->definitionsIdentical && history->workingTolerancesIdentical,
             "development repaired snapshot retains source identity and zero-definition-change evidence"
+        );
+    }
+    if (bandRepair)
+    {
+        const auto history = result.model->CylindricalBandRepairs();
+        Require(
+            history && history->sourceSha256 == bandRepair->sourceSha256 && history->actions.size() == bandRepair->faces.size() &&
+                history->definitionsIdentical && history->workingTolerancesIdentical,
+            "development cylindrical-band repair evidence"
         );
     }
     if (normalizePeriodic || result.model->TopologyNormalization())
@@ -1786,6 +1799,12 @@ int main(int argc, char** argv)
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
+                if (step_import_app::IsCylindricalBandArgument(flag))
+                {
+                    Require(i + 1 < argc, "cylindrical-band repair argument value required");
+                    step_import_app::CylindricalBandArgument(flag, argv[++i], repairArguments);
+                    continue;
+                }
                 if (flag == "--complex-mapping-interpretation")
                 {
                     Require(i + 1 < argc, "complex mapping interpretation value required");
@@ -1893,7 +1912,8 @@ int main(int argc, char** argv)
                 blankCarrier,
                 explicitDimensions,
                 repairArguments.faceOrientationRepair,
-                repairArguments.complexMappingInterpretation
+                repairArguments.complexMappingInterpretation,
+                repairArguments.cylindricalBandRepair
             );
             return 0;
         }

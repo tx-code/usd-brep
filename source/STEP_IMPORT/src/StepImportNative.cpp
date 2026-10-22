@@ -1416,6 +1416,25 @@ std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Repor
 }
 std::shared_ptr<const ModelSnapshot> Access::Snapshot(std::shared_ptr<ModelData> data)
 {
+    if (!data->source->PartDefinition().deferredCylindricalBandRepairs.empty() && !data->cylindricalBandRepairs)
+    {
+        // Other bodies in a material collection can share the source part; only
+        // a face actually in this body's retained inventory requires its repair.
+        for (const auto& face : data->faces)
+        {
+            if (std::any_of(
+                    data->source->CylindricalBandRepairDeferrals().begin(),
+                    data->source->CylindricalBandRepairDeferrals().end(),
+                    [&](const auto& plan)
+                    {
+                        return plan.faceId == face.faceId;
+                    }
+                ))
+            {
+                throw std::logic_error("UnfinishedCylindricalBandRepair");
+            }
+        }
+    }
     return std::shared_ptr<const ModelSnapshot>(new ModelSnapshot(std::move(data)));
 }
 } // namespace step_import::detail
@@ -1528,6 +1547,10 @@ std::optional<TopologyNormalizationInfo> ModelSnapshot::TopologyNormalization() 
 std::optional<FaceOrientationRepairHistory> ModelSnapshot::Repairs() const
 {
     return m_data->repairs;
+}
+std::optional<CylindricalBandRepairHistory> ModelSnapshot::CylindricalBandRepairs() const
+{
+    return m_data->cylindricalBandRepairs;
 }
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {

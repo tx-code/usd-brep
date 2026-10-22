@@ -194,6 +194,23 @@ public:
                         m_data->independentParts.at(owners.at(attachment.productDefinition)).part.propertyAttachments.push_back(attachment);
                     }
                 }
+                if (std::any_of(
+                        m_data->cylindricalBandRepairUses.begin(),
+                        m_data->cylindricalBandRepairUses.end(),
+                        [](auto count)
+                        {
+                            return count != 1;
+                        }
+                    ))
+                {
+                    Fail(
+                        "CylindricalBandRepairNotRequired",
+                        "D2",
+                        "Each explicit source repair must match one rejected face use",
+                        m_data->source->Header()[2].span,
+                        Status::Unsupported
+                    );
+                }
             }
         );
         RunPhase(
@@ -244,6 +261,7 @@ public:
         m_outcome.interoperability = ProgressName(State(Phase::Interoperability));
         m_outcome.interpretationDiagnostics = m_data->interpretationDiagnostics;
         m_outcome.complexMappingDiagnostics = m_data->complexMappingDiagnostics;
+        m_outcome.cylindricalBandRepairDiagnostics = m_data->cylindricalBandRepairDiagnostics;
         if (!m_data->complexMappingDiagnostics.empty() && State(Phase::Types) == Progress::Passed)
         {
             m_outcome.types = "CheckedWithDiagnostics";
@@ -279,9 +297,16 @@ public:
         }
         // A source-region deferral qualifies a completed ownership check. It
         // must never hide a later orphan failure or a traversal resource limit.
-        if (State(Phase::Part) == Progress::Passed && !m_data->part.deferredRegionFaces.empty())
+        if (State(Phase::Part) == Progress::Passed && !m_data->part.deferredRegionFaces.empty() && m_data->cylindricalBandRepairDiagnostics.empty())
         {
             m_outcome.part = "Deferred";
+        }
+        // Preserved nonphysical metadata cannot upgrade a failed defining
+        // source clause to CheckedWithDiagnostics. The repair obligation stays
+        // visible after those independent qualifications have been recorded.
+        if (State(Phase::Part) == Progress::Passed && !m_data->cylindricalBandRepairDiagnostics.empty())
+        {
+            m_outcome.part = "DeferredExplicitRepair";
         }
     }
 
@@ -738,7 +763,8 @@ private:
         // Fail marked the phase terminal. Restore it only for this provisional
         // issue; the final proof still precedes every typed snapshot publication.
         State(*m_phase) = Progress::Running;
-        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() >
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
+                m_data->cylindricalBandRepairDiagnostics.size() >
             m_outcome.limits.preservedDiagnostics)
         {
             Fail(
@@ -1184,6 +1210,88 @@ private:
         }
     }
 
+    bool DeferCylindricalBandRepair(std::size_t face, const Failure& original)
+    {
+        const auto& roles = m_data->part.roles;
+        const auto definition = std::find_if(
+            roles.begin(),
+            roles.end(),
+            [](const auto& r)
+            {
+                return r.name == "definition";
+            }
+        );
+        if (definition == roles.end() || m_data->cylindricalBandRepairs.empty())
+        {
+            return false;
+        }
+        const auto& definitionId = Record(definition->recordIndex).id;
+        const auto& faceId = Record(face).id;
+        const auto& bounds = FieldValue(face, "bounds").children;
+        if (bounds.size() != 2 || !IsA(*m_data, face, "ADVANCED_FACE") ||
+            !IsA(*m_data, Target(FieldValue(face, "face_geometry")), "CYLINDRICAL_SURFACE"))
+        {
+            return false;
+        }
+        const std::array<std::string, 2> ids{ Record(Target(bounds[0])).id, Record(Target(bounds[1])).id };
+        std::vector<std::size_t> matched;
+        for (const auto& shape : m_data->part.shapes)
+        {
+            const auto& faces = FieldValue(shape.shell, "cfs_faces").children;
+            if (std::none_of(
+                    faces.begin(),
+                    faces.end(),
+                    [&](const auto& f)
+                    {
+                        return Target(f) == face;
+                    }
+                ))
+            {
+                continue;
+            }
+            if (shape.role != "MaterialSolid")
+            {
+                return false;
+            }
+            const auto found = std::find_if(
+                m_data->cylindricalBandRepairs.begin(),
+                m_data->cylindricalBandRepairs.end(),
+                [&](const auto& plan)
+                {
+                    return plan.definitionId == definitionId && plan.shapeId == Record(shape.shape).id && plan.faceId == faceId &&
+                           ((plan.sourceOuterBoundIds[0] == ids[0] && plan.sourceOuterBoundIds[1] == ids[1]) ||
+                            (plan.sourceOuterBoundIds[0] == ids[1] && plan.sourceOuterBoundIds[1] == ids[0]));
+                }
+            );
+            if (found == m_data->cylindricalBandRepairs.end())
+            {
+                return false;
+            }
+            matched.push_back(static_cast<std::size_t>(found - m_data->cylindricalBandRepairs.begin()));
+        }
+        if (matched.empty())
+        {
+            return false;
+        }
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
+                m_data->cylindricalBandRepairDiagnostics.size() >=
+            m_outcome.limits.preservedDiagnostics)
+        {
+            Fail("PreservedDiagnosticLimit", "D2", "Explicit repair source diagnostic capacity exceeded", Record(face).span, Status::ResourceLimit);
+        }
+        // This is a failed defining source clause, never metadata preservation.
+        // Typed bindings remain original. Publication is deferred for an explicit
+        // downstream source-region proof and native repair; no outer is guessed.
+        m_data->cylindricalBandRepairDiagnostics.push_back(original.diagnostic);
+        for (const auto index : matched)
+        {
+            ++m_data->cylindricalBandRepairUses[index];
+        }
+        m_data->part.deferredRegionFaces.push_back(face);
+        m_data->part.deferredCylindricalBandRepairs.push_back(face);
+        State(*m_phase) = Progress::Running;
+        return true;
+    }
     bool OpaqueTopologyCaption(std::size_t record) const
     {
         // Explicit audited label owners from pinned N2635/AP214/modified N916.
@@ -2701,19 +2809,30 @@ private:
                     // marker. This is a defining region-role contradiction,
                     // not optional metadata or a missing native capability.
                     // Preserve both source bounds; never guess which to relabel.
-                    FieldFailure(
-                        "SourceRuleViolation:FACE.WR2",
-                        "D3",
-                        "FACE has more than one FACE_OUTER_BOUND",
-                        FieldValue(face, "bounds").span,
-                        Status::Rejected,
-                        face,
-                        "bounds",
-                        FieldDetail::AttributePath,
-                        "at most one FACE_OUTER_BOUND",
-                        std::to_string(outer),
-                        "AP214E3_2010.exp FACE.WR2"
-                    );
+                    try
+                    {
+                        FieldFailure(
+                            "SourceRuleViolation:FACE.WR2",
+                            "D3",
+                            "FACE has more than one FACE_OUTER_BOUND",
+                            FieldValue(face, "bounds").span,
+                            Status::Rejected,
+                            face,
+                            "bounds",
+                            FieldDetail::AttributePath,
+                            "at most one FACE_OUTER_BOUND",
+                            std::to_string(outer),
+                            "AP214E3_2010.exp FACE.WR2"
+                        );
+                    }
+                    catch (const Failure& failure)
+                    {
+                        if (!DeferCylindricalBandRepair(face, failure))
+                        {
+                            throw;
+                        }
+                        continue;
+                    }
                 }
                 if (outer == 0 && m_data->profile.kind != ProfileKind::Ap203e2Planar && m_data->geometryScope == GeometryScope::GeneralBrep)
                 {
@@ -3993,7 +4112,8 @@ private:
                 propertyItems.push_back(Target(value));
             }
         }
-        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() >
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
+                m_data->cylindricalBandRepairDiagnostics.size() >
             m_outcome.limits.preservedDiagnostics)
         {
             Fail(
@@ -4709,6 +4829,14 @@ const std::vector<Diagnostic>& Snapshot::ComplexMappingDiagnostics() const
 {
     return m_data->complexMappingDiagnostics;
 }
+const std::vector<CylindricalBandRepairDeferral>& Snapshot::CylindricalBandRepairDeferrals() const
+{
+    return m_data->cylindricalBandRepairs;
+}
+const std::vector<Diagnostic>& Snapshot::CylindricalBandRepairDiagnostics() const
+{
+    return m_data->cylindricalBandRepairDiagnostics;
+}
 const Part& Snapshot::PartDefinition() const
 {
     return m_partIndex ? m_data->independentParts.at(*m_partIndex).part : m_data->part;
@@ -4869,9 +4997,14 @@ static Outcome CheckImpl(
     SchemaInterpretation interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation,
+    std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs,
     bool independentRequest
 )
 {
+    if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
+    {
+        throw std::invalid_argument("Source repair deferrals require bounded explicit general scope");
+    }
     if (complexMappingInterpretation != ComplexMappingInterpretation::DeclaredOnly &&
         (complexMappingInterpretation != ComplexMappingInterpretation::RegisteredFacetNames || policy != SourcePolicy::PreserveNonGeometric ||
          scope != GeometryScope::GeneralBrep))
@@ -4939,6 +5072,8 @@ static Outcome CheckImpl(
     data->geometryScope = scope;
     data->requestedUnitInterpretation = unitInterpretation;
     data->requestedComplexMappingInterpretation = complexMappingInterpretation;
+    data->cylindricalBandRepairs.assign(cylindricalBandRepairs.begin(), cylindricalBandRepairs.end());
+    data->cylindricalBandRepairUses.resize(cylindricalBandRepairs.size());
     data->preservedDiagnosticLimit = limits.preservedDiagnostics;
     Checker checker(data, result, independentRequest);
     try
@@ -5001,10 +5136,11 @@ Outcome Check(
     GeometryScope scope,
     SchemaInterpretation interpretation,
     UnitInterpretation unitInterpretation,
-    ComplexMappingInterpretation complexMappingInterpretation
+    ComplexMappingInterpretation complexMappingInterpretation,
+    std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs
 )
 {
-    return CheckImpl(source, limits, policy, scope, interpretation, unitInterpretation, complexMappingInterpretation, false);
+    return CheckImpl(source, limits, policy, scope, interpretation, unitInterpretation, complexMappingInterpretation, cylindricalBandRepairs, false);
 }
 Outcome CheckIndependentProducts(
     const step_source::InspectOutcome& source,
@@ -5012,10 +5148,21 @@ Outcome CheckIndependentProducts(
     SourcePolicy policy,
     SchemaInterpretation interpretation,
     UnitInterpretation unitInterpretation,
-    ComplexMappingInterpretation complexMappingInterpretation
+    ComplexMappingInterpretation complexMappingInterpretation,
+    std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs
 )
 {
-    return CheckImpl(source, limits, policy, GeometryScope::GeneralBrep, interpretation, unitInterpretation, complexMappingInterpretation, true);
+    return CheckImpl(
+        source,
+        limits,
+        policy,
+        GeometryScope::GeneralBrep,
+        interpretation,
+        unitInterpretation,
+        complexMappingInterpretation,
+        cylindricalBandRepairs,
+        true
+    );
 }
 const char* StatusName(Status status)
 {

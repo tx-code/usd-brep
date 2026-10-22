@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Isolated display worker: no native handle crosses the process boundary.
 #include "StepComplexMappingArguments.h"
+#include "StepCylindricalBandArguments.h"
 #include "StepImport.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
@@ -203,6 +204,8 @@ std::pair<std::size_t, bool> RepairSummary(const step_import::Report& report)
 {
     std::size_t count = report.repairs ? report.repairs->actions.size() : 0;
     bool interpreted = report.repairs && report.repairs->sourceInterpretationApplied;
+    count += report.cylindricalBandRepairs ? report.cylindricalBandRepairs->actions.size() : 0;
+    interpreted = interpreted || (report.cylindricalBandRepairs && report.cylindricalBandRepairs->sourceInterpretationApplied);
     const auto include = [&](const auto& entries)
     {
         for (const auto& entry : entries)
@@ -280,6 +283,8 @@ void Publish(
                     const auto repair = RepairSummary(report);
                     w.Add(",\"repair_applied\":true,\"repaired_face_count\":");
                     w.Number(repair.first);
+                    w.Add(",\"repair_kind\":");
+                    w.String(report.cylindricalBandRepairRequest ? "CylindricalBandRoles" : "FaceOrientation");
                     w.Add(",\"source_interpretation_applied\":");
                     w.Bool(repair.second);
                 }
@@ -449,7 +454,8 @@ int Run(
     const std::string& unitInterpretation,
     const std::optional<step_import::FaceOrientationRepairRequest>& repair = {},
     const std::optional<step_import::DefinitionSelectionRequest>& selection = {},
-    step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly
+    step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
+    const std::optional<step_import::CylindricalBandRepairRequest>& bandRepair = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -474,6 +480,7 @@ int Run(
         options.faceOrientationRepair = repair;
         options.definitionSelection = selection;
         options.complexMappingInterpretation = complexMappingInterpretation;
+        options.cylindricalBandRepair = bandRepair;
         options.quality = profile == "development"          ? step_import::Quality::GeneralDevelopment() :
                           profile == "tolerance-study"      ? step_import::Quality::GeneralToleranceStudy() :
                           profile == "work-tolerance-study" ? step_import::Quality::GeneralWorkToleranceStudy() :
@@ -790,7 +797,11 @@ int wmain(int argc, wchar_t** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                step_import_app::CylindricalBandArgument(
+                    std::filesystem::path(argv[i]).string(),
+                    std::filesystem::path(argv[i + 1]).string(),
+                    request
+                ) || step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
                     step_import_app::SelectionArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
                     step_import_app::ComplexMappingArgument(
                         std::filesystem::path(argv[i]).string(),
@@ -815,7 +826,8 @@ int wmain(int argc, wchar_t** argv)
             argc >= 13 ? std::filesystem::path(argv[12]).string() : "DeclaredOnly",
             request.faceOrientationRepair,
             request.definitionSelection,
-            request.complexMappingInterpretation
+            request.complexMappingInterpretation,
+            request.cylindricalBandRepair
         );
     }
     catch (...)
@@ -850,7 +862,9 @@ int main(int argc, char** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::RepairArgument(argv[i], argv[i + 1], request) || step_import_app::SelectionArgument(argv[i], argv[i + 1], request) ||
+                step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
+                    step_import_app::RepairArgument(argv[i], argv[i + 1], request) ||
+                    step_import_app::SelectionArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::ComplexMappingArgument(argv[i], argv[i + 1], request),
                 "UnknownRequestArgument"
             );
@@ -870,7 +884,8 @@ int main(int argc, char** argv)
             argc >= 13 ? argv[12] : "DeclaredOnly",
             request.faceOrientationRepair,
             request.definitionSelection,
-            request.complexMappingInterpretation
+            request.complexMappingInterpretation,
+            request.cylindricalBandRepair
         );
     }
     catch (...)

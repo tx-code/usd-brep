@@ -246,7 +246,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
             if metadata.get('repair_applied'):
-                policy += f"\n已修复 {metadata['repaired_face_count']} 处面朝向"
+                kind = '周期边界角色' if metadata.get('repair_kind') == 'CylindricalBandRoles' else '面朝向'
+                policy += f"\n已修复 {metadata['repaired_face_count']} 处{kind}"
                 if metadata.get('source_interpretation_applied'):
                     policy += '\n源解释模式 · 条件接受'
             if metadata.get('applied_unit_interpretation') == 'VerifiedExplicitUnitDimensions':
@@ -547,7 +548,13 @@ def run(options):
                               face_orientation_edits=tuple(getattr(options, 'face_orientation_edits', ())),
                               selection_source_sha256=getattr(options, 'selection_source_sha256', ''),
                               selected_definitions=tuple(getattr(options, 'selected_definitions', ())),
-                              complex_mapping_interpretation=getattr(options, 'complex_mapping_interpretation', 'DeclaredOnly'))
+                              complex_mapping_interpretation=getattr(
+                                  options, 'complex_mapping_interpretation', 'DeclaredOnly'),
+                              band_repair_source_sha256=getattr(options, 'band_repair_source_sha256', ''),
+                              maximum_band_repair_faces=getattr(options, 'maximum_band_repair_faces', 0),
+                              maximum_band_bound_edits=getattr(options, 'maximum_band_bound_edits', 0),
+                              maximum_band_proof_operations=getattr(options, 'maximum_band_proof_operations', 0),
+                              cylindrical_band_repairs=tuple(getattr(options, 'cylindrical_band_repairs', ())))
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

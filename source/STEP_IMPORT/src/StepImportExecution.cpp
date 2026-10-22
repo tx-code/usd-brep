@@ -77,6 +77,10 @@ Execution::Execution(const Options& options, Report& report)
     {
         m_repairEditsClaimed.resize(options.faceOrientationRepair->edits.size(), false);
     }
+    if (options.cylindricalBandRepair)
+    {
+        m_cylindricalBandRepairsClaimed.resize(options.cylindricalBandRepair->faces.size(), false);
+    }
 }
 void Execution::ClaimRepairEdits(const std::vector<std::size_t>& indices)
 {
@@ -93,11 +97,45 @@ void Execution::ClaimRepairEdits(const std::vector<std::size_t>& indices)
         m_repairEditsClaimed[index] = true;
     }
 }
+void Execution::ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices)
+{
+    for (const auto index : indices)
+    {
+        if (index >= m_cylindricalBandRepairsClaimed.size() || m_cylindricalBandRepairsClaimed[index])
+        {
+            throw Failure{ Status::Unsupported,
+                           "CylindricalBandRepairScopeConflict",
+                           "Each planned face use must be repaired exactly once",
+                           {},
+                           "Repair" };
+        }
+        m_cylindricalBandRepairsClaimed[index] = true;
+    }
+}
+void Execution::SpendCylindricalBandProof()
+{
+    if (!m_options.cylindricalBandRepair || m_report.cylindricalBandProofOperations >= m_options.cylindricalBandRepair->maximumProofOperations)
+    {
+        throw Failure{ Status::ResourceLimit, "CylindricalBandRepairProofLimit", "Cumulative exact proof work exhausted", {}, "Repair" };
+    }
+    if ((m_report.cylindricalBandProofOperations++ & 63) == 0)
+    {
+        Check(Phase::BeforeRepairProof);
+    }
+}
 void Execution::CheckRepairCompletion()
 {
     if (std::find(m_repairEditsClaimed.begin(), m_repairEditsClaimed.end(), false) != m_repairEditsClaimed.end())
     {
         throw Failure{ Status::Unsupported, "RepairEditNotApplied", "The complete selected request did not apply every explicit edit", {}, "Repair" };
+    }
+    if (std::find(m_cylindricalBandRepairsClaimed.begin(), m_cylindricalBandRepairsClaimed.end(), false) != m_cylindricalBandRepairsClaimed.end())
+    {
+        throw Failure{ Status::Unsupported,
+                       "CylindricalBandRepairNotApplied",
+                       "Every planned face must complete repair before publication",
+                       {},
+                       "Repair" };
     }
 }
 std::size_t Execution::RepairProofRemaining() const

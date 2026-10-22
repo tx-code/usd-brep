@@ -520,6 +520,77 @@ void WriteReportJson(
                 "{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":"
         );
         w.String(StatusName(status));
+        if (report.cylindricalBandRepairRequest || report.cylindricalBandRepairs)
+        {
+            w.Add(
+                ",\"cylindrical_band_repair\":{\"configuration\":\"ExactOrientedCylindricalBand-0.1\",\"source_region_proof\":\"ExactCoaxialEqualRadiusOrientedWholeCircles\",\"effective_outer_markers\":\"None\",\"geometry_displacement_allowance_mm\":0,\"tolerance_growth_allowance_mm\":0"
+            );
+            if (report.cylindricalBandRepairRequest)
+            {
+                const auto& request = *report.cylindricalBandRepairRequest;
+                w.Add(",\"requested_source_sha256\":");
+                w.String(request.sourceSha256);
+                w.Add(",\"maximum_faces\":");
+                w.Number(request.maximumFaces);
+                w.Add(",\"maximum_bound_edits\":");
+                w.Number(request.maximumBoundEdits);
+                w.Add(",\"maximum_proof_operations\":");
+                w.Number(request.maximumProofOperations);
+                w.Add(",\"proof_operations_spent\":");
+                w.Number(report.cylindricalBandProofOperations);
+            }
+            w.Add(",\"evidence\":");
+            if (report.cylindricalBandRepairs)
+            {
+                const auto& history = *report.cylindricalBandRepairs;
+                w.Add("{\"source_sha256\":");
+                w.String(history.sourceSha256);
+                w.Add(",\"native_definitions_identical\":");
+                w.Bool(history.definitionsIdentical);
+                w.Add(",\"working_tolerances_identical\":");
+                w.Bool(history.workingTolerancesIdentical);
+                w.Add(",\"source_interpretation_applied\":");
+                w.Bool(history.sourceInterpretationApplied);
+                w.Add(",\"vertices_compared\":");
+                w.Number(history.verticesCompared);
+                w.Add(",\"edges_compared\":");
+                w.Number(history.edgesCompared);
+                w.Add(",\"surfaces_compared\":");
+                w.Number(history.surfacesCompared);
+                w.Add(",\"actions\":[");
+                for (std::size_t i = 0; i < history.actions.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& a = history.actions[i];
+                    w.Add("{\"definition_id\":");
+                    w.String(a.edit.definitionId);
+                    w.Add(",\"shape_id\":");
+                    w.String(a.edit.shapeId);
+                    w.Add(",\"face_id\":");
+                    w.String(a.edit.faceId);
+                    w.Add(",\"surface_id\":");
+                    w.String(a.sourceSurfaceId);
+                    w.Add(",\"height_ordered_bounds\":[");
+                    w.String(a.heightOrderedBoundIds[0]);
+                    w.Add(",");
+                    w.String(a.heightOrderedBoundIds[1]);
+                    w.Add("],\"height_ordered_circles\":[");
+                    w.String(a.sourceCircleIds[0]);
+                    w.Add(",");
+                    w.String(a.sourceCircleIds[1]);
+                    w.Add("]}");
+                }
+                w.Add("]}");
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add("}");
+        }
         if (report.definitionSelectionRequest)
         {
             const auto strings = [&](const std::vector<std::string>& values)
@@ -722,7 +793,7 @@ void WriteReportJson(
             w.Add(",\"source_unit_declaration_conforming\":false");
         }
         w.Add(",\"repair\":");
-        w.String(report.repairs ? "FaceOrientationZeroGeometry-0.1" : "None");
+        w.String(report.cylindricalBandRepairs ? "ExactOrientedCylindricalBand-0.1" : report.repairs ? "FaceOrientationZeroGeometry-0.1" : "None");
         w.Add(",\"quality_id\":");
         w.String(quality.id);
         if (report.numericalIntegration)

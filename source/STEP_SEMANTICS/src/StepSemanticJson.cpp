@@ -558,6 +558,15 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     const auto sourceView = result.snapshot ? result.snapshot : result.document ? result.document->Part(0) : std::shared_ptr<const Snapshot>{};
     const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
     const bool mappingApplied = sourceView && !sourceView->ComplexMappingAssumptions().empty();
+    const bool bandRepairPending = sourceView && !sourceView->CylindricalBandRepairDeferrals().empty();
+    if (bandRepairPending || !result.cylindricalBandRepairDiagnostics.empty())
+    {
+        out.Add(
+            ",\"explicit_source_repair\":{\"configuration\":\"ExactOrientedCylindricalBand-0.1\",\"original_source_verdict\":\"Rejected\",\"source_region_proof\":\"Required\",\"native_repair\":\"Required\",\"original_diagnostics\":"
+        );
+        Diagnostics(out, source, sourceView ? sourceView->CylindricalBandRepairDiagnostics() : result.cylindricalBandRepairDiagnostics);
+        out.Add("}");
+    }
     if (result.requestedComplexMappingInterpretation != ComplexMappingInterpretation::DeclaredOnly || mappingApplied)
     {
         out.Add(",\"complex_mapping_interpretation\":{\"requested\":");
@@ -1180,12 +1189,17 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         Diagnostics(out, source, result.preservedDiagnostics);
         out.Add(",\"source_conformance\":");
         out.String(
-            (result.snapshot || result.document) ? (mappingApplied                                  ? "ComplexMappingInterpreted" :
+            (result.snapshot || result.document) ? (bandRepairPending                               ? "ExplicitRepairPending" :
+                                                    mappingApplied                                  ? "ComplexMappingInterpreted" :
                                                     appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
                                                     result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
                                                                                                       "NonGeometricIssuesPreserved") :
                                                    "NotQualified"
         );
+    }
+    if (result.policy == SourcePolicy::Strict && bandRepairPending)
+    {
+        out.Add(",\"source_policy\":\"Strict\",\"source_conformance\":\"ExplicitRepairPending\"");
     }
     if (result.geometryScope == GeometryScope::GeneralBrep)
     {

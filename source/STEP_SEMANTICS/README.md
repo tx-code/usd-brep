@@ -1,5 +1,15 @@
 # STEP source semantics: ticket 03
 
+An explicit general-source cylindrical-band repair deferral can retain a failed
+`FACE.WR2` for the exact requested definition/shape/face/two-bound identities.
+The original source types and failed predicate remain; the result is Deferred
+with `ExplicitRepairPending`, not conforming source and not a metadata exception.
+All other checks and complete scope/closure still run. A typed candidate alone
+does not authorize model publication. The consuming
+[native repair contract](../STEP_IMPORT/README.md#精确有向圆柱带的边界角色修复) requires an
+exact oriented-region proof, unchanged native definitions/tolerances and complete
+postchecks. Defaults retain the rejection described below.
+
 General AP214 checking enforces the pinned `FACE.WR2`: at most one bound may
 instantiate FACE_OUTER_BOUND. Multiple markers are a source rejection with
 `SourceRuleViolation:FACE.WR2`, not an unsupported capability and not eligible

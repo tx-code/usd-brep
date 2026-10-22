@@ -75,6 +75,11 @@ struct ComplexMappingAssumption
     std::size_t record = 0;
     std::vector<std::size_t> canonicalComponentOrder; // Canonical position -> original zero-based component index; source is never reordered.
 };
+struct CylindricalBandRepairDeferral
+{
+    std::string definitionId, shapeId, faceId;
+    std::array<std::string, 2> sourceOuterBoundIds; // Exact original pair; no source marker is rewritten by this layer.
+};
 struct UnitDimensionAssumption
 {
     std::size_t unit, dimensions; // Original source records, never substituted unit definitions.
@@ -166,6 +171,7 @@ struct Part
     std::vector<Role> roles; // Singleton role map. Collections use shapes, never duplicate shape/shell role keys.
     std::vector<PropertyAttachment> propertyAttachments;
     std::vector<std::size_t> deferredRegionFaces; // Source faces only; no bound has been relabeled or selected as outer.
+    std::vector<std::size_t> deferredCylindricalBandRepairs; // Explicit FACE.WR2 failures; source remains invalid pending native repair proof.
     std::string shapeRole; // MaterialSolid / OpenSurfaceModel / ClosedSurfaceModel: source claims only.
     std::string apdStatus;
     std::string apdSchemaClaim;
@@ -323,6 +329,8 @@ public:
     const std::vector<Diagnostic>& UnitInterpretationDiagnostics() const;
     const std::vector<ComplexMappingAssumption>& ComplexMappingAssumptions() const;
     const std::vector<Diagnostic>& ComplexMappingDiagnostics() const;
+    const std::vector<CylindricalBandRepairDeferral>& CylindricalBandRepairDeferrals() const;
+    const std::vector<Diagnostic>& CylindricalBandRepairDiagnostics() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
     // In document views, only part/unit qualification is definition-scoped.
@@ -421,6 +429,7 @@ struct Outcome
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<Diagnostic> unitInterpretationDiagnostics; // Physical source nonconformance, not a metadata-only exception.
     std::vector<Diagnostic> complexMappingDiagnostics; // Observed original order errors; on failure these are NOT qualified assumptions.
+    std::vector<Diagnostic> cylindricalBandRepairDiagnostics; // Original failed source clauses; never metadata exceptions.
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
@@ -433,7 +442,8 @@ Outcome Check(
     GeometryScope scope,
     SchemaInterpretation interpretation,
     UnitInterpretation unitInterpretation,
-    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
+    std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs = {}
 );
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& semantics, std::string& output);
 Outcome CheckIndependentProducts(
@@ -442,7 +452,8 @@ Outcome CheckIndependentProducts(
     SourcePolicy policy,
     SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
-    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
+    std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs = {}
 );
 const char* StatusName(Status status);
 } // namespace step_semantics

@@ -293,6 +293,9 @@ struct SemanticData
     ComplexMappingInterpretation requestedComplexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly;
     std::vector<ComplexMappingAssumption> complexMappingAssumptions;
     std::vector<Diagnostic> complexMappingDiagnostics;
+    std::vector<CylindricalBandRepairDeferral> cylindricalBandRepairs;
+    std::vector<unsigned char> cylindricalBandRepairUses;
+    std::vector<Diagnostic> cylindricalBandRepairDiagnostics;
     SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.

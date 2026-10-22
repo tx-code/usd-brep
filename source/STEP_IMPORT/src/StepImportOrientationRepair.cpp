@@ -249,6 +249,14 @@ void CompareDefinitions(const ModelData& before, const ModelData& after, FaceOri
 }
 } // namespace
 
+void RequireSameNativeCurveDefinition(const SmCurve& before, const SmCurve& after)
+{
+    SameCurve(before, after);
+}
+void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface& after)
+{
+    SameSurface(before, after);
+}
 void ValidateRepairTargets(const step_semantics::Outcome& checked, const Options& options, Execution& execution)
 {
     if (!options.faceOrientationRepair)

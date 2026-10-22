@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepComplexMappingArguments.h"
+#include "StepCylindricalBandArguments.h"
 #include "StepImport.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
@@ -99,7 +100,15 @@ int main(int argc, char** argv)
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
-            if (arg == "--complex-mapping-interpretation")
+            if (step_import_app::IsCylindricalBandArgument(arg))
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Cylindrical-band repair argument value required");
+                }
+                step_import_app::CylindricalBandArgument(arg, argv[++i], options);
+            }
+            else if (arg == "--complex-mapping-interpretation")
             {
                 if (i + 1 == argc)
                 {

@@ -26,6 +26,8 @@ public:
     void CheckRepairCompletion();
     std::size_t RepairProofRemaining() const;
     void SpendRepairProof(std::size_t products);
+    void ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices);
+    void SpendCylindricalBandProof();
 
 private:
 
@@ -34,6 +36,7 @@ private:
     std::shared_ptr<ImportControl> m_control;
     bool m_committed = false;
     std::vector<bool> m_repairEditsClaimed;
+    std::vector<bool> m_cylindricalBandRepairsClaimed;
     void Cancel();
 };
 } // namespace step_import::detail

@@ -35,6 +35,12 @@ def main(argv=None):
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
     parser.add_argument('--repair-source-sha256', default='')
+    parser.add_argument('--band-repair-source-sha256', default='')
+    parser.add_argument('--max-band-repair-faces', type=int, default=0, dest='maximum_band_repair_faces')
+    parser.add_argument('--max-band-bound-edits', type=int, default=0, dest='maximum_band_bound_edits')
+    parser.add_argument('--max-band-proof-operations', type=int, default=0, dest='maximum_band_proof_operations')
+    parser.add_argument('--repair-cylindrical-band', action='append', default=[], dest='cylindrical_band_repairs',
+                        help='显式周期边界角色修复：definition:shape:face:bound0:bound1')
     parser.add_argument('--selection-source-sha256', default='')
     parser.add_argument('--select-definition', action='append', default=[], dest='selected_definitions',
                         help='显式选择 STEP 独立零件的源定义 ID；必须同时提供原始 SHA256，不跳过源检查')

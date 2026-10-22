@@ -50,6 +50,49 @@ namespace
 {
 void Validate(const Options& options)
 {
+    if (options.cylindricalBandRepair)
+    {
+        const auto& request = *options.cylindricalBandRepair;
+        const auto id = [](const std::string& value)
+        {
+            return !value.empty() && value.size() <= 64 && (value.size() == 1 || value[0] != '0') &&
+                   std::all_of(
+                       value.begin(),
+                       value.end(),
+                       [](char c)
+                       {
+                           return c >= '0' && c <= '9';
+                       }
+                   );
+        };
+        if (!options.generalBrep || options.faceOrientationRepair || options.definitionSelection || options.restrictUnusedSupportDomains ||
+            options.normalizePeriodicFaces || request.sourceSha256.size() != 64 ||
+            !std::all_of(
+                request.sourceSha256.begin(),
+                request.sourceSha256.end(),
+                [](char c)
+                {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                }
+            ) ||
+            !request.maximumFaces || request.maximumFaces > options.sourceLimits.records || request.faces.empty() ||
+            request.faces.size() > request.maximumFaces || request.maximumBoundEdits < request.faces.size() * 2 ||
+            request.maximumBoundEdits > 2 * options.sourceLimits.records || !request.maximumProofOperations ||
+            request.maximumProofOperations > 100000000)
+        {
+            throw std::invalid_argument("Explicit cylindrical-band repair requires original identity, general-only scope and bounded nonempty work");
+        }
+        std::set<std::tuple<std::string, std::string, std::string>> unique;
+        for (const auto& face : request.faces)
+        {
+            if (!id(face.definitionId) || !id(face.shapeId) || !id(face.faceId) || !id(face.sourceOuterBoundIds[0]) ||
+                !id(face.sourceOuterBoundIds[1]) || face.sourceOuterBoundIds[0] == face.sourceOuterBoundIds[1] ||
+                !unique.emplace(face.definitionId, face.shapeId, face.faceId).second)
+            {
+                throw std::invalid_argument("Cylindrical-band repair requires unique explicit face uses and original boundary pairs");
+            }
+        }
+    }
     if (options.complexMappingInterpretation != step_semantics::ComplexMappingInterpretation::DeclaredOnly &&
         (options.complexMappingInterpretation != step_semantics::ComplexMappingInterpretation::RegisteredFacetNames || !options.generalBrep ||
          options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
@@ -241,6 +284,7 @@ Result Import(const Options& options, Capture capture)
     report.encoding = options.reportEncoding;
     report.repairRequest = options.faceOrientationRepair;
     report.definitionSelectionRequest = options.definitionSelection;
+    report.cylindricalBandRepairRequest = options.cylindricalBandRepair;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     report.periodicNormalizationRequested = options.normalizePeriodicFaces;
     if (options.numericalIntegration)
@@ -269,6 +313,14 @@ Result Import(const Options& options, Capture capture)
         if (raw.status == step_source::Status::Inspected)
         {
             execution.Check(Phase::Captured);
+            if (options.cylindricalBandRepair && options.cylindricalBandRepair->sourceSha256 != raw.sha256)
+            {
+                throw detail::Failure{ Status::Unsupported,
+                                       "CylindricalBandRepairInputMismatch",
+                                       "Source repair does not bind the captured original bytes",
+                                       {},
+                                       "Repair" };
+            }
             if (options.definitionSelection && options.definitionSelection->sourceSha256 != raw.sha256)
             {
                 throw detail::Failure{ Status::Unsupported,
@@ -296,7 +348,10 @@ Result Import(const Options& options, Capture capture)
                     options.sourcePolicy,
                     options.schemaInterpretation,
                     options.unitInterpretation,
-                    options.complexMappingInterpretation
+                    options.complexMappingInterpretation,
+                    options.cylindricalBandRepair ?
+                        std::span<const step_semantics::CylindricalBandRepairDeferral>(options.cylindricalBandRepair->faces) :
+                        std::span<const step_semantics::CylindricalBandRepairDeferral>{}
                 );
             }
             else
@@ -308,7 +363,10 @@ Result Import(const Options& options, Capture capture)
                     step_semantics::GeometryScope::GeneralBrep,
                     options.schemaInterpretation,
                     options.unitInterpretation,
-                    options.complexMappingInterpretation
+                    options.complexMappingInterpretation,
+                    options.cylindricalBandRepair ?
+                        std::span<const step_semantics::CylindricalBandRepairDeferral>(options.cylindricalBandRepair->faces) :
+                        std::span<const step_semantics::CylindricalBandRepairDeferral>{}
                 );
             }
             const auto& checked = *report.generalSource;
