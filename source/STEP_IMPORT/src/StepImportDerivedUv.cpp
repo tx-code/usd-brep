@@ -202,4 +202,53 @@ DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, cons
     matched.projectionGapMm = gap;
     return matched;
 }
+DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall)
+{
+    Expects(bool(beforeNativeCall));
+    Expects(std::isfinite(maximumMm) && maximumMm > 0);
+    DerivedUvCandidate result;
+    const auto edge = use.GetEdge();
+    const auto face = use.GetFace();
+    const auto surface = face ? face->GetSurface() : nullptr;
+    if (!edge || !edge->GetCurve() || !surface || use.GetUVTrimCurve())
+    {
+        return result;
+    }
+    SmTArray<SmBSplineCurve*> curves;
+    SmObjsDelete<SmBSplineCurve*> cleanup(&curves);
+    double gap = -1, approximation = -1;
+    SmStatus status;
+    {
+        SurfaceOwnerScope owner(*surface);
+        beforeNativeCall();
+        // A numerical safety margin, not a larger source/UV budget. KeepAll=FALSE
+        // also refuses genuine source gaps larger than this solve target; those
+        // cases continue through the existing path and its independent checks.
+        status = surface->DropCurve(*face->GetContext(), face->GetUVDomain(), *edge->GetCurve(), edge->GetInterval(),
+                                    SmApproxTol3d(maximumMm / 8), gap, approximation, curves, FALSE);
+    }
+    if (status != SM_SUCCESS || curves.GetSize() != 1 || !curves[0] || !std::isfinite(gap) || gap < 0 || gap > maximumMm)
+    {
+        return result;
+    }
+    result.projectionGapMm = gap;
+    beforeNativeCall();
+    try
+    {
+        const auto interval = edge->GetInterval();
+        result.rawPair = MeasureFinalTrim(*edge->GetCurve(), *curves[0], *surface, interval.GetMin(), interval.GetMax());
+    }
+    catch (const std::runtime_error&)
+    {
+        return result;
+    }
+    if (result.rawPair->maximumMm > maximumMm)
+    {
+        return result;
+    }
+    result.curve.reset(curves[0]);
+    cleanup.Clear();
+    result.status = DerivedUvStatus::Ready;
+    return result;
+}
 } // namespace step_import::detail

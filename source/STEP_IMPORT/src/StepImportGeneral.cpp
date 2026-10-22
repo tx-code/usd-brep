@@ -1746,6 +1746,55 @@ private:
         {
             const auto& f = faces[i];
             auto& native = m_model->faces[i];
+            if (Is(f.surface, "CYLINDRICAL_SURFACE"))
+            {
+                SmTArray<SmEdgeuse*> uses;
+                native.face->GetUpwardEdgeuses(uses);
+                for (ULONG k = 0; k < uses.GetSize(); ++k)
+                {
+                    const auto edge = uses[k]->GetEdge();
+                    const auto found = std::find(m_model->edges.begin(), m_model->edges.end(), edge);
+                    if (found == m_model->edges.end() || uses[k]->GetUVTrimCurve())
+                    {
+                        continue;
+                    }
+                    const auto index = static_cast<Index>(found - m_model->edges.begin());
+                    if (index >= curves.size() || curves[index].v0 == curves[index].v1 || !Is(curves[index].geometry, "CIRCLE"))
+                    {
+                        continue;
+                    }
+                    const auto tolerance = SmTol::GetZoneTol3d(edge);
+                    auto projected = ProjectDerivedUv(*uses[k], Q(m_options.quality.derivedUvMm), [&] { Step(f.record); });
+                    Need(SmTol::GetZoneTol3d(edge) == tolerance, "GeneralProjectionChangedWorkTolerance", f.record);
+                    if (projected.status != DerivedUvStatus::Ready)
+                    {
+                        continue;
+                    }
+                    Step(f.record);
+                    const auto candidate = projected.curve.get();
+                    uses[k]->SetUVTrimCurve(candidate, 0., TRUE);
+                    const bool adopted = candidate->GetOwner() == uses[k] || candidate->GetOwner() == uses[k]->GetMate();
+                    if (adopted)
+                    {
+                        projected.curve.release();
+                    }
+                    Need(adopted && uses[k]->GetUVTrimCurve() == candidate, "GeneralProjectedUvOwnership", f.record);
+                    // Preserve the defining circle and its rational native t.
+                    // Face closure/seam handling and final paired measurements
+                    // still run below, followed by global topology/tolerance checks.
+                    RepresentationNormalization normalization{ "ControlledCircleUvProjection", Id(f.record), {}, {}, index };
+                    for (const auto& loop : f.loops)
+                    {
+                        normalization.sourceBoundIds.push_back(Id(loop.bound));
+                    }
+                    m_report.normalizations.push_back(std::move(normalization));
+                    m_report.tolerances.push_back({ "ControlledCircleUvProjection", "RequestedProjectionAccuracy", Id(curves[index].record),
+                                                    Q(m_options.quality.derivedUvMm) / 8 });
+                    m_report.tolerances.push_back({ "ControlledCircleUvProjection", "RawPairedParameterSampleMaximum", Id(curves[index].record),
+                                                    projected.rawPair->maximumMm });
+                    m_rebuiltUv = true;
+                }
+            }
             double mean = 0, max = 0, meanVertex = 0, maxVertex = 0, meanParam = 0, maxParam = 0;
             Step(f.record);
             Good(native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam));

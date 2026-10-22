@@ -50,4 +50,8 @@ DerivedUvCandidate MatchProjectedUvEndpoints(
 // returned UV curve. The legacy kernel projection can grow edge tolerances on
 // retry; the caller's final tolerance observation must reject budget excess.
 DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall);
+// One bounded surface projection, with a tighter numerical solve target than
+// the acceptance budget. No edgeuse retry or topology tolerance adjustment.
+// Multiple branches remain unestablished for the caller to handle normally.
+DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall);
 } // namespace step_import::detail

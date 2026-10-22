@@ -45,14 +45,14 @@ class ProjectionToleranceTests(unittest.TestCase):
 
     def test_axis_aligned_partition_has_independent_cylinder_truth(self):
         source = split_circle_cylinder(math.pi/2, 3*math.pi/2)
-        run, report = self.invoke_bytes(source)
+        run, report = self.invoke_bytes(source, "--integration-relative-accuracy", "1e-6")
         self.assertEqual(0, run.returncode, run.stderr or report)
         self.assertEqual((3, 5, 4), tuple(report['model'][key] for key in ['faces', 'edges', 'vertices']))
         self.assertAlmostEqual(63*math.pi, report['model']['material_volume']['value_mm3'], delta=1e-3)
 
     def test_retry_cannot_publish_an_excessive_work_tolerance(self):
         source = split_circle_cylinder()
-        run, report = self.invoke_bytes(source)
+        run, report = self.invoke_bytes(source, "--integration-relative-accuracy", "1e-6")
         self.assertEqual(source, report['source_inspection']['source']['input']['raw'].encode('latin1'))
         self.assertEqual('None', report['repair'])
         quality = report['quality']
@@ -61,16 +61,17 @@ class ProjectionToleranceTests(unittest.TestCase):
                     rational(quality['initial_work_tolerance_mm']) + rational(quality['tolerance_growth_mm']))
         observed = [item for item in report['measurements'] if item['stage'] == 'Postchecked']
         self.assertTrue(observed)
-        if report['status'] == 'Accepted':
-            # A future projection fix may legitimately accept the exact solid;
-            # it must still preserve this fixed budget and the analytic truth.
-            self.assertEqual(0, run.returncode)
-            self.assertTrue(all(0 < item['value_mm'] <= limit for item in observed))
-            self.assertAlmostEqual(63*math.pi, report['model']['material_volume']['value_mm3'], delta=1e-3)
-        else:
-            self.assertEqual('PostcheckFailure', report['status'])
-            self.assertEqual(['GeneralUnexpectedToleranceGrowth'], [d['key'] for d in report['diagnostics']])
-            self.assertIsNone(report['model'])
-            self.assertTrue(report['candidate_discarded'])
-            self.assertEqual('EdgeWorkTolerance', observed[-1]['kind'])
-            self.assertGreater(observed[-1]['value_mm'], limit)
+        self.assertEqual('Accepted', report['status'], report['diagnostics'])
+        self.assertEqual(0, run.returncode)
+        self.assertTrue(all(0 < item['value_mm'] <= limit for item in observed))
+        self.assertAlmostEqual(63*math.pi, report['model']['material_volume']['value_mm3'], delta=1e-3)
+        self.assertTrue(any(n['kind'] == 'ControlledCircleUvProjection' for n in report['representation_normalizations']))
+
+    def test_true_source_gap_still_rejects_the_entire_candidate(self):
+        source = split_circle_cylinder().replace(b"CYLINDRICAL_SURFACE('',#106,3.)",
+                                                b"CYLINDRICAL_SURFACE('',#106,3.002)")
+        run, report = self.invoke_bytes(source)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report['model'])
+        self.assertTrue(report['candidate_discarded'])
+        self.assertEqual(source, report['source_inspection']['source']['input']['raw'].encode('latin1'))

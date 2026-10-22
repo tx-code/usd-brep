@@ -45,14 +45,16 @@ Near a surface pole, for example the apex of a cone, dropping a curve onto a sur
 `SmFace::CreateUVTrimCurves(FALSE, ...)` calls an edgeuse projection path whose
 retry-success branches can increase the edge's working tolerance. This also
 affects callers of `SmEdgeuse::CreateUVTrimCurve`, including derived-UV rebuilding.
-An exact cylinder with circular rims split at non-axis-aligned angles reproduces
+An exact cylinder with circular rims split at non-axis-aligned angles exposed
 `GeneralUnexpectedToleranceGrowth` under the native import development quality.
 See the [public analytic regression](tools/step_import_native_validation/tests/test_projection_tolerance.py).
 
-**Workaround:** retain the final native working-tolerance budget check and reject
-an excessive candidate. Do not reset the stored tolerance or enlarge the budget
-to hide a projection error. The public test checks safe rejection; it does not
-establish that the projection defect is fixed.
+**Workaround:** native STEP import now preprojects partial CIRCLE edges on
+CYLINDRICAL_SURFACE through a bounded surface projection, avoiding this retry
+path when a single checked UV candidate is available. Other callers and cases
+remain affected. Retain the final native working-tolerance budget check and
+reject an excessive candidate. Do not reset the stored tolerance or enlarge the
+budget to hide a projection error. The legacy kernel behavior is not fixed.
 
 ## Tessellation
 
