@@ -10,6 +10,7 @@ from pathlib import Path
 import unittest
 
 from tools.step_import_native_validation.tests import test_general
+from tools.step_import_native_validation.tests.spherical_cap_oracle import spherical_cap_truth
 
 
 def spherical_belt_source(longitude=math.pi/2):
@@ -159,3 +160,43 @@ class SphericalImportTests(unittest.TestCase):
         self.assertTrue(checks['defining_coefficients_and_uv_checked'])
         for key in ('native_pointer_reports', 'native_level2_reports', 'reloaded_pointer_reports', 'reloaded_level2_reports'):
             self.assertEqual(0, checks[key])
+
+
+    def test_explicit_small_and_large_caps_select_the_correct_material_side(self):
+        path = Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/analytic_hemisphere_explicit_seam.step'
+        original = path.read_bytes()
+        for offset in (-3, 3):
+            for positive in (False, True):
+                with self.subTest(offset=offset, positive=positive):
+                    # Radius5, section radius4, center at z3. Move only the
+                    # clipping plane/rim and choose the retained spherical side.
+                    data = original.replace(b"CIRCLE('',#106,5.)", b"CIRCLE('',#107,4.)")
+                    data = data.replace(b"PLANE('',#106)", b"PLANE('',#107)")
+                    data = data.replace(b"#102=CARTESIAN_POINT('',(0.,5.,3.));",
+                                        f"#102=CARTESIAN_POINT('',(0.,4.,{3+offset}.));".encode())
+                    extra = (f"#101=CARTESIAN_POINT('',(0.,0.,{3+offset}.));\n"
+                             "#107=AXIS2_PLACEMENT_3D('',#101,#104,#105);\n").encode()
+                    data = data.replace(b'ENDSEC;\nEND-ISO', extra+b'ENDSEC;\nEND-ISO')
+                    if not positive:
+                        data = data.replace(b"#103=CARTESIAN_POINT('',(0.,0.,8.));",
+                                            b"#103=CARTESIAN_POINT('',(0.,0.,-2.));")
+                        data = data.replace(b"#132=EDGE_CURVE('',#120,#121,#112,.T.);",
+                                            b"#132=EDGE_CURVE('',#120,#121,#112,.F.);")
+                        data = data.replace(b"#150=ORIENTED_EDGE('',*,*,#130,.F.);",
+                                            b"#150=ORIENTED_EDGE('',*,*,#130,.T.);")
+                        data = data.replace(b"#152=ORIENTED_EDGE('',*,*,#130,.T.);",
+                                            b"#152=ORIENTED_EDGE('',*,*,#130,.F.);")
+                        data = data.replace(b"#180=ADVANCED_FACE('',(#170),#140,.F.);",
+                                            b"#180=ADVANCED_FACE('',(#170),#140,.T.);")
+                    truth = spherical_cap_truth(5, offset, positive_side=positive)
+                    # Pole-adjacent integration needs a tighter stopping target
+                    # here; the geometric quality and oracle thresholds stay fixed.
+                    run, report = self.invoke_bytes(data, '--integration-relative-accuracy', '1e-8')
+                    self.assertEqual(0, run.returncode, report['diagnostics'])
+                    self.assertAlmostEqual(float(truth['volume_over_pi_mm3'])*math.pi,
+                                           report['model']['material_volume']['value_mm3'], delta=1e-3)
+                    self.assertAlmostEqual(float(truth['area_over_pi_mm2'])*math.pi,
+                                           report['model']['area_mm2'], delta=1e-3)
+                    self.assertAlmostEqual(3+float(truth['centroid_axis_mm']),
+                                           report['model']['centroid_mm'][2], delta=1e-4)
+                    self.assertEqual(data, report['source_inspection']['source']['input']['raw'].encode('latin1'))
