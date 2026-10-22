@@ -18,6 +18,10 @@ constexpr bool IsAp214SourceProfile(ProfileKind profile) noexcept
 {
     return profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap214MbxSource;
 }
+constexpr bool HasDeclaredProductStructureProfile(ProfileKind profile) noexcept
+{
+    return IsAp214SourceProfile(profile) || profile == ProfileKind::Ap203N916Source;
+}
 constexpr const char* SourceArtifactName(ProfileKind profile)
 {
     switch (profile)
@@ -306,4 +310,5 @@ struct SemanticData
 const Catalog& Schema(const SemanticData& data);
 
 AttributeView AttributeAt(const SemanticData& data, std::size_t record, std::size_t component, std::size_t parameter);
+std::size_t FindFieldBinding(const SemanticData& data, std::size_t record, std::string_view name, std::optional<std::string_view> declaredIn = {});
 } // namespace step_semantics

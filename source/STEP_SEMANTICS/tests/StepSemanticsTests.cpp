@@ -31,6 +31,47 @@ std::size_t Index(const step_semantics::Snapshot& snapshot, const char* id)
 {
     return static_cast<std::size_t>(snapshot.Source().Find(id) - snapshot.Source().Records().data());
 }
+void ProductStructureOwnership(std::string text)
+{
+    using namespace step_semantics;
+    const std::string schema = "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}";
+    text.replace(text.find(schema), schema.size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}");
+    const auto end = text.find("ENDSEC;\nEND-ISO");
+    Require(end != std::string::npos, "source fixture DATA end");
+    text.insert(
+        end,
+        "#900=PRODUCT('P0-PART','second',$,(#3));\n"
+        "#901=PRODUCT_DEFINITION_FORMATION('B',$,#900);\n"
+        "#902=PRODUCT_DEFINITION('D2',$,#901,#6);\n"
+        "#903=PRODUCT_DEFINITION_SHAPE('',$,#902);\n"
+        "#904=SHAPE_DEFINITION_REPRESENTATION(#903,#20);\n"
+    );
+    auto raw = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
+    auto result = Check(raw, Limits{}, SourcePolicy::Strict, GeometryScope::GeneralBrep);
+    Require(
+        result.status == Status::Unsupported && !result.snapshot && result.productStructure,
+        "declared graph evidence remains separate from single-part admission"
+    );
+    auto graph = result.productStructure;
+    Require(graph->Definitions().size() == 2 && graph->Roots().size() == 2 && graph->Usages().empty(), "complete independent definition inventory");
+    auto limits = Limits{};
+    limits.dependencyVisits = result.dependencyVisits - 1;
+    const auto stopped = Check(raw, limits, SourcePolicy::Strict, GeometryScope::GeneralBrep);
+    Require(
+        stopped.status == Status::ResourceLimit && !stopped.productStructure && !stopped.snapshot,
+        "graph budget exhaustion withholds incomplete structure evidence"
+    );
+    result = {};
+    raw = {};
+    Require(
+        graph->Source().Bytes() == text && graph->Source().Records()[graph->Definitions()[1].product].id == "900",
+        "structure owns immutable source identities after inspection outcomes are released"
+    );
+    Require(
+        graph->Basis().profile.kind == ProfileKind::Ap214e3Source && graph->Basis().sourcePolicy == SourcePolicy::Strict,
+        "structure keeps its source interpretation basis after mutable outcomes are released"
+    );
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -41,6 +82,8 @@ int main(int argc, char** argv)
     {
         Require(argc == 2, "Pass frozen corpus case directory");
         const std::filesystem::path corpus(argv[1]);
+        ProductStructureOwnership(Read(corpus / "S203-P04/input.step"));
+        ++groups;
         auto raw = step_source::InspectBytes(Read(corpus / "S203-P01/input.step"), step_source::Limits::PlanarFixtures());
         auto result = Check(raw, Limits{});
         Require(result.status == Status::Checked && result.snapshot, "P01 semantic checks");
@@ -111,7 +154,7 @@ int main(int argc, char** argv)
         auto explicitDimensions = conversion203.snapshot->Field(Index(*conversion203.snapshot, "19"), "NAMED_UNIT", "dimensions");
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
-            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 136,
+            conversion203.snapshot->RegisteredTypes().size() == 72 && conversion214.snapshot->RegisteredTypes().size() == 143,
             "Catalog identity leaked across source profiles"
         );
         Require(

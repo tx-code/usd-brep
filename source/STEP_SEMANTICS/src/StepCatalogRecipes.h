@@ -13,6 +13,7 @@
 #include "StepCatalogBuilder.h"
 #include "StepCompositeCurveCatalogData.h"
 #include "StepDateTimeCatalogData.h"
+#include "StepProductCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
 #include "StepWireframeCatalogData.h"
 
@@ -538,9 +539,13 @@ constexpr Recipe ProfileRecipe()
         // elementary placement and a positive length radius. Append after all
         // existing identities; this admits source data, not native sphere UVs
         // or the AP214 bounded-surface representation role.
-        recipe.declarations.push_back(
-            { "SPHERICAL_SURFACE", { "ELEMENTARY_SURFACE" }, { common::Real("radius", "POSITIVE_LENGTH_MEASURE") }, true }
-        );
+        recipe.declarations.push_back({ "SPHERICAL_SURFACE", { "ELEMENTARY_SURFACE" }, { common::Real("radius", "POSITIVE_LENGTH_MEASURE") }, true });
+    }
+    if constexpr (HasDeclaredProductStructureProfile(Profile))
+    {
+        // Preserve every existing catalog identity and complex mapping index.
+        // Product-structure declarations are appended after all prior overlays.
+        products::AddDeclarations(recipe, Profile);
     }
     return recipe;
 }

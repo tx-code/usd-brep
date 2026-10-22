@@ -6,6 +6,7 @@ enable_testing()
 add_subdirectory(../STEP_SOURCE source-reader)
 add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepSemantics.cpp src/StepSemanticJson.cpp src/StepSchemaSelection.cpp
     src/StepGeometryDependencies.cpp src/StepSourceNumber.cpp src/StepUnitDependencies.cpp src/StepUnitRational.cpp)
+target_sources(STEP_SEMANTICS PRIVATE src/StepSourceBindings.cpp src/StepProductStructure.cpp)
 target_include_directories(STEP_SEMANTICS PUBLIC inc PRIVATE src)
 target_compile_features(STEP_SEMANTICS PUBLIC cxx_std_20)
 target_link_libraries(STEP_SEMANTICS PUBLIC STEP_SOURCE PRIVATE usd_brep_gsl)
@@ -34,7 +35,7 @@ if(STEP_SEMANTICS_BUILD_TESTS)
     file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/catalog-build-$<CONFIG>.txt" CONTENT
         "compiler=${CMAKE_CXX_COMPILER_ID}\ncompiler_version=${CMAKE_CXX_COMPILER_VERSION}\ngenerator=${CMAKE_GENERATOR}\nplatform=${CMAKE_GENERATOR_PLATFORM}\nconfiguration=$<CONFIG>\nstandard=20\nflags=${CMAKE_CXX_FLAGS}\nconfiguration_flags=$<$<CONFIG:Release>:${CMAKE_CXX_FLAGS_RELEASE}>$<$<CONFIG:Debug>:${CMAKE_CXX_FLAGS_DEBUG}>\ntarget_options=$<TARGET_PROPERTY:STEP_SEMANTICS,COMPILE_OPTIONS>\nipo=$<TARGET_PROPERTY:STEP_SEMANTICS,INTERPROCEDURAL_OPTIMIZATION>\nsnapshot=$<TARGET_FILE:step_catalog_snapshot>\nallocations=$<TARGET_FILE:step_catalog_allocations>\n")
     add_test(NAME step_catalog_snapshot_contracts COMMAND "${Python3_EXECUTABLE}" -m tools.step_catalog_validation check
-        --snapshot $<TARGET_FILE:step_catalog_snapshot> --baseline "${CMAKE_CURRENT_SOURCE_DIR}/tests/catalog/baseline")
+        --snapshot $<TARGET_FILE:step_catalog_snapshot> --baseline "${CMAKE_CURRENT_SOURCE_DIR}/tests/catalog/baseline-product-structure")
     add_test(NAME step_catalog_tool_contracts COMMAND "${Python3_EXECUTABLE}" -m unittest discover
         -s tools/step_catalog_validation/tests -v)
     set(compile_driver_arguments --build-dir "${CMAKE_CURRENT_BINARY_DIR}/catalog-compile-$<CONFIG>"

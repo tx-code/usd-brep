@@ -216,7 +216,7 @@ class Ap214EntityTests(unittest.TestCase):
                               b"SHAPE_DEFINITION_REPRESENTATION(#8,#20)")
         self.assert_failure(direct, "UnsupportedRepresentationGraph")
 
-    def test_ap203_and_unknown_presentation_or_transform_branches_stay_closed(self):
+    def test_ap203_unknown_presentation_and_invalid_transform_branches_stay_closed(self):
         data = presentation_source().replace(b"AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}", AP203)
         self.assert_failure(data, "UnsupportedEntityType")
         other_colour = presentation_source().replace(b"COLOUR_RGB('RGB',0.25,0.5,0.75)",
@@ -225,7 +225,9 @@ class Ap214EntityTests(unittest.TestCase):
         transformed = linked_source().replace(
             b"SHAPE_REPRESENTATION_RELATIONSHIP('source link',$,#910,#20)",
             b"REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION('source link',$,#910,#20,#914)")
-        self.assert_failure(transformed, "UnsupportedEntityType")
+        # The relationship is now registered, but its operator cannot be a
+        # bare placement; the TRANSFORMATION SELECT still requires its entity.
+        self.assert_failure(transformed, "ReferenceTypeMismatch", code=1)
 
     def test_transport_fields_do_not_claim_unexecuted_style_where_rules(self):
         # FILL_AREA_STYLE is a legal PRESENTATION_STYLE_SELECT branch in the pinned

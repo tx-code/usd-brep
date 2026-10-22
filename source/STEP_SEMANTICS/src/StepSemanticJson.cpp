@@ -368,6 +368,185 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             "{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":"
     );
     out.String(StatusName(result.status));
+    if (result.productStructure)
+    {
+        const auto& graph = *result.productStructure;
+        const auto& records = graph.Source().Records();
+        const auto& basis = graph.Basis();
+        const auto id = [&](std::size_t record)
+        {
+            out.String(records.at(record).id);
+        };
+        out.Add(
+            ",\"product_structure\":{\"qualification\":\"DeclaredProductGraphOnly\","
+            "\"part_ownership\":\"NotQualified\",\"unit_context_validation\":\"NotRun\","
+            "\"transform_evaluation\":\"NotRun\",\"native_build\":\"NotRun\",\"basis\":{\"profile\":"
+        );
+        out.String(basis.profile.profile);
+        out.Add(",\"registry_id\":");
+        out.String(basis.profile.registryId);
+        out.Add(",\"express_sha256\":");
+        out.String(basis.profile.expressSha256);
+        out.Add(",\"schema_interpretation\":");
+        out.String(SchemaInterpretationName(basis.schemaInterpretation));
+        if (basis.profile.kind == ProfileKind::Ap203N916Source)
+        {
+            out.Add(",\"binding_basis\":\"NameOnlyGeneralSourceSubset\",\"header_edition_verified\":false");
+        }
+        else if (basis.schemaInterpretation != SchemaInterpretation::DeclaredOnly)
+        {
+            out.Add(",\"header_identity_verified\":false");
+        }
+        out.Add(",\"source_policy\":");
+        out.String(basis.sourcePolicy == SourcePolicy::Strict ? "Strict" : "PreserveNonGeometric");
+        out.Add("},\"definitions\":[");
+        bool comma = false;
+        for (const auto& definition : graph.Definitions())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"definition\":");
+            id(definition.definition);
+            out.Add(",\"formation\":");
+            id(definition.formation);
+            out.Add(",\"product\":");
+            id(definition.product);
+            out.Add(",\"definition_context\":");
+            id(definition.definitionContext);
+            out.Add(",\"shape_definition_representations\":[");
+            bool inner = false;
+            for (const auto& link : definition.representations)
+            {
+                if (inner)
+                {
+                    out.Add(",");
+                }
+                inner = true;
+                out.Add("{\"link\":");
+                id(link.link);
+                out.Add(",\"shape_definition\":");
+                id(link.shapeDefinition);
+                out.Add(",\"representation\":");
+                id(link.representation);
+                out.Add(",\"context\":");
+                id(link.context);
+                out.Add("}");
+            }
+            out.Add("]}");
+        }
+        out.Add("],\"usages\":[");
+        comma = false;
+        for (const auto& usage : graph.Usages())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"usage\":");
+            id(usage.usage);
+            out.Add(",\"relating_definition\":");
+            id(usage.relatingDefinition);
+            out.Add(",\"related_definition\":");
+            id(usage.relatedDefinition);
+            out.Add(",\"next_assembly_occurrence\":");
+            out.Add(usage.nextAssemblyOccurrence ? "true" : "false");
+            out.Add("}");
+        }
+        out.Add("],\"context_dependent_shapes\":[");
+        comma = false;
+        for (const auto& link : graph.ContextDependentShapes())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"link\":");
+            id(link.link);
+            out.Add(",\"representation_relationship\":");
+            id(link.representationRelationship);
+            out.Add(",\"product_definition_shape\":");
+            id(link.productDefinitionShape);
+            out.Add(",\"product_relationship\":");
+            id(link.productRelationship);
+            out.Add("}");
+        }
+        out.Add("],\"representation_relationships\":[");
+        comma = false;
+        for (const auto& link : graph.RepresentationRelationships())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"relationship\":");
+            id(link.relationship);
+            out.Add(",\"first_representation\":");
+            id(link.firstRepresentation);
+            out.Add(",\"second_representation\":");
+            id(link.secondRepresentation);
+            out.Add(",\"first_context\":");
+            id(link.firstContext);
+            out.Add(",\"second_context\":");
+            id(link.secondContext);
+            out.Add(",\"shape_relationship\":");
+            out.Add(link.shapeRelationship ? "true" : "false");
+            out.Add(",\"transformation\":");
+            if (link.transformation)
+            {
+                id(*link.transformation);
+            }
+            else
+            {
+                out.Add("null");
+            }
+            out.Add("}");
+        }
+        out.Add("],\"transforms\":[");
+        comma = false;
+        for (const auto& link : graph.Transforms())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"relationship\":");
+            id(link.relationship);
+            out.Add(",\"first_representation\":");
+            id(link.firstRepresentation);
+            out.Add(",\"second_representation\":");
+            id(link.secondRepresentation);
+            out.Add(",\"first_context\":");
+            id(link.firstContext);
+            out.Add(",\"second_context\":");
+            id(link.secondContext);
+            out.Add(",\"transformation\":");
+            id(link.transformation);
+            out.Add(",\"first_item\":");
+            id(link.firstItem);
+            out.Add(",\"second_item\":");
+            id(link.secondItem);
+            out.Add("}");
+        }
+        out.Add("],\"usage_roots\":[");
+        comma = false;
+        for (auto root : graph.Roots())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            id(root);
+        }
+        out.Add("]}");
+    }
     const auto appliedUnit = result.snapshot ? result.snapshot->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
     if (result.requestedUnitInterpretation != UnitInterpretation::DeclaredOnly || appliedUnit != UnitInterpretation::DeclaredOnly)
     {

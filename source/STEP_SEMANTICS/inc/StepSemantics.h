@@ -206,6 +206,63 @@ struct Diagnostic
 };
 
 struct SemanticData;
+struct ProductStructureData;
+struct ProductRepresentationLink
+{
+    std::size_t link, shapeDefinition, representation, context;
+};
+struct ProductDefinitionLink
+{
+    std::size_t definition, formation, product, definitionContext;
+    std::vector<ProductRepresentationLink> representations;
+};
+struct ProductUsageLink
+{
+    std::size_t usage, relatingDefinition, relatedDefinition;
+    bool nextAssemblyOccurrence = false;
+};
+struct ContextDependentShapeLink
+{
+    std::size_t link, representationRelationship, productDefinitionShape, productRelationship;
+};
+struct RepresentationTransformLink
+{
+    std::size_t relationship, firstRepresentation, secondRepresentation;
+    std::size_t firstContext, secondContext, transformation, firstItem, secondItem;
+};
+struct ProductRepresentationRelationship
+{
+    std::size_t relationship, firstRepresentation, secondRepresentation, firstContext, secondContext;
+    bool shapeRelationship = false;
+    std::optional<std::size_t> transformation;
+};
+struct ProductStructureBasis
+{
+    QualifiedSchemaProfile profile;
+    SchemaInterpretation schemaInterpretation = SchemaInterpretation::DeclaredOnly;
+    SourcePolicy sourcePolicy = SourcePolicy::Strict;
+};
+// Declared product graph evidence only: immutable source identities/references,
+// usage uniqueness/acyclicity and selected dependency predicates. It grants no
+// qualified part snapshot, unit/placement interpretation or native model.
+class ProductStructure
+{
+public:
+
+    explicit ProductStructure(std::shared_ptr<const ProductStructureData> data);
+    const step_source::SourceSnapshot& Source() const;
+    const ProductStructureBasis& Basis() const;
+    std::span<const ProductDefinitionLink> Definitions() const;
+    std::span<const ProductUsageLink> Usages() const;
+    std::span<const ContextDependentShapeLink> ContextDependentShapes() const;
+    std::span<const RepresentationTransformLink> Transforms() const;
+    std::span<const ProductRepresentationRelationship> RepresentationRelationships() const;
+    std::span<const std::size_t> Roots() const; // Usage roots, never an implicit native/root selection.
+
+private:
+
+    std::shared_ptr<const ProductStructureData> m_data;
+};
 struct AttributeLocation
 {
     std::string recordId;
@@ -304,6 +361,7 @@ struct Outcome
     SchemaInterpretation requestedInterpretation = SchemaInterpretation::DeclaredOnly;
     UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
     std::shared_ptr<const Snapshot> snapshot;
+    std::shared_ptr<const ProductStructure> productStructure; // Separate, structure-only evidence can survive single-part refusal.
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
     std::string types = "NotRun";

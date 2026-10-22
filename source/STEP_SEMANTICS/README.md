@@ -1031,3 +1031,57 @@ proof; source success does not establish a representable native scale. An unused
 request creates no receipt. Unit errors are separate from `PreservedDiagnostics`.
 A failed full source request publishes no partial unit receipt. Existing strict,
 planar, property-only mass and valid derived-marker paths keep their behavior.
+
+## Declared product structure
+
+General-BRep inspection of the two fixed AP214 profiles and the fixed modified
+N916 subset also captures a declared
+product graph when multiple products/definitions, usage records or transformed
+representation links occur. `Outcome::productStructure` owns immutable source
+identities for definitions, formations, products, representation/context links,
+usage edges, context-dependent shape associations and transformation items.
+It shares the original source bytes and remains usable after inspection outcomes
+are released. Its owning basis retains the selected artifact/profile, schema
+interpretation and source policy. Source labels never merge definitions or repeated usages.
+
+Transport follows the fixed `AP214E3_2010.exp` (SHA256 `71ab140f...`) and modified
+N916 (`020b4d25...`), with their protocol-specific field optionality:
+PRODUCT_DEFINITION_RELATIONSHIP, PRODUCT_DEFINITION_USAGE,
+ASSEMBLY_COMPONENT_USAGE, NEXT_ASSEMBLY_USAGE_OCCURRENCE,
+CONTEXT_DEPENDENT_SHAPE_REPRESENTATION, ITEM_DEFINED_TRANSFORMATION and
+REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION. The transformation SELECT is
+restricted to ITEM_DEFINED_TRANSFORMATION. The complete external transformed
+shape signature retains all three facets, including the shared relationship.
+These declarations are appended; existing type identities and mapping indices
+remain unchanged. The closed N2635 planar and general catalogs do not acquire them.
+N916 requires TEXT descriptions on product relationships and item-defined
+transformations; AP214 permits absent descriptions. No protocol alias or edition
+claim is inferred from this shared implementation.
+The N916 CLASSIFIED_ITEM SELECT also retains its ASSEMBLY_COMPONENT_USAGE branch;
+security assignments do not turn arbitrary product relationships into usages.
+
+Required structure predicates are PDU.UR1 (identifier plus both definition
+identities), PDU.WR1 (complete iterative acyclicity check), SRR.WR1,
+RR_WITH_TRANSFORMATION.WR1 (distinct context identities), and CDSR.WR1. Only AP214
+adds CDSR.WR2-WR3; modified N916 has no such derived name/description clauses.
+Unknown/unmapped declarations still fail before this pass. The closed catalog
+therefore establishes absent NAME_ATTRIBUTE/DESCRIPTION_ATTRIBUTE populations;
+registered populations, if present, use actual role-filtered inverse counts.
+Graph work uses the existing semantic visit budget. Exhaustion or a failed
+structure predicate returns no partial structure object.
+
+The report labels this evidence `DeclaredProductGraphOnly`. Part ownership,
+representation-specific unit contexts, transform direction/composition and
+numeric evaluation, root selection, assembly instance expansion, geometry and
+native construction are not qualified by this object. Usage roots are source
+observations, not an implicit import selection. A complete observation can
+accompany the existing `UnsupportedSinglePartGraph`; `snapshot` remains null.
+Existing single-part admission and the selected-request publication contract
+remain unchanged. This is not a multi-part/assembly native import interface.
+
+The frozen catalog input in `tests/catalog/baseline` retains its original bytes.
+The appended declaration/SELECT/signature facts have a separate comparison input
+in `baseline-product-structure`; it is not an independent schema witness.
+The internal C++ Outcome layout adds an owning observation pointer: rebuild
+source/semantic/planar/native consumers together. Public source bytes and earlier
+result qualifications retain their meaning.
