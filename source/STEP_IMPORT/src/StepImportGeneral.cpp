@@ -2182,9 +2182,9 @@ private:
             {
                 max = std::max(max, controlledProjectionGap);
             }
-            // FALSE requests no tolerance adjustment at the face level. Nested
-            // edgeuse projection retries can still change edge working tolerances;
-            // ObserveTolerances must reject any resulting budget excess.
+            // FALSE forbids working-tolerance changes in the current kernel.
+            // Older SDK retries did not honor that contract; ObserveTolerances
+            // independently rejects any actual budget excess on every runtime.
             // Report kernel observations as
             // measurements, never as the planar implementation's interval proof.
             // A failed budget still retains the finite observation; absence of
