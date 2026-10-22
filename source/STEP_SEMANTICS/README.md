@@ -1114,3 +1114,6 @@ of coincident parts. Representation relationships joining distinct roots also
 remain unsupported. Legacy `Check` keeps its single-part admission. Failure or
 budget exhaustion exposes no qualified surviving parts. Candidate scopes and
 unit walks use sparse per-definition work sets and one indexed source graph.
+Independent definitions do not acquire a common assembly frame. Native views
+may normalize each definition to millimetres, but cross-definition coordinates
+or distances require a separately established source placement relationship.
