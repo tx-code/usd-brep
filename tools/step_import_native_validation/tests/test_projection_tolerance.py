@@ -185,3 +185,35 @@ class ProjectionToleranceTests(unittest.TestCase):
         self.assertTrue(checks['defining_coefficients_and_uv_checked'])
         for key in ('native_pointer_reports','native_level2_reports','reloaded_pointer_reports','reloaded_level2_reports'):
             self.assertEqual(0, checks[key])
+
+
+    def test_cone_spline_interior_gap_is_rejected_even_with_exact_endpoints(self):
+        # The short rational arc spans .2..1.1 radians at radius 3, z=0.
+        # Move only its middle pole radially by 1%; both endpoint poles and
+        # topological vertices remain exact. At t=.5 the radial departure is
+        # .03/(1+cos(.45)); multiplying by cos(atan(3/4)) gives the cone's
+        # normal distance, independently of either CAD kernel.
+        path = Path(__file__).resolve().parents[3] / 'source/STEP_IMPORT/tests/fixtures/analytic_split_spline_cone.step'
+        original = path.read_bytes()
+        def move_middle(match):
+            xyz = [float(value) for value in match[2].split(b',')]
+            xyz[0] *= 1.01
+            xyz[1] *= 1.01
+            return match[1]+','.join(f'{v:.17E}' for v in xyz).encode()+match[3]
+        source, count = re.subn(rb"(#801=CARTESIAN_POINT\('',\()([^)]*)(\)\))", move_middle, original)
+        self.assertEqual(1, count)
+        for identity in (b'800', b'802', b'102', b'124'):
+            pattern = rb'#'+identity+rb'=[^;]+;'
+            self.assertEqual(re.search(pattern, original)[0], re.search(pattern, source)[0])
+        run, report = self.invoke_bytes(source)
+        budget = report['quality']['derived_uv_mm']
+        budget_mm = int(budget['num'])/int(budget['den'])
+        independent_gap = .03/(1+math.cos(.45))*.8
+        self.assertGreater(independent_gap, budget_mm)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report['model'])
+        self.assertTrue(report['candidate_discarded'])
+        self.assertEqual('None', report['repair'])
+        self.assertEqual(source, report['source_inspection']['source']['input']['raw'].encode('latin1'))
+        self.assertIn(report['diagnostics'][-1]['key'],
+                      ('GeneralDerivedUvGap', 'GeneralFinalTrimGap', 'GeneralUnexpectedToleranceGrowth'))
