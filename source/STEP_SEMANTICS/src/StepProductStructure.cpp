@@ -64,7 +64,8 @@ class Builder
 {
 public:
 
-    Builder(const SemanticData& data, const std::function<void(step_source::Span)>& visit) : m_data(data), m_visit(visit)
+    Builder(const SemanticData& data, const std::function<void(step_source::Span)>& visit, bool includeSingleDefinition)
+        : m_data(data), m_visit(visit), m_includeSingleDefinition(includeSingleDefinition)
     {
     }
     ProductStructureResult Run()
@@ -73,8 +74,9 @@ public:
         {
             return {};
         }
-        if (Population("PRODUCT").size() <= 1 && Population("PRODUCT_DEFINITION").size() <= 1 && Population("PRODUCT_DEFINITION_USAGE").empty() &&
-            Population("CONTEXT_DEPENDENT_SHAPE_REPRESENTATION").empty() && Population("REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION").empty())
+        if (!m_includeSingleDefinition && Population("PRODUCT").size() <= 1 && Population("PRODUCT_DEFINITION").size() <= 1 &&
+            Population("PRODUCT_DEFINITION_USAGE").empty() && Population("CONTEXT_DEPENDENT_SHAPE_REPRESENTATION").empty() &&
+            Population("REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION").empty())
         {
             return {}; // No extra work/charge/order change for the established single-part path.
         }
@@ -269,6 +271,7 @@ private:
 
     const SemanticData& m_data;
     const std::function<void(step_source::Span)>& m_visit;
+    bool m_includeSingleDefinition = false;
     void Visit(std::size_t record) const
     {
         m_visit(m_data.source->Records().at(record).span);
@@ -341,12 +344,16 @@ private:
     }
 };
 } // namespace
-ProductStructureResult InspectProductStructure(const SemanticData& data, const std::function<void(step_source::Span)>& visit)
+ProductStructureResult InspectProductStructure(
+    const SemanticData& data,
+    const std::function<void(step_source::Span)>& visit,
+    bool includeSingleDefinition
+)
 {
     Expects(bool(visit));
     try
     {
-        return Builder(data, visit).Run();
+        return Builder(data, visit, includeSingleDefinition).Run();
     }
     catch (ProductStructureFailure& failure)
     {

@@ -92,6 +92,15 @@ attempts/bytes/diagnostics with monotonic progress. Searching for a semicolon or
 `#id=` inside uncertain text is not a recovery proof. Never renumber duplicates,
 guess missing delimiters/values, or silently repair physical definitions.
 
+The implemented `InspectIndependentDefinitions` diagnostic mode now retains
+separate definition-local part/region and unit-context observations after an
+earlier definition fails. It first requires complete raw/type/global dependency
+prerequisites and the existing independent-definition planner. Its owning facts
+include unapproved metadata diagnostics; it never publishes qualified parts or
+a document, even for all-green observations. Whole-document ownership and final
+interoperability approval remain unrun. This provides facts for later influence
+proofs; it does not itself establish error isolation or selected-root admission.
+
 The implemented native-only selection `SourceCompleteNativeSelection-0.1`
 first requires a completely checked independent-product source document. It
 binds explicit PRODUCT_DEFINITION IDs to original SHA256 and constructs only

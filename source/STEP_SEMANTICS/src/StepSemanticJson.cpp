@@ -181,7 +181,7 @@ void RecordIds(Writer& out, const Snapshot& data, const std::vector<std::size_t>
     }
     out.Add("]");
 }
-void Diagnostics(Writer& out, const step_source::InspectOutcome& source, const std::vector<Diagnostic>& diagnostics)
+void Diagnostics(Writer& out, const step_source::InspectOutcome& source, std::span<const Diagnostic> diagnostics)
 {
     out.Add("[");
     for (std::size_t i = 0; i < diagnostics.size(); ++i)
@@ -552,6 +552,48 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             }
             comma = true;
             id(root);
+        }
+        out.Add("]}");
+    }
+    if (result.definitionInspectionRequested)
+    {
+        out.Add(
+            ",\"definition_inspection\":{\"qualification\":\"DiagnosticObservationsOnly\","
+            "\"whole_document_ownership\":\"NotRun\",\"interoperability_approval\":\"NotRun\","
+            "\"source_isolation\":\"NotEstablished\",\"all_definitions_visited\":"
+        );
+        out.Add(result.definitionInspection && result.definitionInspection->AllDefinitionsVisited() ? "true" : "false");
+        out.Add(",\"unapproved_diagnostics\":");
+        if (result.definitionInspection)
+        {
+            Diagnostics(out, source, result.definitionInspection->UnapprovedDiagnostics());
+        }
+        else
+        {
+            Diagnostics(out, source, result.unapprovedDiagnostics);
+        }
+        out.Add(",\"definitions\":[");
+        if (result.definitionInspection)
+        {
+            bool comma = false;
+            const auto& records = result.definitionInspection->Structure().Source().Records();
+            for (const auto& check : result.definitionInspection->Checks())
+            {
+                if (comma)
+                {
+                    out.Add(",");
+                }
+                comma = true;
+                out.Add("{\"definition\":");
+                out.String(records.at(check.definition).id);
+                out.Add(",\"part_prerequisites\":");
+                out.String(check.part);
+                out.Add(",\"unit_context\":");
+                out.String(check.units);
+                out.Add(",\"diagnostics\":");
+                Diagnostics(out, source, check.diagnostics);
+                out.Add("}");
+            }
         }
         out.Add("]}");
     }

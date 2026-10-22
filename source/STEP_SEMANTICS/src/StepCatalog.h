@@ -285,6 +285,8 @@ struct SemanticData
     SourcePolicy policy = SourcePolicy::Strict;
     GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
     std::size_t preservedDiagnosticLimit = 1024;
+    bool definitionInspectionRequested = false;
+    std::size_t definitionDiagnosticCount = 0;
     std::vector<PendingIssue> pendingIssues; // Provisional only; no metadata/root qualification until the final proof.
     std::vector<Diagnostic> preservedDiagnostics;
     UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
@@ -317,6 +319,11 @@ struct SemanticData
         Units units;
     };
     std::vector<QualifiedPart> independentParts; // Candidate source parts; exposed only after the whole request succeeds.
+    std::size_t DiagnosticFactCount() const
+    {
+        return pendingIssues.size() + interpretationDiagnostics.size() + complexMappingDiagnostics.size() + cylindricalBandRepairDiagnostics.size() +
+               definitionDiagnosticCount;
+    }
 };
 
 const Catalog& Schema(const SemanticData& data);

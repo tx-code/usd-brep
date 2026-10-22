@@ -1,5 +1,40 @@
 # STEP source semantics: ticket 03
 
+## Diagnostic observations for independent definitions
+
+`InspectIndependentDefinitions` / `step_semantic_inspect --fixture-limits input.step
+--diagnose-independent-definitions` explicitly observes each definition's existing
+part/region prerequisites and bound unit context after complete raw indexing,
+type/field binding and global unit/geometry prerequisites. It reuses the existing
+AP214/modified-N916 declared-product inventory, independence planner and unit checks.
+Single-definition input is inventoried explicitly in this mode; an empty inventory
+or a profile without this declared-product capability remains unsupported. A failed definition no longer hides later
+observations; shared invalid faces still fail for every definition that uses them.
+Assembly relationships and unknown/malformed source prerequisites remain blocking.
+
+`Outcome.definitionInspection` owns the complete declared inventory, original
+source bytes and per-definition progress/diagnostics. It survives releasing the
+outcome, raw inspection and input file. Unit observations may follow a region
+failure only when the context identity was already established; otherwise they
+remain `NotRun`. Pending metadata facts are retained as **unapproved** diagnostics.
+Facts captured before a later global prerequisite failure remain in the report
+even when no definition inventory could be established.
+Visits and diagnostic capacity accumulate across all definitions; exhaustion stops
+the traversal and leaves remaining entries `NotRun` with incomplete evidence.
+
+This mode never returns `snapshot` or `document`, including for all-green results.
+Its JSON `definition_inspection` declares `DiagnosticObservationsOnly`, whole-file
+ownership and interoperability approval `NotRun`, and source isolation
+`NotEstablished`. All-green observations return `Deferred` (CLI 7); observed
+rejection, unsupported scope or resource exhaustion retains its failure category.
+No model is built, bad content is not dropped, and this does not enable local
+syntax recovery or selected-root source admission. Ordinary checks and reports
+retain their existing behavior. Rebuild internal C++ consumers for the extended
+Outcome layout. Public controls are `step_definition_inspection_contracts` and
+`tools/step_semantic_validation/tests/test_definition_inspection.py`.
+
+## Existing source qualification
+
 An explicit general-source cylindrical-band repair deferral can retain a failed
 `FACE.WR2` for the exact requested definition/shape/face/two-bound identities.
 The original source types and failed predicate remain; the result is Deferred

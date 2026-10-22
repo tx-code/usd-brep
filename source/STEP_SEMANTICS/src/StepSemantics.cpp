@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAp203N916Profile.h"
 #include "StepCatalog.h"
+#include "StepDefinitionInspection.h"
 #include "StepGeometryDependencies.h"
 #include "StepIndependentProducts.h"
 #include "StepProductStructure.h"
@@ -94,7 +95,7 @@ public:
         : m_data(std::move(data)), m_outcome(outcome), m_independentRequest(independentRequest)
     {
     }
-    void Run()
+    void RunPrerequisites()
     {
         RunPhase(
             Phase::Binding,
@@ -151,6 +152,10 @@ public:
                 }
             );
         }
+    }
+    void Run()
+    {
+        RunPrerequisites();
         RunPhase(
             Phase::Part,
             [&]
@@ -250,6 +255,156 @@ public:
             );
         }
     }
+    void InspectDefinitions()
+    {
+        RunPrerequisites();
+        RunPhase(
+            Phase::Part,
+            [&]
+            {
+                auto structure = InspectProductStructure(
+                    *m_data,
+                    [this](Span span)
+                    {
+                        Visit(span);
+                    },
+                    true
+                );
+                if (structure.failure)
+                {
+                    throw Failure{ structure.failure->status, std::move(structure.failure->diagnostic) };
+                }
+                m_outcome.productStructure = std::move(structure.structure);
+                if (!m_outcome.productStructure || m_outcome.productStructure->Definitions().empty())
+                {
+                    Fail(
+                        "DefinitionInspectionRequiresInventory",
+                        "D2",
+                        "Declared independent definitions are required",
+                        m_data->source->Header()[2].span,
+                        Status::Unsupported
+                    );
+                }
+                auto plan = PlanIndependentProducts(
+                    *m_data,
+                    *m_outcome.productStructure,
+                    [this](Span span)
+                    {
+                        Visit(span);
+                    }
+                );
+                if (plan.failure)
+                {
+                    throw Failure{ plan.failure->status, std::move(plan.failure->diagnostic) };
+                }
+                BuildReferenceIndex();
+                auto evidence = std::make_shared<DefinitionInspectionData>();
+                m_definitionInspection = evidence;
+                evidence->structure = m_outcome.productStructure;
+                for (const auto& scope : plan.parts)
+                {
+                    DefinitionPrerequisiteCheck check;
+                    check.definition = scope.definition;
+                    evidence->checks.push_back(std::move(check));
+                }
+                m_outcome.definitionInspection = std::make_shared<const DefinitionInspection>(evidence);
+                const auto dimensions = m_data->units.dimensionDefinitions;
+                std::unordered_map<std::size_t, const UnitDimensionDefinition*> dimensionByRecord;
+                for (const auto& dimension : dimensions)
+                {
+                    dimensionByRecord.emplace(dimension.recordIndex, &dimension);
+                }
+                for (const auto& definition : m_outcome.productStructure->Definitions())
+                {
+                    m_requestedProducts.insert(definition.product);
+                }
+                std::optional<Failure> firstFailure;
+                bool resourceStopped = false;
+                const auto observe = [&](Failure failure, DefinitionPrerequisiteCheck& check)
+                {
+                    if (m_data->DiagnosticFactCount() >= m_outcome.limits.preservedDiagnostics)
+                    {
+                        Fail(
+                            "DefinitionDiagnosticLimit",
+                            "D2",
+                            "Independent definition diagnostic capacity exceeded",
+                            Record(check.definition).span,
+                            Status::ResourceLimit,
+                            check.definition
+                        );
+                    }
+                    ++m_data->definitionDiagnosticCount;
+                    failure.diagnostic.source.related.push_back(Record(check.definition).idSpan);
+                    check.diagnostics.push_back(failure.diagnostic);
+                    if (!firstFailure || failure.status == Status::ResourceLimit)
+                    {
+                        firstFailure = failure;
+                    }
+                    resourceStopped |= failure.status == Status::ResourceLimit;
+                    // Continue observations only: no failed part is inserted into
+                    // independentParts, no ownership proof is skipped for admission.
+                    State(Phase::Part) = Progress::Running;
+                };
+                for (std::size_t i = 0; i < plan.parts.size(); ++i)
+                {
+                    auto& check = evidence->checks[i];
+                    const auto& scope = plan.parts[i];
+                    PopulationScope selected(m_scopedPopulations, scope.populations);
+                    m_data->part = {};
+                    m_wireframeRepresentation.reset();
+                    m_constructionRepresentation.reset();
+                    try
+                    {
+                        Visit(Record(scope.definition).span);
+                        Product();
+                        check.part = m_data->part.deferredRegionFaces.empty() ? "CheckedPrerequisites" : "DeferredRegion";
+                    }
+                    catch (const Failure& failure)
+                    {
+                        check.part = StatusName(failure.status);
+                        observe(failure, check);
+                    }
+                    if (resourceStopped)
+                    {
+                        break;
+                    }
+                    // Unit evidence uses only a context already bound by Product.
+                    // A later region failure need not suppress this independent
+                    // observation; absent/ambiguous context identity remains NotRun.
+                    if (std::any_of(
+                            m_data->part.roles.begin(),
+                            m_data->part.roles.end(),
+                            [](const auto& role)
+                            {
+                                return role.name == "unit_context";
+                            }
+                        ))
+                    {
+                        try
+                        {
+                            const auto units = IndependentUnitContext(m_data->part, dimensionByRecord);
+                            check.units = units.lengthPower10Mm ? "Checked" : "Deferred";
+                        }
+                        catch (const Failure& failure)
+                        {
+                            check.units = StatusName(failure.status);
+                            observe(failure, check);
+                        }
+                    }
+                    if (resourceStopped)
+                    {
+                        break;
+                    }
+                }
+                evidence->allDefinitionsVisited = !resourceStopped;
+                if (firstFailure)
+                {
+                    State(Phase::Part) = FailureProgress(firstFailure->status);
+                    throw *firstFailure;
+                }
+            }
+        );
+    }
     void PublishProgress()
     {
         m_outcome.binding = ProgressName(State(Phase::Binding));
@@ -307,6 +462,20 @@ public:
         if (State(Phase::Part) == Progress::Passed && !m_data->cylindricalBandRepairDiagnostics.empty())
         {
             m_outcome.part = "DeferredExplicitRepair";
+        }
+        if (m_outcome.definitionInspectionRequested)
+        {
+            m_outcome.unapprovedDiagnostics.clear();
+            for (const auto& issue : m_data->pendingIssues)
+            {
+                m_outcome.unapprovedDiagnostics.push_back(issue.diagnostic);
+            }
+        }
+        if (m_outcome.definitionInspection)
+        {
+            m_definitionInspection->unapprovedDiagnostics = m_outcome.unapprovedDiagnostics;
+            m_outcome.part = "InspectedPerDefinition";
+            m_outcome.siUnits = "InspectedPerDefinition";
         }
     }
 
@@ -425,6 +594,7 @@ private:
     std::optional<std::size_t> m_wireframeRepresentation;
     std::optional<std::size_t> m_constructionRepresentation;
     bool m_independentRequest = false;
+    std::shared_ptr<DefinitionInspectionData> m_definitionInspection;
     const std::map<std::size_t, std::vector<std::size_t>>* m_scopedPopulations = nullptr;
     std::vector<std::size_t> m_documentPhysical, m_documentBodies;
     std::unordered_set<std::size_t> m_documentBodySet;
@@ -591,6 +761,41 @@ private:
         std::sort(result.begin(), result.end());
         return result;
     }
+    Units IndependentUnitContext(const Part& part, const std::unordered_map<std::size_t, const UnitDimensionDefinition*>& dimensionByRecord)
+    {
+        const auto context = std::find_if(
+            part.roles.begin(),
+            part.roles.end(),
+            [](const auto& role)
+            {
+                return role.name == "unit_context";
+            }
+        );
+        Expects(context != part.roles.end());
+        m_context = context->recordIndex;
+        const auto reachable = SparseReach(m_context);
+        m_data->units = {};
+        for (auto record : reachable)
+        {
+            if (auto found = dimensionByRecord.find(record); found != dimensionByRecord.end())
+            {
+                m_data->units.dimensionDefinitions.push_back(*found->second);
+            }
+        }
+        std::map<std::size_t, std::vector<std::size_t>> selected;
+        std::vector<std::size_t> si;
+        for (auto record : reachable)
+        {
+            if (IsA(*m_data, record, "SI_UNIT"))
+            {
+                si.push_back(record);
+            }
+        }
+        selected.emplace(Schema(*m_data).RequireType("SI_UNIT"), std::move(si));
+        PopulationScope scope(m_scopedPopulations, selected);
+        UnitContext();
+        return std::move(m_data->units);
+    }
     void IndependentUnits()
     {
         auto dimensions = std::move(m_data->units.dimensionDefinitions);
@@ -604,38 +809,7 @@ private:
         std::unordered_set<std::size_t> observedSi;
         for (auto& part : m_data->independentParts)
         {
-            const auto context = std::find_if(
-                part.part.roles.begin(),
-                part.part.roles.end(),
-                [](const auto& role)
-                {
-                    return role.name == "unit_context";
-                }
-            );
-            Expects(context != part.part.roles.end());
-            m_context = context->recordIndex;
-            const auto reachable = SparseReach(m_context);
-            m_data->units = {};
-            for (auto record : reachable)
-            {
-                if (auto found = dimensionByRecord.find(record); found != dimensionByRecord.end())
-                {
-                    m_data->units.dimensionDefinitions.push_back(*found->second);
-                }
-            }
-            std::map<std::size_t, std::vector<std::size_t>> selected;
-            std::vector<std::size_t> si;
-            for (auto record : reachable)
-            {
-                if (IsA(*m_data, record, "SI_UNIT"))
-                {
-                    si.push_back(record);
-                }
-            }
-            selected.emplace(Schema(*m_data).RequireType("SI_UNIT"), std::move(si));
-            PopulationScope scope(m_scopedPopulations, selected);
-            UnitContext();
-            part.units = std::move(m_data->units);
+            part.units = IndependentUnitContext(part.part, dimensionByRecord);
             for (const auto& unit : part.units.siDefinitions)
             {
                 if (observedSi.insert(unit.recordIndex).second)
@@ -757,15 +931,26 @@ private:
     }
     void Preserve(Failure failure, SemanticData::PreservationProof proof = SemanticData::PreservationProof::ExistingMetadata)
     {
+        if (m_outcome.definitionInspectionRequested && m_data->DiagnosticFactCount() >= m_outcome.limits.preservedDiagnostics)
+        {
+            // Diagnostic-only continuation shares one request ledger with
+            // provisional metadata; never allocate a new pending fact after
+            // earlier definition failures have consumed that capacity.
+            Fail(
+                "DefinitionDiagnosticLimit",
+                "D2",
+                "Independent definition diagnostic capacity exceeded",
+                failure.diagnostic.source.primary,
+                Status::ResourceLimit
+            );
+        }
         // Capture the original strict diagnostic, not a replacement verdict. It
         // remains provisional until attachment and physical-dependency checks pass.
         m_data->pendingIssues.push_back({ failure.status, std::move(failure.diagnostic), proof });
         // Fail marked the phase terminal. Restore it only for this provisional
         // issue; the final proof still precedes every typed snapshot publication.
         State(*m_phase) = Progress::Running;
-        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
-                m_data->cylindricalBandRepairDiagnostics.size() >
-            m_outcome.limits.preservedDiagnostics)
+        if (m_data->DiagnosticFactCount() > m_outcome.limits.preservedDiagnostics)
         {
             Fail(
                 "PreservedDiagnosticLimit",
@@ -4998,7 +5183,8 @@ static Outcome CheckImpl(
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs,
-    bool independentRequest
+    bool independentRequest,
+    bool inspectDefinitions = false
 )
 {
     if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
@@ -5043,6 +5229,7 @@ static Outcome CheckImpl(
     result.requestedInterpretation = interpretation;
     result.requestedUnitInterpretation = unitInterpretation;
     result.requestedComplexMappingInterpretation = complexMappingInterpretation;
+    result.definitionInspectionRequested = inspectDefinitions;
     if (!source.source || source.status != step_source::Status::Inspected)
     {
         for (const auto& diagnostic : source.diagnostics)
@@ -5075,9 +5262,20 @@ static Outcome CheckImpl(
     data->cylindricalBandRepairs.assign(cylindricalBandRepairs.begin(), cylindricalBandRepairs.end());
     data->cylindricalBandRepairUses.resize(cylindricalBandRepairs.size());
     data->preservedDiagnosticLimit = limits.preservedDiagnostics;
+    data->definitionInspectionRequested = inspectDefinitions;
     Checker checker(data, result, independentRequest);
     try
     {
+        if (inspectDefinitions)
+        {
+            checker.InspectDefinitions();
+            // Even all-green per-definition prerequisites have not run whole-
+            // document ownership or final interoperability approval. There is
+            // deliberately no qualified source snapshot/document in this mode.
+            result.status = Status::Deferred;
+            checker.PublishProgress();
+            return result;
+        }
         checker.Run();
         if (independentRequest && data->independentParts.empty())
         {
@@ -5161,6 +5359,28 @@ Outcome CheckIndependentProducts(
         unitInterpretation,
         complexMappingInterpretation,
         cylindricalBandRepairs,
+        true
+    );
+}
+Outcome InspectIndependentDefinitions(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
+)
+{
+    return CheckImpl(
+        source,
+        limits,
+        policy,
+        GeometryScope::GeneralBrep,
+        interpretation,
+        unitInterpretation,
+        complexMappingInterpretation,
+        {},
+        true,
         true
     );
 }

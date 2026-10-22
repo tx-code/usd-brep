@@ -27,6 +27,7 @@ int main(int argc, char** argv)
         step_semantics::Limits semanticLimits;
         auto policy = step_semantics::SourcePolicy::Strict;
         bool independentProducts = false;
+        bool diagnoseDefinitions = false;
         auto geometryScope = step_semantics::GeometryScope::ExplicitOuterBounds;
         auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
@@ -62,6 +63,11 @@ int main(int argc, char** argv)
             else if (arg == "--independent-products")
             {
                 independentProducts = true;
+                geometryScope = step_semantics::GeometryScope::GeneralBrep;
+            }
+            else if (arg == "--diagnose-independent-definitions")
+            {
+                diagnoseDefinitions = true;
                 geometryScope = step_semantics::GeometryScope::GeneralBrep;
             }
             else if (arg == "--general-brep-source")
@@ -183,7 +189,15 @@ int main(int argc, char** argv)
             return 64;
         }
         const auto source = step_source::InspectFile(std::filesystem::path(path), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
-        const auto semantics = independentProducts ? step_semantics::CheckIndependentProducts(
+        const auto semantics = diagnoseDefinitions ? step_semantics::InspectIndependentDefinitions(
+                                                         source,
+                                                         semanticLimits,
+                                                         policy,
+                                                         interpretation,
+                                                         unitInterpretation,
+                                                         complexMappingInterpretation
+                                                     ) :
+                               independentProducts ? step_semantics::CheckIndependentProducts(
                                                          source,
                                                          semanticLimits,
                                                          policy,

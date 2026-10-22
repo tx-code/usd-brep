@@ -386,6 +386,31 @@ enum class Status
     SourceFailure
 };
 
+struct DefinitionPrerequisiteCheck
+{
+    std::size_t definition = 0; // Index in the one original source, never a new or renumbered record.
+    std::string part = "NotRun";
+    std::string units = "NotRun";
+    std::vector<Diagnostic> diagnostics;
+};
+struct DefinitionInspectionData;
+// Diagnostic observations only. Even an entirely green inspection does not
+// establish document ownership, interoperability approval or a qualified part.
+class DefinitionInspection
+{
+public:
+
+    explicit DefinitionInspection(std::shared_ptr<const DefinitionInspectionData> data);
+    const ProductStructure& Structure() const;
+    std::span<const DefinitionPrerequisiteCheck> Checks() const;
+    std::span<const Diagnostic> UnapprovedDiagnostics() const; // Pending metadata facts, without final ownership/exception approval.
+    bool AllDefinitionsVisited() const;
+
+private:
+
+    std::shared_ptr<const DefinitionInspectionData> m_data;
+};
+
 struct UnitDependencyCounts
 {
     std::size_t total = 0;
@@ -409,6 +434,8 @@ struct Outcome
     std::shared_ptr<const Snapshot> snapshot;
     std::shared_ptr<const ProductDocument> document;
     std::shared_ptr<const ProductStructure> productStructure; // Separate, structure-only evidence can survive single-part refusal.
+    std::shared_ptr<const DefinitionInspection> definitionInspection; // Explicit diagnostic-only per-definition observations.
+    bool definitionInspectionRequested = false;
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
     std::string types = "NotRun";
@@ -430,6 +457,7 @@ struct Outcome
     std::vector<Diagnostic> unitInterpretationDiagnostics; // Physical source nonconformance, not a metadata-only exception.
     std::vector<Diagnostic> complexMappingDiagnostics; // Observed original order errors; on failure these are NOT qualified assumptions.
     std::vector<Diagnostic> cylindricalBandRepairDiagnostics; // Original failed source clauses; never metadata exceptions.
+    std::vector<Diagnostic> unapprovedDiagnostics; // Diagnostic-mode pending facts only, without exception approval.
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
@@ -454,6 +482,17 @@ Outcome CheckIndependentProducts(
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs = {}
+);
+// Continues independent part/unit observations after a definition-local failure.
+// Complete parsing, types and global dependency checks remain prerequisites.
+// This API never publishes snapshot/document and never licenses source isolation.
+Outcome InspectIndependentDefinitions(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
 const char* StatusName(Status status);
 } // namespace step_semantics

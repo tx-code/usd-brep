@@ -185,7 +185,11 @@ private:
     {
         // Provisional only: the outer checker still has to prove property
         // attachment and exclude the body's entire physical unit closure.
-        if (m_data.pendingIssues.size() >= m_data.preservedDiagnosticLimit)
+        // Diagnostic-only collection cannot rely on final interoperability
+        // approval for the combined cap: that approval intentionally stays
+        // unrun. Share its global ledger with binding and definition facts.
+        const auto used = m_data.definitionInspectionRequested ? m_data.DiagnosticFactCount() : m_data.pendingIssues.size();
+        if (used >= m_data.preservedDiagnosticLimit)
         {
             Fail(
                 Status::ResourceLimit,
@@ -193,7 +197,7 @@ private:
                 field,
                 "PreservedDiagnosticLimit",
                 "configured preserved diagnostic capacity",
-                std::to_string(m_data.pendingIssues.size() + 1),
+                std::to_string(used + 1),
                 "explicit interoperability capacity; no diagnostics silently discarded"
             );
         }
