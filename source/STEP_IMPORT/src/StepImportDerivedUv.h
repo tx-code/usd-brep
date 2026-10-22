@@ -47,6 +47,7 @@ DerivedUvCandidate MatchProjectedUvEndpoints(
 );
 // The caller holds NativeMutex and owns an unpublished, complete face/edge
 // candidate. Restores the surface owner on every exit and never installs a
-// returned UV curve or grows topology tolerances.
+// returned UV curve. The legacy kernel projection can grow edge tolerances on
+// retry; the caller's final tolerance observation must reject budget excess.
 DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall);
 } // namespace step_import::detail

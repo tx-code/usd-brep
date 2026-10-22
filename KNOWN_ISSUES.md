@@ -40,6 +40,20 @@ Known bugs in the SMLib geometry SDK.
 
 Near a surface pole, for example the apex of a cone, dropping a curve onto a surface can miss a seam that the curve starts on or runs along within tolerance, and so classify the curve's boundary incorrectly.
 
+### Derived UV projection can increase edge tolerance despite a face-level no-adjust request
+
+`SmFace::CreateUVTrimCurves(FALSE, ...)` calls an edgeuse projection path whose
+retry-success branches can increase the edge's working tolerance. This also
+affects callers of `SmEdgeuse::CreateUVTrimCurve`, including derived-UV rebuilding.
+An exact cylinder with circular rims split at non-axis-aligned angles reproduces
+`GeneralUnexpectedToleranceGrowth` under the native import development quality.
+See the [public analytic regression](tools/step_import_native_validation/tests/test_projection_tolerance.py).
+
+**Workaround:** retain the final native working-tolerance budget check and reject
+an excessive candidate. Do not reset the stored tolerance or enlarge the budget
+to hide a projection error. The public test checks safe rejection; it does not
+establish that the projection defect is fixed.
+
 ## Tessellation
 
 ### Inside-out triangles next to fillets
