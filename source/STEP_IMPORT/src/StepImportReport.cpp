@@ -174,6 +174,14 @@ void FractionJson(Writer& writer, Fraction value)
     writer.String(std::to_string(value.Denominator()));
     writer.Add("}");
 }
+void FractionJson(Writer& writer, const ExactUnitRatio& value)
+{
+    writer.Add("{\"kind\":\"rational\",\"num\":");
+    writer.String(value.Numerator());
+    writer.Add(",\"den\":");
+    writer.String(value.Denominator());
+    writer.Add("}");
+}
 void FrameJson(Writer& w, const CoordinateFrame& frame)
 {
     w.Add("{\"origin_mm\":");

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.22)
 project(STEP_IMPORT LANGUAGES CXX)
+include(../../cmake/BoostMultiprecision.cmake)
 enable_testing()
 add_subdirectory(../STEP_PLANAR source-planar)
 
@@ -29,7 +30,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp src/StepImportCollect
 target_sources(STEP_IMPORT PRIVATE src/StepImportPeriodicNormalization.cpp)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
-target_link_libraries(STEP_IMPORT PUBLIC STEP_PLANAR PRIVATE SM_API SMLib usd_brep_gsl)
+target_link_libraries(STEP_IMPORT PUBLIC STEP_PLANAR PRIVATE SM_API SMLib usd_brep_gsl usd_brep_multiprecision)
 if(WIN32)
     target_link_libraries(STEP_IMPORT PRIVATE Psapi)
 endif()

@@ -179,6 +179,8 @@ endforeach()
 install(DIRECTORY third_party/microsoft-gsl/ DESTINATION third_party/microsoft-gsl)
 install(FILES third_party/microsoft-gsl/LICENSE third_party/microsoft-gsl/ThirdPartyNotices.txt
     DESTINATION PACKAGE-LICENSES/MicrosoftGSL)
+install(FILES third_party/boost-multiprecision/LICENSE_1_0.txt
+    DESTINATION PACKAGE-LICENSES/BoostMultiprecision)
 install(FILES README.md LICENSE THIRD_PARTY_NOTICES.md VERSION DESTINATION .)
 if(SMLIB_BUILD_PYTHON)
     # The SDK puts its extension beside the Python package and its libraries in

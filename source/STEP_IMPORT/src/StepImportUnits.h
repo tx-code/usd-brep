@@ -13,8 +13,10 @@ struct ResolvedLengthScale
 // Interpret ONLY a checked nominal LENGTH_UNIT chain ending at SI METRE.
 // Unit dimensions/SELECT bindings belong to STEP_SEMANTICS; this pass does not
 // infer quantity from dimensions, names or unrelated property units. Each
-// conversion's exact source decimal is multiplied once, with bounded rational
-// capacity. The callback checks cooperative resource/cancellation boundaries.
+// conversion's exact source decimal is multiplied once, with checked 4096-bit
+// magnitude capacity. Preserve wider factor/intermediate ratios as exact integer
+// strings, and narrow only the final mm ratio to Fraction. The callback checks
+// cooperative resource/cancellation boundaries, including arithmetic loops.
 // Canonical source contract: source/STEP_SEMANTICS/README.md, conversion-unit
 // external mappings and unit-dimensional dependencies; positivity here is a
 // project physical-normalization prerequisite, not a new source WHERE clause.

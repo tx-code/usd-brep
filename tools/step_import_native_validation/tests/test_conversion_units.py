@@ -120,6 +120,61 @@ class ConversionUnitTests(unittest.TestCase):
         self.assertEqual(0, result["native_calls"])
         self.assertIn("GeneralUnitScaleRange", [x["key"] for x in result["diagnostics"]])
 
+    def test_wide_source_factor_retains_exact_representable_millimetre_scale(self):
+        # Constructed decimal: its denominator exceeds int64, but multiplication
+        # by the SI metre's 1000 mm cancels three powers of ten exactly.
+        literal = "0.001234567890123456789"
+        factor = Fraction(literal)
+        scale = factor * 1000
+        self.assertGreater(factor.denominator, 2**63 - 1)
+        for ap214 in (False, True):
+            with self.subTest(ap214=ap214):
+                data = conversion_source(ap214=ap214, factor=literal)
+                run, result = self.invoke(data)
+                self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+                units = result["unit_normalization"]
+                self.assertEqual(scale, rational(units["length_to_mm"]))
+                self.assertEqual(factor, rational(units["definitions"][0]["factor_value"]))
+                self.assertEqual(scale, rational(units["definitions"][0]["scale_mm"]))
+                self.assertEqual(data.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
+                model = result["model"]
+                self.assertEqual((6, 12, 8), (model["faces"], model["edges"], model["vertices"]))
+                for actual, expected in ((model["material_volume"]["value_mm3"], 6000 * scale**3),
+                                         (model["area_mm2"], 2200 * scale**2)):
+                    self.assertAlmostEqual(float(expected), actual, delta=float(expected) * 1e-10)
+
+    def test_wide_intermediate_scale_cancels_before_native_narrowing(self):
+        for power in (30, 100, 1233):
+            with self.subTest(power=power):
+                data = conversion_source(ap214=True, nested=True, si_prefix=".MILLI.")
+                data = data.replace(b"LENGTH_MEASURE(0.0127)", f"LENGTH_MEASURE(1.E{power})".encode("ascii"))
+                data = data.replace(b"LENGTH_MEASURE(2.)", f"LENGTH_MEASURE(1.E-{power})".encode("ascii"))
+                run, result = self.invoke(data)
+                self.assertEqual(0, run.returncode, run.stderr or result.get("diagnostics"))
+                units = result["unit_normalization"]
+                self.assertEqual(Fraction(1), rational(units["length_to_mm"]))
+                self.assertEqual([Fraction(10**power), Fraction(1)],
+                                 [rational(x["scale_mm"]) for x in units["definitions"]])
+                self.assertEqual([Fraction(10**power), Fraction(1, 10**power)],
+                                 [rational(x["factor_value"]) for x in units["definitions"]])
+                self.assertAlmostEqual(6000, result["model"]["material_volume"]["value_mm3"], delta=1e-7)
+                self.assertEqual(data.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
+
+    def test_wide_arithmetic_still_refuses_capacity_and_nonpositive_factors(self):
+        for literal, key, status in (("1.E1234", "GeneralUnitScaleRange", "Indeterminate"),
+                                     ("1.E-1234", "GeneralUnitScaleRange", "Indeterminate"),
+                                     ("1.E999999999999999999999999999999", "GeneralUnitScaleRange", "Indeterminate"),
+                                     ("-0.001234567890123456789", "GeneralUnitScaleNotPositive", "Unsupported")):
+            with self.subTest(literal=literal):
+                data = conversion_source(ap214=True, factor=literal)
+                run, result = self.invoke(data)
+                self.assertNotEqual(0, run.returncode)
+                self.assertEqual(status, result["status"])
+                self.assertIsNone(result["model"])
+                self.assertEqual(0, result["native_calls"])
+                self.assertIn(key, [x["key"] for x in result["diagnostics"]])
+                self.assertEqual(data.decode("ascii"), result["source_inspection"]["source"]["input"]["raw"])
+
     def test_cycle_is_still_a_source_failure_before_native_allocation(self):
         data = conversion_source(ap214=True)
         data = re.sub(rb"(MEASURE_WITH_UNIT\(LENGTH_MEASURE\(0.0254\),)#\d+", rb"\g<1>#10", data)

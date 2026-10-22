@@ -82,6 +82,36 @@ void ConversionUnitContract(const std::filesystem::path& source)
         wrongQuantity = failure.status == step_import::Status::Unsupported && failure.key == "GeneralConversionQuantityUnsupported";
     }
     Require(wrongQuantity, "angle units cannot substitute for a nominal length root");
+    auto wideText = text;
+    const std::string factor = "LENGTH_MEASURE(0.0254)";
+    const auto factorAt = wideText.find(factor);
+    Require(factorAt != std::string::npos, "public conversion factor");
+    wideText.replace(factorAt, factor.size(), "LENGTH_MEASURE(0.001234567890123456789)");
+    auto wideOutcome = step_import::ImportBytes(wideText, options);
+    Require(wideOutcome.status == step_import::Status::Accepted && wideOutcome.model, "wide factor builds after exact SI cancellation");
+    auto wideModel = wideOutcome.model;
+    wideOutcome = {};
+    const auto wideUnits = wideModel->LengthUnits();
+    Require(
+        wideUnits.lengthToMm == step_import::Fraction(1234567890123456789LL, 1000000000000000000LL) &&
+            wideUnits.generalDefinitions.front().factorValue.Numerator() == "1234567890123456789" &&
+            wideUnits.generalDefinitions.front().factorValue.Denominator() == "1000000000000000000000" &&
+            wideUnits.generalDefinitions.front().scaleMm.Denominator() == "1000000000000000000" && wideModel->Source()->Source().Bytes() == wideText,
+        "owning exact unit evidence survives report disposal without narrowing source factors"
+    );
+    const double scale = 1.234567890123456789;
+    Near(*wideModel->MaterialVolumeMm3(), 6000 * scale * scale * scale, 1e-6, "independent wide-factor box volume");
+    auto lateCancel = options;
+    lateCancel.execution.control = std::make_shared<step_import::ImportControl>();
+    lateCancel.execution.progress = [&](step_import::Progress progress)
+    {
+        if (progress.phase == step_import::Phase::NativeReady)
+        {
+            lateCancel.execution.control->RequestCancel();
+        }
+    };
+    const auto wideStopped = step_import::ImportBytes(wideText, lateCancel);
+    Require(wideStopped.status == step_import::Status::Cancelled && !wideStopped.model, "wide arithmetic never bypasses final cancellation");
     auto cancel = options;
     cancel.execution.control = std::make_shared<step_import::ImportControl>();
     std::size_t boundaries = 0;

@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -29,6 +30,7 @@ struct ModelData;
 struct CollectionData;
 struct EditableData;
 struct Access;
+struct UnitRatioAccess;
 class Execution;
 } // namespace detail
 enum class CancelResult
@@ -388,11 +390,35 @@ struct SourceShapeObservation
 {
     std::string role, representationId, representationType, shapeId, shapeType, shellId, shellType;
 };
+// Canonical exact evidence for source factors and intermediate unit scales.
+// Decimal integer strings avoid narrowing these to the native int64 ratio.
+// Only the final lengthToMm ratio must fit Fraction; no Boost type is public.
+class ExactUnitRatio
+{
+public:
+
+    ExactUnitRatio() = default;
+    // Views borrow this value, not the STEP owner. Retain the returned
+    // UnitNormalization copy while using a view from one of its ratios.
+    std::string_view Numerator() const noexcept
+    {
+        return m_numerator;
+    }
+    std::string_view Denominator() const noexcept
+    {
+        return m_denominator;
+    }
+
+private:
+
+    friend struct detail::UnitRatioAccess;
+    std::string m_numerator = "0", m_denominator = "1";
+};
 struct ConversionUnitDefinition
 {
     std::size_t unit = 0, factor = 0, baseUnit = 0; // Source record indices, never native pointers or invented dimension entities.
     std::string valueType;
-    Fraction factorValue, scaleMm;
+    ExactUnitRatio factorValue, scaleMm;
 };
 struct UnitNormalization
 {

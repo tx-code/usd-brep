@@ -23,8 +23,11 @@
 
 通用构建支持已检查的 `CONVERSION_BASED_UNIT + LENGTH_UNIT` 链，终点必须是已登记的
 SI `METRE` 长度单位；SI prefix 与嵌套因子按实际实体引用求积，不使用单位名称猜测。
-因子必须逐项为正，毫米比例与每步结果使用既有有界精确有理数保存；容量不足返回
-`Indeterminate`，未支持的基单位或名义量返回 `Unsupported`，不回退到近似比例。
+因子必须逐项为正。源因子和每步比例使用固定 4096 位幅值、检查溢出的精确整数计算，
+乘法先交叉约分；只有最终毫米比例收窄到既有 `Fraction` 的有符号 63 位幅值范围。
+因子或中间比例超出 `Fraction` 不再单独阻断可表示的最终结果；4096 位运算容量不足，
+或最终比例仍不能进入 `Fraction`，继续返回 `Indeterminate`。未支持的基单位或名义量
+返回 `Unsupported`，不回退到近似比例。此容量不是几何预算或生产精度设置。
 源 SELECT、名义类型、量纲和必要条款继续由 `STEP_SEMANTICS` 检查；本层不另造维数实体，
 也不把其“转换解释待下层”的源状态改写为已通过全部检查。
 
@@ -38,6 +41,12 @@ B 样条节点与权重不乘长度比例。角度继续按原独立角单位合
 丢弃可变 outcome/report 后仍有效。转换定义中的记录索引相对于该模型的 `Source()`；
 读取原实体时须保留模型或其 owning 源。原生存档本身不编码 STEP 来源资格，仍须保留报告／源。
 `UnitNormalization` 的内部 C++ 布局已扩展，库与消费者需一起重建；内核布局和存档格式不变。
+`generalDefinitions` 中的 `factorValue`／`scaleMm` 为 `ExactUnitRatio`，以只读十进制整数
+字符串的 `Numerator()`／`Denominator()` 保存规范约分结果；调用者不得将其强制收窄。
+这些视图借用该比值对象，使用时须保留返回的 `UnitNormalization` 值副本。
+原报告的 rational 对象和字符串 num/den 格式保持，原先可接纳比例的值保持。
+`lengthToMm` 仍为 `Fraction`。Boost.Multiprecision／Config 1.89.0 的未修改独立头文件
+固定在 `third_party/boost-multiprecision`，仅内部单位实现编译使用，不进入公共头文件。
 单位合同有独立 CMake 目标 `step_import_general_unit_tests`／CTest
 `step_import_general_unit_contracts`，可单独构建与验证。
 
