@@ -117,7 +117,7 @@ For a source launch, set `BREP_VIEW_WORKER` to the built worker or point
 
 ```powershell
 python tools/scripts/brep_view.py "D:\Models\part.step"
-python -m unittest discover -s tools/smlib_viewer/tests -v
+python -m unittest discover -s tools/smlib_viewer/tests -t . -v
 ```
 
 Install `requirements-build.txt` into that GUI environment. Package a Release
