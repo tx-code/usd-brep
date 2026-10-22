@@ -150,11 +150,23 @@ struct TargetVertexOrigin
     std::vector<std::pair<std::string, double>> basisEdgeParameters; // Derived vertex incidences, not fabricated source entities.
     std::optional<SurfacePoleOrigin> surfacePole; // A derived target vertex, never a source vertex identity.
 };
+struct TargetUseSegment
+{
+    std::size_t edge = 0, startVertex = 0, endVertex = 0;
+    std::array<double, 2> basisParameterInterval{}; // Increasing original native basis, independently of traversal sense.
+};
+struct SourceUseSegmentOrigin
+{
+    std::string sourceFaceId, sourceBoundId, sourceLoopId, sourceOrientedEdgeId, sourceEdgeId;
+    bool forwardInNativeCurve = true;
+    TargetUseSegment target;
+};
 struct TopologyNormalizationInfo
 {
     std::vector<TargetFaceOrigin> faces;
     std::vector<TargetEdgeOrigin> edges;
     std::vector<TargetVertexOrigin> vertices;
+    std::vector<SourceUseSegmentOrigin> sourceUseSegments; // Owning one-to-many incidence correspondence, independent of mutable reports.
     bool sourceCurveIntervalsCovered = false, sourceVerticesPreserved = false, completed = false;
 };
 enum class ReportEncoding

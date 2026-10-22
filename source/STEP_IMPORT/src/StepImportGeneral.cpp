@@ -10,6 +10,7 @@
 #include "StepImportNativeData.h"
 #include "StepImportOrientationRepair.h"
 #include "StepImportPeriodicNormalization.h"
+#include "StepImportRingSegmentation.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
 #include "StepImportUnits.h"
@@ -70,6 +71,7 @@ struct Use
 {
     Index edge, source;
     bool forward;
+    Index face = 0, bound = 0, loop = 0;
 };
 struct Loop
 {
@@ -88,6 +90,7 @@ struct SeamPlan
     Index v0, v1;
     V a, b;
     double angle;
+    Index firstEdge = 0, secondEdge = 0;
 };
 
 struct SpherePolePlan
@@ -152,6 +155,7 @@ public:
         {
             MakeCurve(curve);
         }
+        PrepareRingSubdivisions();
         for (Index i = 0; i < vertices.size(); ++i)
         {
             Step(vertices[i]);
@@ -160,6 +164,15 @@ public:
             v->SetTolerance(Tol(), FALSE);
             m_model->vertices.push_back(v);
             Step(vertices[i]);
+            Good(c.EndVertex());
+        }
+        for (auto& cut : m_ringVertices)
+        {
+            Step(curves[cut.curve].record);
+            cut.native = c.StartVertex(P(cut.point));
+            Need(cut.native != nullptr, "RingSubdivisionVertexAllocation", curves[cut.curve].record);
+            cut.native->SetTolerance(Tol(), FALSE);
+            Step(curves[cut.curve].record);
             Good(c.EndVertex());
         }
         Step(shape);
@@ -180,6 +193,7 @@ public:
         Good(c.EndRegion());
         Step(shape);
         Good(c.EndBrep());
+        PrepareRingInventory();
         PreparePoleInventory();
         CaptureCylindricalBandDefinitions(m_cylindricalBandTrial, m_model, m_report, m_execution);
         InstallUv();
@@ -271,6 +285,7 @@ public:
         {
             RememberRepairSources();
         }
+        CompleteRingSubdivisions();
         CompleteCylindricalBandRepair(m_cylindricalBandTrial, *m_model, m_report, m_execution);
         return m_model;
     }
@@ -290,6 +305,21 @@ private:
     bool m_rebuiltUv = false;
     bool m_captureRepairFailure = false;
     FaceSenseOverrides m_faceSenseOverrides;
+    struct RingVertex
+    {
+        Index curve;
+        double parameter;
+        V point;
+        SmVertex* native = nullptr;
+    };
+    // Private full-basis copies die before m_model and its allocating context.
+    std::map<Index, RingSubdivision> m_ringSubdivisions;
+    std::map<Index, SeamPlan> m_plannedSeams;
+    std::vector<RingVertex> m_ringVertices;
+    std::vector<Index> m_targetCurveSources;
+    std::map<SmEdge*, Index> m_ringEdgeOrdinals;
+    std::vector<SourceUseSegmentOrigin> m_ringUseOrigins;
+    bool m_ringNormalization = false;
     void RememberRepairSources() const
     {
         m_model->repairVertexSources = vertices;
@@ -322,6 +352,58 @@ private:
             return m_model->targetEdgeOwners.at(target);
         }
         return target < curves.size() ? curves[target].record : derivedEdgeFaces.at(target - curves.size());
+    }
+    std::optional<Index> SourceCurveOf(SmEdge* edge) const
+    {
+        if (m_ringNormalization)
+        {
+            const auto found = m_ringEdgeOrdinals.find(edge);
+            if (found == m_ringEdgeOrdinals.end())
+            {
+                return {};
+            }
+            const auto source = m_targetCurveSources.at(found->second);
+            return source < curves.size() ? std::optional<Index>(source) : std::nullopt;
+        }
+        const auto& target = TargetEdges();
+        const auto found = std::find(target.begin(), target.end(), edge);
+        if (found == target.end())
+        {
+            return {};
+        }
+        const auto index = static_cast<Index>(found - target.begin());
+        return index < curves.size() ? std::optional<Index>(index) : std::nullopt;
+    }
+    SmVertex* RingVertexAt(Index vertex) const
+    {
+        return vertex < vertices.size() ? m_model->vertices.at(vertex) : m_ringVertices.at(vertex - vertices.size()).native;
+    }
+    Index RingExtraEdges() const
+    {
+        Index count = 0;
+        for (const auto& [source, plan] : m_ringSubdivisions)
+        {
+            (void)source;
+            count += plan.segments.size() - 1;
+        }
+        return count;
+    }
+    Index RingTargetEdge(Index source, Index segment) const
+    {
+        if (segment == 0)
+        {
+            return source;
+        }
+        Index index = curves.size();
+        for (const auto& [key, plan] : m_ringSubdivisions)
+        {
+            if (key == source)
+            {
+                return index + segment - 1;
+            }
+            index += plan.segments.size() - 1;
+        }
+        throw std::logic_error("RingSubdivisionSourceMissing");
     }
     double Tol() const
     {
@@ -482,7 +564,7 @@ private:
                     const auto use = oriented[forward ? k : oriented.size() - 1 - k];
                     const auto edge = Edge(Ref(use, "edge_element"));
                     const bool along = B(use, "orientation") == curves[edge].same;
-                    l.uses.push_back({ edge, use, forward ? along : !along });
+                    l.uses.push_back({ edge, use, forward ? along : !along, a, bound, loop });
                 }
                 // Closure is by source vertex identity, not a distance-based weld.
                 for (Index k = 0; k < l.uses.size(); ++k)
@@ -907,9 +989,24 @@ private:
         Need(success && distance <= Q(m_options.quality.consistencyMm), "GeneralSplineEndpointInversion", record);
         return t;
     }
-    std::optional<SeamPlan> MissingSeam(const Face& f) const
+    double ConeAngle(Index surface) const
     {
-        if (!Is(f.surface, "CYLINDRICAL_SURFACE") || f.loops.size() != 2)
+        // Reuse the same checked physical angle for both chart planning and
+        // native surface construction. A source SI prefix scales the declared
+        // semi-angle once; placement directions and native UV are not angles.
+        for (const auto& unit : m_source->UnitContext().siDefinitions)
+        {
+            if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
+            {
+                return N(surface, "semi_angle") * std::pow(10., unit.canonicalPower10);
+            }
+        }
+        Fail("GeneralConeAngleUnitUnestablished", surface);
+    }
+    std::optional<SeamPlan> RingSeamCandidate(const Face& f) const
+    {
+        const bool cone = Is(f.surface, "CONICAL_SURFACE");
+        if ((!Is(f.surface, "CYLINDRICAL_SURFACE") && !cone) || f.loops.size() != 2)
         {
             return {};
         }
@@ -930,18 +1027,375 @@ private:
         const auto radius = N(f.surface, "radius") * scale;
         const auto da = Sub(points[a], frame.o), db = Sub(points[b], frame.o);
         const auto z0 = Dot(da, frame.z), z1 = Dot(db, frame.z);
+        // CONICAL_SURFACE uses a physical radian semi-angle in the checked SI
+        // context. Heights here are axial millimetres, as in Surface(): the
+        // straight cut follows one fixed longitude on that defining cone.
+        const double slope = cone ? std::tan(ConeAngle(f.surface)) : 0;
+        const double radius0 = radius + slope * z0, radius1 = radius + slope * z1;
+        Need(
+            std::isfinite(radius0) && std::isfinite(radius1) && radius0 > SM_EFF_ZERO && radius1 > SM_EFF_ZERO,
+            "GeneralImplicitSeamRadius",
+            f.record
+        );
         const auto radial = Unit(Sub(da, Mul(frame.z, z0)));
-        const auto pa = Add(Add(frame.o, Mul(frame.z, z0)), Mul(radial, radius));
-        const auto pb = Add(Add(frame.o, Mul(frame.z, z1)), Mul(radial, radius));
-        // A target chart cut is an exact isoparametric line on the defining
-        // cylinder. It reuses source ring vertices without moving them. Rings
-        // with incompatible seam vertices need a separately verified split.
-        if (Norm(Sub(pa, points[a])) > Q(m_options.quality.consistencyMm) || Norm(Sub(pb, points[b])) > Q(m_options.quality.consistencyMm))
+        const auto pa = Add(Add(frame.o, Mul(frame.z, z0)), Mul(radial, radius0));
+        const auto pb = Add(Add(frame.o, Mul(frame.z, z1)), Mul(radial, radius1));
+        Need(std::abs(z1 - z0) > Tol(), "GeneralImplicitSeamHeight", f.record);
+        return SeamPlan{ a, b, pa, pb, std::atan2(Dot(radial, frame.y), Dot(radial, frame.x)), f.loops[0].uses[0].edge, f.loops[1].uses[0].edge };
+    }
+    std::optional<SeamPlan> MissingSeam(const Face& f) const
+    {
+        if (const auto it = m_plannedSeams.find(f.record); it != m_plannedSeams.end())
+        {
+            return it->second;
+        }
+        auto seam = RingSeamCandidate(f);
+        if (!seam)
+        {
+            return {};
+        }
+        // Preserve the historical aligned-ring path and its work/report bytes.
+        // A different phase requires the separately proved global subdivision.
+        if (Norm(Sub(seam->a, points[seam->v0])) > Q(m_options.quality.consistencyMm) ||
+            Norm(Sub(seam->b, points[seam->v1])) > Q(m_options.quality.consistencyMm))
         {
             Fail("GeneralImplicitSeamRequiresRingSplit", f.record, Status::Unsupported);
         }
-        Need(std::abs(z1 - z0) > Tol(), "GeneralImplicitSeamHeight", f.record);
-        return SeamPlan{ a, b, pa, pb, std::atan2(Dot(radial, frame.y), Dot(radial, frame.x)) };
+        return seam;
+    }
+    void PrepareRingSubdivisions()
+    {
+        const auto definition = m_options.quality.definitionMm;
+        const double maximum = std::nextafter(
+            std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
+            0.
+        );
+        for (const auto& face : faces)
+        {
+            auto seam = RingSeamCandidate(face);
+            if (!seam)
+            {
+                continue;
+            }
+            if (Norm(Sub(seam->a, points[seam->v0])) > Q(m_options.quality.consistencyMm))
+            {
+                Fail("GeneralImplicitSeamRequiresRingSplit", face.record, Status::Unsupported);
+            }
+            if (Is(face.surface, "CONICAL_SURFACE"))
+            {
+                // A newly supported cone chart also owns its derived-cut
+                // correspondence when both original circle phases already align.
+                m_ringNormalization = true;
+                m_plannedSeams.emplace(face.record, *seam);
+            }
+            if (Norm(Sub(seam->b, points[seam->v1])) <= Q(m_options.quality.consistencyMm))
+            {
+                continue;
+            }
+            Need(Norm(Sub(seam->a, points[seam->v0])) <= maximum, "RingSubdivisionAnchorDefinitionGap", face.record);
+            if (m_options.normalizePeriodicFaces || m_options.restrictUnusedSupportDomains || m_options.faceOrientationRepair)
+            {
+                Fail("RingSubdivisionCompositionUnestablished", face.record, Status::Unsupported);
+            }
+            const auto source = seam->secondEdge;
+            auto& curve = curves[source];
+            double parameter = 0;
+            try
+            {
+                parameter = LocateRingCut(
+                    *curve.native,
+                    { curve.t0, curve.t1 },
+                    seam->b,
+                    maximum,
+                    [&]
+                    {
+                        Step(curve.record);
+                    }
+                );
+            }
+            catch (Failure& failure)
+            {
+                if (!failure.record)
+                {
+                    failure.record = curve.record;
+                }
+                throw;
+            }
+            auto& plan = m_ringSubdivisions[source];
+            plan.sourceCurve = source;
+            plan.record = curve.record;
+            plan.originalVertex = curve.v0;
+            plan.interval = { curve.t0, curve.t1 };
+            const auto existing = std::find_if(
+                plan.cuts.begin(),
+                plan.cuts.end(),
+                [&](const auto& cut)
+                {
+                    return cut.parameter == parameter;
+                }
+            );
+            if (existing != plan.cuts.end())
+            {
+                Need(
+                    Norm(Sub(m_ringVertices.at(existing->vertex - vertices.size()).point, seam->b)) == 0,
+                    "RingSubdivisionSharedCutPointChanged",
+                    face.record
+                );
+                seam->v1 = existing->vertex;
+            }
+            else
+            {
+                seam->v1 = vertices.size() + m_ringVertices.size();
+                m_ringVertices.push_back({ source, parameter, seam->b, nullptr });
+                plan.cuts.push_back({ parameter, seam->v1 });
+            }
+            m_plannedSeams[face.record] = *seam;
+            m_ringNormalization = true;
+        }
+        if (!m_ringNormalization)
+        {
+            return;
+        }
+        if (m_options.normalizePeriodicFaces || m_options.restrictUnusedSupportDomains || m_options.faceOrientationRepair)
+        {
+            Fail("RingSubdivisionCompositionUnestablished", shape, Status::Unsupported);
+        }
+        for (const auto& face : faces)
+        {
+            if (MissingSpherePole(face))
+            {
+                Fail("RingSubdivisionPoleCompositionUnestablished", face.record, Status::Unsupported);
+            }
+        }
+        for (auto& [source, plan] : m_ringSubdivisions)
+        {
+            try
+            {
+                PrepareRingSegments(
+                    plan,
+                    *curves[source].native,
+                    *m_context,
+                    [&]
+                    {
+                        Step(plan.record);
+                    }
+                );
+            }
+            catch (Failure& failure)
+            {
+                if (!failure.record)
+                {
+                    failure.record = plan.record;
+                }
+                throw;
+            }
+        }
+    }
+    void PrepareRingInventory()
+    {
+        if (!m_ringNormalization)
+        {
+            return;
+        }
+        Need(!m_model->topologyNormalization && derivedPoles.empty(), "RingSubdivisionInventoryComposition", shape);
+        TopologyNormalizationInfo info;
+        for (Index i = 0; i < faces.size(); ++i)
+        {
+            const auto domain = m_model->faces[i].face->GetSurface()->GetNaturalUVDomain();
+            info.faces.push_back(
+                { i, Id(faces[i].record), Id(faces[i].surface), { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y }, {}, {} }
+            );
+            m_model->targetFaceSources.push_back(i);
+        }
+        const auto append = [&](SmEdge* edge, Index source, std::optional<Index> derived)
+        {
+            Need(edge != nullptr, "RingSubdivisionMissingTargetEdge", shape);
+            const auto interval = edge->GetInterval();
+            const auto owner = derived.value_or(source < curves.size() ? curves[source].record : shape);
+            Need(m_ringEdgeOrdinals.emplace(edge, m_model->targetEdges.size()).second, "RingSubdivisionRepeatedTargetEdge", owner);
+            info.edges.push_back(
+                { m_model->targetEdges.size(),
+                  source < curves.size() ? std::optional<std::string>(Id(curves[source].record)) : std::nullopt,
+                  derived ? std::optional<std::string>(Id(*derived)) : std::nullopt,
+                  { interval.GetMin(), interval.GetMax() } }
+            );
+            m_model->targetEdges.push_back(edge);
+            m_model->targetEdgeOwners.push_back(owner);
+            m_targetCurveSources.push_back(source);
+        };
+        for (Index i = 0; i < curves.size(); ++i)
+        {
+            append(m_model->edges[i], i, {});
+        }
+        for (const auto& [source, plan] : m_ringSubdivisions)
+        {
+            for (Index i = 1; i < plan.segments.size(); ++i)
+            {
+                append(plan.segments[i].edge, source, {});
+            }
+        }
+        for (Index i = curves.size(); i < m_model->edges.size(); ++i)
+        {
+            append(m_model->edges[i], curves.size(), derivedEdgeFaces.at(i - curves.size()));
+        }
+        m_model->targetVertices = m_model->vertices;
+        for (Index i = 0; i < vertices.size(); ++i)
+        {
+            info.vertices.push_back({ i, Id(vertices[i]), {}, {} });
+            m_model->targetVertexOwners.push_back(vertices[i]);
+        }
+        for (const auto& cut : m_ringVertices)
+        {
+            const auto source = curves[cut.curve].record;
+            info.vertices.push_back({ m_model->targetVertices.size(), {}, { { Id(source), cut.parameter } }, {} });
+            m_model->targetVertices.push_back(cut.native);
+            m_model->targetVertexOwners.push_back(source);
+        }
+        // Original full-basis mappings predate target segmentation. Do not let
+        // their old ordinal falsely claim that one child spans the complete edge.
+        // This is produced from the source-bound construction plan, not from a
+        // caller-mutable report. The accepted snapshot owns the complete ledger.
+        info.sourceUseSegments = m_ringUseOrigins;
+        for (auto& mapping : m_report.parameterMappings)
+        {
+            if (mapping.targetEdgeIndex && m_ringSubdivisions.contains(*mapping.targetEdgeIndex))
+            {
+                mapping.targetEdgeIndex.reset();
+                mapping.equation += "; target child intervals are recorded by topology_normalization and source_use_segments";
+            }
+        }
+        m_model->topologyNormalization = std::move(info);
+        m_report.topologyNormalization = m_model->topologyNormalization;
+    }
+    void CompleteRingSubdivisions()
+    {
+        if (!m_ringNormalization)
+        {
+            return;
+        }
+        for (const auto& [source, plan] : m_ringSubdivisions)
+        {
+            try
+            {
+                VerifyRingSegments(
+                    plan,
+                    [&]
+                    {
+                        Step(curves[source].record);
+                    }
+                );
+            }
+            catch (Failure& failure)
+            {
+                if (!failure.record)
+                {
+                    failure.record = plan.record;
+                }
+                throw;
+            }
+            for (const auto& segment : plan.segments)
+            {
+                Need(
+                    segment.edge->GetStartVertex() == RingVertexAt(segment.firstVertex) &&
+                        segment.edge->GetEndVertex() == RingVertexAt(segment.lastVertex),
+                    "RingSubdivisionChangedEndpointIdentity",
+                    plan.record
+                );
+            }
+        }
+        for (const auto& cut : m_ringVertices)
+        {
+            Need(Norm(Sub(P(cut.native->GetPoint()), cut.point)) == 0, "RingSubdivisionMovedDerivedVertex", curves[cut.curve].record);
+        }
+        for (Index i = 0; i < curves.size(); ++i)
+        {
+            if (!m_ringSubdivisions.contains(i))
+            {
+                const auto interval = m_model->edges[i]->GetInterval();
+                Need(
+                    interval.GetMin() == curves[i].t0 && interval.GetMax() == curves[i].t1,
+                    "RingSubdivisionUnsplitSourceIntervalChanged",
+                    curves[i].record
+                );
+            }
+        }
+        SmTArray<SmEdge*> edges;
+        SmTArray<SmVertex*> nativeVertices;
+        Step(shape);
+        m_model->brep->GetEdges(edges);
+        Step(shape);
+        m_model->brep->GetVertices(nativeVertices);
+        Need(
+            edges.GetSize() == TargetEdges().size() && nativeVertices.GetSize() == TargetVertices().size(),
+            "RingSubdivisionIncompleteInventory",
+            shape
+        );
+        std::set<SmEdge*> expectedEdges(TargetEdges().begin(), TargetEdges().end());
+        std::set<SmVertex*> expectedVertices(TargetVertices().begin(), TargetVertices().end());
+        for (const auto edge : edges)
+        {
+            Need(expectedEdges.erase(edge) == 1, "RingSubdivisionIncompleteInventory", shape);
+        }
+        for (const auto vertex : nativeVertices)
+        {
+            Need(expectedVertices.erase(vertex) == 1, "RingSubdivisionIncompleteInventory", shape);
+        }
+        Need(expectedEdges.empty() && expectedVertices.empty(), "RingSubdivisionIncompleteInventory", shape);
+        auto& info = *m_model->topologyNormalization;
+        // Verify the owning incidence ledger against the actual upward
+        // (surface-normal SAME) faceuses, including cap and cylinder occurrences.
+        // Source IDs are provenance, never unique keys for the target segments.
+        std::map<std::tuple<std::string, Index, bool>, Index> actualUses;
+        for (const auto& face : m_model->faces)
+        {
+            SmTArray<SmEdgeuse*> uses;
+            Step(shape);
+            face.face->GetUpwardEdgeuses(uses);
+            for (const auto use : uses)
+            {
+                const auto source = SourceCurveOf(use->GetEdge());
+                if (source && m_ringSubdivisions.contains(*source))
+                {
+                    ++actualUses[{ face.faceId, m_ringEdgeOrdinals.at(use->GetEdge()), use->GetOrientation() == SM_OT_SAME }];
+                }
+            }
+        }
+        for (const auto& use : info.sourceUseSegments)
+        {
+            const auto& target = use.target;
+            Need(
+                target.edge < TargetEdges().size() && target.startVertex < TargetVertices().size() && target.endVertex < TargetVertices().size(),
+                "RingSubdivisionUseTargetRange",
+                shape
+            );
+            const auto edge = TargetEdges()[target.edge];
+            const auto interval = edge->GetInterval();
+            Need(
+                info.edges[target.edge].sourceEdgeId == use.sourceEdgeId && interval.GetMin() == target.basisParameterInterval[0] &&
+                    interval.GetMax() == target.basisParameterInterval[1] &&
+                    (use.forwardInNativeCurve ? edge->GetStartVertex() : edge->GetEndVertex()) == TargetVertices()[target.startVertex] &&
+                    (use.forwardInNativeCurve ? edge->GetEndVertex() : edge->GetStartVertex()) == TargetVertices()[target.endVertex],
+                "RingSubdivisionUseCorrespondenceChanged",
+                shape
+            );
+            const auto actual = actualUses.find({ use.sourceFaceId, target.edge, use.forwardInNativeCurve });
+            Need(actual != actualUses.end() && actual->second > 0, "RingSubdivisionUseCorrespondenceChanged", shape);
+            --actual->second;
+        }
+        Need(
+            std::all_of(
+                actualUses.begin(),
+                actualUses.end(),
+                [](const auto& use)
+                {
+                    return use.second == 0;
+                }
+            ),
+            "RingSubdivisionUseCoverageIncomplete",
+            shape
+        );
+        info.sourceCurveIntervalsCovered = info.sourceVerticesPreserved = info.completed = true;
+        m_report.topologyNormalization = info;
     }
     std::array<double, 2> AngularWindow(const Face& f, const Frame& frame)
     {
@@ -1807,18 +2261,7 @@ private:
         }
         if (Is(g, "CONICAL_SURFACE"))
         {
-            int anglePower = 0;
-            bool found = false;
-            for (const auto& unit : m_source->UnitContext().siDefinitions)
-            {
-                if (unit.recordIndex == m_source->UnitContext().planeAngleUnit)
-                {
-                    found = unit.siName == "RADIAN";
-                    anglePower = unit.canonicalPower10;
-                }
-            }
-            Need(found, "GeneralConeAngleUnitUnestablished", g);
-            const double angle = N(g, "semi_angle") * std::pow(10., anglePower);
+            const double angle = ConeAngle(g);
             // The kernel cone's V is axial height, STEP's V is generatrix
             // distance. Physical construction uses radius/angle/frame directly;
             // no identity V mapping is asserted in the source report.
@@ -1973,9 +2416,89 @@ private:
         }
         Fail("GeneralUnsupportedSurface", g, Status::Unsupported);
     }
-    void AppendSourceUse(SmBrepConstructor& c, const Use& u, LoopMapping& mapping)
+    void AppendSourceUse(SmBrepConstructor& c, const Use& u, LoopMapping& mapping, std::optional<Index> startAt = {})
     {
         auto& edge = curves[u.edge];
+        if (auto found = m_ringSubdivisions.find(u.edge); found != m_ringSubdivisions.end())
+        {
+            auto& segments = found->second.segments;
+            std::vector<Index> traversal(segments.size());
+            std::iota(traversal.begin(), traversal.end(), 0);
+            if (!u.forward)
+            {
+                std::reverse(traversal.begin(), traversal.end());
+            }
+            if (startAt)
+            {
+                const auto first = std::find_if(
+                    traversal.begin(),
+                    traversal.end(),
+                    [&](Index i)
+                    {
+                        return (u.forward ? segments[i].firstVertex : segments[i].lastVertex) == *startAt;
+                    }
+                );
+                Need(first != traversal.end(), "RingSubdivisionLoopStart", edge.record);
+                std::rotate(traversal.begin(), first, traversal.end());
+            }
+            // Every incident source use expands through this one global plan.
+            // Shared cap/side incidences therefore reuse the very same subedges.
+            for (auto ordinal : traversal)
+            {
+                auto& segment = segments[ordinal];
+                Step(edge.record);
+                const auto native = c.StartEdge(
+                    u.forward ? SM_OT_SAME : SM_OT_OPPOSITE,
+                    segment.edge,
+                    RingVertexAt(segment.firstVertex),
+                    RingVertexAt(segment.lastVertex)
+                );
+                Need(native && (!segment.edge || segment.edge == native), "RingSubdivisionSharedEdgeIdentity", edge.record);
+                if (!segment.edge)
+                {
+                    native->SetTolerance(Tol(), FALSE);
+                    Step(edge.record);
+                    const auto adopted = c.SetEdgeCurve(segment.curve.get(), FALSE);
+                    const bool owned = segment.curve->GetOwner() == native;
+                    if (owned)
+                    {
+                        segment.curve.release();
+                    }
+                    Good(adopted);
+                    Need(owned, "RingSubdivisionCurveOwnership", edge.record);
+                    Step(edge.record);
+                    Good(c.SetLimits(SmVertexNode(segment.interval[0]), SmVertexNode(segment.interval[1])));
+                    segment.edge = native;
+                    if (ordinal == 0)
+                    {
+                        m_model->edges[u.edge] = native;
+                    }
+                }
+                const auto firstVertex = u.forward ? segment.firstVertex : segment.lastVertex;
+                const auto lastVertex = u.forward ? segment.lastVertex : segment.firstVertex;
+                UseMapping use{ Id(u.source),
+                                Id(edge.record),
+                                firstVertex < vertices.size() ? Id(vertices[firstVertex]) : "",
+                                lastVertex < vertices.size() ? Id(vertices[lastVertex]) : "",
+                                u.forward,
+                                false,
+                                {},
+                                {} };
+                m_ringUseOrigins.push_back(
+                    { Id(u.face),
+                      Id(u.bound),
+                      Id(u.loop),
+                      Id(u.source),
+                      Id(edge.record),
+                      u.forward,
+                      { RingTargetEdge(u.edge, ordinal), firstVertex, lastVertex, segment.interval } }
+                );
+                mapping.uses.push_back(std::move(use));
+                Step(edge.record);
+                Good(c.EndEdge());
+            }
+            return;
+        }
         const auto existing = m_model->edges[u.edge];
         Step(edge.record);
         auto native = c.StartEdge(u.forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m_model->vertices[edge.v0], m_model->vertices[edge.v1]);
@@ -2012,7 +2535,7 @@ private:
     SmEdge* AppendSeamUse(SmBrepConstructor& c, const SeamPlan& seam, Index face, SmEdge* existing, bool forward)
     {
         Step(face);
-        auto edge = c.StartEdge(forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m_model->vertices[seam.v0], m_model->vertices[seam.v1]);
+        auto edge = c.StartEdge(forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, RingVertexAt(seam.v0), RingVertexAt(seam.v1));
         Need(edge != nullptr && (!existing || edge == existing), "GeneralTargetSeamIdentity", face);
         if (!existing)
         {
@@ -2155,7 +2678,7 @@ private:
         }
         else if (const auto seam = MissingSeam(f))
         {
-            // Cutting a cylindrical annulus opens its chart into one loop. Both
+            // Cutting a cylindrical/conical annulus opens its chart into one loop. Both
             // source rings remain defining boundaries; the one derived seam is
             // used twice in opposite directions and contributes no material.
             Step(f.record);
@@ -2163,18 +2686,42 @@ private:
             Need(loop != nullptr, "GeneralTargetSeamLoop", f.record);
             nf.loops.push_back(loop);
             LoopMapping mapping;
-            AppendSourceUse(c, f.loops[0].uses[0], mapping);
-            const auto seamIndex = m_model->edges.size();
+            const auto first = std::find_if(
+                f.loops.begin(),
+                f.loops.end(),
+                [&](const auto& loop)
+                {
+                    return loop.uses[0].edge == seam->firstEdge;
+                }
+            );
+            const auto second = std::find_if(
+                f.loops.begin(),
+                f.loops.end(),
+                [&](const auto& loop)
+                {
+                    return loop.uses[0].edge == seam->secondEdge;
+                }
+            );
+            Need(first != f.loops.end() && second != f.loops.end(), "RingSubdivisionSourceLoopIdentity", f.record);
+            AppendSourceUse(c, first->uses[0], mapping, seam->v0);
+            const auto seamIndex = m_model->edges.size() + RingExtraEdges();
             auto edge = AppendSeamUse(c, *seam, f.record, nullptr, true);
-            AppendSourceUse(c, f.loops[1].uses[0], mapping);
+            AppendSourceUse(c, second->uses[0], mapping, seam->v1);
             AppendSeamUse(c, *seam, f.record, edge, false);
+            if (!m_ringSubdivisions.empty())
+            {
+                mapping.faceId = Id(f.record);
+                // Both source boundaries contribute to this target chart loop.
+                // Individual source oriented-edge identities stay on each segment.
+                m_report.loops.push_back(std::move(mapping));
+            }
             Step(f.record);
             Good(c.EndLoop());
             m_report.normalizations.push_back(
                 { "PeriodicCutFromTwoSourceRings",
                   Id(f.record),
                   { Id(f.loops[0].bound), Id(f.loops[1].bound) },
-                  { Id(vertices[seam->v0]), Id(vertices[seam->v1]) },
+                  { Id(vertices[curves[seam->firstEdge].v0]), Id(vertices[curves[seam->secondEdge].v0]) },
                   seamIndex }
             );
         }
@@ -2217,14 +2764,15 @@ private:
                 for (ULONG k = 0; k < uses.GetSize(); ++k)
                 {
                     const auto edge = uses[k]->GetEdge();
-                    const auto found = std::find(m_model->edges.begin(), m_model->edges.end(), edge);
-                    if (found == m_model->edges.end() || uses[k]->GetUVTrimCurve())
+                    const auto source = SourceCurveOf(edge);
+                    if (!source || uses[k]->GetUVTrimCurve())
                     {
                         continue;
                     }
-                    const auto index = static_cast<Index>(found - m_model->edges.begin());
-                    if (index >= curves.size() || curves[index].v0 == curves[index].v1 ||
-                        !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS")))
+                    const auto index = *source;
+                    const bool closed = !m_ringSubdivisions.empty() ? edge->GetStartVertex() == edge->GetEndVertex() :
+                                                                      curves[index].v0 == curves[index].v1;
+                    if (closed || !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS")))
                     {
                         continue;
                     }
@@ -2264,7 +2812,8 @@ private:
                                        coneProjection                                          ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
                                                                                                  "ControlledCircleUvProjection";
-                    RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, index };
+                    const auto targetIndex = !m_ringSubdivisions.empty() ? m_ringEdgeOrdinals.at(edge) : index;
+                    RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, targetIndex };
                     for (const auto& loop : f.loops)
                     {
                         normalization.sourceBoundIds.push_back(Id(loop.bound));
@@ -2349,9 +2898,10 @@ private:
                     }
                     if (rebuilt.status == DerivedUvStatus::Ready)
                     {
-                        const auto found = std::find(m_model->edges.begin(), m_model->edges.end(), edge);
-                        Need(found != m_model->edges.end(), "GeneralRebuiltUvEdgeIdentity", f.record);
-                        const auto target = static_cast<Index>(found - m_model->edges.begin());
+                        const auto& targets = TargetEdges();
+                        const auto found = std::find(targets.begin(), targets.end(), edge);
+                        Need(found != targets.end(), "GeneralRebuiltUvEdgeIdentity", f.record);
+                        const auto target = static_cast<Index>(found - targets.begin());
                         Step(f.record);
                         // Zero forbids tolerance growth; TRUE deletes the old
                         // pair-owned trim. Release only after native adoption,

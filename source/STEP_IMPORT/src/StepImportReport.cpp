@@ -4,6 +4,7 @@
 #include "StepSemanticReport.h"
 #include "StepSourceReport.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <limits>
@@ -43,6 +44,43 @@ void Number(Writer& writer, double value)
         throw std::length_error("Native report number capacity");
     }
     writer.Add(std::string_view(buffer.data(), static_cast<std::size_t>(end.ptr - buffer.data())));
+}
+void SourceUseSegmentsJson(Writer& w, const std::vector<SourceUseSegmentOrigin>& uses)
+{
+    w.Add("[");
+    for (std::size_t i = 0; i < uses.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& use = uses[i];
+        const auto& segment = use.target;
+        w.Add("{\"source_face\":");
+        w.String(use.sourceFaceId);
+        w.Add(",\"source_bound\":");
+        w.String(use.sourceBoundId);
+        w.Add(",\"source_loop\":");
+        w.String(use.sourceLoopId);
+        w.Add(",\"source_oriented_edge\":");
+        w.String(use.sourceOrientedEdgeId);
+        w.Add(",\"source_edge\":");
+        w.String(use.sourceEdgeId);
+        w.Add(",\"forward_in_native_curve\":");
+        w.Bool(use.forwardInNativeCurve);
+        w.Add(",\"target_edge\":");
+        w.Number(segment.edge);
+        w.Add(",\"target_start_vertex\":");
+        w.Number(segment.startVertex);
+        w.Add(",\"target_end_vertex\":");
+        w.Number(segment.endVertex);
+        w.Add(",\"parameter_convention\":\"OriginalNativeBasis\",\"basis_parameter_interval\":[");
+        Number(w, segment.basisParameterInterval[0]);
+        w.Add(",");
+        Number(w, segment.basisParameterInterval[1]);
+        w.Add("]}");
+    }
+    w.Add("]");
 }
 void TopologyJson(Writer& w, const TopologyNormalizationInfo& info)
 {
@@ -159,7 +197,13 @@ void TopologyJson(Writer& w, const TopologyNormalizationInfo& info)
         }
         w.Add("]}");
     }
-    w.Add("]}");
+    w.Add("]");
+    if (!info.sourceUseSegments.empty())
+    {
+        w.Add(",\"source_use_segments\":");
+        SourceUseSegmentsJson(w, info.sourceUseSegments);
+    }
+    w.Add("}");
 }
 void PointJson(Writer& writer, const Point& point)
 {
@@ -1191,7 +1235,8 @@ void WriteReportJson(
             }
             w.Add("}}");
         }
-        w.Add("],\"classified_outer_bounds\":[");
+        w.Add("]");
+        w.Add(",\"classified_outer_bounds\":[");
         for (std::size_t i = 0; i < report.classifiedOuterBounds.size(); ++i)
         {
             if (i)
