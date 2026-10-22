@@ -2290,6 +2290,18 @@ private:
             }
             if (outer != 1)
             {
+                if (outer > 1 && IsAp214SourceProfile(m_data->profile.kind) && m_data->geometryScope == GeometryScope::GeneralBrep)
+                {
+                    // AP214E3_2010.exp FACE.WR2 permits at most one outer
+                    // marker. This is a defining region-role contradiction,
+                    // not optional metadata or a missing native capability.
+                    // Preserve both source bounds; never guess which to relabel.
+                    FieldFailure(
+                        "SourceRuleViolation:FACE.WR2", "D3", "FACE has more than one FACE_OUTER_BOUND",
+                        FieldValue(face, "bounds").span, Status::Rejected, face, "bounds", FieldDetail::AttributePath,
+                        "at most one FACE_OUTER_BOUND", std::to_string(outer), "AP214E3_2010.exp FACE.WR2"
+                    );
+                }
                 if (outer == 0 && m_data->profile.kind != ProfileKind::Ap203e2Planar && m_data->geometryScope == GeometryScope::GeneralBrep)
                 {
                     // Ordinary FACE_BOUND is legal source data. Do not guess its

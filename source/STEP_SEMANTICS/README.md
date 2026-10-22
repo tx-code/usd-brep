@@ -1,5 +1,12 @@
 # STEP source semantics: ticket 03
 
+General AP214 checking enforces the pinned `FACE.WR2`: at most one bound may
+instantiate FACE_OUTER_BOUND. Multiple markers are a source rejection with
+`SourceRuleViolation:FACE.WR2`, not an unsupported capability and not eligible
+for nongeometric preservation. The source bounds remain unchanged. A general
+face with no explicit outer marker still requires downstream region classification;
+the existing planar profile's explicit-outer requirement remains unchanged.
+
 The fixed AP214 catalogs additionally bind ordinary `GEOMETRIC_SET`,
 `GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION` and `SPHERICAL_SURFACE`.
 Their original identities, inherited fields, sphere radius lexeme and units
