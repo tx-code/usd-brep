@@ -92,6 +92,14 @@ attempts/bytes/diagnostics with monotonic progress. Searching for a semicolon or
 `#id=` inside uncertain text is not a recovery proof. Never renumber duplicates,
 guess missing delimiters/values, or silently repair physical definitions.
 
+The implemented native-only selection `SourceCompleteNativeSelection-0.1`
+first requires a completely checked independent-product source document. It
+binds explicit PRODUCT_DEFINITION IDs to original SHA256 and constructs only
+those definitions, atomically in source order. Its owning receipt distinguishes
+the complete source inventory from selected and natively NotRequested roots.
+It does not isolate source errors or prove a malformed/unknown record harmless;
+the root-exclusion admission requirement above remains for that future work.
+
 Recovered/opaque records must have an explicit state and cannot masquerade as
 ordinary parsed records in the existing complete `SourceSnapshot` contract.
 Required typed consumers must reject unresolved dependencies. Native publication

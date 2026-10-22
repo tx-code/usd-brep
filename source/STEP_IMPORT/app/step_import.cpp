@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImport.h"
 #include "StepRepairArguments.h"
+#include "StepSelectionArguments.h"
 #include "StepSourceReport.h"
 
 #include <charconv>
@@ -97,8 +98,18 @@ int main(int argc, char** argv)
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
-            if (arg == "--repair-source-sha256" || arg == "--max-face-orientation-edits" || arg == "--repair-face-orientation" ||
-                arg == "--max-repair-proof-controls" || arg == "--max-repair-proof-products")
+            if (arg == "--selection-source-sha256" || arg == "--select-definition")
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Selection option value required");
+                }
+                step_import_app::SelectionArgument(arg, argv[++i], options);
+            }
+            else if (
+                arg == "--repair-source-sha256" || arg == "--max-face-orientation-edits" || arg == "--repair-face-orientation" ||
+                arg == "--max-repair-proof-controls" || arg == "--max-repair-proof-products"
+            )
             {
                 if (i + 1 == argc)
                 {
@@ -325,7 +336,7 @@ int main(int argc, char** argv)
             // One explicit CLI report cap must bound both nested and outer output.
             options.sourceLimits.reportBytes = options.nativeLimits.reportBytes;
         }
-        if (productDocument)
+        if (productDocument || options.definitionSelection)
         {
             if (materialCollection || query)
             {

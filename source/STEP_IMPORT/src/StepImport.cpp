@@ -50,6 +50,35 @@ namespace
 {
 void Validate(const Options& options)
 {
+    if (options.definitionSelection)
+    {
+        const auto& request = *options.definitionSelection;
+        const auto digit = [](char c)
+        {
+            return c >= '0' && c <= '9';
+        };
+        if (!options.generalBrep || request.sourceSha256.size() != 64 ||
+            !std::all_of(
+                request.sourceSha256.begin(),
+                request.sourceSha256.end(),
+                [](char c)
+                {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                }
+            ) ||
+            request.definitionIds.empty() || request.definitionIds.size() > options.sourceLimits.records ||
+            std::any_of(
+                request.definitionIds.begin(),
+                request.definitionIds.end(),
+                [&](const auto& id)
+                {
+                    return id.empty() || id.size() > 64 || (id.size() > 1 && id[0] == '0') || !std::all_of(id.begin(), id.end(), digit);
+                }
+            ))
+        {
+            throw std::invalid_argument("Definition selection requires general geometry, an original SHA256 and bounded nonempty canonical IDs");
+        }
+    }
     const auto& q = options.quality;
     if (options.faceOrientationRepair)
     {
@@ -190,6 +219,13 @@ void Validate(const Options& options)
 template <class Result = Outcome, class Capture>
 Result Import(const Options& options, Capture capture)
 {
+    if constexpr (!std::is_same_v<Result, DocumentOutcome> && !std::is_same_v<Result, FileOutcome>)
+    {
+        if (options.definitionSelection)
+        {
+            throw std::invalid_argument("Definition selection requires the file or independent-document entry");
+        }
+    }
     Result result;
     auto& report = result.report;
     report.materialCollection = std::is_same_v<Result, CollectionOutcome>;
@@ -198,6 +234,7 @@ Result Import(const Options& options, Capture capture)
     report.generalBrep = options.generalBrep;
     report.encoding = options.reportEncoding;
     report.repairRequest = options.faceOrientationRepair;
+    report.definitionSelectionRequest = options.definitionSelection;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     report.periodicNormalizationRequested = options.normalizePeriodicFaces;
     if (options.numericalIntegration)
@@ -226,6 +263,14 @@ Result Import(const Options& options, Capture capture)
         if (raw.status == step_source::Status::Inspected)
         {
             execution.Check(Phase::Captured);
+            if (options.definitionSelection && options.definitionSelection->sourceSha256 != raw.sha256)
+            {
+                throw detail::Failure{ Status::Unsupported,
+                                       "DefinitionSelectionInputMismatch",
+                                       "Selection does not bind these captured original source bytes",
+                                       {},
+                                       "Selection" };
+            }
             if (options.faceOrientationRepair && options.faceOrientationRepair->sourceSha256 != raw.sha256)
             {
                 throw detail::Failure{ Status::Unsupported,
@@ -291,7 +336,7 @@ Result Import(const Options& options, Capture capture)
                 {
                     throw std::logic_error("QualifiedProductDocumentRequired");
                 }
-                if (checked.document->PartCount() > 1)
+                if (checked.document->PartCount() > 1 || options.definitionSelection)
                 {
                     report.productDocument = true;
                     publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution));

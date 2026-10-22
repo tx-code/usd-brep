@@ -991,9 +991,10 @@ A multi-solid inventory has aggregate role `MaterialSolidCollection`; JSON write
 `part.source_shapes`. The singleton `roles` map omits `shape`/`shell` rather than
 emitting duplicate keys or selecting a representative body. Single-shape reports
 remain unchanged. The frozen planar profile and multi-shell surface models retain
-their existing multiplicity guard. This is source evidence only: native collection
-construction/publication is not yet implemented, and no body may be published as
-an implicit partial result. `shape_geometry_verified` remains false.
+their existing multiplicity guard. This is source evidence only; native collection,
+document construction and explicit source-complete native selection belong to
+[STEP_IMPORT](../STEP_IMPORT/README.md). No body may be published as an implicit
+partial result. This layer's `shape_geometry_verified` remains false.
 
 
 Explicit internal `report::Encoding::AttributeDictionaryV2` emits

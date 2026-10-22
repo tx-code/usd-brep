@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportDefinitionSelection.h"
 #include "StepImportExecution.h"
 #include "StepImportNativeData.h"
 
@@ -15,12 +16,15 @@ std::shared_ptr<const DocumentSnapshot> BuildDocument(
     Execution& execution
 )
 {
+    const auto selected = SelectNativeDefinitions(*source, options, report, execution);
     auto candidate = std::make_shared<DocumentData>();
     candidate->source = source;
+    candidate->selection = report.definitionSelection;
+    candidate->sourcePartIndices = selected;
     // Complete-request export of detached associated definitions is not yet
     // qualified for this container. Reject before native allocations rather
     // than duplicating or dropping one part's physical auxiliary geometry.
-    for (std::size_t i = 0; i < source->PartCount(); ++i)
+    for (const auto i : selected)
     {
         for (const auto& role : source->Part(i)->PartDefinition().roles)
         {
@@ -36,9 +40,9 @@ std::shared_ptr<const DocumentSnapshot> BuildDocument(
     }
     try
     {
-        for (std::size_t i = 0; i < source->PartCount(); ++i)
+        for (std::size_t i = 0; i < selected.size(); ++i)
         {
-            const auto part = source->Part(i);
+            const auto part = source->Part(selected[i]);
             const auto& definition = part->PartDefinition();
             const auto owner = std::find_if(
                 definition.roles.begin(),
@@ -136,7 +140,10 @@ std::shared_ptr<const DocumentSnapshot> BuildDocument(
 }
 std::shared_ptr<const DocumentSnapshot> Access::Document(std::shared_ptr<DocumentData> data)
 {
-    if (!data || !data->source || data->parts.size() != data->source->PartCount() || data->bodies.empty())
+    if (!data || !data->source || data->parts.size() != data->sourcePartIndices.size() || data->parts.empty() ||
+        data->parts.size() > data->source->PartCount() || data->bodies.empty() ||
+        (!data->selection && data->parts.size() != data->source->PartCount()) ||
+        (data->selection && data->selection->selectedDefinitionIds.size() != data->parts.size()))
     {
         throw std::logic_error("IncompleteNativeProductDocument");
     }
@@ -179,6 +186,10 @@ std::string DocumentSnapshot::SourceShapeId(std::size_t i) const
 std::shared_ptr<const step_semantics::ProductDocument> DocumentSnapshot::Source() const
 {
     return m_data->source;
+}
+std::optional<DefinitionSelectionReceipt> DocumentSnapshot::Selection() const
+{
+    return m_data->selection;
 }
 void DocumentSnapshot::WriteNative(const std::filesystem::path& path) const
 {

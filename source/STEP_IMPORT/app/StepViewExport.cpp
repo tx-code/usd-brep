@@ -3,6 +3,7 @@
 // Isolated display worker: no native handle crosses the process boundary.
 #include "StepImport.h"
 #include "StepRepairArguments.h"
+#include "StepSelectionArguments.h"
 #include "StepSourceReport.h"
 #include "StepViewAuxiliary.h"
 #include "StepViewTopology.h"
@@ -255,6 +256,24 @@ void Publish(
                 w.String(status);
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
+                if (info && report.definitionSelection)
+                {
+                    const auto& selection = *report.definitionSelection;
+                    w.Add(",\"definition_selection\":{\"configuration\":\"SourceCompleteNativeSelection-0.1\",\"source_sha256\":");
+                    w.String(selection.sourceSha256);
+                    w.Add(",\"source_definition_count\":");
+                    w.Number(selection.sourceDefinitionIds.size());
+                    w.Add(",\"selected_definitions\":[");
+                    for (std::size_t i = 0; i < selection.selectedDefinitionIds.size(); ++i)
+                    {
+                        if (i)
+                        {
+                            w.Add(",");
+                        }
+                        w.String(selection.selectedDefinitionIds[i]);
+                    }
+                    w.Add("],\"native_scope\":\"ExplicitSelectedDefinitions\"}");
+                }
                 if (info && nativeStatus == "AcceptedWithRepairs")
                 {
                     const auto repair = RepairSummary(report);
@@ -414,7 +433,8 @@ int Run(
     bool fileNameText,
     bool asciiInvariant,
     const std::string& unitInterpretation,
-    const std::optional<step_import::FaceOrientationRepairRequest>& repair = {}
+    const std::optional<step_import::FaceOrientationRepairRequest>& repair = {},
+    const std::optional<step_import::DefinitionSelectionRequest>& selection = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -437,6 +457,7 @@ int Run(
         auto options = step_import::Options::PlanarFixture();
         options.generalBrep = true;
         options.faceOrientationRepair = repair;
+        options.definitionSelection = selection;
         options.quality = profile == "development"          ? step_import::Quality::GeneralDevelopment() :
                           profile == "tolerance-study"      ? step_import::Quality::GeneralToleranceStudy() :
                           profile == "work-tolerance-study" ? step_import::Quality::GeneralWorkToleranceStudy() :
@@ -470,6 +491,12 @@ int Run(
                     break;
                 case step_import::Phase::BeforeRepairProof:
                     repairPhase = phase = "repair-proof";
+                    break;
+                case step_import::Phase::BeforeDefinitionSelection:
+                    phase = "select";
+                    break;
+                case step_import::Phase::DefinitionSelectionReady:
+                    phase = "selection-ready";
                     break;
                 case step_import::Phase::BeforeRepair:
                     repairPhase = phase = "repair";
@@ -747,8 +774,9 @@ int wmain(int argc, wchar_t** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request),
-                "UnknownRepairArgument"
+                step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                    step_import_app::SelectionArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request),
+                "UnknownRequestArgument"
             );
         }
         return Run(
@@ -764,7 +792,8 @@ int wmain(int argc, wchar_t** argv)
             argc >= 11 && argv[10][0] == L'1',
             argc >= 12 && argv[11][0] == L'1',
             argc >= 13 ? std::filesystem::path(argv[12]).string() : "DeclaredOnly",
-            request.faceOrientationRepair
+            request.faceOrientationRepair,
+            request.definitionSelection
         );
     }
     catch (...)
@@ -798,7 +827,10 @@ int main(int argc, char** argv)
         step_import::Options request;
         for (int i = 13; i < argc; i += 2)
         {
-            Good(step_import_app::RepairArgument(argv[i], argv[i + 1], request), "UnknownRepairArgument");
+            Good(
+                step_import_app::RepairArgument(argv[i], argv[i + 1], request) || step_import_app::SelectionArgument(argv[i], argv[i + 1], request),
+                "UnknownRequestArgument"
+            );
         }
         return Run(
             argv[1],
@@ -813,7 +845,8 @@ int main(int argc, char** argv)
             argc >= 11 && argv[10][0] == '1',
             argc >= 12 && argv[11][0] == '1',
             argc >= 13 ? argv[12] : "DeclaredOnly",
-            request.faceOrientationRepair
+            request.faceOrientationRepair,
+            request.definitionSelection
         );
     }
     catch (...)

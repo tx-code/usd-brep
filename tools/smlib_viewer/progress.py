@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 
 LABELS = {
+    'select': '核对独立零件选择', 'selection-ready': '所选零件准备完成',
     'repair-proof': '验证修复依据', 'repair': '构建显式修复副本', 'repair-ready': '检查修复结果',
     "bodies": "准备实体显示数据",
     "measure": "计算原生测量信息",

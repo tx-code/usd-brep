@@ -33,6 +33,9 @@ def main(argv=None):
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
     parser.add_argument('--repair-source-sha256', default='')
+    parser.add_argument('--selection-source-sha256', default='')
+    parser.add_argument('--select-definition', action='append', default=[], dest='selected_definitions',
+                        help='显式选择 STEP 独立零件的源定义 ID；必须同时提供原始 SHA256，不跳过源检查')
     parser.add_argument('--max-face-orientation-edits', type=int, default=0, dest='maximum_face_orientation_edits')
     parser.add_argument('--max-repair-proof-controls', type=int, default=0, dest='maximum_repair_proof_controls')
     parser.add_argument('--max-repair-proof-products', type=int, default=0, dest='maximum_repair_proof_products')
@@ -51,6 +54,10 @@ def main(argv=None):
     try:
         from .repair import arguments as repair_arguments
         repair = repair_arguments(options)
+        from .definition_selection import arguments as selection_arguments
+        selection = selection_arguments(options)
+        if selection and (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
+            raise ValueError('DefinitionSelectionRequiresOneExplicitStepFile')
         if repair and (options.scan or not options.file):
             raise ValueError('RepairPlanRequiresOneExplicitFile')
         validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source,

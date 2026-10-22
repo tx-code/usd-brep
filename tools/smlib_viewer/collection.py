@@ -7,6 +7,7 @@ import numpy as np
 import pyvista as pv
 from .topology import (BodyInfo, TopologyData, read_topology, MAX_FACES, MAX_EDGES,
                        MAX_VERTICES, MAX_DISPLAY_POINTS, MAX_DISPLAY_CELLS, MAX_TOPOLOGY_BYTES)
+from .definition_selection import validate_manifest as validate_selection
 
 
 def read_collection(directory, manifest, resolve, *, _allow_single=False):
@@ -102,10 +103,12 @@ def read_document(directory, manifest, resolve):
     coordinates are never appended into a fictitious assembly/world space.
     """
     count, bodies = manifest.get('definition_count'), manifest.get('body_scenes')
+    validate_selection(manifest)
+    minimum = 1 if manifest.get('definition_selection') else 2
     if (manifest.get('coordinate_scope') != 'DefinitionLocal' or
             manifest.get('role') != 'IndependentProductDefinitions' or manifest.get('units') != 'mm' or
             manifest.get('auxiliary_required') is not False or 'auxiliary' in manifest or
-            type(count) is not int or count < 2 or count > MAX_FACES or not isinstance(bodies, list) or
+            type(count) is not int or count < minimum or count > MAX_FACES or not isinstance(bodies, list) or
             type(manifest.get('body_count')) is not int or not count <= len(bodies) <= MAX_FACES or
             manifest['body_count'] != len(bodies)):
         raise ValueError('InvalidDocumentManifest')

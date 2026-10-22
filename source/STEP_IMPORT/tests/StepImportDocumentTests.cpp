@@ -263,7 +263,122 @@ int main(int argc, char** argv)
             fileOverflow.status == Status::ResourceLimit && fileOverflow.model.index() == 0,
             "whole-file mandatory report cannot publish an incomplete alternative"
         );
-        std::cout << "independent document contracts passed\n";
+        auto select = Config();
+        select.definitionSelection = DefinitionSelectionRequest{ later.report.sourceSha256, { "7" } };
+        auto selected = ImportModelBytes(tiny, select);
+        Require(selected.status == Status::Accepted && selected.model.index() == 3, "explicit selection isolates an unrequested native failure");
+        auto selectedDocument = std::get<std::shared_ptr<const DocumentSnapshot>>(selected.model);
+        Require(
+            selectedDocument->PartCount() == 1 && selectedDocument->BodyCount() == 1 && selectedDocument->BodyPartIndex(0) == 0 &&
+                selectedDocument->SourceDefinitionId(0) == "7",
+            "selected native part ordinal is separate from complete source inventory"
+        );
+        Require(
+            selectedDocument->Source()->PartCount() == 2 && selectedDocument->Source()->Source().Bytes() == tiny,
+            "selection retains every immutable source definition"
+        );
+        Require(
+            selected.report.definitions.size() == 1 && selected.report.nativeCalls == firstCalls && selected.report.definitionSelection &&
+                selected.report.json.find("\"native_scope\":\"ExplicitSelectedDefinitions\"") != std::string::npos,
+            "only selected native work is charged and reported with explicit scope"
+        );
+        const auto selectedBytes = selected.report.json.size();
+        selected = {};
+        const auto receipt = selectedDocument->Selection();
+        Require(
+            receipt && receipt->sourceSha256 == later.report.sourceSha256 && receipt->sourceDefinitionIds == std::vector<std::string>{ "7", "902" } &&
+                receipt->selectedDefinitionIds == std::vector<std::string>{ "7" } &&
+                receipt->excludedDefinitionIds == std::vector<std::string>{ "902" },
+            "selection evidence owns complete source and explicit not-requested identities after outcome disposal"
+        );
+        Near(*selectedDocument->Body(0)->MaterialVolumeMm3(), 6000, 1e-6, "selected analytic box truth");
+        Require(selectedDocument->Body(0)->ClassifyMaterial({ 7, 7, 20 }) == MaterialPointClass::Inside, "selected native query");
+        Archive(*selectedDocument, std::filesystem::path(argv[2]) / "selected.smb");
+
+        select.definitionSelection->definitionIds = { "902" };
+        const auto selectedBad = ImportModelBytes(tiny, select);
+        Require(
+            selectedBad.status != Status::Accepted && selectedBad.model.index() == 0 && selectedBad.report.definitions.size() == 1 &&
+                selectedBad.report.candidateDiscarded,
+            "a selected failing definition cannot become an earlier surviving part"
+        );
+        select.definitionSelection->definitionIds = { "902", "7" };
+        const auto bothBad = ImportModelBytes(tiny, select);
+        Require(
+            bothBad.status != Status::Accepted && bothBad.model.index() == 0 && bothBad.report.definitions.size() == 2 &&
+                bothBad.report.definitions.front().checksPassed,
+            "all explicit selected definitions remain atomic in source order"
+        );
+
+        for (const auto ids : { std::vector<std::string>{ "7", "7" }, std::vector<std::string>{ "900001" } })
+        {
+            select.definitionSelection->definitionIds = ids;
+            const auto invalid = ImportModelBytes(tiny, select);
+            Require(
+                invalid.status == Status::Unsupported && invalid.model.index() == 0 && invalid.report.nativeCalls == 0 &&
+                    !invalid.report.definitionSelection,
+                "ambiguous or unavailable selection publishes no receipt or native candidate"
+            );
+        }
+        select.definitionSelection = DefinitionSelectionRequest{ std::string(64, '0'), { "7" } };
+        const auto stale = ImportModelBytes(tiny, select);
+        Require(
+            stale.status == Status::Unsupported && stale.model.index() == 0 && stale.report.nativeCalls == 0 &&
+                stale.report.semanticStatus == "NotRun",
+            "stale selection identity stops before source interpretation"
+        );
+
+        auto sourceFault = text;
+        sourceFault.replace(sourceFault.find(prefix), prefix.size(), "SI_UNIT(.NOT_A_PREFIX.,.METRE.)");
+        const auto sourceRejected = ImportModelBytes(sourceFault, Config());
+        select.definitionSelection = DefinitionSelectionRequest{ sourceRejected.report.sourceSha256, { "7" } };
+        const auto stillRejected = ImportModelBytes(sourceFault, select);
+        Require(
+            stillRejected.model.index() == 0 && stillRejected.report.nativeCalls == 0 && !stillRejected.report.definitionSelection &&
+                !stillRejected.report.generalSource->document,
+            "native selection does not silently bypass an excluded source unit error"
+        );
+
+        for (const auto phase : { Phase::BeforeDefinitionSelection,
+                                  Phase::DefinitionSelectionReady,
+                                  Phase::BeforeNativeCall,
+                                  Phase::NativeReady,
+                                  Phase::BeforeReport,
+                                  Phase::ReportReady,
+                                  Phase::BeforeCommit })
+        {
+            auto cancel = Config();
+            cancel.definitionSelection = DefinitionSelectionRequest{ later.report.sourceSha256, { "7" } };
+            cancel.execution.control = std::make_shared<ImportControl>();
+            cancel.execution.progress = [&](Progress p)
+            {
+                if (p.phase == phase)
+                {
+                    cancel.execution.control->RequestCancel();
+                }
+            };
+            const auto stopped = ImportModelBytes(tiny, cancel);
+            Require(stopped.status == Status::Cancelled && stopped.model.index() == 0, "selection cancellation cannot publish a subset");
+        }
+        auto selectedLimit = Config();
+        selectedLimit.definitionSelection = DefinitionSelectionRequest{ later.report.sourceSha256, { "7" } };
+        selectedLimit.nativeLimits.reportBytes = selectedBytes - 1;
+        const auto selectedOverflow = ImportModelBytes(tiny, selectedLimit);
+        Require(
+            selectedOverflow.status == Status::ResourceLimit && selectedOverflow.model.index() == 0 && selectedOverflow.report.candidateDiscarded,
+            "selection receipt participates in the mandatory report cap"
+        );
+        bool singularRejected = false;
+        try
+        {
+            (void)ImportPartBytes(tiny, select);
+        }
+        catch (const std::invalid_argument&)
+        {
+            singularRejected = true;
+        }
+        Require(singularRejected, "legacy singular entry cannot silently reinterpret a selection request");
+        std::cout << "independent document and explicit selection contracts passed\n";
     }
     catch (const std::exception& e)
     {

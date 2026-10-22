@@ -75,7 +75,9 @@ enum class Phase
     BeforeCommit,
     BeforeRepairProof,
     BeforeRepair,
-    RepairReady
+    RepairReady,
+    BeforeDefinitionSelection,
+    DefinitionSelectionReady
 };
 struct Progress
 {
@@ -191,6 +193,18 @@ struct FaceOrientationRepairHistory
     bool definitionsIdentical = false, workingTolerancesIdentical = false;
     bool sourceInterpretationApplied = false;
 };
+struct DefinitionSelectionRequest
+{
+    std::string sourceSha256; // Bind explicit source definition IDs to the exact original file.
+    std::vector<std::string> definitionIds; // Nonempty set; selected definitions are built in source order.
+};
+struct DefinitionSelectionReceipt
+{
+    std::string sourceSha256;
+    std::vector<std::string> sourceDefinitionIds, selectedDefinitionIds, excludedDefinitionIds;
+    // All source definitions, types, units and dependencies were checked. Only
+    // the explicitly selected definitions acquire native construction evidence.
+};
 struct Options
 {
     step_source::Limits sourceLimits{};
@@ -211,6 +225,7 @@ struct Options
     bool normalizePeriodicFaces = false; // Equivalent target topology/chart only; never source repair or automatic tolerance growth.
     ReportEncoding reportEncoding = ReportEncoding::ExpandedV1; // Explicit lossless encoding; never an automatic budget fallback.
     std::optional<FaceOrientationRepairRequest> faceOrientationRepair; // Explicit zero-geometry pilot; absent remains Repair=None.
+    std::optional<DefinitionSelectionRequest> definitionSelection; // General file/document entry only; never a failed-request fallback.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -518,6 +533,8 @@ struct Report
     bool generalBrep = false;
     bool materialCollection = false;
     bool productDocument = false;
+    std::optional<DefinitionSelectionRequest> definitionSelectionRequest;
+    std::optional<DefinitionSelectionReceipt> definitionSelection;
     std::string sourceEvidenceScope;
     std::vector<ProductDefinitionReport> definitions;
     std::vector<MaterialBodyReport> bodies; // Per-body observations share the one root source report.
@@ -627,6 +644,7 @@ public:
     std::string SourceDefinitionId(std::size_t bodyIndex) const;
     std::string SourceShapeId(std::size_t bodyIndex) const;
     std::shared_ptr<const step_semantics::ProductDocument> Source() const;
+    std::optional<DefinitionSelectionReceipt> Selection() const; // Owning selection evidence; Source() still retains every source definition.
     void WriteNative(const std::filesystem::path& path) const; // Ordered definitions/bodies; no union or source-qualification transfer.
 
 private:

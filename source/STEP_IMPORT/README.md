@@ -1,5 +1,30 @@
 # STEP_IMPORT（内部 C++20）
 
+## 显式选择独立零件（源检查完整通过）
+
+`ImportModelFile/Bytes` 与 `ImportDocumentFile/Bytes` 可显式设置
+`Options.definitionSelection = DefinitionSelectionRequest{originalSha256, definitionIds}`。
+ID 为源 `PRODUCT_DEFINITION` 实体身份，不是名称、数组序号或形状 ID。请求绑定原始字节
+SHA256，非空且不得重复；不存在／过期身份在原生分配前拒绝。未设置时仍选择全部定义。
+原生 CLI 与查看器支持 `--selection-source-sha256 HASH` 和可重复的 `--select-definition ID`。
+
+该配置的资格为 `SourceCompleteNativeSelection-0.1`：先对完整文件执行现有类型、单位、
+依赖、反向归属及独立产品结构检查，只有发布完整 `ProductDocument` 后才选择原生构建范围。
+装配、变换、未建立的独立性或任一源检查失败仍拒绝；本配置不提供局部语法恢复或源错误隔离。
+共享几何与上下文保留原有定义作用域，不改源数据，也不通过前向可达性推断其他记录无害。
+
+所有所选定义按源顺序构建并共同提交；任一所选定义失败、取消、预算或必需报告不足，均无模型。
+未选定义的原生构建不会运行，记录为 `not_requested_definitions`，不声称它们原生有效。
+选择一项也返回 `DocumentSnapshot`，其 `Selection()` 返回 owning 选择证据；
+`Source()` 仍含完整文件和全部源定义，原生 `PartCount()`／体的定义序号只对应所选集合。
+清除 outcome/report 不会丢失选择身份。建模副本和原生存档不继承 STEP 选择／来源资格。
+
+显式朝向修复可与选择组合，但计划中的每个改动都必须属于所选定义，不能修复未请求的兄弟定义。
+原生工作与证明预算仍在整个所选请求累计。独立文档的线框／辅助几何构建限制继续适用于
+每个所选定义；未选定义的此类原生内容不被冒充为已导入。旧单体／集合入口拒绝选择配置。
+查看器仅允许单个明确 STEP 文件采用固定选择，不用于目录扫描；HUD 和本地结果标明选择范围，
+不能将完整所选请求的成功计作整个原文件的完整原生导入。内部 C++ 布局扩展，消费者须一并重建。
+
 ## 显式面朝向修复（开发切片）
 
 `Options.faceOrientationRepair` 可选择 `FaceOrientationZeroGeometry-0.1`：调用者明确提供

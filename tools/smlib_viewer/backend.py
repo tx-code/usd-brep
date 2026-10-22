@@ -15,6 +15,7 @@ from .progress import Progress, ProgressReader
 from .process_guard import ProcessGuard
 from .interpretation import validate
 from .repair import arguments as repair_arguments
+from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -38,6 +39,8 @@ class ImportSettings:
     maximum_repair_proof_controls: int = 0
     maximum_repair_proof_products: int = 0
     face_orientation_edits: tuple[str, ...] = ()
+    selection_source_sha256: str = ''
+    selected_definitions: tuple[str, ...] = ()
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
@@ -45,6 +48,7 @@ class ImportSettings:
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
                  self.preserve_opaque_file_name_text, self.assume_ascii_invariant_data, self.unit_interpretation)
         repair_arguments(self)
+        selection_arguments(self)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -99,6 +103,9 @@ class SceneLoader(QtCore.QObject):
         if path.suffix.lower() not in CAD_EXTENSIONS | MESH_EXTENSIONS:
             self.failed.emit("暂不支持此文件格式", path.suffix)
             return
+        if selection_arguments(self.settings) and path.suffix.lower() not in CAD_EXTENSIONS:
+            self.failed.emit("选择零件需要 STEP 文件", "选择请求不能用于网格文件。")
+            return
         generation = self.generation
         directory = tempfile.TemporaryDirectory(prefix="brep-view-")
         process = QtCore.QProcess(self)
@@ -126,11 +133,11 @@ class SceneLoader(QtCore.QObject):
                     arguments.append(str(int(self.settings.assume_ascii_invariant_data)))
                 if self.settings.unit_interpretation != "DeclaredOnly":
                     arguments.append(self.settings.unit_interpretation)
-            repair = repair_arguments(self.settings)
-            if repair:
+            intent = repair_arguments(self.settings) + selection_arguments(self.settings)
+            if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
-                    str(int(self.settings.assume_ascii_invariant_data)), self.settings.unit_interpretation, *repair]
+                    str(int(self.settings.assume_ascii_invariant_data)), self.settings.unit_interpretation, *intent]
         else:
             program = Path(sys.executable)
             script = Path(__file__).resolve().parents[1] / "scripts/brep_view.py"
@@ -237,6 +244,7 @@ class SceneLoader(QtCore.QObject):
                          else "模型未能载入")
                 self.failed.emit(title, "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))
                 return
+            validate_selection(manifest, self.settings)
             import pyvista as pv
             import numpy as np
             if manifest['format'] == 'brep-view-scene.v5':

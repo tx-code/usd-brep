@@ -63,4 +63,6 @@ class RequestReceipt:
             "phase_observations": self.observations,
             "elapsed_seconds": time.perf_counter() - self.started,
         }
+        if scene.get('definition_selection'):
+            self.result['import_scope'] = 'ExplicitSelectedDefinitions'
         return self.result

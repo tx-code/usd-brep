@@ -54,6 +54,10 @@ const char* PhaseName(Phase phase)
             return "BeforeRepair";
         case Phase::RepairReady:
             return "RepairReady";
+        case Phase::BeforeDefinitionSelection:
+            return "BeforeDefinitionSelection";
+        case Phase::DefinitionSelectionReady:
+            return "DefinitionSelectionReady";
     }
     throw std::logic_error("Unknown execution boundary");
 }

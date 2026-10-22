@@ -218,6 +218,21 @@ int main(int argc, char** argv)
             document.report.repairProofProducts > 0 && document.report.repairProofProducts <= both.faceOrientationRepair->maximumProofProducts,
             "document proof work is request cumulative"
         );
+        oneDefinition.definitionSelection = DefinitionSelectionRequest{ oneDefinition.faceOrientationRepair->sourceSha256, { "7" } };
+        const auto selected = ImportDocumentBytes(shared, oneDefinition);
+        Require(
+            selected.status == Status::AcceptedWithRepairs && selected.document && selected.document->PartCount() == 1 &&
+                selected.document->Source()->PartCount() == 2 &&
+                selected.document->Selection()->excludedDefinitionIds == std::vector<std::string>{ "902" } &&
+                selected.document->Body(0)->Repairs()->actions[0].edit.definitionId == "7",
+            "explicit selected request owns repair and not-requested sibling evidence separately"
+        );
+        both.definitionSelection = oneDefinition.definitionSelection;
+        const auto outside = ImportDocumentBytes(shared, both);
+        Require(
+            outside.status == Status::Unsupported && !outside.document && outside.report.nativeCalls == 0 && !outside.report.definitionSelection,
+            "repair plan cannot edit unselected definitions"
+        );
         std::cout << "Explicit orientation repair contracts passed\n";
     }
     catch (const std::exception& e)

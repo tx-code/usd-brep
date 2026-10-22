@@ -505,18 +505,60 @@ void WriteReportJson(
         // Separate scope: do not serialize unexecuted planar proofs as
         // qualification for analytic/NURBS models or complete AP214 rules.
         w.Add(
-            nestedBody ? (report.sourceEvidenceScope == "RepairParent" ?
-                              "{\"format_version\":\"step-repair-original-attempt.v1\",\"scope\":\"WithinRepairRequest\",\"status\":" :
-                          report.sourceEvidenceScope == "ProductDocumentRoot" ?
-                              "{\"format_version\":\"step-product-definition-checks.v1\",\"scope\":\"WithinProductDocument\",\"status\":" :
-                              "{\"format_version\":\"step-material-body-checks.v1\",\"scope\":\"WithinMaterialCollection\",\"status\":") :
+            nestedBody ?
+                (report.sourceEvidenceScope == "RepairParent" ?
+                     "{\"format_version\":\"step-repair-original-attempt.v1\",\"scope\":\"WithinRepairRequest\",\"status\":" :
+                 report.sourceEvidenceScope == "ProductDocumentRoot" ?
+                     "{\"format_version\":\"step-product-definition-checks.v1\",\"scope\":\"WithinProductDocument\",\"status\":" :
+                     "{\"format_version\":\"step-material-body-checks.v1\",\"scope\":\"WithinMaterialCollection\",\"status\":") :
             report.productDocument ?
-                         "{\"format_version\":\"step-product-document-development.v1\",\"scope\":\"IndependentProductDefinitions\",\"status\":" :
+                (report.definitionSelectionRequest ?
+                     "{\"format_version\":\"step-product-document-development.v1\",\"scope\":\"ExplicitSelectedProductDefinitions\",\"status\":" :
+                     "{\"format_version\":\"step-product-document-development.v1\",\"scope\":\"IndependentProductDefinitions\",\"status\":") :
             report.materialCollection ?
-                         "{\"format_version\":\"step-material-collection-development.v1\",\"scope\":\"MaterialCollectionDevelopment\",\"status\":" :
-                         "{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":"
+                "{\"format_version\":\"step-material-collection-development.v1\",\"scope\":\"MaterialCollectionDevelopment\",\"status\":" :
+                "{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":"
         );
         w.String(StatusName(status));
+        if (report.definitionSelectionRequest)
+        {
+            const auto strings = [&](const std::vector<std::string>& values)
+            {
+                w.Add("[");
+                for (std::size_t i = 0; i < values.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    w.String(values[i]);
+                }
+                w.Add("]");
+            };
+            w.Add(",\"definition_selection\":{\"configuration\":\"SourceCompleteNativeSelection-0.1\",\"requested_source_sha256\":");
+            w.String(report.definitionSelectionRequest->sourceSha256);
+            w.Add(",\"requested_definitions\":");
+            strings(report.definitionSelectionRequest->definitionIds);
+            w.Add(",\"qualified\":");
+            if (report.definitionSelection)
+            {
+                const auto& receipt = *report.definitionSelection;
+                w.Add("{\"source_sha256\":");
+                w.String(receipt.sourceSha256);
+                w.Add(",\"source_scope\":\"AllDefinitionsChecked\",\"native_scope\":\"ExplicitSelectedDefinitions\",\"source_definitions\":");
+                strings(receipt.sourceDefinitionIds);
+                w.Add(",\"selected_definitions\":");
+                strings(receipt.selectedDefinitionIds);
+                w.Add(",\"not_requested_definitions\":");
+                strings(receipt.excludedDefinitionIds);
+                w.Add("}");
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add("}");
+        }
         if (report.repairRequest)
         {
             const auto& request = *report.repairRequest;
@@ -851,7 +893,11 @@ void WriteReportJson(
             w.Add(",\"product_document\":{\"complete\":");
             w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs);
             w.Add(",\"selected_definition_count\":");
-            w.Number(report.generalSource && report.generalSource->document ? report.generalSource->document->PartCount() : 0);
+            w.Number(
+                report.definitionSelectionRequest ? (report.definitionSelection ? report.definitionSelection->selectedDefinitionIds.size() : 0) :
+                report.generalSource && report.generalSource->document ? report.generalSource->document->PartCount() :
+                                                                         0
+            );
             w.Add(",\"definitions\":[");
             for (std::size_t i = 0; i < report.definitions.size(); ++i)
             {

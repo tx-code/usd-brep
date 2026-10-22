@@ -41,6 +41,16 @@ keep the generic failure caption. The previous accepted scene remains intact.
 STEP/STP uses the native importer with an explicitly selected development preview
 configuration; see the [import contract](../../source/STEP_IMPORT/README.md).
 
+For one explicit STEP file, `--selection-source-sha256 HASH --select-definition ID`
+selects source PRODUCT_DEFINITION identities; repeat the ID option for several
+independent definitions. Every source definition must first pass complete source
+checking. Only selected definitions are built and displayed, in source order;
+one selected definition remains a document with its own local coordinates.
+The HUD states the selected/source definition counts and the local result records
+`ExplicitSelectedDefinitions`. This is not whole-file native qualification or
+source-error recovery. Missing/altered selection receipts are rejected before
+scene adoption; directory scans cannot use a one-file selection plan.
+
 An optional single-file face-orientation repair uses `--repair-source-sha256`,
 `--max-face-orientation-edits`, `--max-repair-proof-controls`,
 `--max-repair-proof-products`, and repeated

@@ -240,6 +240,9 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 )
             study = self.loader.settings.profile != "development" and metadata.get("units") == "mm"
             policy = "\n研究配置" if study else ""
+            selection = metadata.get('definition_selection')
+            if selection:
+                policy += f"\n选入 {len(selection['selected_definitions'])}/{selection['source_definition_count']} 个源定义"
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
             if metadata.get('repair_applied'):
@@ -541,7 +544,9 @@ def run(options):
                               maximum_face_orientation_edits=getattr(options, 'maximum_face_orientation_edits', 0),
                               maximum_repair_proof_controls=getattr(options, 'maximum_repair_proof_controls', 0),
                               maximum_repair_proof_products=getattr(options, 'maximum_repair_proof_products', 0),
-                              face_orientation_edits=tuple(getattr(options, 'face_orientation_edits', ())))
+                              face_orientation_edits=tuple(getattr(options, 'face_orientation_edits', ())),
+                              selection_source_sha256=getattr(options, 'selection_source_sha256', ''),
+                              selected_definitions=tuple(getattr(options, 'selected_definitions', ())))
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]
