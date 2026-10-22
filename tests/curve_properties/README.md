@@ -128,14 +128,19 @@ Git 版本是调用时的源上下文，不能单凭它证明一个外部二进�
 原版失败的候选写入 `baseline-rejections.jsonl`，不作为注入故障的缩减证据，也不改写成
 不支持输入。最终反例仍须在变异版本触发原属性、在基线通过；两边二进制都核对哈希。
 
-### 独立发现的基线缺陷
+### 零长度分段与共线折返的紧包围盒
 
-缩减暴露了零长度分段之后二次拱形的紧包围盒漏包，见
-[已知问题](../../KNOWN_ISSUES.md#tight-nurbs-bounds-can-miss-an-arch-after-a-zero-length-span)。
-完整合成输入保存在 `fixtures/zero-span-quadratic-bounds.json`。
-它的最大 Z 为 `0.5`，原生参数为 `0.875`，由独立二次 Bernstein 公式确定。
-本批未修改内核全局极值算法；该用例当前重放失败，不包含在随机／固定通过声明中，
-不能把变异组的通过当成该问题已经修复。可独立运行：
+缩减得到的完整合成输入保存在 `fixtures/zero-span-quadratic-bounds.json`，
+其最大 Z 为 `0.5`，原生参数为 `0.875`，由独立二次 Bernstein 公式确定。
+`curve_property_zero_span_bounds` 已将它和三轴、平移、实际参数域、裁剪、正权有理形式、
+共线折返、中间零长度分段及正常直线对照接入常规 CTest；`zero_span_bounds.py` 使用独立
+解析值核对这些控制组的包围盒。有理二次拱形的独立最大值为 `2/3`。
+
+`SmCurve::CalculateTightBoundingBox` 使用既有 X／Y／Z 坐标驻点查询，保留原来的实际参数
+区间和 `SM_EFF_ZERO_SQRT` 求解容差。切线垂直方向查询会排除零速点，其共线与零弦长剪枝
+也不适合包围盒的坐标极值；其原有查询语义保持不变。直线的既有专用实现以及圆／椭圆的
+系数路径不变，派生类仍经虚接口调用相应查询。此修复不改变曲线定义、参数或原生工作容差。
+通用数值求解器仍有其既有能力边界，不因此建立任意 NURBS 的连续包围证明。可独立重放：
 
 ```shell
 python tests/curve_properties/explore.py replay --probe <runtime>/curve_property_probe.exe \

@@ -10298,18 +10298,19 @@ SmStatus SmCurve::CalculateTightBoundingBox
   // Now solve along curve.
   SmSolutionArray sSolutions;
 
-  SmVector3d sDirVec( 1, 0, 0 );  // +/- x
-
+  // Coordinate bounds include zero-speed turning points. The perpendicular-
+  // tangent query assumes a regular direction and may cull a closed-chord
+  // branch or skip a collinear curve that reverses. Keep the same solver
+  // interval and tolerance, but solve the coordinate derivatives directly.
+  constexpr SmCurvePropertyType coordinates[] = { SM_CP_X_NORMAL, SM_CP_Y_NORMAL, SM_CP_Z_NORMAL };
   ULONG i, j;
   for ( i = 0; i < 3; i++ )
     {
-      if ( i == 1 ) sDirVec.Set( 0, 1, 0 );  // +/- y
-      if ( i == 2 ) sDirVec.Set( 0, 0, 1 );  // +/- z
 
       SER( GlobalPropertyAnalysis(crInterval, 
-                                  SM_CP_PERPENDICULAR_TO_VECTOR,
+                                  coordinates[i],
                                   NULL,
-                                  &sDirVec,
+                                  NULL,
                                   SM_EFF_ZERO_SQRT,
                                   sSolutions));
 
