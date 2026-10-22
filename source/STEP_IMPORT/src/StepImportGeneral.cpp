@@ -1817,7 +1817,8 @@ private:
             double controlledProjectionGap = 0;
             const bool cylinderProjection = Is(f.surface, "CYLINDRICAL_SURFACE");
             const bool coneProjection = Is(f.surface, "CONICAL_SURFACE");
-            if (cylinderProjection || coneProjection)
+            const bool splineProjection = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
+            if (cylinderProjection || coneProjection || splineProjection)
             {
                 SmTArray<SmEdgeuse*> uses;
                 native.face->GetUpwardEdgeuses(uses);
@@ -1835,8 +1836,8 @@ private:
                     {
                         continue;
                     }
-                    // Rational spline arcs on cylinders need the same bounded
-                    // drop as circles/cone splines. Legacy UV retry may enlarge
+                    // Spline supports and analytic cylinders/cones share this
+                    // bounded derived-data path. Legacy UV retry may enlarge
                     // edge tolerance even for an exact on-surface source curve.
                     // Keep the defining spline and its parameter interval; a
                     // single paired candidate must satisfy the unchanged budget.
@@ -1860,7 +1861,8 @@ private:
                     // Preserve the defining curve and its native parameter t.
                     // Face closure/seam handling and final paired measurements
                     // still run below, followed by global topology/tolerance checks.
-                    const char* kind = coneProjection ? "ControlledConeUvProjection" :
+                    const char* kind = splineProjection ? "ControlledSplineSurfaceUvProjection" :
+                                       coneProjection ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
                                                                                               "ControlledCircleUvProjection";
                     RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, index };
