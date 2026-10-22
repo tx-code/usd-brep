@@ -47,9 +47,15 @@ int main(int argc, char** argv)
             {
                 selectedLimits = true;
             }
-            else if (argument == "--preserve-opaque-header-name")
+            else if (argument == "--preserve-opaque-header-name" || argument == "--preserve-opaque-file-name-text")
             {
-                headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+                const auto headerChoice = argument == "--preserve-opaque-header-name" ? step_source::HeaderNamePolicy::PreserveOpaqueBytes :
+                                                                                 step_source::HeaderNamePolicy::PreserveFileNameText;
+                if (headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii && headerNamePolicy != headerChoice)
+                {
+                    throw std::invalid_argument("Choose one FILE_NAME preservation policy");
+                }
+                headerNamePolicy = headerChoice;
             }
             else if (argument == "--preserve-opaque-data-strings")
             {

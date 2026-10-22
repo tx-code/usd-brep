@@ -172,9 +172,15 @@ int main(int argc, char** argv)
                 }
                 options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
             }
-            else if (arg == "--preserve-opaque-header-name")
+            else if (arg == "--preserve-opaque-header-name" || arg == "--preserve-opaque-file-name-text")
             {
-                options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+                const auto headerChoice = arg == "--preserve-opaque-header-name" ? step_source::HeaderNamePolicy::PreserveOpaqueBytes :
+                                                                                 step_source::HeaderNamePolicy::PreserveFileNameText;
+                if (options.headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii && options.headerNamePolicy != headerChoice)
+                {
+                    throw std::invalid_argument("Choose one FILE_NAME preservation policy");
+                }
+                options.headerNamePolicy = headerChoice;
             }
             else if (arg == "--preserve-opaque-data-strings")
             {

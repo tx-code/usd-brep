@@ -1472,7 +1472,8 @@ void DevelopmentContract(
     bool nameOnly = false,
     bool lowercaseHex = false,
     std::optional<double> integrationAccuracy = {},
-    bool normalizePeriodic = false
+    bool normalizePeriodic = false,
+    bool headerText = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1485,6 +1486,10 @@ void DevelopmentContract(
     if (opaqueHeaderName)
     {
         options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
+    }
+    if (headerText)
+    {
+        options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveFileNameText;
     }
     if (opaqueDataText)
     {
@@ -1726,7 +1731,7 @@ int main(int argc, char** argv)
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
-                 lowercaseHex = false, normalizePeriodic = false;
+                 lowercaseHex = false, normalizePeriodic = false, headerText = false;
             std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
@@ -1746,10 +1751,14 @@ int main(int argc, char** argv)
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
                         flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
                         flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex" ||
-                        flag == "--normalize-periodic-faces",
+                        flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text",
                     "unknown explicit source flag"
                 );
-                if (flag == "--interpret-unregistered-ap214-2010")
+                if (flag == "--preserve-opaque-file-name-text")
+                {
+                    headerText = true;
+                }
+                else if (flag == "--interpret-unregistered-ap214-2010")
                 {
                     interpret = true;
                 }
@@ -1782,6 +1791,7 @@ int main(int argc, char** argv)
                     (flag == "--preserve-opaque-header-name" ? header : data) = true;
                 }
             }
+            Require(!(header && headerText), "choose one FILE_NAME preservation policy");
             DevelopmentContract(
                 argv[2],
                 argv[3],
@@ -1795,7 +1805,8 @@ int main(int argc, char** argv)
                 nameOnly,
                 lowercaseHex,
                 integrationAccuracy,
-                normalizePeriodic
+                normalizePeriodic,
+                headerText
             );
             return 0;
         }

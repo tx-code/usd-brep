@@ -213,19 +213,26 @@ public:
             CheckHeader(component);
         }
         m_component.clear(); // The whole-carrier check has no parsed DATA owner.
-        // The opt-in exception belongs to one completed HEADER token only.
+        // Only completed FILE_NAME string spans authorize the selected exception.
         // Check every byte before DATA parsing, including skipped comments and
-        // all other HEADER fields; no encoding relaxation can reach geometry.
-        if (m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes && m_result.dataStringPolicy == DataStringPolicy::StrictAscii)
+        // unapproved HEADER fields; no encoding relaxation can reach geometry.
+        if (m_result.headerNamePolicy != HeaderNamePolicy::StrictAscii && m_result.dataStringPolicy == DataStringPolicy::StrictAscii)
         {
+            std::size_t header = 0;
             for (std::size_t i = 0; i < input.size(); ++i)
             {
+                while (header < m_opaqueHeaderStrings.size() && m_opaqueHeaderStrings[header].end <= i)
+                {
+                    ++header;
+                }
                 if (static_cast<unsigned char>(input[i]) >= 128 &&
-                    (!m_opaqueHeaderName || i < m_opaqueHeaderName->begin || i >= m_opaqueHeaderName->end))
+                    (header == m_opaqueHeaderStrings.size() || i < m_opaqueHeaderStrings[header].begin))
                 {
                     Fail(
                         "UnsupportedEncoding",
-                        "Non-ASCII bytes are allowed only in the opaque FILE_NAME.name token",
+                        m_result.headerNamePolicy == HeaderNamePolicy::PreserveFileNameText ?
+                            "Non-ASCII bytes are allowed only in explicitly opaque FILE_NAME text" :
+                            "Non-ASCII bytes are allowed only in the opaque FILE_NAME.name token",
                         { i, i + 1 },
                         Status::Unsupported
                     );
@@ -272,9 +279,10 @@ public:
         {
             // Lexing establishes token spans, not text or field meaning. Before
             // publishing ANY source graph, reject every high byte outside an
-            // explicitly opaque token, including skipped comments/HEADER text.
+            // explicitly opaque token, including comments and unapproved HEADER text.
             // Spans arrive in lexical order: keep this whole-carrier pass linear.
             std::size_t opaque = 0;
+            std::size_t header = 0;
             for (std::size_t i = 0; i < input.size(); ++i)
             {
                 while (opaque < m_opaqueDataStrings.size() && m_opaqueDataStrings[opaque].end <= i)
@@ -283,7 +291,11 @@ public:
                 }
                 const bool inData = opaque < m_opaqueDataStrings.size() && m_opaqueDataStrings[opaque].begin <= i &&
                                     i < m_opaqueDataStrings[opaque].end;
-                const bool inHeader = m_opaqueHeaderName && m_opaqueHeaderName->begin <= i && i < m_opaqueHeaderName->end;
+                while (header < m_opaqueHeaderStrings.size() && m_opaqueHeaderStrings[header].end <= i)
+                {
+                    ++header;
+                }
+                const bool inHeader = header < m_opaqueHeaderStrings.size() && m_opaqueHeaderStrings[header].begin <= i;
                 if (static_cast<unsigned char>(input[i]) >= 128 && !inData && !inHeader)
                 {
                     Fail("UnsupportedEncoding", "Non-ASCII bytes are outside explicitly preserved STRING tokens", { i, i + 1 }, Status::Unsupported);
@@ -318,7 +330,8 @@ private:
     std::string m_component;
     std::vector<std::size_t> m_path;
     bool m_headerNameExpected = false;
-    std::optional<Span> m_opaqueHeaderName;
+    bool m_fileNameHeader = false;
+    std::vector<Span> m_opaqueHeaderStrings;
     bool m_inData = false;
     std::vector<Span> m_opaqueDataStrings;
     // The parser alone may extend this receipt before returning. Public
@@ -396,7 +409,9 @@ private:
     }
     std::optional<Token> OpaqueString(std::size_t start)
     {
-        const bool header = !m_inData && m_headerNameExpected && m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes;
+        const bool header = !m_inData &&
+                            ((m_headerNameExpected && m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes) ||
+                             (m_fileNameHeader && m_result.headerNamePolicy == HeaderNamePolicy::PreserveFileNameText));
         const bool data = m_inData && m_result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes;
         if (!header && !data)
         {
@@ -442,7 +457,7 @@ private:
                         const Span span{ start, m_pos };
                         if (header)
                         {
-                            m_opaqueHeaderName = span;
+                            m_opaqueHeaderStrings.push_back(span);
                         }
                         else
                         {
@@ -910,18 +925,20 @@ private:
         }
         m_component = name.text;
         m_headerNameExpected = m_recordId.empty() && m_data->header.size() == 1 && name.text == "FILE_NAME";
+        m_fileNameHeader = m_headerNameExpected;
         auto values = Parameters(0);
+        m_fileNameHeader = false;
         return { name.text, { name.span.begin, m_token.span.end }, std::move(values) };
     }
-    static bool StringList(const Value& value)
+    static bool StringList(const Value& value, bool allowOpaque = false)
     {
         return value.kind == ValueKind::Aggregate && !value.children.empty() &&
                std::all_of(
                    value.children.begin(),
                    value.children.end(),
-                   [](const Value& v)
+                   [allowOpaque](const Value& v)
                    {
-                       return v.kind == ValueKind::String;
+                       return v.kind == ValueKind::String || (allowOpaque && v.kind == ValueKind::OpaqueString);
                    }
                );
     }
@@ -956,10 +973,11 @@ private:
         }
         else if (component.name == "FILE_NAME")
         {
-            valid = p.size() == 7 && StringList(p[2]) && StringList(p[3]);
+            const bool opaqueText = m_result.headerNamePolicy == HeaderNamePolicy::PreserveFileNameText;
+            valid = p.size() == 7 && StringList(p[2], opaqueText) && StringList(p[3], opaqueText);
             for (std::size_t i : { std::size_t(0), std::size_t(1), std::size_t(4), std::size_t(5), std::size_t(6) })
             {
-                valid = valid && (p[i].kind == ValueKind::String || (i == 0 && p[i].kind == ValueKind::OpaqueString));
+                valid = valid && (p[i].kind == ValueKind::String || ((i == 0 || opaqueText) && p[i].kind == ValueKind::OpaqueString));
             }
         }
         else if (component.name == "FILE_SCHEMA")
@@ -1149,7 +1167,8 @@ InspectOutcome InspectBytes(
     CarrierInterpretation carrierInterpretation
 )
 {
-    if (headerNamePolicy != HeaderNamePolicy::StrictAscii && headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes)
+    if (headerNamePolicy != HeaderNamePolicy::StrictAscii && headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes &&
+        headerNamePolicy != HeaderNamePolicy::PreserveFileNameText)
     {
         throw std::invalid_argument("Unknown HEADER filename policy");
     }
@@ -1227,6 +1246,37 @@ InspectOutcome InspectBytes(
                   { 1 },
                   {} }
             );
+        }
+        if (headerNamePolicy == HeaderNamePolicy::PreserveFileNameText)
+        {
+            // FILE_NAME has only administrative STRING fields and one-level
+            // STRING lists. CheckHeader already proved that exact shape. Emit
+            // per-value source paths; never decode, replace or invent metadata.
+            const auto& parameters = result.source->Header()[1].parameters;
+            const auto record = [&](const Value& value, std::vector<std::size_t> path)
+            {
+                if (value.kind == ValueKind::OpaqueString)
+                {
+                    result.diagnostics.push_back(
+                        { "OpaqueHeaderFileNameText", "D0", "Nonstandard FILE_NAME metadata retained; text and encoding remain unestablished",
+                          value.span, {}, {}, "FILE_NAME", std::move(path), {} }
+                    );
+                }
+            };
+            for (std::size_t i = 1; i < parameters.size(); ++i)
+            {
+                if (parameters[i].kind == ValueKind::Aggregate)
+                {
+                    for (std::size_t j = 0; j < parameters[i].children.size(); ++j)
+                    {
+                        record(parameters[i].children[j], { i + 1, j + 1 });
+                    }
+                }
+                else
+                {
+                    record(parameters[i], { i + 1 });
+                }
+            }
         }
     }
     catch (const Failure& failure)

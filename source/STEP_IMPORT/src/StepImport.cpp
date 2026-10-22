@@ -108,7 +108,8 @@ void Validate(const Options& options)
     // Opaque metadata is an explicit interoperability choice, not a side effect
     // of selecting a geometry quality. Strict/P0 requests never relax carriers.
     if (options.headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii &&
-        (options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveOpaqueBytes || !options.generalBrep ||
+        ((options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveOpaqueBytes &&
+          options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveFileNameText) || !options.generalBrep ||
          options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
     {
         throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");

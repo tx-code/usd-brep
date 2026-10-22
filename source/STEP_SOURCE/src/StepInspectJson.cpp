@@ -21,11 +21,13 @@ void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
     {
         const auto& header = source.Header();
         const bool headerName = header.size() > 1 && !header[1].parameters.empty() && &value == &header[1].parameters[0];
+        const bool fileNameText = header.size() > 1 && value.span.begin >= header[1].span.begin && value.span.end <= header[1].span.end;
         out.Add("null,\"interpretation\":\"Unestablished\",\"notice\":");
         // Preserve the existing HEADER notice bytes; DATA tokens cannot inherit
         // its filename provenance merely because they share an opaque ValueKind.
         out.String(
             headerName ? "Nonstandard HEADER filename retained as original bytes; no code page inferred" :
+            fileNameText ? "Nonstandard FILE_NAME metadata retained as original bytes; no code page inferred" :
                          "Nonstandard DATA string retained as original bytes; no code page inferred"
         );
     }
@@ -108,6 +110,10 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
     if (result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes)
     {
         out.Add(",\"header_name_policy\":\"PreserveOpaqueBytes\"");
+    }
+    else if (result.headerNamePolicy == HeaderNamePolicy::PreserveFileNameText)
+    {
+        out.Add(",\"header_name_policy\":\"PreserveFileNameText\"");
     }
     if (result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes)
     {

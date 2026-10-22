@@ -57,7 +57,8 @@ enum class ValueKind
 enum class HeaderNamePolicy
 {
     StrictAscii,
-    PreserveOpaqueBytes // Nonstandard HEADER FILE_NAME.name only; never selects or guesses a code page.
+    PreserveOpaqueBytes, // Nonstandard HEADER FILE_NAME.name only; never selects or guesses a code page.
+    PreserveFileNameText // All FILE_NAME string fields/elements, never FILE_SCHEMA or implementation level.
 };
 enum class DataStringPolicy
 {

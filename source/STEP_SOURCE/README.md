@@ -1,5 +1,16 @@
 # STEP source inspection (ticket 02)
 
+`HeaderNamePolicy::PreserveFileNameText` / `--preserve-opaque-file-name-text`
+explicitly preserves nonstandard bytes in all FILE_NAME scalar STRING fields and
+author/organization STRING-list elements. Values remain `OpaqueString` with
+unestablished text, exact raw spans and per-value diagnostic paths. The old
+`PreserveOpaqueBytes` / `--preserve-opaque-header-name` remains name-only; conflicting
+flags are rejected. No code page, timestamp or exporter identity is guessed.
+FILE_DESCRIPTION, FILE_SCHEMA, comments, control bytes and DATA keep their existing
+checks; DATA preservation remains a separate option. Header shape and resource
+limits still apply. This is bounded opaque-token preservation, not recovery of
+malformed records or proof of standard-conforming text.
+
 The separate Level1AsCorrectedEncodingWithLowercaseHex interpretation (CLI
 --interpret-level1-with-lowercase-hex) permits lowercase a–f only in DATA
 X/X2/X4 payloads after a declaration-1 assumption has been established. HEADER
