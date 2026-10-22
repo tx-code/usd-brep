@@ -1538,7 +1538,7 @@ void DevelopmentContract(
         "development native import"
     );
     const auto info = result.model->Info();
-    if (normalizePeriodic)
+    if (normalizePeriodic || result.model->TopologyNormalization())
     {
         const auto origins = result.model->TopologyNormalization();
         // A no-op request has no invented mapping. If normalization ran, EVERY
@@ -1639,7 +1639,7 @@ void DevelopmentContract(
             changes = CompareNativeDefinitions(copy, *loaded.brep);
         }
     );
-    if (normalizePeriodic && result.model->TopologyNormalization())
+    if (result.model->TopologyNormalization())
     {
         auto evidence = result.model->TopologyNormalization();
         evidence->faces.front().sourceFaceId.clear();

@@ -128,11 +128,17 @@ struct TargetEdgeOrigin
     std::optional<std::string> derivedFromFaceId;
     std::array<double, 2> basisParameterInterval{}; // Original native-basis parameter; source STEP conventions remain in parameter_mappings.
 };
+struct SurfacePoleOrigin
+{
+    std::string sourceFaceId, sourceSurfaceId;
+    int axisSign = 0; // +1/-1 on the retained source sphere axis; no longitude is invented at a pole.
+};
 struct TargetVertexOrigin
 {
     std::size_t target = 0;
     std::optional<std::string> sourceVertexId;
     std::vector<std::pair<std::string, double>> basisEdgeParameters; // Derived vertex incidences, not fabricated source entities.
+    std::optional<SurfacePoleOrigin> surfacePole; // A derived target vertex, never a source vertex identity.
 };
 struct TopologyNormalizationInfo
 {

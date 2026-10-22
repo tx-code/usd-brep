@@ -126,6 +126,16 @@ void TopologyJson(Writer& w, const TopologyNormalizationInfo& info)
             w.Add(",\"source_vertex_id\":");
             w.String(*v.sourceVertexId);
         }
+        if (v.surfacePole)
+        {
+            w.Add(",\"surface_pole\":{\"source_face_id\":");
+            w.String(v.surfacePole->sourceFaceId);
+            w.Add(",\"source_surface_id\":");
+            w.String(v.surfacePole->sourceSurfaceId);
+            w.Add(",\"axis_sign\":");
+            Number(w, static_cast<double>(v.surfacePole->axisSign));
+            w.Add("}");
+        }
         w.Add(",\"basis_edge_parameters\":[");
         for (std::size_t j = 0; j < v.basisEdgeParameters.size(); ++j)
         {
@@ -471,9 +481,11 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 // qualification for analytic/NURBS models or complete AP214 rules.
                 w.Add("{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":");
                 w.String(StatusName(outcome.status));
-                if (report.periodicNormalizationRequested)
+                if (report.periodicNormalizationRequested || report.topologyNormalization)
                 {
-                    w.Add(",\"periodic_normalization_requested\":true,\"topology_normalization\":");
+                    w.Add(",\"periodic_normalization_requested\":");
+                    w.Add(report.periodicNormalizationRequested ? "true" : "false");
+                    w.Add(",\"topology_normalization\":");
                     if (report.topologyNormalization)
                     {
                         TopologyJson(w, *report.topologyNormalization);

@@ -88,6 +88,22 @@ struct SeamPlan
     double angle;
 };
 
+struct SpherePolePlan
+{
+    Index baseVertex;
+    Frame frame;
+    V pole, radial, toward;
+    double radius, latitudeDegrees, longitude;
+    int sign;
+};
+struct DerivedPole
+{
+    SmVertex* vertex;
+    Index face;
+    int sign;
+    V expectedPoint;
+};
+
 class GeneralBuilder : private GeometryConstruction
 {
 public:
@@ -149,6 +165,7 @@ public:
         Good(c.EndRegion());
         Step(shape);
         Good(c.EndBrep());
+        PreparePoleInventory();
         InstallUv();
         if (m_options.restrictUnusedSupportDomains)
         {
@@ -196,6 +213,31 @@ public:
             // the final private candidate after those consumers, before return.
             VerifyRebuiltUv();
         }
+        if (!derivedPoles.empty())
+        {
+            VerifyPoleInventory();
+            for (Index i = 0; i < curves.size(); ++i)
+            {
+                Step(curves[i].record);
+                const auto interval = m_model->edges[i]->GetInterval();
+                Need(interval.GetMin() == curves[i].t0 && interval.GetMax() == curves[i].t1,
+                     "SphericalPoleSourceIntervalChanged", curves[i].record);
+            }
+            for (Index i = 0; i < vertices.size(); ++i)
+            {
+                Step(vertices[i]);
+                Need(Norm(Sub(P(m_model->vertices[i]->GetPoint()), points[i])) == 0, "GeneralSourceVertexMoved", vertices[i]);
+            }
+            for (const auto& pole : derivedPoles)
+            {
+                Step(faces[pole.face].record);
+                Need(Norm(Sub(P(pole.vertex->GetPoint()), pole.expectedPoint)) == 0, "SphericalPoleVertexMoved", faces[pole.face].record);
+            }
+            m_model->topologyNormalization->sourceVerticesPreserved = true;
+            m_model->topologyNormalization->sourceCurveIntervalsCovered = true;
+            m_model->topologyNormalization->completed = true;
+            m_report.topologyNormalization = m_model->topologyNormalization;
+        }
         return m_model;
     }
 
@@ -211,6 +253,7 @@ private:
     double consistency = 0, uvGap = 0;
     bool m_rebuiltUv = false;
     std::vector<Index> derivedEdgeFaces;
+    std::vector<DerivedPole> derivedPoles;
     std::optional<Index> wireframeRepresentation;
     std::optional<Index> supportingRepresentation;
     Index SourceFaceIndex(Index target) const
@@ -1371,6 +1414,177 @@ private:
         m_report.normalizations.push_back(std::move(normalization));
         return std::unique_ptr<SmSurface>(raw);
     }
+    std::optional<SpherePolePlan> MissingSpherePole(const Face& face) const
+    {
+        if (!Is(face.surface, "SPHERICAL_SURFACE") || face.loops.size() != 1 || !face.loops[0].outer || face.loops[0].uses.size() != 1)
+        {
+            return {};
+        }
+        const auto& use = face.loops[0].uses[0];
+        const auto& edge = curves[use.edge];
+        if (edge.v0 != edge.v1 || !Is(edge.geometry, "CIRCLE"))
+        {
+            return {};
+        }
+        const auto frame = Placement(Ref(face.surface, "position"));
+        const auto circle = Placement(Ref(edge.geometry, "position"));
+        const double radius = N(face.surface, "radius") * scale, ring = N(edge.geometry, "radius") * scale;
+        // Round the rational allowance inward, as for support restriction:
+        // conversion to binary64 must not enlarge a normalization allowance.
+        const auto allowance = m_options.quality.definitionMm;
+        const double budget = std::nextafter(
+            std::nextafter(double(allowance.Numerator()), 0.) / std::nextafter(double(allowance.Denominator()), INFINITY), 0.);
+        const auto offset = Sub(circle.o, frame.o);
+        const double height = Dot(offset, frame.z), parallel = Dot(circle.z, frame.z);
+        // This slice has one complete coaxial circular boundary. Closed-form
+        // axis/center/radius checks establish the cap candidate; arbitrary loops,
+        // tilted cuts and source pcurves do not acquire a guessed region.
+        if (!(radius > SM_EFF_ZERO && ring > SM_EFF_ZERO && std::abs(height) < radius) || std::abs(std::abs(parallel) - 1) > 1e-12 ||
+            Norm(Cross(circle.z, frame.z)) * radius > budget || Norm(Sub(offset, Mul(frame.z, height))) > budget ||
+            std::abs(std::hypot(ring, height) - radius) > budget)
+        {
+            return {};
+        }
+        // Do not anchor a new seam to a merely tolerance-near source vertex:
+        // this representation normalization uses the tighter definition budget.
+        if (Norm(Sub(points[edge.v0], edge.p0)) > budget || Norm(Sub(points[edge.v0], edge.p1)) > budget)
+        {
+            return {};
+        }
+        const auto start = Sub(points[edge.v0], frame.o);
+        const auto radialPart = Sub(start, Mul(frame.z, Dot(start, frame.z)));
+        if (Norm(radialPart) <= SM_EFF_ZERO || std::abs(Norm(start) - radius) > budget)
+        {
+            return {};
+        }
+        // Use.forward already composes edge, bound and face senses. Increasing
+        // sphere longitude leaves the north cap on the left; reversing the
+        // circle axis reverses that longitude direction, not the material side.
+        const int sign = use.forward == (parallel > 0) ? 1 : -1;
+        const auto radial = Unit(radialPart);
+        return SpherePolePlan{ edge.v0,
+                               frame,
+                               Add(frame.o, Mul(frame.z, sign * radius)),
+                               radial,
+                               Mul(frame.z, sign),
+                               radius,
+                               std::atan2(sign * height, ring) * 180 / std::numbers::pi,
+                               std::atan2(Dot(radial, frame.y), Dot(radial, frame.x)),
+                               sign };
+    }
+    void PreparePoleInventory()
+    {
+        if (derivedPoles.empty())
+        {
+            return;
+        }
+        // Composition with the separate native splitting pass needs lineage
+        // transport for these new surface-derived vertices; refuse until proven.
+        if (m_options.normalizePeriodicFaces || m_options.restrictUnusedSupportDomains)
+        {
+            Fail("SphericalPoleNormalizationCompositionUnestablished", shape, Status::Unsupported);
+        }
+        TopologyNormalizationInfo info;
+        for (Index i = 0; i < faces.size(); ++i)
+        {
+            const auto domain = m_model->faces[i].face->GetSurface()->GetNaturalUVDomain();
+            TargetFaceOrigin origin;
+            origin.target = i;
+            origin.sourceFaceId = Id(faces[i].record);
+            origin.sourceSurfaceId = Id(faces[i].surface);
+            origin.nativeDomain = { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y };
+            info.faces.push_back(std::move(origin));
+            m_model->targetFaceSources.push_back(i);
+        }
+        for (Index i = 0; i < m_model->edges.size(); ++i)
+        {
+            TargetEdgeOrigin origin;
+            origin.target = i;
+            const auto owner = i < curves.size() ? curves[i].record : derivedEdgeFaces.at(i - curves.size());
+            if (i < curves.size())
+            {
+                origin.sourceEdgeId = Id(owner);
+            }
+            else
+            {
+                origin.derivedFromFaceId = Id(owner);
+            }
+            const auto interval = m_model->edges[i]->GetInterval();
+            origin.basisParameterInterval = { interval.GetMin(), interval.GetMax() };
+            info.edges.push_back(std::move(origin));
+            m_model->targetEdgeOwners.push_back(owner);
+        }
+        m_model->targetEdges = m_model->edges;
+        m_model->targetVertices = m_model->vertices;
+        for (Index i = 0; i < vertices.size(); ++i)
+        {
+            TargetVertexOrigin origin;
+            origin.target = i;
+            origin.sourceVertexId = Id(vertices[i]);
+            info.vertices.push_back(std::move(origin));
+            m_model->targetVertexOwners.push_back(vertices[i]);
+        }
+        for (const auto& pole : derivedPoles)
+        {
+            TargetVertexOrigin origin;
+            origin.target = m_model->targetVertices.size();
+            origin.surfacePole = SurfacePoleOrigin{ Id(faces[pole.face].record), Id(faces[pole.face].surface), pole.sign };
+            info.vertices.push_back(std::move(origin));
+            m_model->targetVertices.push_back(pole.vertex);
+            m_model->targetVertexOwners.push_back(faces[pole.face].record);
+        }
+        // Pending evidence remains private until source preservation, native
+        // validation, final UV checks and the normal publication gate succeed.
+        m_model->topologyNormalization = std::move(info);
+    }
+    void VerifyPoleInventory()
+    {
+        if (derivedPoles.empty())
+        {
+            return;
+        }
+        SmTArray<SmFace*> actualFaces;
+        SmTArray<SmEdge*> actualEdges;
+        SmTArray<SmVertex*> actualVertices;
+        Step(shape);
+        m_model->brep->GetFaces(actualFaces);
+        Step(shape);
+        m_model->brep->GetEdges(actualEdges);
+        Step(shape);
+        m_model->brep->GetVertices(actualVertices);
+        std::vector<SmFace*> expectedFaces;
+        for (const auto& face : m_model->faces)
+        {
+            expectedFaces.push_back(face.face);
+        }
+        const auto complete = [](const auto& expected, const auto& actual)
+        {
+            if (expected.size() != actual.GetSize())
+            {
+                return false;
+            }
+            std::set<const void*> remaining;
+            for (const auto pointer : actual)
+            {
+                remaining.insert(pointer);
+            }
+            for (const auto pointer : expected)
+            {
+                if (remaining.erase(pointer) != 1)
+                {
+                    return false;
+                }
+            }
+            return remaining.empty();
+        };
+        // Every live target must have exactly one origin. A native consumer
+        // must not leave an untracked replacement/addition in a published model.
+        Need(
+            complete(expectedFaces, actualFaces) && complete(m_model->targetEdges, actualEdges) && complete(m_model->targetVertices, actualVertices),
+            "SphericalPoleTargetInventoryChanged",
+            shape
+        );
+    }
     std::unique_ptr<SmSurface> Surface(const Face& f)
     {
         const auto g = f.surface;
@@ -1557,6 +1771,20 @@ private:
             std::unique_ptr<SmSphere> sphere(raw);
             Good(status);
             Need(sphere && sphere->GetRadius() == radius, "GeneralSphericalDefinitionChanged", g);
+            if (const auto pole = MissingSpherePole(f))
+            {
+                const auto angles = FullPeriodDegrees(pole->longitude > 0 ? pole->longitude - 2 * std::numbers::pi : pole->longitude);
+                Step(g);
+                Good(sphere->AdjustSTEPUVDomain(SmExtent2d(angles[0], -90, angles[1], 90)));
+                ParameterMapping mapping;
+                mapping.kind = "ImplicitSphericalPoleChart";
+                mapping.sourceGeometryId = Id(g);
+                mapping.sourceUseId = Id(f.record);
+                mapping.targetFaceIndex = m_model->faces.size();
+                mapping.equation = "full-period target chart in degrees; source frame/radius unchanged; pole has no assigned source longitude";
+                mapping.parameters = { { "native_analytic_domain_degrees", { angles[0], -90, angles[1], 90 } } };
+                m_report.parameterMappings.push_back(std::move(mapping));
+            }
             // Choose a full-period chart using the endpoint longitude of a
             // repeated source arc as a cut candidate. Endpoint agreement alone
             // does not prove the whole arc is a meridian: final seam/UV checks
@@ -1712,6 +1940,41 @@ private:
         Good(c.EndEdge());
         return edge;
     }
+    SmEdge* AppendPoleSeam(SmBrepConstructor& c, const SpherePolePlan& pole, SmVertex* vertex, Index face, SmEdge* existing, bool forward)
+    {
+        Step(face);
+        auto edge = c.StartEdge(forward ? SM_OT_SAME : SM_OT_OPPOSITE, existing, m_model->vertices[pole.baseVertex], vertex);
+        Need(edge && (!existing || edge == existing), "SphericalPoleSeamIdentity", face);
+        if (!existing)
+        {
+            edge->SetTolerance(Tol(), FALSE);
+            const Frame meridian{ pole.frame.o, pole.radial, pole.toward, Cross(pole.radial, pole.toward) };
+            const SmExtent1d angular(pole.latitudeDegrees, 90);
+            SmCircle* raw = nullptr;
+            Step(face);
+            const auto status = SmCircle::CreateCanonical(*m_model->context, meridian.Native(), pole.radius, raw, &angular);
+            std::unique_ptr<SmCircle> curve(raw);
+            Good(status);
+            Need(bool(curve), "SphericalPoleSeamAllocation", face);
+            const auto interval = curve->GetNaturalInterval();
+            Step(face);
+            const auto attached = c.SetEdgeCurve(curve.get(), FALSE);
+            const bool owned = curve->GetOwner() == edge;
+            if (owned)
+            {
+                curve.release();
+            }
+            Good(attached);
+            Need(owned, "SphericalPoleSeamOwnership", face);
+            Step(face);
+            Good(c.SetLimits(SmVertexNode(interval.GetMin()), SmVertexNode(interval.GetMax())));
+            m_model->edges.push_back(edge);
+            derivedEdgeFaces.push_back(face);
+        }
+        Step(face);
+        Good(c.EndEdge());
+        return edge;
+    }
     void BuildFace(SmBrepConstructor& c, Face& f)
     {
         if (std::none_of(
@@ -1767,7 +2030,31 @@ private:
         }
         Good(adoptedSurface);
         Need(surfaceOwned, "GeneralSurfaceOwnership", f.record);
-        if (const auto seam = MissingSeam(f))
+        if (const auto pole = MissingSpherePole(f))
+        {
+            Step(f.record);
+            auto vertex = c.StartVertex(P(pole->pole));
+            Need(vertex != nullptr, "SphericalPoleVertexAllocation", f.record);
+            vertex->SetTolerance(Tol(), FALSE);
+            Step(f.record);
+            Good(c.EndVertex());
+            derivedPoles.push_back({ vertex, m_model->faces.size(), pole->sign, pole->pole });
+            Step(f.record);
+            auto loop = c.StartLoop(SM_OT_SAME);
+            Need(loop != nullptr, "SphericalPoleLoopAllocation", f.record);
+            nf.loops.push_back(loop);
+            const auto& sourceLoop = f.loops[0];
+            LoopMapping mapping{ Id(f.record), Id(sourceLoop.bound), Id(sourceLoop.record), sourceLoop.outer, sourceLoop.orientation, {} };
+            AppendSourceUse(c, sourceLoop.uses[0], mapping);
+            const auto seamIndex = m_model->edges.size();
+            auto seam = AppendPoleSeam(c, *pole, vertex, f.record, nullptr, true);
+            AppendPoleSeam(c, *pole, vertex, f.record, seam, false);
+            Step(f.record);
+            Good(c.EndLoop());
+            m_report.loops.push_back(std::move(mapping));
+            m_report.normalizations.push_back({ "ImplicitSphericalPoleCut", Id(f.record), { Id(sourceLoop.bound) }, {}, seamIndex });
+        }
+        else if (const auto seam = MissingSeam(f))
         {
             // Cutting a cylindrical annulus opens its chart into one loop. Both
             // source rings remain defining boundaries; the one derived seam is
@@ -2204,6 +2491,7 @@ private:
         {
             AssertFailure(deep, "GeneralLevel2Validation");
         }
+        VerifyPoleInventory();
         for (Index i = 0; i < vertices.size(); ++i)
         {
             Need(Norm(Sub(P(m_model->vertices[i]->GetPoint()), points[i])) == 0, "GeneralSourceVertexMoved", vertices[i]);
