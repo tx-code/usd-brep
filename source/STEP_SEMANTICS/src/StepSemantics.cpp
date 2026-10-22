@@ -243,6 +243,11 @@ public:
         m_outcome.siUnits = ProgressName(State(Phase::Units));
         m_outcome.interoperability = ProgressName(State(Phase::Interoperability));
         m_outcome.interpretationDiagnostics = m_data->interpretationDiagnostics;
+        m_outcome.complexMappingDiagnostics = m_data->complexMappingDiagnostics;
+        if (!m_data->complexMappingDiagnostics.empty() && State(Phase::Types) == Progress::Passed)
+        {
+            m_outcome.types = "CheckedWithDiagnostics";
+        }
         if (State(Phase::Binding) == Progress::Passed && m_data->appliedInterpretation != SchemaInterpretation::DeclaredOnly)
         {
             m_outcome.binding = "InterpretedUnverified";
@@ -733,7 +738,8 @@ private:
         // Fail marked the phase terminal. Restore it only for this provisional
         // issue; the final proof still precedes every typed snapshot publication.
         State(*m_phase) = Progress::Running;
-        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() > m_outcome.limits.preservedDiagnostics)
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() >
+            m_outcome.limits.preservedDiagnostics)
         {
             Fail(
                 "PreservedDiagnosticLimit",
@@ -1040,6 +1046,7 @@ private:
             }
             if (records[r].complex)
             {
+                std::optional<ComplexMappingAssumption> mapping;
                 if (catalog.HasSubtypeConflict(m_data->types[r]))
                 {
                     Fail(
@@ -1058,19 +1065,66 @@ private:
                 }
                 if (!std::is_sorted(explicitTypes.begin(), explicitTypes.end()))
                 {
-                    Fail(
-                        "ComplexConstituentOrderInvalid",
-                        "D1",
-                        "External mapping facets must follow ascending type-name order",
-                        records[r].span,
-                        Status::Rejected,
-                        r,
-                        0,
-                        {},
-                        "ascending type names",
-                        "source order",
-                        "Part21 external mapping"
-                    );
+                    try
+                    {
+                        Fail(
+                            "ComplexConstituentOrderInvalid",
+                            "D1",
+                            "External mapping facets must follow ascending type-name order",
+                            records[r].span,
+                            Status::Rejected,
+                            r,
+                            0,
+                            {},
+                            "ascending type names",
+                            "source order",
+                            "Part21 external mapping"
+                        );
+                    }
+                    catch (Failure& failure)
+                    {
+                        if (m_data->requestedComplexMappingInterpretation != ComplexMappingInterpretation::RegisteredFacetNames)
+                        {
+                            throw;
+                        }
+                        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() >=
+                            m_outcome.limits.preservedDiagnostics)
+                        {
+                            Fail(
+                                "PreservedDiagnosticLimit",
+                                "D2",
+                                "Complex mapping diagnostic capacity exceeded",
+                                records[r].span,
+                                Status::ResourceLimit
+                            );
+                        }
+                        m_data->complexMappingDiagnostics.push_back(std::move(failure.diagnostic));
+                        State(*m_phase) = Progress::Running;
+                        mapping = ComplexMappingAssumption{ r, {} };
+                        // RegisteredFacetNames project contract: STEP_SEMANTICS/README.md.
+                        // Only this local lookup vector is sorted. Fields() binds
+                        // each explicit slot by its actual source component NAME
+                        // and index, including inherited/derived/type predicates.
+                        // Unique names and exclusive subtype guards above, the
+                        // complete ancestor set and admitted signature below,
+                        // then ALL fields/units/ownership checks must succeed.
+                        // Original bytes, facet order, values and reference paths
+                        // remain unchanged; this is not source conformance/repair.
+                        for (std::size_t c = 0; c < records[r].components.size(); ++c)
+                        {
+                            Visit(records[r].components[c].span);
+                            mapping->canonicalComponentOrder.push_back(c);
+                        }
+                        std::sort(
+                            mapping->canonicalComponentOrder.begin(),
+                            mapping->canonicalComponentOrder.end(),
+                            [&](auto a, auto b)
+                            {
+                                return records[r].components[a].name < records[r].components[b].name;
+                            }
+                        );
+                        std::sort(explicitTypes.begin(), explicitTypes.end());
+                    }
                 }
                 for (std::size_t t = 0; t < catalog.names.size(); ++t)
                 {
@@ -1114,6 +1168,10 @@ private:
                         "other signature",
                         "profile mapping"
                     );
+                }
+                if (mapping)
+                {
+                    m_data->complexMappingAssumptions.push_back(std::move(*mapping));
                 }
             }
             for (std::size_t t = 0; t < catalog.names.size(); ++t)
@@ -3935,7 +3993,8 @@ private:
                 propertyItems.push_back(Target(value));
             }
         }
-        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() > m_outcome.limits.preservedDiagnostics)
+        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() >
+            m_outcome.limits.preservedDiagnostics)
         {
             Fail(
                 "PreservedDiagnosticLimit",
@@ -4631,6 +4690,25 @@ const std::vector<Diagnostic>& Snapshot::UnitInterpretationDiagnostics() const
 {
     return m_data->unitInterpretationDiagnostics;
 }
+const char* ComplexMappingInterpretationName(ComplexMappingInterpretation interpretation)
+{
+    switch (interpretation)
+    {
+        case ComplexMappingInterpretation::DeclaredOnly:
+            return "DeclaredOnly";
+        case ComplexMappingInterpretation::RegisteredFacetNames:
+            return "RegisteredFacetNames";
+    }
+    throw std::invalid_argument("Unknown complex mapping interpretation");
+}
+const std::vector<ComplexMappingAssumption>& Snapshot::ComplexMappingAssumptions() const
+{
+    return m_data->complexMappingAssumptions;
+}
+const std::vector<Diagnostic>& Snapshot::ComplexMappingDiagnostics() const
+{
+    return m_data->complexMappingDiagnostics;
+}
 const Part& Snapshot::PartDefinition() const
 {
     return m_partIndex ? m_data->independentParts.at(*m_partIndex).part : m_data->part;
@@ -4790,9 +4868,16 @@ static Outcome CheckImpl(
     GeometryScope scope,
     SchemaInterpretation interpretation,
     UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation,
     bool independentRequest
 )
 {
+    if (complexMappingInterpretation != ComplexMappingInterpretation::DeclaredOnly &&
+        (complexMappingInterpretation != ComplexMappingInterpretation::RegisteredFacetNames || policy != SourcePolicy::PreserveNonGeometric ||
+         scope != GeometryScope::GeneralBrep))
+    {
+        throw std::invalid_argument("Registered complex facet interpretation requires explicit general interoperability");
+    }
     if (unitInterpretation != UnitInterpretation::DeclaredOnly &&
         (unitInterpretation != UnitInterpretation::VerifiedExplicitUnitDimensions || policy != SourcePolicy::PreserveNonGeometric ||
          scope != GeometryScope::GeneralBrep))
@@ -4824,6 +4909,7 @@ static Outcome CheckImpl(
     result.geometryScope = scope;
     result.requestedInterpretation = interpretation;
     result.requestedUnitInterpretation = unitInterpretation;
+    result.requestedComplexMappingInterpretation = complexMappingInterpretation;
     if (!source.source || source.status != step_source::Status::Inspected)
     {
         for (const auto& diagnostic : source.diagnostics)
@@ -4852,6 +4938,7 @@ static Outcome CheckImpl(
     data->policy = policy;
     data->geometryScope = scope;
     data->requestedUnitInterpretation = unitInterpretation;
+    data->requestedComplexMappingInterpretation = complexMappingInterpretation;
     data->preservedDiagnosticLimit = limits.preservedDiagnostics;
     Checker checker(data, result, independentRequest);
     try
@@ -4884,8 +4971,9 @@ static Outcome CheckImpl(
         }
         result.preservedDiagnostics = data->preservedDiagnostics;
         result.unitInterpretationDiagnostics = data->unitInterpretationDiagnostics;
-        if (result.status == Status::Checked && (!result.preservedDiagnostics.empty() || !data->unitInterpretationDiagnostics.empty() ||
-                                                 !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
+        if (result.status == Status::Checked &&
+            (!result.preservedDiagnostics.empty() || !data->unitInterpretationDiagnostics.empty() || !data->complexMappingAssumptions.empty() ||
+             !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
         {
             result.status = Status::CheckedWithDiagnostics;
         }
@@ -4912,20 +5000,22 @@ Outcome Check(
     SourcePolicy policy,
     GeometryScope scope,
     SchemaInterpretation interpretation,
-    UnitInterpretation unitInterpretation
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
 )
 {
-    return CheckImpl(source, limits, policy, scope, interpretation, unitInterpretation, false);
+    return CheckImpl(source, limits, policy, scope, interpretation, unitInterpretation, complexMappingInterpretation, false);
 }
 Outcome CheckIndependentProducts(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
     SchemaInterpretation interpretation,
-    UnitInterpretation unitInterpretation
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
 )
 {
-    return CheckImpl(source, limits, policy, GeometryScope::GeneralBrep, interpretation, unitInterpretation, true);
+    return CheckImpl(source, limits, policy, GeometryScope::GeneralBrep, interpretation, unitInterpretation, complexMappingInterpretation, true);
 }
 const char* StatusName(Status status)
 {

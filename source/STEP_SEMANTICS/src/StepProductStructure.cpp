@@ -81,7 +81,12 @@ public:
         Expects(m_data.bindingsComplete);
         auto output = std::make_shared<ProductStructureData>();
         output->source = m_data.source;
-        output->basis = { m_data.profile, m_data.appliedInterpretation, m_data.policy };
+        output->basis = { m_data.profile,
+                          m_data.appliedInterpretation,
+                          m_data.policy,
+                          m_data.complexMappingAssumptions.empty() ? ComplexMappingInterpretation::DeclaredOnly :
+                                                                     ComplexMappingInterpretation::RegisteredFacetNames,
+                          m_data.complexMappingDiagnostics };
         const auto count = m_data.source->Records().size();
         constexpr auto absent = std::numeric_limits<std::size_t>::max();
         std::vector<std::size_t> definitionIndex(count, absent);

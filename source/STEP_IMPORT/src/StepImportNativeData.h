@@ -26,7 +26,7 @@ inline bool HasAppliedSourceInterpretation(const step_semantics::Snapshot& sourc
 {
     return source.AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly || source.Source().AppliedCarrierAssumption() ||
            source.Source().HasAsciiInvariantDataAssumption() ||
-           source.AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
+           source.AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly || !source.ComplexMappingAssumptions().empty();
 }
 struct NativeFaceData
 {

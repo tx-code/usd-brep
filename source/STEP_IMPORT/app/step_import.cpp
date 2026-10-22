@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepComplexMappingArguments.h"
 #include "StepImport.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
@@ -98,7 +99,15 @@ int main(int argc, char** argv)
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
-            if (arg == "--selection-source-sha256" || arg == "--select-definition")
+            if (arg == "--complex-mapping-interpretation")
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Complex mapping interpretation value required");
+                }
+                step_import_app::ComplexMappingArgument(arg, argv[++i], options);
+            }
+            else if (arg == "--selection-source-sha256" || arg == "--select-definition")
             {
                 if (i + 1 == argc)
                 {

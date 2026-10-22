@@ -546,7 +546,8 @@ def run(options):
                               maximum_repair_proof_products=getattr(options, 'maximum_repair_proof_products', 0),
                               face_orientation_edits=tuple(getattr(options, 'face_orientation_edits', ())),
                               selection_source_sha256=getattr(options, 'selection_source_sha256', ''),
-                              selected_definitions=tuple(getattr(options, 'selected_definitions', ())))
+                              selected_definitions=tuple(getattr(options, 'selected_definitions', ())),
+                              complex_mapping_interpretation=getattr(options, 'complex_mapping_interpretation', 'DeclaredOnly'))
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

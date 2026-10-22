@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 // Isolated display worker: no native handle crosses the process boundary.
+#include "StepComplexMappingArguments.h"
 #include "StepImport.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
@@ -289,6 +290,19 @@ void Publish(
                                                                                                  nullptr) :
                                                                nullptr;
                 const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : step_semantics::UnitInterpretation::DeclaredOnly;
+                const auto requestedMapping = report.generalSource ? report.generalSource->requestedComplexMappingInterpretation :
+                                                                     step_semantics::ComplexMappingInterpretation::DeclaredOnly;
+                if (requestedMapping != step_semantics::ComplexMappingInterpretation::DeclaredOnly)
+                {
+                    const auto count = sourceView ? sourceView->ComplexMappingAssumptions().size() : 0;
+                    w.Add(",\"complex_mapping_interpretation\":{\"requested\":");
+                    w.String(step_semantics::ComplexMappingInterpretationName(requestedMapping));
+                    w.Add(",\"applied\":");
+                    w.String(count ? "RegisteredFacetNames" : "DeclaredOnly");
+                    w.Add(",\"records_interpreted\":");
+                    w.Number(count);
+                    w.Add("}");
+                }
                 w.Add(",\"applied_unit_interpretation\":");
                 w.String(step_semantics::UnitInterpretationName(appliedUnit));
                 w.Add(",\"import_report_encoding\":");
@@ -434,7 +448,8 @@ int Run(
     bool asciiInvariant,
     const std::string& unitInterpretation,
     const std::optional<step_import::FaceOrientationRepairRequest>& repair = {},
-    const std::optional<step_import::DefinitionSelectionRequest>& selection = {}
+    const std::optional<step_import::DefinitionSelectionRequest>& selection = {},
+    step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -458,6 +473,7 @@ int Run(
         options.generalBrep = true;
         options.faceOrientationRepair = repair;
         options.definitionSelection = selection;
+        options.complexMappingInterpretation = complexMappingInterpretation;
         options.quality = profile == "development"          ? step_import::Quality::GeneralDevelopment() :
                           profile == "tolerance-study"      ? step_import::Quality::GeneralToleranceStudy() :
                           profile == "work-tolerance-study" ? step_import::Quality::GeneralWorkToleranceStudy() :
@@ -775,7 +791,12 @@ int wmain(int argc, wchar_t** argv)
         {
             Good(
                 step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
-                    step_import_app::SelectionArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request),
+                    step_import_app::SelectionArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                    step_import_app::ComplexMappingArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        request
+                    ),
                 "UnknownRequestArgument"
             );
         }
@@ -793,7 +814,8 @@ int wmain(int argc, wchar_t** argv)
             argc >= 12 && argv[11][0] == L'1',
             argc >= 13 ? std::filesystem::path(argv[12]).string() : "DeclaredOnly",
             request.faceOrientationRepair,
-            request.definitionSelection
+            request.definitionSelection,
+            request.complexMappingInterpretation
         );
     }
     catch (...)
@@ -828,7 +850,8 @@ int main(int argc, char** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::RepairArgument(argv[i], argv[i + 1], request) || step_import_app::SelectionArgument(argv[i], argv[i + 1], request),
+                step_import_app::RepairArgument(argv[i], argv[i + 1], request) || step_import_app::SelectionArgument(argv[i], argv[i + 1], request) ||
+                    step_import_app::ComplexMappingArgument(argv[i], argv[i + 1], request),
                 "UnknownRequestArgument"
             );
         }
@@ -846,7 +869,8 @@ int main(int argc, char** argv)
             argc >= 12 && argv[11][0] == '1',
             argc >= 13 ? argv[12] : "DeclaredOnly",
             request.faceOrientationRepair,
-            request.definitionSelection
+            request.definitionSelection,
+            request.complexMappingInterpretation
         );
     }
     catch (...)

@@ -68,6 +68,17 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_repair_contracts COMMAND step_import_repair_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step" "${CMAKE_CURRENT_BINARY_DIR}/repair-contract-output")
     set_tests_properties(step_import_repair_contracts PROPERTIES TIMEOUT 120)
+    add_executable(step_import_complex_mapping_tests tests/StepImportComplexMappingTests.cpp)
+    target_link_libraries(step_import_complex_mapping_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_complex_mapping_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_complex_mapping_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    if(MSVC)
+        target_compile_options(step_import_complex_mapping_tests PRIVATE /W4 /WX /permissive- /utf-8)
+    endif()
+    add_test(NAME step_import_complex_mapping_contracts COMMAND step_import_complex_mapping_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step" "${CMAKE_CURRENT_BINARY_DIR}/complex-mapping-contract-output")
+    set_tests_properties(step_import_complex_mapping_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_integral_tests tests/StepImportIntegralTests.cpp)
     target_link_libraries(step_import_integral_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_integral_contracts COMMAND step_import_integral_tests

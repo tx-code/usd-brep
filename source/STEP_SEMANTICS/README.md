@@ -1118,3 +1118,37 @@ unit walks use sparse per-definition work sets and one indexed source graph.
 Independent definitions do not acquire a common assembly frame. Native views
 may normalize each definition to millimetres, but cross-definition coordinates
 or distances require a separately established source placement relationship.
+
+## Explicit registered complex-facet interpretation
+
+`ComplexMappingInterpretation::RegisteredFacetNames` is an explicit general-source
+interoperability option; default `DeclaredOnly` and the frozen planar path retain
+the ascending constituent-name requirement. The CLI uses
+`--complex-mapping-interpretation RegisteredFacetNames`. This choice does not
+authenticate a schema or make the original external mapping conforming.
+
+Only a unique, known, subtype-compatible, complete inherited facet set with an
+exact registered complex signature can continue. A temporary name/permutation
+index selects that signature; `Fields()` still binds each value at its original
+component/parameter position by the actual declaring facet name. All field counts,
+derived markers, reference/nominal types, unit dimensions, geometry dependencies,
+ownership and selected source predicates still run. Unknown/missing/duplicate or
+conflicting facets cannot be recovered by sorting. No source bytes, order, values,
+references, units, parameters or declaration registrations are changed.
+
+Qualified snapshots own `ComplexMappingAssumptions()` and the original strict
+`ComplexMappingDiagnostics()`. Each receipt identifies its source record and a
+zero-based canonical-position-to-original-component-index permutation. The source
+owner is required to dereference these indices. A requested but unused policy
+creates no assumption. Reports preserve the strict order fact and mark
+`source_order_conforming=false`, `CompleteRegisteredFacetNameBindingOnly` and the
+remaining complete-source-check requirement. If later checking fails, observed
+order diagnostics remain in the outcome, but no qualified part/receipt is returned.
+
+These facts share the cumulative `preservedDiagnostics` capacity with existing
+schema and metadata/unit cases; additional interpretation work uses the ordinary
+dependency-visit ledger. Exhaustion is not permission to suppress errors.
+Declared product graph evidence may survive a later part refusal; its owning
+`Basis()` separately records the mapping interpretation and original diagnostics
+as `TypeBindingOnly`, never complete source, unit-context or native qualification.
+Native construction/publication belongs to [STEP_IMPORT](../STEP_IMPORT/README.md).

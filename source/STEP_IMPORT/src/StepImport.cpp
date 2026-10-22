@@ -50,6 +50,12 @@ namespace
 {
 void Validate(const Options& options)
 {
+    if (options.complexMappingInterpretation != step_semantics::ComplexMappingInterpretation::DeclaredOnly &&
+        (options.complexMappingInterpretation != step_semantics::ComplexMappingInterpretation::RegisteredFacetNames || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("Registered complex facet interpretation requires explicit general interoperability");
+    }
     if (options.definitionSelection)
     {
         const auto& request = *options.definitionSelection;
@@ -289,7 +295,8 @@ Result Import(const Options& options, Capture capture)
                     options.semanticLimits,
                     options.sourcePolicy,
                     options.schemaInterpretation,
-                    options.unitInterpretation
+                    options.unitInterpretation,
+                    options.complexMappingInterpretation
                 );
             }
             else
@@ -300,7 +307,8 @@ Result Import(const Options& options, Capture capture)
                     options.sourcePolicy,
                     step_semantics::GeometryScope::GeneralBrep,
                     options.schemaInterpretation,
-                    options.unitInterpretation
+                    options.unitInterpretation,
+                    options.complexMappingInterpretation
                 );
             }
             const auto& checked = *report.generalSource;

@@ -290,6 +290,9 @@ struct SemanticData
     UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
     std::vector<UnitDimensionAssumption> unitAssumptions;
     std::vector<Diagnostic> unitInterpretationDiagnostics;
+    ComplexMappingInterpretation requestedComplexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly;
+    std::vector<ComplexMappingAssumption> complexMappingAssumptions;
+    std::vector<Diagnostic> complexMappingDiagnostics;
     SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.

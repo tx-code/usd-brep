@@ -389,6 +389,14 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.String(basis.profile.expressSha256);
         out.Add(",\"schema_interpretation\":");
         out.String(SchemaInterpretationName(basis.schemaInterpretation));
+        if (basis.complexMappingInterpretation != ComplexMappingInterpretation::DeclaredOnly)
+        {
+            out.Add(",\"complex_mapping_interpretation\":{\"applied\":");
+            out.String(ComplexMappingInterpretationName(basis.complexMappingInterpretation));
+            out.Add(",\"qualification\":\"TypeBindingOnly\",\"original_diagnostics\":");
+            Diagnostics(out, source, basis.complexMappingDiagnostics);
+            out.Add("}");
+        }
         if (basis.profile.kind == ProfileKind::Ap203N916Source)
         {
             out.Add(",\"binding_basis\":\"NameOnlyGeneralSourceSubset\",\"header_edition_verified\":false");
@@ -549,6 +557,48 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     }
     const auto sourceView = result.snapshot ? result.snapshot : result.document ? result.document->Part(0) : std::shared_ptr<const Snapshot>{};
     const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
+    const bool mappingApplied = sourceView && !sourceView->ComplexMappingAssumptions().empty();
+    if (result.requestedComplexMappingInterpretation != ComplexMappingInterpretation::DeclaredOnly || mappingApplied)
+    {
+        out.Add(",\"complex_mapping_interpretation\":{\"requested\":");
+        out.String(ComplexMappingInterpretationName(result.requestedComplexMappingInterpretation));
+        out.Add(",\"applied\":");
+        out.String(mappingApplied ? "RegisteredFacetNames" : "DeclaredOnly");
+        out.Add(",\"source_order_conforming\":");
+        out.Add(mappingApplied ? "false" : "null");
+        out.Add(",\"proof_scope\":\"CompleteRegisteredFacetNameBindingOnly\",\"requires_complete_source_checks\":true,\"records\":[");
+        if (mappingApplied)
+        {
+            bool first = true;
+            for (const auto& mapping : sourceView->ComplexMappingAssumptions())
+            {
+                if (!first)
+                {
+                    out.Add(",");
+                }
+                first = false;
+                const auto& record = sourceView->Source().Records().at(mapping.record);
+                out.Add("{\"record_id\":");
+                out.String(record.id);
+                out.Add(",\"canonical_component_order\":[");
+                for (std::size_t i = 0; i < mapping.canonicalComponentOrder.size(); ++i)
+                {
+                    if (i)
+                    {
+                        out.Add(",");
+                    }
+                    out.Number(mapping.canonicalComponentOrder[i]);
+                }
+                out.Add("]}");
+            }
+        }
+        out.Add("],\"original_diagnostics\":");
+        // A qualified snapshot owns the original facts independently of the
+        // caller's mutable outcome. On failure only observed, unqualified facts
+        // are available; those must not be promoted to an applied assumption.
+        Diagnostics(out, source, sourceView ? sourceView->ComplexMappingDiagnostics() : result.complexMappingDiagnostics);
+        out.Add("}");
+    }
     if (result.requestedUnitInterpretation != UnitInterpretation::DeclaredOnly || appliedUnit != UnitInterpretation::DeclaredOnly)
     {
         out.Add(",\"unit_interpretation\":{\"requested\":");
@@ -1130,7 +1180,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         Diagnostics(out, source, result.preservedDiagnostics);
         out.Add(",\"source_conformance\":");
         out.String(
-            (result.snapshot || result.document) ? (appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
+            (result.snapshot || result.document) ? (mappingApplied                                  ? "ComplexMappingInterpreted" :
+                                                    appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
                                                     result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
                                                                                                       "NonGeometricIssuesPreserved") :
                                                    "NotQualified"

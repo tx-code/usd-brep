@@ -13,7 +13,7 @@ import tempfile
 from PySide6 import QtCore
 from .progress import Progress, ProgressReader
 from .process_guard import ProcessGuard
-from .interpretation import validate
+from .interpretation import validate, complex_mapping_arguments, validate_complex_mapping_receipt
 from .repair import arguments as repair_arguments
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 
@@ -41,12 +41,14 @@ class ImportSettings:
     face_orientation_edits: tuple[str, ...] = ()
     selection_source_sha256: str = ''
     selected_definitions: tuple[str, ...] = ()
+    complex_mapping_interpretation: str = 'DeclaredOnly'
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
-                 self.preserve_opaque_file_name_text, self.assume_ascii_invariant_data, self.unit_interpretation)
+                 self.preserve_opaque_file_name_text, self.assume_ascii_invariant_data, self.unit_interpretation,
+                 self.complex_mapping_interpretation)
         repair_arguments(self)
         selection_arguments(self)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
@@ -133,7 +135,8 @@ class SceneLoader(QtCore.QObject):
                     arguments.append(str(int(self.settings.assume_ascii_invariant_data)))
                 if self.settings.unit_interpretation != "DeclaredOnly":
                     arguments.append(self.settings.unit_interpretation)
-            intent = repair_arguments(self.settings) + selection_arguments(self.settings)
+            intent = (repair_arguments(self.settings) + selection_arguments(self.settings) +
+                      complex_mapping_arguments(self.settings))
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -245,6 +248,8 @@ class SceneLoader(QtCore.QObject):
                 self.failed.emit(title, "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))
                 return
             validate_selection(manifest, self.settings)
+            if job['path'].suffix.lower() in CAD_EXTENSIONS:
+                validate_complex_mapping_receipt(manifest, self.settings)
             import pyvista as pv
             import numpy as np
             if manifest['format'] == 'brep-view-scene.v5':

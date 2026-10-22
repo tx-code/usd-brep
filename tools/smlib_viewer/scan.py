@@ -85,6 +85,9 @@ def run_case(path, directory, options, caption):
                     "--carrier-interpretation", options.carrier_interpretation,
                     "--unit-interpretation", options.unit_interpretation,
                     "--report-budget-mib", str(options.report_budget_mib)])
+    mapping = getattr(options, 'complex_mapping_interpretation', 'DeclaredOnly')
+    if mapping != 'DeclaredOnly':
+        command.extend(['--complex-mapping-interpretation', mapping])
     for enabled, flag in [(options.normalize_periodic_faces, "--normalize-periodic-faces"),
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
                           (options.strict_source, "--strict-source"), (options.edges, "--edges"),
@@ -271,6 +274,7 @@ def _summary(roots, records, count, started, options, complete, counts, *, inclu
                      "schema_interpretation": options.schema_interpretation,
                      "carrier_interpretation": options.carrier_interpretation,
                      "unit_interpretation": options.unit_interpretation,
+                     "complex_mapping_interpretation": getattr(options, 'complex_mapping_interpretation', 'DeclaredOnly'),
                      "report_budget_mib": options.report_budget_mib,
                      "preserve_opaque_file_name_text": options.preserve_opaque_file_name_text,
                      "assume_ascii_invariant_data": options.assume_ascii_invariant_data,

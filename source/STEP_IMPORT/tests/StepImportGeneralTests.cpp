@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "../app/StepComplexMappingArguments.h"
 #include "../app/StepRepairArguments.h"
 #include "StepImport.h"
 #include "StepImportCylinderChart.h"
@@ -1474,12 +1475,14 @@ void DevelopmentContract(
     bool compactReport = false,
     bool blankCarrier = false,
     bool explicitDimensions = false,
-    std::optional<step_import::FaceOrientationRepairRequest> repair = {}
+    std::optional<step_import::FaceOrientationRepairRequest> repair = {},
+    step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly
 )
 {
     auto options = step_import::Options::PlanarFixture();
     options.generalBrep = true;
     options.faceOrientationRepair = repair;
+    options.complexMappingInterpretation = complexMappingInterpretation;
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
     if (integrationAccuracy)
     {
@@ -1783,6 +1786,12 @@ int main(int argc, char** argv)
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
+                if (flag == "--complex-mapping-interpretation")
+                {
+                    Require(i + 1 < argc, "complex mapping interpretation value required");
+                    step_import_app::ComplexMappingArgument(flag, argv[++i], repairArguments);
+                    continue;
+                }
                 if (flag == "--repair-source-sha256" || flag == "--max-face-orientation-edits" || flag == "--repair-face-orientation" ||
                     flag == "--max-repair-proof-controls" || flag == "--max-repair-proof-products")
                 {
@@ -1883,7 +1892,8 @@ int main(int argc, char** argv)
                 compactReport,
                 blankCarrier,
                 explicitDimensions,
-                repairArguments.faceOrientationRepair
+                repairArguments.faceOrientationRepair,
+                repairArguments.complexMappingInterpretation
             );
             return 0;
         }

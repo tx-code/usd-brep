@@ -41,6 +41,15 @@ keep the generic failure caption. The previous accepted scene remains intact.
 STEP/STP uses the native importer with an explicitly selected development preview
 configuration; see the [import contract](../../source/STEP_IMPORT/README.md).
 
+`--complex-mapping-interpretation RegisteredFacetNames` explicitly permits a
+nonstandard complex-facet order only after complete registered name/field binding
+and all later source/native checks. Original source and diagnostics remain; an
+actually applied interpretation retains the conditional-source HUD and core
+qualification. Strict source mode rejects this policy. The choice is transported
+to scan children and recorded in local scan settings; it does not enable schema
+guessing, unit exceptions, repair or source-error quarantine. An interpreted
+Ready manifest must retain a matching request/applied receipt before adoption.
+
 For one explicit STEP file, `--selection-source-sha256 HASH --select-definition ID`
 selects source PRODUCT_DEFINITION identities; repeat the ID option for several
 independent definitions. Every source definition must first pass complete source

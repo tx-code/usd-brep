@@ -64,6 +64,17 @@ enum class UnitInterpretation
     VerifiedExplicitUnitDimensions // Exact redundant AP214 SI/conversion-length dimensions, original marker error retained.
 };
 const char* UnitInterpretationName(UnitInterpretation interpretation);
+enum class ComplexMappingInterpretation
+{
+    DeclaredOnly,
+    RegisteredFacetNames // Explicit nonconforming order; complete registered facet/field binding still required.
+};
+const char* ComplexMappingInterpretationName(ComplexMappingInterpretation interpretation);
+struct ComplexMappingAssumption
+{
+    std::size_t record = 0;
+    std::vector<std::size_t> canonicalComponentOrder; // Canonical position -> original zero-based component index; source is never reordered.
+};
 struct UnitDimensionAssumption
 {
     std::size_t unit, dimensions; // Original source records, never substituted unit definitions.
@@ -241,6 +252,8 @@ struct ProductStructureBasis
     QualifiedSchemaProfile profile;
     SchemaInterpretation schemaInterpretation = SchemaInterpretation::DeclaredOnly;
     SourcePolicy sourcePolicy = SourcePolicy::Strict;
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly;
+    std::vector<Diagnostic> complexMappingDiagnostics; // Owning type-binding evidence only, not complete source/model qualification.
 };
 // Declared product graph evidence only: immutable source identities/references,
 // usage uniqueness/acyclicity and selected dependency predicates. It grants no
@@ -308,6 +321,8 @@ public:
     UnitInterpretation AppliedUnitInterpretation() const;
     const std::vector<UnitDimensionAssumption>& UnitDimensionAssumptions() const;
     const std::vector<Diagnostic>& UnitInterpretationDiagnostics() const;
+    const std::vector<ComplexMappingAssumption>& ComplexMappingAssumptions() const;
+    const std::vector<Diagnostic>& ComplexMappingDiagnostics() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
     // In document views, only part/unit qualification is definition-scoped.
@@ -382,6 +397,7 @@ struct Outcome
     GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
     SchemaInterpretation requestedInterpretation = SchemaInterpretation::DeclaredOnly;
     UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
+    ComplexMappingInterpretation requestedComplexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly;
     std::shared_ptr<const Snapshot> snapshot;
     std::shared_ptr<const ProductDocument> document;
     std::shared_ptr<const ProductStructure> productStructure; // Separate, structure-only evidence can survive single-part refusal.
@@ -404,6 +420,7 @@ struct Outcome
     // assumption. Never describe this as a proven nongeometric exception.
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<Diagnostic> unitInterpretationDiagnostics; // Physical source nonconformance, not a metadata-only exception.
+    std::vector<Diagnostic> complexMappingDiagnostics; // Observed original order errors; on failure these are NOT qualified assumptions.
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
@@ -415,7 +432,8 @@ Outcome Check(
     SourcePolicy policy,
     GeometryScope scope,
     SchemaInterpretation interpretation,
-    UnitInterpretation unitInterpretation
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& semantics, std::string& output);
 Outcome CheckIndependentProducts(
@@ -423,7 +441,8 @@ Outcome CheckIndependentProducts(
     Limits limits,
     SourcePolicy policy,
     SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
-    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
 const char* StatusName(Status status);
 } // namespace step_semantics

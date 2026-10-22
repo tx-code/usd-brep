@@ -4,7 +4,7 @@
 import argparse
 from pathlib import Path
 import sys
-from .interpretation import SCHEMA_POLICIES, CARRIER_POLICIES, UNIT_POLICIES, validate
+from .interpretation import SCHEMA_POLICIES, CARRIER_POLICIES, UNIT_POLICIES, COMPLEX_MAPPING_POLICIES, validate
 
 
 def main(argv=None):
@@ -24,6 +24,8 @@ def main(argv=None):
     parser.add_argument("--strict-source", action="store_true", help="禁用非几何互操作；默认保留已证明无关的原诊断")
     parser.add_argument("--schema-interpretation", choices=SCHEMA_POLICIES, default="DeclaredOnly")
     parser.add_argument("--unit-interpretation", choices=UNIT_POLICIES, default="DeclaredOnly")
+    parser.add_argument('--complex-mapping-interpretation', choices=COMPLEX_MAPPING_POLICIES, default='DeclaredOnly',
+                        help='显式按已登记组成项名称解释非标准复合实体顺序；保留原文与诊断')
     parser.add_argument("--carrier-interpretation", choices=CARRIER_POLICIES, default="DeclaredOnly")
     parser.add_argument("--preserve-opaque-file-name-text", action="store_true",
                         help="显式保留 FILE_NAME 未知编码元信息，不猜测代码页")
@@ -62,7 +64,7 @@ def main(argv=None):
             raise ValueError('RepairPlanRequiresOneExplicitFile')
         validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source,
                  options.preserve_opaque_file_name_text, options.assume_ascii_invariant_data,
-                 options.unit_interpretation)
+                 options.unit_interpretation, options.complex_mapping_interpretation)
     except ValueError as error:
         parser.error(str(error))
     if options.scan:

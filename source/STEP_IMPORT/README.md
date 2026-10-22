@@ -1,5 +1,24 @@
 # STEP_IMPORT（内部 C++20）
 
+## 按已登记组成项名称解释复合实体顺序
+
+通用互操作请求可显式选择
+`Options.complexMappingInterpretation=step_semantics::ComplexMappingInterpretation::RegisteredFacetNames`，
+CLI／查看器使用 `--complex-mapping-interpretation RegisteredFacetNames`。默认 `DeclaredOnly` 继续拒绝
+非升序组成项；此配置不随单位、协议、互操作或修复选项自动启用。
+
+源层必须证明完整、唯一、已登记且无子型冲突的组成项集合；各属性仍按原始组成项名称、位置
+逐项检查，后续单位量纲、依赖、归属、拓扑及原生验收均保留。只排序临时签名索引，不修改源
+顺序、参数、单位或字节，也不新增实体签名。细节见
+[源层合同](../STEP_SEMANTICS/README.md#explicit-registered-complex-facet-interpretation)。
+
+实际采用解释的完整模型返回 `AcceptedUnderInterpretation`，原始排序错误、记录身份和索引对应
+保存在 owning 源快照及报告中；清除 outcome 后仍能读取。未实际采用则不产生解释资格。
+显式修复时保持 `AcceptedWithRepairs` 并记录独立的源解释，不改修复许可或几何预算。
+后续任一必要检查失败仍不发布模型。源诊断／声明产品图可以保留，但不得当成完整导入结果。
+这是可验证的特定解释路径，不是通用语法恢复、源错误隔离或对坏单位／缺失几何的放行。
+内部 C++ STEP_SEMANTICS、Options 和消费者需一并重建；内核 ABI 与原生存档格式不改。
+
 ## 显式选择独立零件（源检查完整通过）
 
 `ImportModelFile/Bytes` 与 `ImportDocumentFile/Bytes` 可显式设置
