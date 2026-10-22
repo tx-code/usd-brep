@@ -7,6 +7,7 @@ import unittest
 
 import explore
 import harness
+import spline_oracle as spline
 
 
 class ExplorationTests(unittest.TestCase):
@@ -14,9 +15,40 @@ class ExplorationTests(unittest.TestCase):
         first = list(explore.generate(431, 64))
         self.assertEqual(first, list(explore.generate(431, 64)))
         self.assertNotEqual(first, list(explore.generate(432, 64)))
-        self.assertEqual({case["kind"] for case in first}, {"bezier", "circle", "ellipse"})
+        self.assertEqual({case["kind"] for case in first}, {"bezier", "circle", "ellipse", *spline.KINDS})
         for case in first:
             explore.validate(case)
+
+    def test_spline_generator_covers_degrees_multiplicities_and_periodic_windows(self):
+        cases = list(explore.generate(431, 128, "multispan"))
+        self.assertTrue(all(case["kind"] in spline.KINDS for case in cases))
+        self.assertEqual({case["degree"] for case in cases if case["kind"] == "nurbs"}, {1, 2, 3})
+        self.assertEqual({len(set(case["knots"])) - 1 for case in cases if case["kind"] == "nurbs"}, set(range(2, 9)))
+        self.assertTrue(any(case["kind"] == "nurbs" and case["knots"].count(.5) > 1 for case in cases))
+        self.assertTrue(any(case["kind"] == "periodic_nurbs" and case["clip"][1] > 1 for case in cases))
+        for case in cases:
+            explore.validate(case)
+
+    def test_structural_reductions_keep_repeated_knots_and_seam_class(self):
+        cases = [spline.fixed_cases()[6], spline.fixed_cases()[-1]]
+        for case in cases:
+            before = explore.features(case)
+            proposals = list(explore.reductions(case))
+            self.assertTrue(proposals)
+            for candidate in proposals:
+                explore.validate(candidate)
+                self.assertEqual(explore.features(candidate), before)
+            reduced, attempts = explore.minimize(case, lambda candidate: True, budget=100)
+            self.assertLess(explore.complexity(reduced), explore.complexity(case))
+            self.assertEqual(explore.features(reduced), before)
+            self.assertLessEqual(attempts, 100)
+
+    def test_repeated_suite_requires_internal_c0_multiplicity_above_one(self):
+        for case in explore.fixed_cases("repeated") + list(explore.generate(431, 32, "repeated")):
+            explore.validate(case)
+            self.assertGreater(case["degree"], 1)
+            self.assertTrue(all(case["knots"].count(t) == case["degree"]
+                                for t in sorted(set(case["knots"]))[1:-1]))
 
     def test_reduction_keeps_a_failure_and_valid_geometry_domain(self):
         original = harness.fixed_cases()[0]

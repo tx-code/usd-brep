@@ -64,6 +64,13 @@ if(CURVE_HARNESS_BUILD_KERNEL OR NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOU
         "${CMAKE_CURRENT_SOURCE_DIR}/explore.py" run --probe "$<TARGET_FILE:curve_property_probe>"
         --cases 32 --seed 431 --output "${CMAKE_CURRENT_BINARY_DIR}/exploration-receipts" --unique-output)
     set_tests_properties(curve_property_random_smoke PROPERTIES TIMEOUT 120)
+    foreach(suite multispan seams)
+        add_test(NAME curve_property_${suite}_smoke COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/explore.py" run --probe "$<TARGET_FILE:curve_property_probe>"
+            --suite ${suite} --cases 32 --seed 431
+            --output "${CMAKE_CURRENT_BINARY_DIR}/exploration-receipts" --unique-output)
+        set_tests_properties(curve_property_${suite}_smoke PROPERTIES TIMEOUT 120)
+    endforeach()
 endif()
 if(WIN32 AND SMLIB_RUNTIME_DIR)
     set_tests_properties(curve_properties PROPERTIES

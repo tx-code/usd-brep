@@ -82,10 +82,18 @@ Windows 消费者使用匹配的 C++20、Release `/MD` 或 Debug `/MDd` 和内�
 Bézier、圆和椭圆。选择带偏移且不同长度的实际参数域、完整／不对称裁剪、坐标偏移、
 不同尺度及两个正交坐标框架。它不靠内核拒绝大量非法输入来充数。
 `validate` 给出本试点明确的有限输入范围；这不是 SDK 的支持范围限制。
+扩展生成器同时覆盖多段 NURBS 的不同重数、非均匀节点、节点对齐的裁剪，
+周期二次样条的正权／常权循环控制网，以及圆／椭圆跨接缝窗口。
+`--suite all` 混合各族；`legacy` 保留首批曲线族；`multispan` 仅生成多段和周期样条；
+`repeated` 专测二／三次且内部重数等于次数的 C0 连接；`seams` 仅生成跨接缝窗口。
+seed 和 suite 共同决定生成序列，完整输入才是稳定重放依据。
+新收据使用 `curve-properties-replay-v2`，继续接受首批 v1 的完整输入。
 
 ```shell
 python tests/curve_properties/explore.py run --probe <runtime>/curve_property_probe.exe \
     --seed 431 --cases 512 --output .local/curve-properties/run-431
+python tests/curve_properties/explore.py run --probe <runtime>/curve_property_probe.exe \
+    --suite multispan --seed 431 --cases 512 --output .local/curve-properties/multispan-431
 python tests/curve_properties/explore.py replay --probe <runtime>/curve_property_probe.exe \
     --input <failure-directory>/minimized.json --output .local/curve-properties/replay
 python tests/curve_properties/explore.py shrink --probe <runtime>/curve_property_probe.exe \
@@ -104,12 +112,17 @@ Git 版本是调用时的源上下文，不能单凭它证明一个外部二进�
 复杂度严格下降且触发同一个属性的候选。原生崩溃还须保留相同退出码。
 默认上限为 100 次、30 秒，在两次调用之间检查；正在运行的调用仍受单例超时限制。
 这是有界的贪心缩减，不保证全局最小。超时、崩溃、协议错误和几何属性错误分别保留。
+多段输入可缩减整个节点组或重数，并同步减少控制点／权重以保持基数合法；这是生成更小
+失败输入，不是保形移除节点。缩减始终保留曲线族、多段、原次数、是否有重复节点／C0
+连接以及是否跨接缝；循环控制网通过构造保持接缝 C1。不会把新失败缩成单段或丢掉接缝。
 每次运行创建新收据目录，拒绝覆盖；CTest 使用 `--unique-output` 创建独立子目录。
 
 试点验收要求：固定属性全部通过；至少三个 seed、每个 512 个随机输入通过 Release，
 另有 Debug 的固定用例及随机抽样；失败回放命中相同属性，缩减保留该属性并降低复杂度。
 定向变异必须由几何属性断言发现，编译失败、超时或基础设施错误不算抓到变异。
 这些数量是该工具的可重复验收流程，不是对全库缺陷率或生产模型的资格保证。
+多段扩展另要求三个 seed 各 512 个 `multispan` 随机输入、三个 seed 各 128 个 `seams`
+输入通过 Release；Debug 至少抽样 128 个多段、64 个接缝输入，并回放全部固定用例。
 
 ## 定向代码变异
 

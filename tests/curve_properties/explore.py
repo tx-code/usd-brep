@@ -17,7 +17,7 @@ import uuid
 import harness
 import spline_oracle as spline
 
-SCHEMA = "curve-properties-replay-v1"
+SCHEMA = "curve-properties-replay-v2"
 
 
 def validate(case):
@@ -60,6 +60,8 @@ def validate(case):
                 raise ValueError("ordered, clamped normalized knot vector required")
             if knots[-degree - 1:] != [1] * (degree + 1):
                 raise ValueError("clamped upper knots required")
+            if knots.count(0) != degree + 1 or knots.count(1) != degree + 1:
+                raise ValueError("endpoint multiplicities must equal degree+1")
             unique = sorted(set(knots))
             if not 3 <= len(unique) <= 9 or any(b - a < 1 / 32 for a, b in zip(unique, unique[1:])):
                 raise ValueError("require 2..8 nonempty spans separated by at least 1/32")
@@ -74,15 +76,32 @@ def validate(case):
             raise ValueError("circle radii must agree")
 
 
-def generate(seed, count):
+def fixed_cases(suite="all"):
+    cases = harness.fixed_cases()
+    if suite == "legacy":
+        return [case for case in cases if case["kind"] not in spline.KINDS and case["clip"][1] <= 1]
+    if suite == "multispan":
+        return [case for case in cases if case["kind"] in spline.KINDS]
+    if suite == "repeated":
+        return [case for case in cases if case["kind"] == "nurbs" and case["degree"] > 1
+                and all(case["knots"].count(t) == case["degree"] for t in sorted(set(case["knots"]))[1:-1])]
+    if suite == "seams":
+        return [case for case in cases if case["clip"][1] > 1]
+    return cases
+
+
+def generate(seed, count, suite="all"):
     rng = random.Random(seed)
+    families = {"all": list(range(18)), "legacy": list(range(8)),
+                "multispan": list(range(8, 16)), "repeated": list(range(10, 14)),
+                "seams": list(range(14, 18))}[suite]
     for index in range(count):
+        family = families[index % len(families)]
         first = rng.randrange(-64, 65) / 4
-        length = rng.choice([.25, .5, 1, 2, 8, 32])
+        length = rng.choice([.25, .5, 1, 2, 8, 32] if family < 8 else [2, 8, 16, 32])
         lo, hi = sorted(rng.sample(range(33), 2))
         clip = rng.choice([[0, 1], [.25, .5], [lo / 32, hi / 32]])
         domain = [first, first + length]
-        family = index % 8
         if family < 6:
             degree = family // 2 + 1
             scale = rng.choice([.25, 1, 4, 16])
@@ -92,12 +111,42 @@ def generate(seed, count):
                        offset[2] + scale * rng.randrange(-8, 9) / 4] for i in range(degree + 1)]
             weights = [rng.choice([.25, .5, 1, 2, 4]) if family % 2 else 1 for _ in points]
             case = {"kind": "bezier", "points": points, "weights": weights, "domain": domain, "clip": clip}
+        elif 8 <= family < 14:
+            degree = (family - 8) // 2 + 1
+            joins = sorted(rng.sample(range(1, 16), rng.randrange(1, 8)))
+            knots = [0] * (degree + 1)
+            for knot in joins:
+                multiplicity = degree if suite == "repeated" else rng.choice([1, degree])
+                knots.extend([knot / 16] * multiplicity)
+            knots.extend([1] * (degree + 1))
+            size = len(knots) - degree - 1
+            scale = rng.choice([.5, 1, 4])
+            offset = [rng.choice([0, -32, 32]) for _ in range(3)]
+            points = [[offset[0] + i * scale, offset[1] + scale * rng.randrange(-4, 5),
+                       offset[2] + scale * rng.randrange(-4, 5)] for i in range(size)]
+            weights = [rng.choice([.5, 1, 2]) if family % 2 else 1 for _ in points]
+            clip = rng.choice([clip, [joins[0] / 16, 1], [0, joins[-1] / 16]])
+            case = {"kind": "nurbs", "degree": degree, "points": points, "weights": weights,
+                    "knots": knots, "domain": domain, "clip": clip}
+        elif family in (14, 15):
+            size = rng.choice([4, 8])
+            offset = [rng.choice([0, -8, 16]) for _ in range(3)]
+            a, b, height = rng.choice([.5, 1, 4]), rng.choice([.5, 1, 4]), rng.choice([0, .125, .5])
+            points = [[offset[0] + a * math.cos(2 * math.pi * i / size),
+                       offset[1] + b * math.sin(2 * math.pi * i / size),
+                       offset[2] + height * math.sin(4 * math.pi * i / size)] for i in range(size)]
+            case = {"kind": "periodic_nurbs", "points": points,
+                    "weights": [rng.choice([.5, 1, 2]) if family % 2 else 1 for _ in points],
+                    "domain": domain, "clip": rng.choice([[.875, 1.125], [.75, 1.25], [13 / 16, 19 / 16]])}
         else:
             a = rng.choice([.25, 1, 3, 7, 16])
-            b = a if family == 6 else rng.choice([.125, .25, 1, 3])
-            case = {"kind": "circle" if family == 6 else "ellipse", "center":
+            circle = family in (6, 16)
+            b = a if circle else rng.choice([.125, .25, 1, 3])
+            case = {"kind": "circle" if circle else "ellipse", "center":
                     [rng.randrange(-128, 129) / 4 for _ in range(3)], "radii": [a, b],
                     "frame": rng.randrange(2), "domain": domain, "clip": clip}
+            if family >= 16:
+                case["clip"] = rng.choice([[.875, 1.125], [.75, 1.25], [13 / 16, 19 / 16]])
         validate(case)
         yield case
 
@@ -114,16 +163,37 @@ def complexity(case):
     return len(case.get("points", [])), cost(case)
 
 
+def features(case):
+    if case["kind"] == "nurbs":
+        degree = case["degree"]
+        multiplicities = [case["knots"].count(knot) for knot in sorted(set(case["knots"]))[1:-1]]
+        return case["kind"], degree, max(multiplicities) > 1, degree in multiplicities, False
+    return case["kind"], case["clip"][1] > 1
+
+
 def reductions(case):
     """Domain-aware reductions, always preserving schema and a strict complexity decrease."""
     proposals = []
-    if case["kind"] == "bezier":
+    if case["kind"] in ("bezier", "periodic_nurbs"):
         if len(case["points"]) > 2:
             for index in range(1, len(case["points"]) - 1):
                 candidate = copy.deepcopy(case)
                 candidate["points"].pop(index)
                 candidate["weights"].pop(index)
                 proposals.append(candidate)
+    if case["kind"] == "nurbs":
+        for knot in sorted(set(case["knots"]))[1:-1]:
+            # Removing a knot group and the same number of CPs creates a smaller
+            # valid input, not a shape-preserving kernel knot-removal operation.
+            for count in sorted({1, case["knots"].count(knot)}):
+                candidate = copy.deepcopy(case)
+                for _ in range(count):
+                    candidate["knots"].remove(knot)
+                    index = min(case["degree"], len(candidate["points"]) - 2)
+                    candidate["points"].pop(index)
+                    candidate["weights"].pop(index)
+                proposals.append(candidate)
+    if case["kind"] == "bezier" or case["kind"] in spline.KINDS:
         candidate = copy.deepcopy(case)
         candidate["weights"] = [1] * len(candidate["weights"])
         proposals.append(candidate)
@@ -159,7 +229,7 @@ def reductions(case):
         except ValueError:
             continue
         key = json.dumps(candidate, sort_keys=True)
-        if key not in seen and complexity(candidate) < complexity(case):
+        if key not in seen and complexity(candidate) < complexity(case) and features(candidate) == features(case):
             seen.add(key)
             yield candidate
 
@@ -239,6 +309,7 @@ def main():
     parser.add_argument("--unique-output", action="store_true", help="create a fresh child below --output (CTest)")
     parser.add_argument("--input", type=Path, help="complete replay/failure JSON, independent of seed")
     parser.add_argument("--seed", type=int, default=431)
+    parser.add_argument("--suite", choices=["all", "legacy", "multispan", "repeated", "seams"], default="all")
     parser.add_argument("--cases", type=int, default=128)
     parser.add_argument("--timeout", type=float, default=10)
     parser.add_argument("--shrink-budget", type=int, default=100)
@@ -258,10 +329,10 @@ def main():
                   "harness": source_identity, "python": sys.version, "platform": sys.platform,
                   "timeout_seconds": args.timeout}
     if args.command == "run":
-        cases = harness.fixed_cases() + list(generate(args.seed, args.cases))
+        cases = fixed_cases(args.suite) + list(generate(args.seed, args.cases, args.suite))
     else:
         record = json.loads(args.input.read_text(encoding="utf-8"))
-        if record.get("schema") != SCHEMA:
+        if record.get("schema") not in (SCHEMA, "curve-properties-replay-v1"):
             raise ValueError("unsupported replay schema")
         cases = [record["case"]]
     for case in cases:
@@ -273,7 +344,7 @@ def main():
     with (args.output / "inputs.jsonl").open("w", encoding="utf-8") as stream:
         for index, case in enumerate(cases):
             stream.write(json.dumps({"schema": SCHEMA, "index": index, "case": case}, allow_nan=False) + "\n")
-    summary = {"schema": SCHEMA, "status": "running", "seed": args.seed, "selected": len(cases),
+    summary = {"schema": SCHEMA, "status": "running", "seed": args.seed, "suite": args.suite, "selected": len(cases),
                "completed": 0, "failures": 0, "provenance": provenance}
     write(args.output / "summary.json", summary)
     started = time.monotonic()
@@ -287,7 +358,7 @@ def main():
                 summary["failures"] += 1
                 failure = {"schema": SCHEMA, "case": case, "index": index, "seed": args.seed,
                            "property": error.name, "detail": error.detail, "provenance": provenance,
-                           "observation": getattr(error, "observation", None)}
+                           "observation": getattr(error, "observation", None), "features": features(case)}
                 write(args.output / "failure.json", failure)
                 if args.command in ("run", "shrink"):
                     wanted = signature(error)
