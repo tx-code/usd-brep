@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 """Fixed modified N916 subset; a name-only HEADER never becomes an edition proof."""
+import re
 import unittest
 
 from tools.step_semantic_validation.tests import test_ap203_general as general
@@ -208,3 +209,29 @@ class Ap203N916Tests(unittest.TestCase):
                                    "--general-brep-source", "--interop-nongeometric")
         self.assertEqual(1, run.returncode)
         self.assertIsNone(invalid["snapshot"])
+
+
+class N916SphereSourceTests(unittest.TestCase):
+    invoke = general.Ap203GeneralTests.invoke
+    check = Ap203N916Tests.check
+
+    @staticmethod
+    def source(radius):
+        # Source checking only: replace one attached support declaration. This
+        # synthetic box is deliberately not a valid native spherical BRep.
+        data, count = re.subn(rb"PLANE\(([^;]*)\)",
+                             lambda match: b"SPHERICAL_SURFACE(" + match[1] + b"," + radius + b")",
+                             legacy_source(), count=1)
+        assert count == 1
+        return data
+
+    def test_sphere_preserves_radius_lexeme_and_source_bytes(self):
+        self.check(self.source(b"+3.250E0"))
+
+    def test_nonpositive_sphere_radius_is_source_error(self):
+        for radius in (b"0.", b"-1."):
+            with self.subTest(radius=radius):
+                run, result = self.invoke(self.source(radius), "--general-brep-source")
+                self.assertEqual(1, run.returncode)
+                self.assertEqual("SourceRuleViolation:POSITIVE_LENGTH_MEASURE.WR1", result["diagnostics"][0]["key"])
+                self.assertIsNone(result["snapshot"])

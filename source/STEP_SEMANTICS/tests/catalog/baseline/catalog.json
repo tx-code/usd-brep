@@ -25847,7 +25847,8 @@
         "GEOMETRIC_CURVE_SET",
         "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
         "COMPOSITE_CURVE",
-        "COMPOSITE_CURVE_SEGMENT"
+        "COMPOSITE_CURVE_SEGMENT",
+        "SPHERICAL_SURFACE"
       ],
       "name_index": [
         {
@@ -26353,6 +26354,10 @@
         {
           "name": "SOLID_MODEL",
           "id": 30
+        },
+        {
+          "name": "SPHERICAL_SURFACE",
+          "id": 139
         },
         {
           "name": "STYLED_ITEM",
@@ -32627,6 +32632,51 @@
               "declaring_type": "COMPOSITE_CURVE_SEGMENT",
               "declaring_type_id": 138,
               "local_field_index": 2
+            }
+          ]
+        },
+        {
+          "id": 139,
+          "name": "SPHERICAL_SURFACE",
+          "parents": [
+            "ELEMENTARY_SURFACE"
+          ],
+          "simple": true,
+          "fields": [
+            {
+              "name": "radius",
+              "type": "POSITIVE_LENGTH_MEASURE",
+              "kind": "Real",
+              "optional": false,
+              "element_kind": "Reference",
+              "minimum": 0,
+              "maximum": null,
+              "unique": "None",
+              "nested_aggregates": []
+            }
+          ],
+          "ancestors": [
+            0,
+            1,
+            11,
+            12,
+            139
+          ],
+          "flattened": [
+            {
+              "declaring_type": "REPRESENTATION_ITEM",
+              "declaring_type_id": 0,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "ELEMENTARY_SURFACE",
+              "declaring_type_id": 12,
+              "local_field_index": 0
+            },
+            {
+              "declaring_type": "SPHERICAL_SURFACE",
+              "declaring_type_id": 139,
+              "local_field_index": 0
             }
           ]
         }

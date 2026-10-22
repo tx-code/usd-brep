@@ -532,6 +532,16 @@ constexpr Recipe ProfileRecipe()
     {
         ap214_surface_role::AppendDeclarations(recipe);
     }
+    if constexpr (Profile == ProfileKind::Ap203N916Source)
+    {
+        // Fixed modified N916 (020b4d25...), SPHERICAL_SURFACE: inherited
+        // elementary placement and a positive length radius. Append after all
+        // existing identities; this admits source data, not native sphere UVs
+        // or the AP214 bounded-surface representation role.
+        recipe.declarations.push_back(
+            { "SPHERICAL_SURFACE", { "ELEMENTARY_SURFACE" }, { common::Real("radius", "POSITIVE_LENGTH_MEASURE") }, true }
+        );
+    }
     return recipe;
 }
 } // namespace step_semantics::catalog_build

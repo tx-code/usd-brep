@@ -211,7 +211,7 @@ gain this binding. APD/year values cannot select or certify the implementation.
 The new catalog reuses compared transport descriptions at constant evaluation,
 with N916's required descriptions, direct PDR property reference, actual
 administrative SELECT branches, UTC type aliases and two-value offset enum.
-Its 139 registered transport descriptors comprise 119 declarations present in
+Its 140 registered transport descriptors comprise 120 declarations present in
 the fixed artifact and 20 borrowed N2635 diagnostic descriptions. Registration
 and `IsA` do not prove source conformance: every explicitly instantiated foreign
 type is refused. Only `PRESENTATION_LAYER_ASSIGNMENT` may survive explicit
@@ -928,3 +928,10 @@ BRep construction and complete import remain NotRun in all reports.
 
 See the [independent verification tool](../../tools/step_semantic_validation/README.md)
 for frozen-corpus, declaration-witness and diagnostic evidence.
+
+The modified N916 source subset also binds `SPHERICAL_SURFACE` from the pinned
+artifact above: inherited elementary placement and a `POSITIVE_LENGTH_MEASURE`
+radius. The original radius lexeme and unit context remain source-owned; zero
+and negative radii fail the existing positive-length predicate. This append
+preserves previous type identities and other catalogs. It does not implement
+native spherical face construction, pole handling or source pcurve conversion.
