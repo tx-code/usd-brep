@@ -1059,7 +1059,7 @@ private:
                         failure.diagnostic.source.related.push_back(Record(UnboundTarget(value)).idSpan);
                         // N2635 APPROVED_ITEM excludes PD/formation; MBx exports
                         // can also put a CLOSED_SHELL in a style-only override slot.
-                        // Both mismatches remain provisional source errors. Their
+                        // These mismatches remain provisional source errors. Their
                         // separate attachment and physical-exclusion proofs must
                         // finish before any typed snapshot can publish.
                         const auto target = UnboundTarget(value);
@@ -1069,7 +1069,15 @@ private:
                         const bool styleOverride = m_data->profile.kind == ProfileKind::Ap214MbxSource &&
                                                    m_data->geometryScope == GeometryScope::GeneralBrep && field.name == "over_ridden_style" &&
                                                    IsA(*m_data, r, "OVER_RIDING_STYLED_ITEM") && IsA(*m_data, target, "CLOSED_SHELL");
-                        if (!Interoperability() || (!approval && !styleOverride))
+                        // AP214E3_2010.exp STYLED_ITEM.item is RI, not a
+                        // representation SELECT. Preserve this source violation
+                        // provisionally; selected presentation ownership and the
+                        // exact body representation are proved after binding.
+                        const bool styledRepresentation = IsAp214SourceProfile(m_data->profile.kind) &&
+                                                          m_data->geometryScope == GeometryScope::GeneralBrep &&
+                                                          field.name == "item" && field.type == "REPRESENTATION_ITEM" && path.size() == 1 &&
+                                                          IsA(*m_data, r, "STYLED_ITEM") && IsA(*m_data, target, "SHAPE_REPRESENTATION");
+                        if (!Interoperability() || (!approval && !styleOverride && !styledRepresentation))
                         {
                             throw;
                         }
@@ -2611,6 +2619,16 @@ private:
             }
         }
         const auto selectedGeometryUse = Reach(std::move(items), true);
+        const auto selectedStyleTarget = [&](const Value& value)
+        {
+            const auto target = Target(value);
+            // Interoperability does not reinterpret a representation as an RI.
+            // This exact selected root only supplies a metadata attachment; its
+            // geometry, units and complete body graph were checked separately.
+            return selectedGeometryUse[target] ||
+                   (Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep &&
+                    IsAp214SourceProfile(m_data->profile.kind) && target == m_representation);
+        };
         const auto& presentations = Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION");
         for (std::size_t i = 0; i < presentations.size(); ++i)
         {
@@ -2636,7 +2654,7 @@ private:
                 // This is a project attachment guard, not MDGPR WHERE evaluation. Prove
                 // the style refers to the selected BRep/wireframe RI closure before granting it
                 // ownership. A style/management path cannot smuggle in another shape.
-                if (!selectedGeometryUse[Target(target)])
+                if (!selectedStyleTarget(target))
                 {
                     FieldFailure(
                         "UnsupportedPresentationAttachment",
@@ -2689,7 +2707,7 @@ private:
                         }
                         const auto& ancestorItem = FieldValue(current, "item");
                         Visit(ancestorItem.span);
-                        if (!selectedGeometryUse[Target(ancestorItem)])
+                        if (!selectedStyleTarget(ancestorItem))
                         {
                             FieldFailure(
                                 "UnsupportedPresentationAttachment",
@@ -3844,6 +3862,23 @@ private:
             }
             if (key == "ReferenceTypeMismatch")
             {
+                if (issue.diagnostic.declaredIn == "STYLED_ITEM" && issue.diagnostic.field == "item")
+                {
+                    if (!presentationUse)
+                    {
+                        presentationUse = Reach(m_presentationRoots, false);
+                    }
+                    const auto target = IndexOf(*m_data, issue.diagnostic.source.targetId);
+                    if (!IsAp214SourceProfile(m_data->profile.kind) || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                        !IsA(*m_data, record, "STYLED_ITEM") || target != m_representation ||
+                        !(*presentationUse)[record] || physical[record])
+                    {
+                        State(Phase::Types) = FailureProgress(issue.status);
+                        State(Phase::Interoperability) = FailureProgress(issue.status);
+                        throw Failure{ issue.status, std::move(issue.diagnostic) };
+                    }
+                    continue;
+                }
                 if (issue.diagnostic.field == "over_ridden_style")
                 {
                     if (!presentationUse)

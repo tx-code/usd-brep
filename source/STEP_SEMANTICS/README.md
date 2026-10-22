@@ -247,6 +247,14 @@ and formation; administrative labels need actual selected attachment and complet
 physical exclusion. The MSB proof applies only to its caption: all shell/geometry
 fields remain required. No text, revision, name or locale is invented.
 
+Explicit AP214 general interoperability also preserves a `STYLED_ITEM.item`
+reference to the exact selected body shape representation, but only from a
+proven attached presentation chain outside physical dependency reach. The pinned
+`AP214E3_2010.exp` STYLED_ITEM declaration still requires REPRESENTATION_ITEM:
+the original `ReferenceTypeMismatch`, target identity and reference bytes remain;
+the catalog is not widened to another edition's SELECT. Detached styles, foreign
+representations, physical uses and strict mode do not receive this exception.
+
 Attached PERSON middle_names/prefix_titles/suffix_titles additionally preserve
 opaque LIST elements individually. Each retained diagnostic binds the exact
 one-based element path and byte span. Order, cardinality, optional absence and
