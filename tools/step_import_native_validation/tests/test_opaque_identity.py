@@ -3,6 +3,7 @@
 """Preserved unreadable metadata cannot alter the exact synthetic box."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,7 +14,20 @@ from tools.step_semantic_validation.tests.test_opaque_identity import opaque_ide
 
 class NativeOpaqueIdentityTests(unittest.TestCase):
     def test_full_native_box_keeps_geometry_and_original_unavailable_metadata(self):
-        data = opaque_identity_box()
+        self.check_box(opaque_identity_box(), 5)
+
+    def test_attached_opaque_face_caption_keeps_native_geometry(self):
+        data, count = re.subn(rb"ADVANCED_FACE\('',", lambda _: b"ADVANCED_FACE('\x90',", opaque_identity_box(), count=1)
+        self.assertEqual(1, count)
+        self.check_box(data, 6)
+
+    def test_all_attached_topology_captions_keep_native_geometry(self):
+        pattern = rb"(ADVANCED_FACE|EDGE_CURVE|VERTEX_POINT|CLOSED_SHELL|FACE_OUTER_BOUND|EDGE_LOOP|ORIENTED_EDGE)\('[^']*',"
+        data, count = re.subn(pattern, lambda m: m[1] + b"('\x91',", opaque_identity_box())
+        self.assertGreater(count, 7)
+        self.check_box(data, count + 5)
+
+    def check_box(self, data, preserved_count):
         with tempfile.TemporaryDirectory(prefix="step-native-opaque-id-") as directory:
             path = Path(directory) / "source.step"
             path.write_bytes(data)
@@ -28,5 +42,5 @@ class NativeOpaqueIdentityTests(unittest.TestCase):
         self.assertAlmostEqual(6000, report["model"]["material_volume"]["value_mm3"], delta=1e-5)
         self.assertAlmostEqual(2200, report["model"]["area_mm2"], delta=1e-5)
         self.assertEqual(data, report["source_inspection"]["source"]["input"]["raw"].encode("latin1"))
-        self.assertEqual(5, sum(d["key"] == "OpaqueDataTextUnestablished"
+        self.assertEqual(preserved_count, sum(d["key"] == "OpaqueDataTextUnestablished"
                                 for d in report["source_inspection"]["preserved_diagnostics"]))

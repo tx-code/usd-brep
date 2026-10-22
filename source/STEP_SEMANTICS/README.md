@@ -935,3 +935,13 @@ radius. The original radius lexeme and unit context remain source-owned; zero
 and negative radii fail the existing positive-length predicate. This append
 preserves previous type identities and other catalogs. It does not implement
 native spherical face construction, pole handling or source pcurve conversion.
+
+In explicit general nongeometric interoperability, unavailable `RI.name` text
+on ordinary instances of the audited topology types (`ADVANCED_FACE`, `EDGE_CURVE`, `VERTEX_POINT`,
+`CLOSED_SHELL`, `OPEN_SHELL`, `FACE_BOUND`, `FACE_OUTER_BOUND`, `EDGE_LOOP`,
+`ORIENTED_EDGE`) may remain opaque only within the selected shell's dependency
+closure. Source bytes, unavailable text and original diagnostics are retained.
+The closure is computed once with ordinary visit/cancellation accounting;
+new registered types do not automatically acquire this exception. Defining
+attributes, orphan checks and preservation/report budgets still apply. Strict
+and planar paths are unchanged. Representation purpose names remain excluded.

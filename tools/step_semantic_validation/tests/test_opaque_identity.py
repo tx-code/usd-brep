@@ -3,6 +3,7 @@
 """Unavailable identity/caption text needs exact selected ownership."""
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -159,3 +160,52 @@ class OpaqueIdentityTests(unittest.TestCase):
         run, report = self.invoke(opaque_identity_box(), True, "--max-preserved-diagnostics", 0)
         self.assertEqual(3, run.returncode)
         self.assertIsNone(report["snapshot"])
+
+
+class OpaqueFaceCaptionTests(unittest.TestCase):
+    invoke = OpaqueIdentityTests.invoke
+
+    @staticmethod
+    def source():
+        data, count = re.subn(rb"ADVANCED_FACE\('',", lambda _: b"ADVANCED_FACE('\x80',", BOX, count=1)
+        assert count == 1
+        return data
+
+    def test_attached_face_name_preserves_raw_value_and_diagnostic(self):
+        data = self.source()
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        preserved = [d for d in report['preserved_diagnostics'] if d['key'] == 'OpaqueDataTextUnestablished']
+        self.assertEqual(1, len(preserved))
+        self.assertEqual(('ADVANCED_FACE', 'name'), (preserved[0]['component'], preserved[0]['field']))
+        self.assertEqual(data, report['source']['input']['raw'].encode('latin1'))
+
+    def test_strict_or_invalid_geometry_or_orphan_or_budget_never_publish(self):
+        data = self.source()
+        face = re.search(rb"#\d+=ADVANCED_FACE\([^;]+;", data)[0]
+        orphan = re.sub(rb"^#\d+=", b"#990=", face)
+        for candidate, interop, flags in (
+            (data, False, ()),
+            (data.replace(b".T.);", b"'invalid');", 1), True, ()),
+            (data.replace(b"ENDSEC;\nEND-ISO", orphan + b"\nENDSEC;\nEND-ISO"), True, ()),
+            (data, True, ('--max-preserved-diagnostics', 0)),
+            (data, True, ('--max-semantic-visits', 0)),
+        ):
+            with self.subTest(interop=interop, flags=flags):
+                run, report = self.invoke(candidate, interop, *flags)
+                self.assertNotEqual(0, run.returncode)
+                self.assertIsNone(report['snapshot'])
+
+
+    def test_selected_topology_labels_share_bounded_ownership_proof(self):
+        owners = (b'ADVANCED_FACE', b'EDGE_CURVE', b'VERTEX_POINT', b'CLOSED_SHELL',
+                  b'FACE_OUTER_BOUND', b'EDGE_LOOP', b'ORIENTED_EDGE')
+        pattern = rb"(" + b'|'.join(owners) + rb")\('[^']*',"
+        data, count = re.subn(pattern, lambda m: m[1] + b"('\x91',", BOX)
+        self.assertGreater(count, len(owners))
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        preserved = [d for d in report['preserved_diagnostics'] if d['key'] == 'OpaqueDataTextUnestablished']
+        self.assertEqual(count, len(preserved))
+        self.assertEqual(set(x.decode() for x in owners), {d['component'] for d in preserved})
+        self.assertEqual(data, report['source']['input']['raw'].encode('latin1'))

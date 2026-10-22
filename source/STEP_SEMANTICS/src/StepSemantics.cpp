@@ -877,6 +877,17 @@ private:
         }
     }
 
+    bool OpaqueTopologyCaption(std::size_t record) const
+    {
+        // Explicit audited label owners from pinned N2635/AP214/modified N916.
+        // New topology registrations must not acquire this exception implicitly.
+        constexpr std::string_view owners[]{ "ADVANCED_FACE", "EDGE_CURVE", "VERTEX_POINT", "CLOSED_SHELL",
+                                              "OPEN_SHELL", "FACE_BOUND", "FACE_OUTER_BOUND", "EDGE_LOOP", "ORIENTED_EDGE" };
+        const auto& source = Record(record);
+        return !source.complex && source.components.size() == 1 &&
+               std::find(std::begin(owners), std::end(owners), source.components.front().name) != std::end(owners);
+    }
+
     void Scalar(const Value& value, FieldKind kind, const Field& field, std::size_t r, std::size_t c, std::vector<std::size_t> path)
     {
         const auto mismatch = [&]
@@ -931,7 +942,7 @@ private:
                         const bool partIdentity = issue.field == "id" &&
                                                   (issue.declaredIn == "PRODUCT_DEFINITION_FORMATION" || issue.declaredIn == "PRODUCT_DEFINITION");
                         const bool shapeCaption = issue.declaredIn == "REPRESENTATION_ITEM" && issue.field == "name" &&
-                                                  IsA(*m_data, r, "MANIFOLD_SOLID_BREP");
+                                                  (IsA(*m_data, r, "MANIFOLD_SOLID_BREP") || OpaqueTopologyCaption(r));
                         const bool administrative = OpaqueAdministrativeField(issue.declaredIn, issue.field);
                         const bool listElement = administrative && OpaqueAdministrativeList(issue.declaredIn, issue.field);
                         if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
@@ -3575,6 +3586,7 @@ private:
         std::optional<std::vector<unsigned char>> presentationUse;
         std::optional<std::vector<unsigned char>> propertyUse;
         std::optional<std::vector<unsigned char>> selectedUse;
+        std::optional<std::vector<unsigned char>> selectedCaptionTopology;
         std::vector<std::size_t> propertyItems;
         std::vector<unsigned char> metadata(m_data->types.size());
         for (const auto& attachment : m_data->part.propertyAttachments)
@@ -3706,6 +3718,28 @@ private:
                     // owner IS physical, while every defining field must still
                     // pass. REPRESENTATION/PDS purpose names remain excluded.
                     approved = owner == "REPRESENTATION_ITEM" && field == "name" && IsA(*m_data, record, "MANIFOLD_SOLID_BREP") && selected("shape");
+                    if (owner == "REPRESENTATION_ITEM" && field == "name" && OpaqueTopologyCaption(record))
+                    {
+                        // These inherited RI labels do not select bounds,
+                        // geometry, units or orientation. Only the selected
+                        // shell's closure may authorize them; auxiliary geometry
+                        // or an orphan's type alone does not prove ownership.
+                        // Reach charges references and observes cancellation.
+                        // Memoize once for all labels, never once per face/edge.
+                        if (!selectedCaptionTopology)
+                        {
+                            std::vector<std::size_t> roots;
+                            for (const auto& role : m_data->part.roles)
+                            {
+                                if (role.name == "shell")
+                                {
+                                    roots.push_back(role.recordIndex);
+                                }
+                            }
+                            selectedCaptionTopology = Reach(std::move(roots), false);
+                        }
+                        approved = (*selectedCaptionTopology)[record];
+                    }
                 }
                 else
                 {
