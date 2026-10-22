@@ -363,3 +363,6 @@ class ProbeTests(unittest.TestCase):
             self.assertTrue(trial["has_model"])
             self.assertEqual((1, 7), (trial["model"]["solids"], trial["model"]["faces"]))
             self.assertAlmostEqual(6000, trial["model"]["volume_mm3"], delta=1e-5)
+            self.assertEqual('OCCTAdaptive', trial['model']['volume_integration_method'])
+            self.assertEqual(1e-4, trial['model']['volume_requested_relative_accuracy'])
+            self.assertGreaterEqual(trial['model']['volume_estimated_relative_error'], 0)

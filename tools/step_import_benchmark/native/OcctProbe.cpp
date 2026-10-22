@@ -19,6 +19,7 @@
 #include <TopTools_ShapeMapHasher.hxx>
 #include <XSControl_TransferReader.hxx>
 #include <XSControl_WorkSession.hxx>
+#include <algorithm>
 
 namespace
 {
@@ -115,6 +116,7 @@ bench::Trial Run(const bench::Args& args)
                 const auto solids = solidShapes.Extent();
                 GProp_GProps area;
                 double volume = 0;
+                double estimatedVolumeRelativeError = 0;
                 BRepGProp::SurfaceProperties(shape, area);
                 if (solids && valid)
                 {
@@ -123,7 +125,16 @@ bench::Trial Run(const bench::Args& args)
                     for (int i = 1; i <= solids; ++i)
                     {
                         GProp_GProps properties;
-                        BRepGProp::VolumeProperties(solidShapes.FindKey(i), properties, true);
+                        // BRepGProp.hxx's Boolean overload uses fixed quadrature.
+                        // Give the reference measurement an explicit adaptive
+                        // stopping request; it is still not a continuous error
+                        // certificate or part of read/transfer operation time.
+                        const double estimate = BRepGProp::VolumeProperties(solidShapes.FindKey(i), properties, 1e-4, true, false);
+                        if (!std::isfinite(estimate) || estimate < 0)
+                        {
+                            throw std::runtime_error("OCCT adaptive volume evidence unavailable");
+                        }
+                        estimatedVolumeRelativeError = std::max(estimatedVolumeRelativeError, estimate);
                         volume += properties.Mass();
                     }
                 }
@@ -141,6 +152,8 @@ bench::Trial Run(const bench::Args& args)
                 model << "{\"faces\":" << Count(shape, TopAbs_FACE) << ",\"edges\":" << Count(shape, TopAbs_EDGE)
                       << ",\"vertices\":" << Count(shape, TopAbs_VERTEX) << ",\"solids\":" << solids << ",\"area_mm2\":" << bench::N(area.Mass())
                       << ",\"volume_mm3\":" << (solids && valid ? bench::N(volume) : "null")
+                      << ",\"volume_integration_method\":\"OCCTAdaptive\",\"volume_requested_relative_accuracy\":0.0001"
+                      << ",\"volume_estimated_relative_error\":" << (solids && valid ? bench::N(estimatedVolumeRelativeError) : "null")
                       << ",\"volume_scope\":\"unique located closed solids only; free surfaces excluded; null if invalid or no solids\""
                       << ",\"brep_check_valid\":" << (valid ? "true" : "false") << ",\"bounds_mm\":" << bounds << '}';
                 row.model = model.str();
