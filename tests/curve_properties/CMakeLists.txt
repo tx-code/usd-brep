@@ -60,6 +60,9 @@ add_test(NAME curve_property_mutation_contracts COMMAND "${Python3_EXECUTABLE}" 
 # Exploration attests the co-located DLL; imported standalone SDKs can use check
 # and their existing runtime path without making an unverifiable loader claim.
 if(CURVE_HARNESS_BUILD_KERNEL OR NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    add_test(NAME curve_property_zero_span_bounds COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/zero_span_bounds.py" --probe "$<TARGET_FILE:curve_property_probe>")
+    set_tests_properties(curve_property_zero_span_bounds PROPERTIES TIMEOUT 30)
     add_test(NAME curve_property_random_smoke COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/explore.py" run --probe "$<TARGET_FILE:curve_property_probe>"
         --cases 32 --seed 431 --output "${CMAKE_CURRENT_BINARY_DIR}/exploration-receipts" --unique-output)
