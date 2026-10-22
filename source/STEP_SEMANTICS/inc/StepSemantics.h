@@ -22,6 +22,7 @@ inline constexpr const char* Ap214SchemaSha256 = "71ab140fe7f774321beee6a31e6fee
 inline constexpr const char* Ap214MbxSourceProfile = "214-MBx2010-Source-0.1";
 inline constexpr const char* Ap203GeneralSourceProfile = "203e2-G0-Source-0.1";
 inline constexpr const char* Ap203N916SourceProfile = "203-N916-Source-0.1";
+inline constexpr const char* SourceFaceClauseSelectionProfile = "SourceFaceClauseSelection-0.1";
 inline constexpr const char* Ap203N916SchemaSha256 = "020b4d25dbd0b6ee7d15099b978e3448f6699a72cb862d381e416e32187562f1";
 
 enum class ProfileKind
@@ -313,6 +314,26 @@ private:
     std::size_t m_binding;
 };
 
+struct SelectedSourceRequest
+{
+    std::string sourceSha256;
+    std::vector<std::string> definitionIds;
+    std::size_t maximumIsolatedFailures = 0, maximumInfluenceVisits = 0;
+};
+struct IsolatedSourceFailure
+{
+    std::string definitionId;
+    Diagnostic diagnostic; // Original failed FACE.WR2, separate from metadata preservation and repair.
+};
+struct SourceSelectionEvidence
+{
+    SelectedSourceRequest request;
+    std::vector<std::string> sourceDefinitionIds, selectedDefinitionIds, excludedDefinitionIds;
+    std::vector<IsolatedSourceFailure> failures;
+    std::size_t influenceVisits = 0;
+    bool localityEstablished = false;
+};
+
 class Snapshot
 {
 public:
@@ -333,6 +354,7 @@ public:
     const std::vector<Diagnostic>& CylindricalBandRepairDiagnostics() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
+    const std::optional<SourceSelectionEvidence>& SourceSelection() const;
     // In document views, only part/unit qualification is definition-scoped.
     // Type/field/reference queries still inspect the one captured source graph.
     const std::vector<Diagnostic>& PreservedDiagnostics() const;
@@ -358,8 +380,10 @@ private:
     std::optional<std::size_t> m_partIndex;
 };
 
-// Complete independent definitions sharing one immutable source/type binding
-// owner. There are no assembly placements or implicit surviving-root selection.
+// Qualified independent definitions sharing one immutable source/type binding
+// owner. Default mode is complete; SourceSelection explicitly identifies a
+// selected-only view and retains the original all-definition inventory/failures.
+// There are no assembly placements or implicit surviving-root selection.
 class ProductDocument
 {
 public:
@@ -369,6 +393,7 @@ public:
     std::size_t PartCount() const;
     std::shared_ptr<const Snapshot> Part(std::size_t index) const;
     const std::vector<Role>& Roles() const; // Whole-document ownership roots, not a singular role map.
+    const std::optional<SourceSelectionEvidence>& SourceSelection() const; // Selected mode exposes only qualified selected Part() views.
 
 private:
 
@@ -383,7 +408,8 @@ enum class Status
     Rejected,
     Unsupported,
     ResourceLimit,
-    SourceFailure
+    SourceFailure,
+    CheckedSelectedDefinitions // Explicitly scoped qualification; excluded source failures remain owned.
 };
 
 struct DefinitionPrerequisiteCheck
@@ -458,6 +484,9 @@ struct Outcome
     std::vector<Diagnostic> complexMappingDiagnostics; // Observed original order errors; on failure these are NOT qualified assumptions.
     std::vector<Diagnostic> cylindricalBandRepairDiagnostics; // Original failed source clauses; never metadata exceptions.
     std::vector<Diagnostic> unapprovedDiagnostics; // Diagnostic-mode pending facts only, without exception approval.
+    std::optional<SelectedSourceRequest> sourceSelectionRequest;
+    std::vector<IsolatedSourceFailure> isolatedSourceFailures; // Provisional until owning SourceSelection proves locality.
+    std::size_t sourceInfluenceVisits = 0;
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
@@ -490,6 +519,15 @@ Outcome InspectIndependentDefinitions(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
+    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+);
+Outcome CheckSelectedIndependentProducts(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    const SelectedSourceRequest& selection,
     SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly

@@ -45,5 +45,5 @@ def validate_complex_mapping_receipt(scene, settings):
     if (type(count) is not int or not 0 <= count <= 1000000 or applied not in COMPLEX_MAPPING_POLICIES or
             (applied == 'DeclaredOnly') != (count == 0) or (expected == 'DeclaredOnly' and count) or
             (count and scene.get('native_import_status') not in
-             ('AcceptedUnderInterpretation', 'AcceptedWithRepairs'))):
+             ('AcceptedUnderInterpretation', 'AcceptedWithRepairs', 'AcceptedWithSourceIsolation'))):
         raise ValueError('InvalidComplexMappingQualification')

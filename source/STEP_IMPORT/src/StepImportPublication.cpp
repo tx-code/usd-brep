@@ -104,6 +104,7 @@ void Publication::FinishAccept()
     // Choose this result before either report and final arbitration; after
     // Commit the sole remaining action remains the owning transfer.
     bool interpreted = false;
+    bool isolated = false;
     {
         // Release this temporary source owner before the commit region. The
         // prepared model remains the authoritative owner of both assumptions.
@@ -111,6 +112,7 @@ void Publication::FinishAccept()
                               m_preparedCollection ? m_preparedCollection->Source() :
                                                      m_prepared->Source();
         interpreted = HasAppliedSourceInterpretation(*semantic);
+        isolated = semantic->SourceSelection() && !semantic->SourceSelection()->failures.empty();
     }
     bool repaired = m_prepared && m_prepared->Repairs().has_value();
     repaired = repaired || (m_prepared && m_prepared->CylindricalBandRepairs().has_value());
@@ -130,7 +132,10 @@ void Publication::FinishAccept()
             repaired = repaired || m_preparedDocument->Body(i)->CylindricalBandRepairs().has_value();
         }
     }
-    m_status = repaired ? Status::AcceptedWithRepairs : interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
+    m_status = repaired    ? Status::AcceptedWithRepairs :
+               isolated    ? Status::AcceptedWithSourceIsolation :
+               interpreted ? Status::AcceptedUnderInterpretation :
+                             Status::Accepted;
     m_execution.Check(Phase::BeforeReport);
     WriteReport();
     m_execution.Check(Phase::ReportReady);

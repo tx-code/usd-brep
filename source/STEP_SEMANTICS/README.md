@@ -1,5 +1,34 @@
 # STEP source semantics: ticket 03
 
+## Qualified selected source with excluded local failures
+
+`CheckSelectedIndependentProducts` is a separate opt-in from both ordinary checks
+and diagnostic inspection. Its `SelectedSourceRequest` binds canonical definition
+IDs to `SourceSnapshot::Sha256()` and explicit positive failure/influence budgets.
+It requires a consistent original inspection receipt; mutable hash/capture fields
+cannot rebind the immutable source owner. The pinned AP214 `FACE.WR2` is the only
+isolatable clause, and only for unselected independent uses. Every other existing
+whole-source prerequisite, ownership/inverse check and metadata approval still runs
+with **all** original candidate parts present.
+
+`StepSourceIsolation` then checks selected forward influence, whole selected
+property/inverse attachments and all incoming paths to failed faces, including
+declared product-to-shape ownership bridges. Mixed presentations/admin assignments
+are not truncated. Incoming uses outside proved excluded islands remain unsupported;
+mere shared unit contexts are not metadata selection anchors. No unknown footprint,
+missing unit, guessed reference or selected failure is admitted. Proof visits are
+request-cumulative and also charged to the existing semantic visit ledger.
+
+Only after the proof are excluded candidate parts removed. The owning document and
+each selected part expose `SourceSelection()`: original input identity, full declared
+definition inventory, selected/excluded identities, original failed diagnostics and
+locality evidence. Original raw records and field bindings remain complete. Its
+qualified `Part()` views are selected-only; ordinary documents remain complete.
+Reports distinguish selected qualification and provisional failed isolation, and
+never claim full AP conformance. The [native contract](../STEP_IMPORT/README.md)
+defines construction/publication and viewer behavior. Local syntax recovery and
+arbitrary source-record quarantine remain unimplemented.
+
 ## Diagnostic observations for independent definitions
 
 `InspectIndependentDefinitions` / `step_semantic_inspect --fixture-limits input.step

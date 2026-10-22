@@ -198,6 +198,10 @@ struct DefinitionSelectionRequest
     std::string sourceSha256; // Bind explicit source definition IDs to the exact original file.
     std::vector<std::string> definitionIds; // Nonempty set; selected definitions are built in source order.
 };
+struct SourceErrorIsolationLimits
+{
+    std::size_t maximumFailures = 0, maximumInfluenceVisits = 0; // Explicit FaceBoundsClause profile; no production defaults.
+};
 struct CylindricalBandRepairRequest
 {
     std::string sourceSha256;
@@ -222,8 +226,11 @@ struct DefinitionSelectionReceipt
 {
     std::string sourceSha256;
     std::vector<std::string> sourceDefinitionIds, selectedDefinitionIds, excludedDefinitionIds;
-    // All source definitions, types, units and dependencies were checked. Only
-    // the explicitly selected definitions acquire native construction evidence.
+    std::string configuration = "SourceCompleteNativeSelection-0.1", sourceScope = "AllDefinitionsChecked";
+    std::size_t isolatedSourceFailureCount = 0;
+    // sourceScope distinguishes complete source checking from selected source
+    // qualification. Only explicitly selected definitions acquire native evidence;
+    // isolated original failures remain in the owning source selection receipt.
 };
 struct Options
 {
@@ -246,6 +253,7 @@ struct Options
     ReportEncoding reportEncoding = ReportEncoding::ExpandedV1; // Explicit lossless encoding; never an automatic budget fallback.
     std::optional<FaceOrientationRepairRequest> faceOrientationRepair; // Explicit zero-geometry pilot; absent remains Repair=None.
     std::optional<DefinitionSelectionRequest> definitionSelection; // General file/document entry only; never a failed-request fallback.
+    std::optional<SourceErrorIsolationLimits> sourceErrorIsolation; // Requires explicit selection; isolates only proved unselected FACE.WR2 facts.
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly;
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepair;
     static Options PlanarFixture();
@@ -557,6 +565,7 @@ struct Report
     bool materialCollection = false;
     bool productDocument = false;
     std::optional<DefinitionSelectionRequest> definitionSelectionRequest;
+    std::optional<SourceErrorIsolationLimits> sourceErrorIsolationRequest;
     std::optional<DefinitionSelectionReceipt> definitionSelection;
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepairRequest;
     std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
@@ -626,7 +635,8 @@ enum class Status
     SourceFailure,
     Cancelled,
     AcceptedUnderInterpretation, // Complete native result with an assumed source schema or carrier; distinct from ordinary acceptance.
-    AcceptedWithRepairs // Explicit repaired qualification; source assumptions remain separately owned/reported.
+    AcceptedWithRepairs, // Explicit repaired qualification; source assumptions remain separately owned/reported.
+    AcceptedWithSourceIsolation // Complete selected request, with separately owned excluded-source failures and locality evidence.
 };
 struct Outcome
 {
@@ -670,7 +680,8 @@ public:
     std::string SourceDefinitionId(std::size_t bodyIndex) const;
     std::string SourceShapeId(std::size_t bodyIndex) const;
     std::shared_ptr<const step_semantics::ProductDocument> Source() const;
-    std::optional<DefinitionSelectionReceipt> Selection() const; // Owning selection evidence; Source() still retains every source definition.
+    std::optional<DefinitionSelectionReceipt> Selection() const; // Owns scope; Source retains original bytes/inventory, with possibly selected-only
+                                                                 // Part views.
     void WriteNative(const std::filesystem::path& path) const; // Ordered definitions/bodies; no union or source-qualification transfer.
 
 private:

@@ -229,6 +229,7 @@ int main(int argc, char** argv)
         {
             case step_semantics::Status::Checked:
             case step_semantics::Status::CheckedWithDiagnostics:
+            case step_semantics::Status::CheckedSelectedDefinitions:
                 return 0;
             case step_semantics::Status::Deferred:
                 return 7;

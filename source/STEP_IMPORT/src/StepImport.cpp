@@ -128,6 +128,13 @@ void Validate(const Options& options)
             throw std::invalid_argument("Definition selection requires general geometry, an original SHA256 and bounded nonempty canonical IDs");
         }
     }
+    if (options.sourceErrorIsolation &&
+        (!options.definitionSelection || !options.generalBrep || options.faceOrientationRepair || options.cylindricalBandRepair ||
+         !options.sourceErrorIsolation->maximumFailures || options.sourceErrorIsolation->maximumFailures > options.sourceLimits.records ||
+         !options.sourceErrorIsolation->maximumInfluenceVisits || options.sourceErrorIsolation->maximumInfluenceVisits > 10000000))
+    {
+        throw std::invalid_argument("Source clause isolation requires explicit definition selection, positive budgets and no repair combination");
+    }
     const auto& q = options.quality;
     if (options.faceOrientationRepair)
     {
@@ -284,6 +291,7 @@ Result Import(const Options& options, Capture capture)
     report.encoding = options.reportEncoding;
     report.repairRequest = options.faceOrientationRepair;
     report.definitionSelectionRequest = options.definitionSelection;
+    report.sourceErrorIsolationRequest = options.sourceErrorIsolation;
     report.cylindricalBandRepairRequest = options.cylindricalBandRepair;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     report.periodicNormalizationRequested = options.normalizePeriodicFaces;
@@ -342,17 +350,34 @@ Result Import(const Options& options, Capture capture)
         {
             if constexpr (std::is_same_v<Result, DocumentOutcome> || std::is_same_v<Result, FileOutcome>)
             {
-                report.generalSource = step_semantics::CheckIndependentProducts(
-                    raw,
-                    options.semanticLimits,
-                    options.sourcePolicy,
-                    options.schemaInterpretation,
-                    options.unitInterpretation,
-                    options.complexMappingInterpretation,
-                    options.cylindricalBandRepair ?
-                        std::span<const step_semantics::CylindricalBandRepairDeferral>(options.cylindricalBandRepair->faces) :
-                        std::span<const step_semantics::CylindricalBandRepairDeferral>{}
-                );
+                if (options.sourceErrorIsolation)
+                {
+                    const auto& scope = *options.definitionSelection;
+                    const auto& budgets = *options.sourceErrorIsolation;
+                    report.generalSource = step_semantics::CheckSelectedIndependentProducts(
+                        raw,
+                        options.semanticLimits,
+                        options.sourcePolicy,
+                        { scope.sourceSha256, scope.definitionIds, budgets.maximumFailures, budgets.maximumInfluenceVisits },
+                        options.schemaInterpretation,
+                        options.unitInterpretation,
+                        options.complexMappingInterpretation
+                    );
+                }
+                else
+                {
+                    report.generalSource = step_semantics::CheckIndependentProducts(
+                        raw,
+                        options.semanticLimits,
+                        options.sourcePolicy,
+                        options.schemaInterpretation,
+                        options.unitInterpretation,
+                        options.complexMappingInterpretation,
+                        options.cylindricalBandRepair ?
+                            std::span<const step_semantics::CylindricalBandRepairDeferral>(options.cylindricalBandRepair->faces) :
+                            std::span<const step_semantics::CylindricalBandRepairDeferral>{}
+                    );
+                }
             }
             else
             {
@@ -757,6 +782,8 @@ const char* StatusName(Status status)
             return "AcceptedUnderInterpretation";
         case Status::AcceptedWithRepairs:
             return "AcceptedWithRepairs";
+        case Status::AcceptedWithSourceIsolation:
+            return "AcceptedWithSourceIsolation";
         case Status::Rejected:
             return "Rejected";
         case Status::Unsupported:

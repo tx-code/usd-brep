@@ -243,6 +243,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
             selection = metadata.get('definition_selection')
             if selection:
                 policy += f"\n选入 {len(selection['selected_definitions'])}/{selection['source_definition_count']} 个源定义"
+                if selection.get('isolated_source_failure_count'):
+                    policy += f"\n隔离 {selection['isolated_source_failure_count']} 处未选定义的源错误"
+                    if metadata.get('source_interpretation_applied'):
+                        policy += '\n源解释模式 · 条件接受'
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
             if metadata.get('repair_applied'):
@@ -548,6 +552,9 @@ def run(options):
                               face_orientation_edits=tuple(getattr(options, 'face_orientation_edits', ())),
                               selection_source_sha256=getattr(options, 'selection_source_sha256', ''),
                               selected_definitions=tuple(getattr(options, 'selected_definitions', ())),
+                              source_error_isolation=getattr(options, 'source_error_isolation', ''),
+                              maximum_isolated_source_failures=getattr(options, 'maximum_isolated_source_failures', 0),
+                              maximum_source_influence_visits=getattr(options, 'maximum_source_influence_visits', 0),
                               complex_mapping_interpretation=getattr(
                                   options, 'complex_mapping_interpretation', 'DeclaredOnly'),
                               band_repair_source_sha256=getattr(options, 'band_repair_source_sha256', ''),

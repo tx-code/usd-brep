@@ -18,6 +18,7 @@ namespace step_source
 struct SourceData
 {
     std::shared_ptr<const std::string> bytes;
+    std::string sha256;
     std::shared_ptr<const CarrierAssumption> carrierAssumption;
     std::vector<Span> asciiInvariantDataTokens; // Immutable receipt; resettable outcome options cannot grant this assumption.
     std::vector<Component> header;
@@ -1133,6 +1134,10 @@ const std::string& SourceSnapshot::Bytes() const
 {
     return *m_data->bytes;
 }
+const std::string& SourceSnapshot::Sha256() const
+{
+    return m_data->sha256;
+}
 const std::vector<Component>& SourceSnapshot::Header() const
 {
     return m_data->header;
@@ -1260,6 +1265,7 @@ InspectOutcome InspectBytes(
     result.sha256 = Sha256(*result.captured);
     auto data = std::make_shared<SourceData>();
     data->bytes = result.captured;
+    data->sha256 = result.sha256;
     data->lines.push_back(0);
     for (std::size_t i = 0; i < data->bytes->size(); ++i)
     {

@@ -598,6 +598,69 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Add("]}");
     }
     const auto sourceView = result.snapshot ? result.snapshot : result.document ? result.document->Part(0) : std::shared_ptr<const Snapshot>{};
+    const auto selection = sourceView && sourceView->SourceSelection() ? &*sourceView->SourceSelection() : nullptr;
+    if (result.sourceSelectionRequest)
+    {
+        const auto strings = [&](const auto& values)
+        {
+            out.Add("[");
+            bool comma = false;
+            for (const auto& value : values)
+            {
+                if (comma)
+                {
+                    out.Add(",");
+                }
+                comma = true;
+                out.String(value);
+            }
+            out.Add("]");
+        };
+        const auto& request = *result.sourceSelectionRequest;
+        out.Add(",\"source_selection\":{\"configuration\":");
+        out.String(SourceFaceClauseSelectionProfile);
+        out.Add(",\"source_sha256\":");
+        out.String(request.sourceSha256);
+        out.Add(",\"requested_definitions\":");
+        strings(request.definitionIds);
+        out.Add(",\"maximum_isolated_failures\":");
+        out.Number(request.maximumIsolatedFailures);
+        out.Add(",\"maximum_influence_visits\":");
+        out.Number(request.maximumInfluenceVisits);
+        out.Add(",\"influence_visits\":");
+        out.Number(result.sourceInfluenceVisits);
+        out.Add(",\"locality_established\":");
+        out.Add(selection && selection->localityEstablished ? "true" : "false");
+        out.Add(",\"whole_source_subset_checks\":");
+        out.String(selection ? "Completed" : "NotEstablished");
+        out.Add(",\"full_ap_conformance\":\"NotEstablished\"");
+        if (selection)
+        {
+            out.Add(",\"source_definitions\":");
+            strings(selection->sourceDefinitionIds);
+            out.Add(",\"selected_definitions\":");
+            strings(selection->selectedDefinitionIds);
+            out.Add(",\"excluded_definitions\":");
+            strings(selection->excludedDefinitionIds);
+        }
+        out.Add(",\"isolated_failures\":[");
+        bool comma = false;
+        const auto& failures = selection ? selection->failures : result.isolatedSourceFailures;
+        for (const auto& failure : failures)
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"definition\":");
+            out.String(failure.definitionId);
+            out.Add(",\"original_diagnostics\":");
+            Diagnostics(out, source, std::span<const Diagnostic>(&failure.diagnostic, 1));
+            out.Add("}");
+        }
+        out.Add("]}");
+    }
     const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
     const bool mappingApplied = sourceView && !sourceView->ComplexMappingAssumptions().empty();
     const bool bandRepairPending = sourceView && !sourceView->CylindricalBandRepairDeferrals().empty();
@@ -1130,7 +1193,9 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         {
             out.String(records.at(r).id);
         };
-        out.Add(",\"document\":{\"qualification\":\"IndependentDefinitionsQualified\",\"assembly_placements\":\"NotRun\",\"parts\":[");
+        out.Add(",\"document\":{\"qualification\":");
+        out.String(selection ? "SelectedIndependentDefinitionsQualified" : "IndependentDefinitionsQualified");
+        out.Add(",\"assembly_placements\":\"NotRun\",\"parts\":[");
         for (std::size_t i = 0; i < document.PartCount(); ++i)
         {
             if (i)
@@ -1231,7 +1296,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         Diagnostics(out, source, result.preservedDiagnostics);
         out.Add(",\"source_conformance\":");
         out.String(
-            (result.snapshot || result.document) ? (bandRepairPending                               ? "ExplicitRepairPending" :
+            (result.snapshot || result.document) ? (selection                                       ? "SelectedDefinitionsOnly" :
+                                                    bandRepairPending                               ? "ExplicitRepairPending" :
                                                     mappingApplied                                  ? "ComplexMappingInterpreted" :
                                                     appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
                                                     result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
@@ -1242,6 +1308,11 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     if (result.policy == SourcePolicy::Strict && bandRepairPending)
     {
         out.Add(",\"source_policy\":\"Strict\",\"source_conformance\":\"ExplicitRepairPending\"");
+    }
+    if (result.policy == SourcePolicy::Strict && result.sourceSelectionRequest)
+    {
+        out.Add(",\"source_policy\":\"Strict\",\"source_conformance\":");
+        out.String(selection ? "SelectedDefinitionsOnly" : "NotQualified");
     }
     if (result.geometryScope == GeometryScope::GeneralBrep)
     {

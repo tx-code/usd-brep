@@ -75,7 +75,7 @@ Preserving an error never turns its source declaration into a valid one.
 | Carrier, uncertain quote/comment boundary, ambiguous or duplicate ID | Reject the selected request when a trustworthy complete index cannot be established |
 | Required geometry, topology, unit, transform or product dependency | Reject the affected selected request; no guessed values or missing faces |
 | Known administrative/presentation metadata | Explicit interoperability may isolate it only with a field/record-specific nonphysical ownership proof |
-| Unselected independent root | A future selection API may exclude it only after proving shared and inverse dependencies do not affect selected roots |
+| Unselected independent root | Explicit scoped admission requires proof that shared and inverse dependencies do not affect selected roots; the current pilot is limited to the pinned AP214 FACE.WR2 clause |
 | Unknown influence, exhausted proof budget | Remain unsupported/indeterminate/resource-limited; never infer independence from missing evidence |
 
 Forward reachability alone is insufficient. Inverse assignments, representation
@@ -117,6 +117,18 @@ isolation evidence. A caller may explicitly select independent roots; a failed
 whole-assembly request must not automatically turn into a successful partial one.
 Source preservation/isolation, equivalent target normalization and geometric
 repair remain distinct operations with distinct qualifications.
+
+The separate `SourceFaceClauseSelection-0.1` path now admits explicitly selected
+AP214 definitions after retaining unselected `FACE.WR2` failures and proving their
+complete selected influence/incoming boundary. All other existing source checks,
+whole-source ownership and metadata approval run with every candidate present;
+only afterwards are unselected candidate views removed. The selected owning source
+keeps the full original record graph, declaration inventory, failed clauses and
+request/proof identity. Native construction still commits all selected definitions
+together and reports `AcceptedWithSourceIsolation` when failures were isolated.
+This is a complete-parse/typed-source pilot, not arbitrary local-rule isolation,
+syntax recovery or automatic surviving-root selection. The ordinary native-only
+selection above retains its all-source-checked contract.
 
 Implement this incrementally: first unify error facts and ownership proofs for
 existing metadata policies; then add bounded diagnostic-only record recovery;

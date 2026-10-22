@@ -1,5 +1,10 @@
 # STEP source inspection (ticket 02)
 
+`SourceSnapshot::Sha256()` retains the immutable SHA256 of its original captured
+bytes, independently of mutable `InspectOutcome` fields. It is computed once by
+the existing capture path, not by reparsing or reopening the file. The borrowed
+string remains valid while the snapshot owner lives; ordinary reports are unchanged.
+
 `HeaderNamePolicy::PreserveFileNameText` / `--preserve-opaque-file-name-text`
 explicitly preserves nonstandard bytes in all FILE_NAME scalar STRING fields and
 author/organization STRING-list elements. Values remain `OpaqueString` with

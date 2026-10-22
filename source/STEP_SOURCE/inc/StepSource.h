@@ -164,6 +164,7 @@ public:
 
     explicit SourceSnapshot(std::shared_ptr<const SourceData> data);
     const std::string& Bytes() const;
+    const std::string& Sha256() const; // Immutable capture identity, independent of mutable outcome fields.
     const std::vector<Component>& Header() const;
     const std::vector<Record>& Records() const;
     const std::vector<Reference>& References() const;

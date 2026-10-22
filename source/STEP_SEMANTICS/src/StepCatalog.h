@@ -298,6 +298,10 @@ struct SemanticData
     std::vector<CylindricalBandRepairDeferral> cylindricalBandRepairs;
     std::vector<unsigned char> cylindricalBandRepairUses;
     std::vector<Diagnostic> cylindricalBandRepairDiagnostics;
+    std::optional<SelectedSourceRequest> selectedSourceRequest;
+    std::optional<SourceSelectionEvidence> sourceSelection;
+    std::vector<IsolatedSourceFailure> isolatedSourceFailures;
+    std::size_t sourceInfluenceVisits = 0;
     SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.
@@ -322,7 +326,7 @@ struct SemanticData
     std::size_t DiagnosticFactCount() const
     {
         return pendingIssues.size() + interpretationDiagnostics.size() + complexMappingDiagnostics.size() + cylindricalBandRepairDiagnostics.size() +
-               definitionDiagnosticCount;
+               definitionDiagnosticCount + isolatedSourceFailures.size();
     }
 };
 

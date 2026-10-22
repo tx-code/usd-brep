@@ -41,6 +41,9 @@ class ImportSettings:
     face_orientation_edits: tuple[str, ...] = ()
     selection_source_sha256: str = ''
     selected_definitions: tuple[str, ...] = ()
+    source_error_isolation: str = ''
+    maximum_isolated_source_failures: int = 0
+    maximum_source_influence_visits: int = 0
     complex_mapping_interpretation: str = 'DeclaredOnly'
     band_repair_source_sha256: str = ''
     maximum_band_repair_faces: int = 0

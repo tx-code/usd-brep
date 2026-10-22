@@ -1,5 +1,40 @@
 # STEP_IMPORT（内部 C++20）
 
+## 显式选择与未选定义的局部源错误隔离
+
+`Options.sourceErrorIsolation=SourceErrorIsolationLimits{maxFailures,maxInfluenceVisits}`
+必须与原件 SHA256 绑定的 `definitionSelection` 一起明确请求。CLI／查看器使用
+`--source-error-isolation FaceBoundsClause --max-isolated-source-failures N
+--max-source-influence-visits N`，并提供既有 `--selection-source-sha256 HASH`
+及重复的 `--select-definition ID`。两个预算必须为正，不能与修复请求组合；无生产默认值，
+固定选择／隔离计划继续仅限一个明确 STEP 输入，不能用于目录扫描。
+
+首版 `SourceFaceClauseSelection-0.1` 只覆盖固定 AP214 源配置中，**未选独立定义**实际失败的
+`FACE.WR2`。完整解析、类型、单位／几何必要依赖、全部原始定义的其余产品检查、单位上下文、
+全源归属／反向挂接与元数据最终审批仍须完成。装配、未知记录、解析错误、所选坏面和其他
+未获隔离资格的源错误保持阻塞；共享坏面在任一所选使用中仍失败。源字节、属性、方向、单位、
+几何和容差不改写，隔离不是修复，也不认证完整 AP。
+
+随后分别证明所选内容的依赖和错误的完整反向边界。所选属性及触及所选目标的显示、覆盖样式、
+图层、管理记录作为完整原件纳入影响，不过滤它们的混合目标。声明的产品／定义／形状归属桥
+覆盖原始前向引用未表达的反向所有权。错误若触及所选内容、存在共享使用或反向使用无法归属于
+已证明的未选岛，明确拒绝。仅凭前向不可达不足以通过；未选面上的孤立显示也可能因缺少归属
+证据而被拒绝。所有证明访问同时计入独立影响预算和既有语义访问预算。
+
+证明后才发布只含所选合格定义的源 `ProductDocument`；其 `PartCount()` 不再代表全部声明数。
+`SourceSelection()` 保存完整声明清单、所选／未选身份、原始错误、原件身份、请求预算和证明
+访问计数；各体的源只读快照也 own 同一证据。`Source()` 仍保留完整原始记录。
+普通源检查／原生选择的既有合同不改。源阶段声明 `CheckedSelectedDefinitions` 或原有数值
+`Deferred`，报告明确 `SelectedDefinitionsOnly`，不能将所选原生成功计为整个文件通过。
+
+所选原生体仍执行全部既有构建、查询资格及后验，并共同提交。有实际隔离时返回
+`AcceptedWithSourceIsolation`（CLI 13），独立的源解释仍保留；无实际源错误时不制造该状态。
+该配置不扩充通用原生构建的形状范围；合格源中的闭合表面仍保留 surface-model 角色，
+既有仅材料实体的通用构建路径继续明确拒绝，不能因闭合或隔离成功自动升级为实体。
+任一所选体失败、取消、预算或必需报告不足均释放未发布候选。查看器 HUD 区分选入定义数和
+隔离错误数，继续保留面／边／顶点测量与选择。原生存档及建模副本不继承 STEP 隔离资格。
+内部 C++ 源／原生接口、结果枚举与消费者需一起重建；内核 ABI 不变。
+
 ## 精确有向圆柱带的边界角色修复
 
 `Options.cylindricalBandRepair`／CLI 单文件显式计划可选择 `ExactOrientedCylindricalBand-0.1`。

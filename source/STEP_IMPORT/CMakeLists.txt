@@ -58,6 +58,14 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_source_isolation_tests tests/StepImportSourceIsolationTests.cpp)
+    target_link_libraries(step_import_source_isolation_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_source_isolation_tests PRIVATE src)
+    target_include_directories(step_import_source_isolation_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_source_isolation_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_source_isolation_contracts COMMAND step_import_source_isolation_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/independent_distinct_parts.step" "${CMAKE_CURRENT_BINARY_DIR}/source-isolation-results")
     add_executable(step_import_repair_tests tests/StepImportRepairTests.cpp)
     target_link_libraries(step_import_repair_tests PRIVATE STEP_IMPORT)
     target_include_directories(step_import_repair_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
@@ -265,7 +273,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

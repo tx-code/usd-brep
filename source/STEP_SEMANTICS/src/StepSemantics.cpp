@@ -7,6 +7,7 @@
 #include "StepIndependentProducts.h"
 #include "StepProductStructure.h"
 #include "StepSchemaSelection.h"
+#include "StepSourceIsolation.h"
 #include "StepSourceNumber.h"
 #include "StepUnitDependencies.h"
 
@@ -160,19 +161,31 @@ public:
             Phase::Part,
             [&]
             {
+                if (m_data->selectedSourceRequest && !IsAp214SourceProfile(m_data->profile.kind))
+                {
+                    Fail(
+                        "SourceIsolationProfileUnsupported",
+                        "D2",
+                        "Source clause isolation requires the pinned AP214 source profile",
+                        m_data->source->Header()[2].span,
+                        Status::Unsupported
+                    );
+                }
                 auto structure = InspectProductStructure(
                     *m_data,
                     [this](Span span)
                     {
                         Visit(span);
-                    }
+                    },
+                    m_data->selectedSourceRequest.has_value()
                 );
                 if (structure.failure)
                 {
                     throw Failure{ structure.failure->status, std::move(structure.failure->diagnostic) };
                 }
                 m_outcome.productStructure = std::move(structure.structure);
-                if (m_independentRequest && m_outcome.productStructure && m_outcome.productStructure->Definitions().size() > 1)
+                if (m_independentRequest && m_outcome.productStructure &&
+                    (m_outcome.productStructure->Definitions().size() > 1 || m_data->selectedSourceRequest))
                 {
                     IndependentProducts();
                 }
@@ -253,6 +266,23 @@ public:
                     ApprovePreservedMetadata();
                 }
             );
+        }
+        if (m_data->selectedSourceRequest)
+        {
+            Expects(bool(m_outcome.productStructure));
+            if (auto failure = QualifySelectedSource(
+                    *m_data,
+                    *m_outcome.productStructure,
+                    m_outgoing,
+                    [this](Span span)
+                    {
+                        Visit(span);
+                    }
+                ))
+            {
+                State(Phase::Part) = FailureProgress(failure->status);
+                throw Failure{ failure->status, std::move(failure->diagnostic) };
+            }
         }
     }
     void InspectDefinitions()
@@ -417,6 +447,8 @@ public:
         m_outcome.interpretationDiagnostics = m_data->interpretationDiagnostics;
         m_outcome.complexMappingDiagnostics = m_data->complexMappingDiagnostics;
         m_outcome.cylindricalBandRepairDiagnostics = m_data->cylindricalBandRepairDiagnostics;
+        m_outcome.isolatedSourceFailures = m_data->isolatedSourceFailures;
+        m_outcome.sourceInfluenceVisits = m_data->sourceInfluenceVisits;
         if (!m_data->complexMappingDiagnostics.empty() && State(Phase::Types) == Progress::Passed)
         {
             m_outcome.types = "CheckedWithDiagnostics";
@@ -476,6 +508,10 @@ public:
             m_definitionInspection->unapprovedDiagnostics = m_outcome.unapprovedDiagnostics;
             m_outcome.part = "InspectedPerDefinition";
             m_outcome.siUnits = "InspectedPerDefinition";
+        }
+        if (m_data->sourceSelection)
+        {
+            m_outcome.part = "CheckedSelectedDefinitions";
         }
     }
 
@@ -560,6 +596,7 @@ private:
             case Status::CheckedWithDiagnostics:
             case Status::Deferred:
             case Status::SourceFailure:
+            case Status::CheckedSelectedDefinitions:
                 break;
         }
         throw std::logic_error("Invalid semantic phase failure status");
@@ -599,6 +636,7 @@ private:
     std::vector<std::size_t> m_documentPhysical, m_documentBodies;
     std::unordered_set<std::size_t> m_documentBodySet;
     std::unordered_set<std::size_t> m_requestedProducts;
+    std::unordered_set<std::string> m_selectedSourceDefinitions;
     class PopulationScope
     {
     public:
@@ -691,6 +729,48 @@ private:
                 m_data->source->Header()[2].span,
                 Status::Unsupported
             );
+        }
+        if (m_data->selectedSourceRequest)
+        {
+            if (!IsAp214SourceProfile(m_data->profile.kind))
+            {
+                Fail(
+                    "SourceIsolationProfileUnsupported",
+                    "D2",
+                    "Source clause isolation requires the pinned AP214 source profile",
+                    m_data->source->Header()[2].span,
+                    Status::Unsupported
+                );
+            }
+            std::unordered_set<std::string> remaining;
+            for (const auto& id : m_data->selectedSourceRequest->definitionIds)
+            {
+                if (!remaining.insert(id).second)
+                {
+                    Fail(
+                        "DuplicateSelectedSourceDefinition",
+                        "D2",
+                        "A source definition may be requested only once",
+                        m_data->source->Header()[2].span,
+                        Status::Unsupported
+                    );
+                }
+            }
+            m_selectedSourceDefinitions = remaining;
+            for (const auto& scope : plan.parts)
+            {
+                remaining.erase(Record(scope.definition).id);
+            }
+            if (!remaining.empty())
+            {
+                Fail(
+                    "SelectedSourceDefinitionUnavailable",
+                    "D2",
+                    "Every selected definition must occur in the declared inventory",
+                    m_data->source->Header()[2].span,
+                    Status::Unsupported
+                );
+            }
         }
         // Scopes alter only role/population queries. All values, source indices,
         // type bindings and reference identities still belong to one source.
@@ -1395,6 +1475,44 @@ private:
         }
     }
 
+    bool DeferUnselectedFaceClause(std::size_t face, const Failure& original)
+    {
+        if (!m_data->selectedSourceRequest || !IsAp214SourceProfile(m_data->profile.kind) ||
+            original.diagnostic.source.key != "SourceRuleViolation:FACE.WR2")
+        {
+            return false;
+        }
+        const auto owner = std::find_if(
+            m_data->part.roles.begin(),
+            m_data->part.roles.end(),
+            [](const auto& role)
+            {
+                return role.name == "definition";
+            }
+        );
+        if (owner == m_data->part.roles.end() || m_selectedSourceDefinitions.contains(Record(owner->recordIndex).id))
+        {
+            return false;
+        }
+        if (m_data->isolatedSourceFailures.size() >= m_data->selectedSourceRequest->maximumIsolatedFailures ||
+            m_data->DiagnosticFactCount() >= m_outcome.limits.preservedDiagnostics)
+        {
+            Fail(
+                "SourceIsolationDiagnosticLimit",
+                "D2",
+                "Explicit source isolation diagnostic capacity exceeded",
+                Record(face).span,
+                Status::ResourceLimit,
+                face
+            );
+        }
+        // Retain the actual defining-clause failure, without repairing source,
+        // granting metadata approval or declaring the candidate part qualified.
+        // Whole-source checks and the separate locality proof still follow.
+        m_data->isolatedSourceFailures.push_back({ Record(owner->recordIndex).id, original.diagnostic });
+        State(*m_phase) = Progress::Running;
+        return true;
+    }
     bool DeferCylindricalBandRepair(std::size_t face, const Failure& original)
     {
         const auto& roles = m_data->part.roles;
@@ -3012,7 +3130,7 @@ private:
                     }
                     catch (const Failure& failure)
                     {
-                        if (!DeferCylindricalBandRepair(face, failure))
+                        if (!DeferUnselectedFaceClause(face, failure) && !DeferCylindricalBandRepair(face, failure))
                         {
                             throw;
                         }
@@ -4960,6 +5078,10 @@ std::size_t ProductDocument::PartCount() const
 {
     return m_data->independentParts.size();
 }
+const std::optional<SourceSelectionEvidence>& ProductDocument::SourceSelection() const
+{
+    return m_data->sourceSelection;
+}
 const std::vector<Role>& ProductDocument::Roles() const
 {
     return m_data->part.roles;
@@ -5045,6 +5167,10 @@ const std::vector<Diagnostic>& Snapshot::InterpretationDiagnostics() const
 const Units& Snapshot::UnitContext() const
 {
     return m_partIndex ? m_data->independentParts.at(*m_partIndex).units : m_data->units;
+}
+const std::optional<SourceSelectionEvidence>& Snapshot::SourceSelection() const
+{
+    return m_data->sourceSelection;
 }
 const std::vector<Diagnostic>& Snapshot::PreservedDiagnostics() const
 {
@@ -5184,7 +5310,8 @@ static Outcome CheckImpl(
     ComplexMappingInterpretation complexMappingInterpretation,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs,
     bool independentRequest,
-    bool inspectDefinitions = false
+    bool inspectDefinitions = false,
+    const SelectedSourceRequest* selection = nullptr
 )
 {
     if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
@@ -5223,6 +5350,38 @@ static Outcome CheckImpl(
         throw std::invalid_argument("Unverified carrier interpretation requires explicit general interoperability");
     }
     Outcome result;
+    if (selection)
+    {
+        const auto canonical = [](const auto& id)
+        {
+            return !id.empty() && id.size() <= 64 && (id.size() == 1 || id[0] != '0') &&
+                   std::all_of(
+                       id.begin(),
+                       id.end(),
+                       [](char c)
+                       {
+                           return c >= '0' && c <= '9';
+                       }
+                   );
+        };
+        if (!independentRequest || inspectDefinitions || !cylindricalBandRepairs.empty() || selection->sourceSha256.size() != 64 ||
+            !std::all_of(
+                selection->sourceSha256.begin(),
+                selection->sourceSha256.end(),
+                [](char c)
+                {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                }
+            ) ||
+            selection->definitionIds.empty() || selection->definitionIds.size() > source.limits.records ||
+            !std::all_of(selection->definitionIds.begin(), selection->definitionIds.end(), canonical) || !selection->maximumIsolatedFailures ||
+            selection->maximumIsolatedFailures > source.limits.records || !selection->maximumInfluenceVisits ||
+            selection->maximumInfluenceVisits > 10000000)
+        {
+            throw std::invalid_argument("Selected source requires explicit canonical identities and bounded positive isolation budgets");
+        }
+        result.sourceSelectionRequest = *selection;
+    }
     result.limits = limits;
     result.policy = policy;
     result.geometryScope = scope;
@@ -5253,6 +5412,18 @@ static Outcome CheckImpl(
         result.diagnostics.push_back(std::move(diagnostic));
         return result;
     }
+    if (selection && (selection->sourceSha256 != source.source->Sha256() || source.sha256 != source.source->Sha256() || !source.captured ||
+                      (source.captured.get() != &source.source->Bytes() && *source.captured != source.source->Bytes())))
+    {
+        result.status = Status::Unsupported;
+        Diagnostic diagnostic;
+        diagnostic.source.key = "SourceSelectionInputMismatch";
+        diagnostic.source.stage = "D2";
+        diagnostic.source.message = "Source selection must bind the immutable original capture and its consistent receipt";
+        diagnostic.classification = "ProfileUnsupported";
+        result.diagnostics.push_back(std::move(diagnostic));
+        return result;
+    }
     auto data = std::make_shared<SemanticData>();
     data->source = source.source;
     data->policy = policy;
@@ -5263,6 +5434,10 @@ static Outcome CheckImpl(
     data->cylindricalBandRepairUses.resize(cylindricalBandRepairs.size());
     data->preservedDiagnosticLimit = limits.preservedDiagnostics;
     data->definitionInspectionRequested = inspectDefinitions;
+    if (selection)
+    {
+        data->selectedSourceRequest = *selection;
+    }
     Checker checker(data, result, independentRequest);
     try
     {
@@ -5309,6 +5484,10 @@ static Outcome CheckImpl(
              !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
         {
             result.status = Status::CheckedWithDiagnostics;
+        }
+        if (data->sourceSelection && (result.status == Status::Checked || result.status == Status::CheckedWithDiagnostics))
+        {
+            result.status = Status::CheckedSelectedDefinitions;
         }
         if (data->independentParts.empty())
         {
@@ -5384,6 +5563,30 @@ Outcome InspectIndependentDefinitions(
         true
     );
 }
+Outcome CheckSelectedIndependentProducts(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    const SelectedSourceRequest& selection,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
+)
+{
+    return CheckImpl(
+        source,
+        limits,
+        policy,
+        GeometryScope::GeneralBrep,
+        interpretation,
+        unitInterpretation,
+        complexMappingInterpretation,
+        {},
+        true,
+        false,
+        &selection
+    );
+}
 const char* StatusName(Status status)
 {
     switch (status)
@@ -5402,6 +5605,8 @@ const char* StatusName(Status status)
             return "ResourceLimit";
         case Status::SourceFailure:
             return "SourceFailure";
+        case Status::CheckedSelectedDefinitions:
+            return "CheckedSelectedDefinitions";
     }
     return "Unknown";
 }

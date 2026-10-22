@@ -7,7 +7,7 @@ add_subdirectory(../STEP_SOURCE source-reader)
 add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepSemantics.cpp src/StepSemanticJson.cpp src/StepSchemaSelection.cpp
     src/StepGeometryDependencies.cpp src/StepSourceNumber.cpp src/StepUnitDependencies.cpp src/StepUnitRational.cpp)
 target_sources(STEP_SEMANTICS PRIVATE src/StepSourceBindings.cpp src/StepProductStructure.cpp src/StepIndependentProducts.cpp
-    src/StepDefinitionInspection.cpp)
+    src/StepDefinitionInspection.cpp src/StepSourceIsolation.cpp)
 target_include_directories(STEP_SEMANTICS PUBLIC inc PRIVATE src)
 target_compile_features(STEP_SEMANTICS PUBLIC cxx_std_20)
 target_link_libraries(STEP_SEMANTICS PUBLIC STEP_SOURCE PRIVATE usd_brep_gsl)
@@ -26,6 +26,11 @@ if(STEP_SEMANTICS_BUILD_TESTS)
     add_executable(step_definition_inspection_tests tests/StepDefinitionInspectionTests.cpp)
     target_link_libraries(step_definition_inspection_tests PRIVATE STEP_SEMANTICS)
     add_test(NAME step_definition_inspection_contracts COMMAND step_definition_inspection_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../STEP_IMPORT/tests/fixtures/independent_distinct_parts.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../STEP_IMPORT/tests/fixtures/independent_two_parts.step")
+    add_executable(step_source_isolation_tests tests/StepSourceIsolationTests.cpp)
+    target_link_libraries(step_source_isolation_tests PRIVATE STEP_SEMANTICS)
+    add_test(NAME step_source_isolation_contracts COMMAND step_source_isolation_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../STEP_IMPORT/tests/fixtures/independent_distinct_parts.step"
         "${CMAKE_CURRENT_SOURCE_DIR}/../STEP_IMPORT/tests/fixtures/independent_two_parts.step")
     # These are acceptance tools, never product runtime dependencies. The sealed
@@ -57,7 +62,7 @@ if(STEP_SEMANTICS_BUILD_TESTS)
         add_test(NAME step_catalog_allocations_${profile} COMMAND step_catalog_allocations ${profile})
     endforeach()
 endif()
-foreach(target STEP_SEMANTICS step_semantic_inspect step_semantics_tests step_definition_inspection_tests step_catalog_snapshot step_catalog_allocations)
+foreach(target STEP_SEMANTICS step_semantic_inspect step_semantics_tests step_definition_inspection_tests step_source_isolation_tests step_catalog_snapshot step_catalog_allocations)
     if(TARGET ${target})
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /WX /permissive- /utf-8)

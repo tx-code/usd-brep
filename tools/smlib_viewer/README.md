@@ -1,5 +1,16 @@
 # BRep Viewer
 
+An explicit one-file selected-source request may add
+`--source-error-isolation FaceBoundsClause --max-isolated-source-failures N
+--max-source-influence-visits N` to the existing original-SHA/definition selection
+flags. This is the native [selected source contract](../../source/STEP_IMPORT/README.md):
+only proven unselected AP214 FACE.WR2 failures are eligible, other source/global
+checks remain, and no source or geometry is rewritten. It cannot be used in a scan.
+The worker reports `AcceptedWithSourceIsolation`, binds the scope/budgets to the
+scene and preserves complete selected publication; HUD selection and isolated-error
+counts stay distinct. Failed or mismatched evidence cannot be adopted as a scene.
+Ordinary requests and the existing source-complete selection keep their behavior.
+
 Minimal, read-only viewer with a single viewport, HUD, file drag/drop and CLI
 startup. The Windows portable directory includes Python, Qt, VTK and the native
 import worker. Keep the directory together; a target machine needs no Python

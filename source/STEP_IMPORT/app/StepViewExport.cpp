@@ -260,10 +260,12 @@ void Publish(
                 w.String(status);
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
-                if (info && report.definitionSelection)
+                if (report.definitionSelection && (info || nativeStatus == "AcceptedWithSourceIsolation"))
                 {
                     const auto& selection = *report.definitionSelection;
-                    w.Add(",\"definition_selection\":{\"configuration\":\"SourceCompleteNativeSelection-0.1\",\"source_sha256\":");
+                    w.Add(",\"definition_selection\":{\"configuration\":");
+                    w.String(selection.configuration);
+                    w.Add(",\"source_sha256\":");
                     w.String(selection.sourceSha256);
                     w.Add(",\"source_definition_count\":");
                     w.Number(selection.sourceDefinitionIds.size());
@@ -276,7 +278,21 @@ void Publish(
                         }
                         w.String(selection.selectedDefinitionIds[i]);
                     }
-                    w.Add("],\"native_scope\":\"ExplicitSelectedDefinitions\"}");
+                    w.Add("],\"native_scope\":\"ExplicitSelectedDefinitions\"");
+                    if (report.sourceErrorIsolationRequest)
+                    {
+                        w.Add(",\"source_scope\":");
+                        w.String(selection.sourceScope);
+                        w.Add(",\"isolated_source_failure_count\":");
+                        w.Number(selection.isolatedSourceFailureCount);
+                        w.Add(",\"maximum_isolated_failures\":");
+                        w.Number(report.sourceErrorIsolationRequest->maximumFailures);
+                        w.Add(",\"maximum_influence_visits\":");
+                        w.Number(report.sourceErrorIsolationRequest->maximumInfluenceVisits);
+                        w.Add(",\"influence_visits\":");
+                        w.Number(report.generalSource->sourceInfluenceVisits);
+                    }
+                    w.Add("}");
                 }
                 if (info && nativeStatus == "AcceptedWithRepairs")
                 {
@@ -295,6 +311,16 @@ void Publish(
                                                                                                  nullptr) :
                                                                nullptr;
                 const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : step_semantics::UnitInterpretation::DeclaredOnly;
+                if (info && nativeStatus == "AcceptedWithSourceIsolation")
+                {
+                    w.Add(",\"source_interpretation_applied\":");
+                    w.Bool(
+                        sourceView && (sourceView->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
+                                       sourceView->Source().AppliedCarrierAssumption() || sourceView->Source().HasAsciiInvariantDataAssumption() ||
+                                       sourceView->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly ||
+                                       !sourceView->ComplexMappingAssumptions().empty())
+                    );
+                }
                 const auto requestedMapping = report.generalSource ? report.generalSource->requestedComplexMappingInterpretation :
                                                                      step_semantics::ComplexMappingInterpretation::DeclaredOnly;
                 if (requestedMapping != step_semantics::ComplexMappingInterpretation::DeclaredOnly)
@@ -455,7 +481,8 @@ int Run(
     const std::optional<step_import::FaceOrientationRepairRequest>& repair = {},
     const std::optional<step_import::DefinitionSelectionRequest>& selection = {},
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
-    const std::optional<step_import::CylindricalBandRepairRequest>& bandRepair = {}
+    const std::optional<step_import::CylindricalBandRepairRequest>& bandRepair = {},
+    const std::optional<step_import::SourceErrorIsolationLimits>& sourceIsolation = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -479,6 +506,7 @@ int Run(
         options.generalBrep = true;
         options.faceOrientationRepair = repair;
         options.definitionSelection = selection;
+        options.sourceErrorIsolation = sourceIsolation;
         options.complexMappingInterpretation = complexMappingInterpretation;
         options.cylindricalBandRepair = bandRepair;
         options.quality = profile == "development"          ? step_import::Quality::GeneralDevelopment() :
@@ -794,6 +822,7 @@ int wmain(int argc, wchar_t** argv)
             Good(std::wstring_view(argv[11]) == L"0" || std::wstring_view(argv[11]) == L"1", "InvalidDataFlag");
         }
         step_import::Options request;
+        step_import_app::SelectionArgumentState selectionArguments;
         for (int i = 13; i < argc; i += 2)
         {
             Good(
@@ -802,7 +831,12 @@ int wmain(int argc, wchar_t** argv)
                     std::filesystem::path(argv[i + 1]).string(),
                     request
                 ) || step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
-                    step_import_app::SelectionArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                    step_import_app::SelectionArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        request,
+                        selectionArguments
+                    ) ||
                     step_import_app::ComplexMappingArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -811,6 +845,7 @@ int wmain(int argc, wchar_t** argv)
                 "UnknownRequestArgument"
             );
         }
+        step_import_app::ValidateSelectionArguments(request, selectionArguments);
         return Run(
             argv[1],
             argv[2],
@@ -827,7 +862,8 @@ int wmain(int argc, wchar_t** argv)
             request.faceOrientationRepair,
             request.definitionSelection,
             request.complexMappingInterpretation,
-            request.cylindricalBandRepair
+            request.cylindricalBandRepair,
+            request.sourceErrorIsolation
         );
     }
     catch (...)
@@ -859,16 +895,18 @@ int main(int argc, char** argv)
             Good(std::string_view(argv[11]) == "0" || std::string_view(argv[11]) == "1", "InvalidDataFlag");
         }
         step_import::Options request;
+        step_import_app::SelectionArgumentState selectionArguments;
         for (int i = 13; i < argc; i += 2)
         {
             Good(
                 step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::RepairArgument(argv[i], argv[i + 1], request) ||
-                    step_import_app::SelectionArgument(argv[i], argv[i + 1], request) ||
+                    step_import_app::SelectionArgument(argv[i], argv[i + 1], request, selectionArguments) ||
                     step_import_app::ComplexMappingArgument(argv[i], argv[i + 1], request),
                 "UnknownRequestArgument"
             );
         }
+        step_import_app::ValidateSelectionArguments(request, selectionArguments);
         return Run(
             argv[1],
             argv[2],
@@ -885,7 +923,8 @@ int main(int argc, char** argv)
             request.faceOrientationRepair,
             request.definitionSelection,
             request.complexMappingInterpretation,
-            request.cylindricalBandRepair
+            request.cylindricalBandRepair,
+            request.sourceErrorIsolation
         );
     }
     catch (...)

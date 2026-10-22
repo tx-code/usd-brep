@@ -43,7 +43,8 @@ class RequestReceipt:
         native_status = scene.get("status") if is_cad else None
         explicit_status = scene.get("native_import_status") if is_cad else None
         import_complete = is_cad and (ready or "copy" in phases or
-                                     explicit_status in ("Accepted", "AcceptedUnderInterpretation", "AcceptedWithRepairs"))
+                                     explicit_status in ("Accepted", "AcceptedUnderInterpretation",
+                                                         "AcceptedWithRepairs", "AcceptedWithSourceIsolation"))
         if native_status in (None, "Ready", "DisplayFailure"):
             # Ready establishes this viewer's import stage completed. It does
             # not expose the core's exact acceptance/interpretation status, so

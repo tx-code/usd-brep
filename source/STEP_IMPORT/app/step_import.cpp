@@ -61,6 +61,8 @@ int Exit(step_import::Status status)
             return 11; // A model exists, with an unverified schema or carrier assumption.
         case Status::AcceptedWithRepairs:
             return 12; // Owning repair history and independent source assumptions must be retained.
+        case Status::AcceptedWithSourceIsolation:
+            return 13; // Complete explicit selection; original excluded-source failures remain owned.
         case Status::Rejected:
             return 1;
         case Status::Unsupported:
@@ -97,6 +99,7 @@ int main(int argc, char** argv)
         std::string file;
         std::optional<std::filesystem::path> nativeOutput;
         bool limits = false, quality = false;
+        step_import_app::SelectionArgumentState selectionArguments;
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
@@ -116,13 +119,13 @@ int main(int argc, char** argv)
                 }
                 step_import_app::ComplexMappingArgument(arg, argv[++i], options);
             }
-            else if (arg == "--selection-source-sha256" || arg == "--select-definition")
+            else if (step_import_app::IsSelectionArgument(arg))
             {
                 if (i + 1 == argc)
                 {
                     throw std::invalid_argument("Selection option value required");
                 }
-                step_import_app::SelectionArgument(arg, argv[++i], options);
+                step_import_app::SelectionArgument(arg, argv[++i], options, selectionArguments);
             }
             else if (
                 arg == "--repair-source-sha256" || arg == "--max-face-orientation-edits" || arg == "--repair-face-orientation" ||
@@ -344,6 +347,7 @@ int main(int argc, char** argv)
                 throw std::invalid_argument("Unexpected argument");
             }
         }
+        step_import_app::ValidateSelectionArguments(options, selectionArguments);
         if (!limits || !quality || file.empty())
         {
             throw std::invalid_argument("Use --fixture-limits --quality Q-P0-mm-01 input.step [--query x y z]");

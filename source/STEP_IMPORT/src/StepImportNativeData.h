@@ -88,7 +88,7 @@ struct DocumentData
     };
     std::shared_ptr<const step_semantics::ProductDocument> source;
     std::optional<DefinitionSelectionReceipt> selection;
-    std::vector<std::size_t> sourcePartIndices; // Native part ordinals are distinct from complete source-document ordinals.
+    std::vector<std::size_t> sourcePartIndices; // Qualified source-view ordinals, distinct from declared inventory and native ordinals.
     std::vector<PartModel> parts;
     std::vector<Body> bodies;
 };

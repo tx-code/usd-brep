@@ -13,6 +13,14 @@ namespace step_import::detail
 namespace
 {
 using step_source::report::Writer;
+bool IsAcceptedReportStatus(Status status)
+{
+    // Scope and source-error provenance differ, but every accepted status has
+    // passed the same selected-model publication gate. Nested reports must retain
+    // its completeness and native observations, including isolated-source results.
+    return status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs ||
+           status == Status::AcceptedWithSourceIsolation;
+}
 void Number(Writer& writer, double value)
 {
     if (!std::isfinite(value))
@@ -606,7 +614,16 @@ void WriteReportJson(
                 }
                 w.Add("]");
             };
-            w.Add(",\"definition_selection\":{\"configuration\":\"SourceCompleteNativeSelection-0.1\",\"requested_source_sha256\":");
+            w.Add(",\"definition_selection\":{\"configuration\":");
+            w.String(report.sourceErrorIsolationRequest ? step_semantics::SourceFaceClauseSelectionProfile : "SourceCompleteNativeSelection-0.1");
+            if (report.sourceErrorIsolationRequest)
+            {
+                w.Add(",\"maximum_isolated_source_failures\":");
+                w.Number(report.sourceErrorIsolationRequest->maximumFailures);
+                w.Add(",\"maximum_source_influence_visits\":");
+                w.Number(report.sourceErrorIsolationRequest->maximumInfluenceVisits);
+            }
+            w.Add(",\"requested_source_sha256\":");
             w.String(report.definitionSelectionRequest->sourceSha256);
             w.Add(",\"requested_definitions\":");
             strings(report.definitionSelectionRequest->definitionIds);
@@ -616,7 +633,14 @@ void WriteReportJson(
                 const auto& receipt = *report.definitionSelection;
                 w.Add("{\"source_sha256\":");
                 w.String(receipt.sourceSha256);
-                w.Add(",\"source_scope\":\"AllDefinitionsChecked\",\"native_scope\":\"ExplicitSelectedDefinitions\",\"source_definitions\":");
+                w.Add(",\"source_scope\":");
+                w.String(receipt.sourceScope);
+                if (report.sourceErrorIsolationRequest)
+                {
+                    w.Add(",\"isolated_source_failure_count\":");
+                    w.Number(receipt.isolatedSourceFailureCount);
+                }
+                w.Add(",\"native_scope\":\"ExplicitSelectedDefinitions\",\"source_definitions\":");
                 strings(receipt.sourceDefinitionIds);
                 w.Add(",\"selected_definitions\":");
                 strings(receipt.selectedDefinitionIds);
@@ -924,7 +948,7 @@ void WriteReportJson(
         if (report.materialCollection)
         {
             w.Add(",\"material_collection\":{\"complete\":");
-            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs);
+            w.Bool(IsAcceptedReportStatus(status));
             w.Add(",\"selected_body_count\":");
             w.Number(
                 report.generalSource && report.generalSource->snapshot ? report.generalSource->snapshot->PartDefinition().shapes.size() :
@@ -962,7 +986,7 @@ void WriteReportJson(
         if (report.productDocument)
         {
             w.Add(",\"product_document\":{\"complete\":");
-            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs);
+            w.Bool(IsAcceptedReportStatus(status));
             w.Add(",\"selected_definition_count\":");
             w.Number(
                 report.definitionSelectionRequest ? (report.definitionSelection ? report.definitionSelection->selectedDefinitionIds.size() : 0) :
@@ -1018,7 +1042,7 @@ void WriteReportJson(
             w.Add("}");
         }
         w.Add("],\"model\":");
-        if (report.native && (status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs))
+        if (report.native && IsAcceptedReportStatus(status))
         {
             StatisticsJson(w, *report.native);
         }

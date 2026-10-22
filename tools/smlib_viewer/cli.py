@@ -42,6 +42,9 @@ def main(argv=None):
     parser.add_argument('--repair-cylindrical-band', action='append', default=[], dest='cylindrical_band_repairs',
                         help='显式周期边界角色修复：definition:shape:face:bound0:bound1')
     parser.add_argument('--selection-source-sha256', default='')
+    parser.add_argument('--source-error-isolation', choices=('FaceBoundsClause',), default='')
+    parser.add_argument('--max-isolated-source-failures', type=int, default=0, dest='maximum_isolated_source_failures')
+    parser.add_argument('--max-source-influence-visits', type=int, default=0, dest='maximum_source_influence_visits')
     parser.add_argument('--select-definition', action='append', default=[], dest='selected_definitions',
                         help='显式选择 STEP 独立零件的源定义 ID；必须同时提供原始 SHA256，不跳过源检查')
     parser.add_argument('--max-face-orientation-edits', type=int, default=0, dest='maximum_face_orientation_edits')
