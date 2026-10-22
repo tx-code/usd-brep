@@ -973,3 +973,21 @@ property/unknown uses do not gain an exception (including potential
 This is scoped source interpretation, not full AP214 conformance, repair, or
 arbitrary encoding recovery. Strict/P0 and ordinary opaque preservation retain
 their previous behavior; non-ASCII name equality remains unestablished.
+
+
+General BRep source checking distinguishes one product definition from one shape.
+For the registered AP214, N2635 general and modified N916 source profiles, an
+`ADVANCED_BREP_SHAPE_REPRESENTATION` may inventory multiple registered
+`MANIFOLD_SOLID_BREP` items. `Part::shapes` retains each source solid, outer shell
+and individual role in serialized item order (not assembly order or geometric
+priority). Distinct solids sharing source definitions are not deduplicated.
+All selected bodies remain in the representation dependency closure and ordinary
+type, unit, face-bound and ownership checks still apply to the whole request.
+
+A multi-solid inventory has aggregate role `MaterialSolidCollection`; JSON writes
+`part.source_shapes`. The singleton `roles` map omits `shape`/`shell` rather than
+emitting duplicate keys or selecting a representative body. Single-shape reports
+remain unchanged. The frozen planar profile and multi-shell surface models retain
+their existing multiplicity guard. This is source evidence only: native collection
+construction/publication is not yet implemented, and no body may be published as
+an implicit partial result. `shape_geometry_verified` remains false.

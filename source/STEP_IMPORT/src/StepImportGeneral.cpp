@@ -221,8 +221,7 @@ public:
                 // The periodic pass may split source edges. Its checked union
                 // of original-basis child intervals replaces pointer/interval
                 // identity; do not dereference pre-split edge handles here.
-                Need(m_model->topologyNormalization->sourceCurveIntervalsCovered,
-                     "SphericalPoleSourceCoverageUnestablished", shape);
+                Need(m_model->topologyNormalization->sourceCurveIntervalsCovered, "SphericalPoleSourceCoverageUnestablished", shape);
             }
             else
             {
@@ -230,8 +229,11 @@ public:
                 {
                     Step(curves[i].record);
                     const auto interval = m_model->edges[i]->GetInterval();
-                    Need(interval.GetMin() == curves[i].t0 && interval.GetMax() == curves[i].t1,
-                         "SphericalPoleSourceIntervalChanged", curves[i].record);
+                    Need(
+                        interval.GetMin() == curves[i].t0 && interval.GetMax() == curves[i].t1,
+                        "SphericalPoleSourceIntervalChanged",
+                        curves[i].record
+                    );
                 }
             }
             for (Index i = 0; i < vertices.size(); ++i)
@@ -343,6 +345,17 @@ private:
     }
     void Prepare()
     {
+        // Source checking can inventory every MSB in one part. Until collection
+        // publication is implemented, reject the whole request before selecting
+        // a singular role or making any native allocation. Never import body 0.
+        if (m_source->PartDefinition().shapes.size() > 1)
+        {
+            throw Failure{ Status::Unsupported,
+                           "GeneralMaterialCollectionNotImplemented",
+                           "Complete multi-body native construction and publication are not implemented",
+                           Role("representation"),
+                           "GeneralBrep" };
+        }
         for (const auto& role : m_source->PartDefinition().roles)
         {
             if (role.name == "wireframe_representation")
@@ -1444,7 +1457,9 @@ private:
         // conversion to binary64 must not enlarge a normalization allowance.
         const auto allowance = m_options.quality.definitionMm;
         const double budget = std::nextafter(
-            std::nextafter(double(allowance.Numerator()), 0.) / std::nextafter(double(allowance.Denominator()), INFINITY), 0.);
+            std::nextafter(double(allowance.Numerator()), 0.) / std::nextafter(double(allowance.Denominator()), INFINITY),
+            0.
+        );
         const auto offset = Sub(circle.o, frame.o);
         const double height = Dot(offset, frame.z), parallel = Dot(circle.z, frame.z);
         // This slice has one complete coaxial circular boundary. Closed-form
@@ -1842,7 +1857,8 @@ private:
                 mapping.sourceGeometryId = Id(g);
                 mapping.sourceUseId = Id(f.record);
                 mapping.targetFaceIndex = m_model->faces.size();
-                mapping.equation = "target analytic longitude domain is degrees with one full period; source frame/radius unchanged; no source-pcurve or ordinary-NURBS-UV identity asserted";
+                mapping.equation =
+                    "target analytic longitude domain is degrees with one full period; source frame/radius unchanged; no source-pcurve or ordinary-NURBS-UV identity asserted";
                 mapping.parameters = { { "native_analytic_domain_degrees", { angles[0], -90, angles[1], 90 } } };
                 m_report.parameterMappings.push_back(std::move(mapping));
                 break;
@@ -2147,7 +2163,14 @@ private:
                     // Keep the defining spline and its parameter interval; a
                     // single paired candidate must satisfy the unchanged budget.
                     const auto tolerance = SmTol::GetZoneTol3d(edge);
-                    auto projected = ProjectDerivedUv(*uses[k], Q(m_options.quality.derivedUvMm), [&] { Step(f.record); });
+                    auto projected = ProjectDerivedUv(
+                        *uses[k],
+                        Q(m_options.quality.derivedUvMm),
+                        [&]
+                        {
+                            Step(f.record);
+                        }
+                    );
                     Need(SmTol::GetZoneTol3d(edge) == tolerance, "GeneralProjectionChangedWorkTolerance", f.record);
                     if (projected.status != DerivedUvStatus::Ready)
                     {
@@ -2166,21 +2189,21 @@ private:
                     // Preserve the defining curve and its native parameter t.
                     // Face closure/seam handling and final paired measurements
                     // still run below, followed by global topology/tolerance checks.
-                    const char* kind = splineProjection ? "ControlledSplineSurfaceUvProjection" :
-                                       coneProjection ? "ControlledConeUvProjection" :
+                    const char* kind = splineProjection                                        ? "ControlledSplineSurfaceUvProjection" :
+                                       coneProjection                                          ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
-                                                                                              "ControlledCircleUvProjection";
+                                                                                                 "ControlledCircleUvProjection";
                     RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, index };
                     for (const auto& loop : f.loops)
                     {
                         normalization.sourceBoundIds.push_back(Id(loop.bound));
                     }
                     m_report.normalizations.push_back(std::move(normalization));
-                    m_report.tolerances.push_back({ kind, "RequestedProjectionAccuracy", Id(curves[index].record),
-                                                    Q(m_options.quality.derivedUvMm) / 8 });
+                    m_report.tolerances.push_back(
+                        { kind, "RequestedProjectionAccuracy", Id(curves[index].record), Q(m_options.quality.derivedUvMm) / 8 }
+                    );
                     m_report.tolerances.push_back({ kind, "ProjectionSampleMaximum", Id(curves[index].record), *projected.projectionGapMm });
-                    m_report.tolerances.push_back({ kind, "RawPairedParameterSampleMaximum", Id(curves[index].record),
-                                                    projected.rawPair->maximumMm });
+                    m_report.tolerances.push_back({ kind, "RawPairedParameterSampleMaximum", Id(curves[index].record), projected.rawPair->maximumMm });
                     m_rebuiltUv = true;
                 }
             }

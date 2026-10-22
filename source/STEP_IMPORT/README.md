@@ -633,3 +633,9 @@ AP214 表示名称，排除纯 ASCII 特殊用途；转义、控制字节、未�
 
 面、线框和支撑几何 owning view 的 `HasAsciiInvariantDataAssumption()` 同样读取源内证明，
 释放导入结果后不会丢失该解释资格。
+
+
+同一零件的多个 MSB 现在可以经过 general 源检查，并在源报告中完整列出
+`part.source_shapes`，聚合角色为 `MaterialSolidCollection`。原生集合构建尚未实现：
+导入器在任何原生分配之前以 `GeneralMaterialCollectionNotImplemented` 拒绝完整请求，
+不会取第一件、最大件或把实体默默合并。单体路径保持原行为；源检查成功不计入原生导入成功。

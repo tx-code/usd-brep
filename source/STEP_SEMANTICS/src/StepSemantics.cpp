@@ -2280,7 +2280,13 @@ private:
             }
             shapes.push_back(target);
         }
-        if (shapes.size() != 1)
+        // General source checking distinguishes one product definition from
+        // one solid. AP214/N2635/modified N916 ABSR.items may retain several
+        // MSBs. This is a typed source inventory, not a Boolean union or native
+        // construction qualification. The frozen planar profile remains singular.
+        const bool materialCollection = m_data->geometryScope == GeometryScope::GeneralBrep &&
+                                        IsA(*m_data, m_representation, "ADVANCED_BREP_SHAPE_REPRESENTATION");
+        if (shapes.empty() || (shapes.size() != 1 && !materialCollection))
         {
             FieldFailure(
                 "UnsupportedShapeMultiplicity",
@@ -2293,33 +2299,48 @@ private:
                 FieldDetail::SpanOnly
             );
         }
-        const auto shape = shapes[0];
-        m_data->part.roles.push_back({ "shape", shape });
-        std::size_t shell = 0;
-        if (IsA(*m_data, shape, "MANIFOLD_SOLID_BREP"))
+        for (const auto shape : shapes)
         {
-            shell = Target(FieldValue(shape, "outer"));
-            m_data->part.shapeRole = "MaterialSolid";
+            std::size_t shell = 0;
+            std::string shapeRole;
+            if (IsA(*m_data, shape, "MANIFOLD_SOLID_BREP"))
+            {
+                shell = Target(FieldValue(shape, "outer"));
+                shapeRole = "MaterialSolid";
+            }
+            else
+            {
+                if (FieldValue(shape, "sbsm_boundary").children.size() != 1)
+                {
+                    FieldFailure(
+                        "UnsupportedShapeMultiplicity",
+                        "D2",
+                        "One source shell is required",
+                        FieldValue(shape, "sbsm_boundary").span,
+                        Status::Unsupported,
+                        shape,
+                        "sbsm_boundary",
+                        FieldDetail::SpanOnly
+                    );
+                }
+                shell = Target(FieldValue(shape, "sbsm_boundary").children[0]);
+                shapeRole = IsA(*m_data, shell, "CLOSED_SHELL") ? "ClosedSurfaceModel" : "OpenSurfaceModel";
+            }
+            m_data->part.shapes.push_back({ shape, shell, std::move(shapeRole) });
+        }
+        if (m_data->part.shapes.size() == 1)
+        {
+            const auto& item = m_data->part.shapes.front();
+            m_data->part.roles.push_back({ "shape", item.shape });
+            m_data->part.roles.push_back({ "shell", item.shell });
+            m_data->part.shapeRole = item.role;
         }
         else
         {
-            if (FieldValue(shape, "sbsm_boundary").children.size() != 1)
-            {
-                FieldFailure(
-                    "UnsupportedShapeMultiplicity",
-                    "D2",
-                    "One source shell is required",
-                    FieldValue(shape, "sbsm_boundary").span,
-                    Status::Unsupported,
-                    shape,
-                    "sbsm_boundary",
-                    FieldDetail::SpanOnly
-                );
-            }
-            shell = Target(FieldValue(shape, "sbsm_boundary").children[0]);
-            m_data->part.shapeRole = IsA(*m_data, shell, "CLOSED_SHELL") ? "ClosedSurfaceModel" : "OpenSurfaceModel";
+            // No singular shape role is invented. In particular, JSON role maps
+            // must not contain duplicate keys that silently keep the last body.
+            m_data->part.shapeRole = "MaterialSolidCollection";
         }
-        m_data->part.roles.push_back({ "shell", shell });
         for (const auto face : Population("FACE"))
         {
             std::size_t outer = 0;
@@ -3818,7 +3839,15 @@ private:
                     // unit or selector. This is deliberately field-level: its
                     // owner IS physical, while every defining field must still
                     // pass. REPRESENTATION/PDS purpose names remain excluded.
-                    approved = owner == "REPRESENTATION_ITEM" && field == "name" && IsA(*m_data, record, "MANIFOLD_SOLID_BREP") && selected("shape");
+                    approved = owner == "REPRESENTATION_ITEM" && field == "name" && IsA(*m_data, record, "MANIFOLD_SOLID_BREP") &&
+                               std::any_of(
+                                   m_data->part.shapes.begin(),
+                                   m_data->part.shapes.end(),
+                                   [&](const auto& shape)
+                                   {
+                                       return shape.shape == record;
+                                   }
+                               );
                     if (owner == "REPRESENTATION_ITEM" && field == "name" && OpaqueTopologyCaption(record))
                     {
                         // These inherited RI labels do not select bounds,
@@ -3830,12 +3859,9 @@ private:
                         if (!selectedCaptionTopology)
                         {
                             std::vector<std::size_t> roots;
-                            for (const auto& role : m_data->part.roles)
+                            for (const auto& shape : m_data->part.shapes)
                             {
-                                if (role.name == "shell")
-                                {
-                                    roots.push_back(role.recordIndex);
-                                }
+                                roots.push_back(shape.shell);
                             }
                             selectedCaptionTopology = Reach(std::move(roots), false);
                         }

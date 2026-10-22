@@ -479,6 +479,27 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         }
         out.Add("},\"source_shape_role\":");
         out.String(data.PartDefinition().shapeRole);
+        if (data.PartDefinition().shapes.size() > 1)
+        {
+            out.Add(",\"source_shapes\":[");
+            bool firstShape = true;
+            for (const auto& shape : data.PartDefinition().shapes)
+            {
+                if (!firstShape)
+                {
+                    out.Add(",");
+                }
+                firstShape = false;
+                out.Add("{\"shape\":");
+                out.String(records[shape.shape].id);
+                out.Add(",\"shell\":");
+                out.String(records[shape.shell].id);
+                out.Add(",\"role\":");
+                out.String(shape.role);
+                out.Add("}");
+            }
+            out.Add("]");
+        }
         if (extendedSource)
         {
             out.Add(",\"property_attachments\":[");

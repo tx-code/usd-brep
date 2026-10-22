@@ -135,7 +135,13 @@ struct Part
         // material values. Keep each source link even when names/items are shared.
         std::size_t link, propertyDefinition, characterizedDefinition, productDefinition, representation, context;
     };
-    std::vector<Role> roles; // Source indices, not copies of the entity/value graph.
+    struct Shape
+    {
+        std::size_t shape, shell; // Source record indices; never native handles or selected-largest substitutes.
+        std::string role; // The individual source role, independent of the collection's aggregate role.
+    };
+    std::vector<Shape> shapes; // Complete representation item order; shared source definitions retain their identities.
+    std::vector<Role> roles; // Singleton role map. Collections use shapes, never duplicate shape/shell role keys.
     std::vector<PropertyAttachment> propertyAttachments;
     std::vector<std::size_t> deferredRegionFaces; // Source faces only; no bound has been relabeled or selected as outer.
     std::string shapeRole; // MaterialSolid / OpenSurfaceModel / ClosedSurfaceModel: source claims only.
