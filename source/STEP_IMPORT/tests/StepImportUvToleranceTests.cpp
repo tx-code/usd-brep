@@ -13,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -26,7 +27,7 @@ void Require(bool value, const char* message)
     }
 }
 
-void RebuildContract(const step_import::ModelSnapshot& imported, bool adjust, bool validateOnly)
+void RebuildContract(const step_import::ModelSnapshot& imported, bool adjust, bool validateOnly, bool clearDerived = true)
 {
     auto copy = imported.CopyForModeling();
     Require(bool(copy.model), "independent modeling copy");
@@ -75,15 +76,21 @@ void RebuildContract(const step_import::ModelSnapshot& imported, bool adjust, bo
             }
             ++rebuilt;
             const auto* surface = faces[i]->GetSurface();
-            Require(faces[i]->RemoveUVTrimCurves() == SM_SUCCESS, "remove only derived UV trims");
+            if (clearDerived)
+            {
+                Require(faces[i]->RemoveUVTrimCurves() == SM_SUCCESS, "remove only derived UV trims");
+            }
             double meanCurve = 0, maxCurve = 0, meanVertex = 0, maxVertex = 0, meanUv = 0, maxUv = 0;
             const auto status = faces[i]->CreateUVTrimCurves(adjust ? TRUE : FALSE, nullptr, nullptr,
                 meanCurve, maxCurve, meanVertex, maxVertex, meanUv, maxUv);
             Require(status == SM_SUCCESS, "rebuild derived UV trims");
             Require(bool(brep.m_bValidateOnly) == validateOnly, "restore enclosing validation policy");
             Require(faces[i]->GetSurface() == surface, "preserve defining surface");
-            Require(std::isfinite(maxCurve) && maxCurve > 0 && maxCurve < .001,
-                    "retain measured approximation instead of hiding its gap");
+            Require(std::isfinite(maxCurve) && maxCurve >= 0 && maxCurve < .001, "finite projection observation");
+            if (clearDerived)
+            {
+                Require(maxCurve > 0, "retain measured approximation instead of hiding its gap");
+            }
 
             SmTArray<SmEdgeuse*> uses;
             faces[i]->GetUpwardEdgeuses(uses);
@@ -135,6 +142,71 @@ void RebuildContract(const step_import::ModelSnapshot& imported, bool adjust, bo
     });
 }
 
+void ProjectionRetryPreservesPolicy(const step_import::ModelSnapshot& imported)
+{
+    auto copy = imported.CopyForModeling();
+    Require(bool(copy.model), "independent retry-control copy");
+    copy.model->Edit([&](SmBrep& brep) {
+        SmTArray<SmFace*> faces;
+        SmTArray<SmEdge*> edges;
+        SmTArray<SmVertex*> vertices;
+        brep.GetFaces(faces);
+        brep.GetEdges(edges);
+        brep.GetVertices(vertices);
+        std::vector<double> edgeTolerances, vertexTolerances;
+        for (ULONG i = 0; i < edges.GetSize(); ++i)
+        {
+            edgeTolerances.push_back(SmTol::GetZoneTol3d(edges[i]));
+        }
+        for (ULONG i = 0; i < vertices.GetSize(); ++i)
+        {
+            vertexTolerances.push_back(SmTol::GetZoneTol3d(vertices[i]));
+        }
+        brep.m_bValidateOnly = TRUE;
+        bool observedOutsideOriginalBudget = false;
+        for (ULONG i = 0; i < faces.GetSize(); ++i)
+        {
+            auto* face = faces[i];
+            if (!face->GetSurface()->IsKindOf(SmCylinder_TYPE))
+            {
+                continue;
+            }
+            Require(face->RemoveUVTrimCurves() == SM_SUCCESS, "fresh retry projection");
+            auto domain = face->GetUVDomain();
+            // Deliberately make a negative modeling control: this fixture's V
+            // direction is axial, so the cut excludes 7*.0002 = .0014 mm of
+            // the boundary, beyond its original .001 mm working tolerance.
+            // It is not a qualified import result. A relaxed projection may
+            // return a candidate or fail, but neither may change validation's
+            // working tolerance. The normal exact cylinder only tests UV
+            // installation, and cannot expose an unguarded projection retry.
+            Require(domain.SetVMin(domain.GetVMin() + .0002 * (domain.GetVMax() - domain.GetVMin())) == SM_SUCCESS,
+                    "negative-control modeled domain");
+            face->SetUVDomain(domain);
+            SmTArray<SmEdgeuse*> uses;
+            face->GetUpwardEdgeuses(uses);
+            for (ULONG j = 0; j < uses.GetSize(); ++j)
+            {
+                SmBSplineCurve* raw = nullptr;
+                double maximum = 0;
+                const auto status = uses[j]->CreateUVTrimCurve(maximum, raw);
+                std::unique_ptr<SmBSplineCurve> cleanup(raw);
+                observedOutsideOriginalBudget |= status == SM_SUCCESS && maximum > .001;
+            }
+        }
+        Require(observedOutsideOriginalBudget, "exercise relaxed projection, not only exact/cached UV");
+        Require(brep.m_bValidateOnly != FALSE, "projection preserves enclosing validation policy");
+        for (ULONG i = 0; i < edges.GetSize(); ++i)
+        {
+            Require(double(SmTol::GetZoneTol3d(edges[i])) == edgeTolerances[i], "projection retry must preserve edge tolerance");
+        }
+        for (ULONG i = 0; i < vertices.GetSize(); ++i)
+        {
+            Require(double(SmTol::GetZoneTol3d(vertices[i])) == vertexTolerances[i], "projection retry must preserve vertex tolerance");
+        }
+    });
+}
+
 void FailedCallRestoresPolicy(const step_import::ModelSnapshot& imported, bool validateOnly)
 {
     auto copy = imported.CopyForModeling();
@@ -169,6 +241,9 @@ int main(int argc, char** argv)
         RebuildContract(*imported.model, false, true);
         RebuildContract(*imported.model, true, false);
         RebuildContract(*imported.model, true, true);
+        RebuildContract(*imported.model, false, false, false);
+        RebuildContract(*imported.model, false, true, false);
+        ProjectionRetryPreservesPolicy(*imported.model);
         FailedCallRestoresPolicy(*imported.model, false);
         FailedCallRestoresPolicy(*imported.model, true);
         std::cout << "UV tolerance policy contracts passed\n";
