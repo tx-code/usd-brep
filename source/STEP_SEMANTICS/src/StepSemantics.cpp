@@ -1641,9 +1641,9 @@ private:
                 "AP214E3_2010.exp CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP.WR3"
             );
         }
-        // RR_WITH_TRANSFORMATION and REPRESENTATION_MAP remain unregistered;
-        // closed simple mappings exclude CGRR.WR4's forbidden subtype and
-        // CGR.WR4's mapped usage. This is not a general transformation/map check.
+        // Complete mappings still exclude transformed CGRR (only transformed shape
+        // relationships are registered). REPRESENTATION_MAP remains unregistered,
+        // excluding CGR.WR4's mapped use; this is not a general transform/map check.
         if (second != representation || (first != selected.definition && first != selected.body && selected.wireframe != first))
         {
             unsupported(relationship, "Supporting geometry must link directly from an already selected shape; construction chains are not selected");

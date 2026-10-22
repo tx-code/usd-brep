@@ -126,10 +126,11 @@ shape endpoint, one CGR/link, general geometry scope and the body's same unit
 context. CGR.WR1/WR2 check dimension and exactly one of its fixed eight item
 categories; a direct GEOMETRIC_CURVE_SET has zero, FACE_SURFACE has two.
 The real selected CGRR.rep_2 reference supplies CGR.WR3's incoming use.
-Closed catalogs still reject REPRESENTATION_MAP and
-REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION: this excludes CGR.WR4's mapped
-use and CGRR.WR4's transformed subtype within this subset, not a general map
-or transformation evaluator. Unsupported physical members cannot become
+Closed catalogs still reject REPRESENTATION_MAP and complete transformed CGRR
+signatures: only transformed shape relationships have the declaration mapping
+described below. This excludes CGR.WR4's mapped use and CGRR.WR4's transformed
+subtype within this subset, not a general map or transformation evaluator.
+Unsupported physical members cannot become
 nongeometric exceptions. Presentation ownership and physical exclusion include
 the selected supporting closure.
 
@@ -622,7 +623,9 @@ this project subset. `part.roles` retains `definition_representation` and
 `shape_representation_relationship` separately from the body's `representation`.
 Both `rep_1` / `rep_2` directions remain source fields; root placement items are
 retained and never applied as transforms. Extra relationships, ambiguous bodies,
-different shape contexts and transformation entities are unsupported.
+different shape contexts and transformation entities remain unsupported for
+qualified single-part admission. Declared structure inspection does not authorize
+placements or relax that admission guard.
 
 Presentation representations become `presentation_N` roles only after checking
 that every admitted `STYLED_ITEM` targets an RI in the selected body's use closure.
