@@ -136,8 +136,9 @@ def fixed_cases():
         for clip in ([0, 1], [.125, .625], [.25, .5]):
             cases.append({"kind": kind, "center": [2, -3, 5], "radii": radii,
                           "frame": 1, "domain": [-17, 29], "clip": clip})
-        cases.append({"kind": kind, "center": [2, -3, 5], "radii": radii,
-                      "frame": 1, "domain": [-17, 29], "clip": [.875, 1.125]})
+        for clip in ([.875, 1.125], [.25, 1.25]):
+            cases.append({"kind": kind, "center": [2, -3, 5], "radii": radii,
+                          "frame": 1, "domain": [-17, 29], "clip": clip})
     cases.extend(spline.fixed_cases())
     return cases
 

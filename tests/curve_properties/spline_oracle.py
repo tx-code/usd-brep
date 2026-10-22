@@ -198,20 +198,31 @@ def check(case, observed):
     selected = parameters(case)
     if len(observed["samples"]) != len(selected):
         raise PropertyFailure("sample_count", "spline observation count")
+
+    def check_evaluation(sample, field, model, parameter, left):
+        expected = value(model, parameter, left)
+        for order in range(3):
+            budget = tolerance + 1e-9 * max(1, *(abs(v) for v in expected[order]))
+            vector_near(sample[field][order], expected[order], budget, f"spline_{field}_d{order}")
+        return expected
+
+    # Establish both limits on the original curve before diagnosing transforms.
+    # A reflected ULP neighbor can round onto a knot and expose an evaluator
+    # side-selection fault before the original knot is reached in sample order.
+    original_values = []
     for t, sample in zip(selected, observed["samples"]):
         near(sample["parameter"], t, 0, "spline_parameter")
-        left_value = value(original, t, True)
+        left_value = check_evaluation(sample, "value", original, t, True)
+        check_evaluation(sample, "right_value", original, t, False)
         vector_near(sample["point"], left_value[0], tolerance, "spline_point")
-        expectations = (("value", original, t, True), ("right_value", original, t, False),
-                        ("reverse", reverse, sample["reverse_parameter"], False),
+        original_values.append(left_value)
+    for t, sample, left_value in zip(selected, observed["samples"], original_values):
+        expectations = (("reverse", reverse, sample["reverse_parameter"], False),
                         ("reverse_left", reverse, sample["reverse_parameter"], True),
                         ("edited", edited, sample["edited_parameter"], True),
                         ("edited_right", edited, sample["edited_parameter"], False))
         for field, model, parameter, left in expectations:
-            expected = value(model, parameter, left)
-            for order in range(3):
-                budget = tolerance + 1e-9 * max(1, *(abs(v) for v in expected[order]))
-                vector_near(sample[field][order], expected[order], budget, f"spline_{field}_d{order}")
+            check_evaluation(sample, field, model, parameter, left)
         if any(lo <= t <= hi for lo, hi in intervals):
             for axis, coordinate in enumerate(left_value[0]):
                 lo, hi = observed["bounds"][0][axis], observed["bounds"][1][axis]

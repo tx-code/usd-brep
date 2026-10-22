@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Compile three real kernel mutations in an isolated committed-source snapshot."""
+"""Compile targeted kernel mutations in an isolated committed-source snapshot."""
 import argparse
 import hashlib
 import json
@@ -26,6 +26,14 @@ MUTATIONS = (
      "new": "  // Deliberate test mutation: discard the requested second derivative.\n"
             "  if (lNumDerivatives >= 2) aPointAndDerivatives[2].Set(0, 0, 0);\n"
             "  return SM_SUCCESS;\n\n} // end SmBSplineCurve::Evaluate\n"},
+    {"name": "ignore_knot_side", "path": "source/SMLib/src/SmBSplineCurve.cpp", "suite": "repeated",
+     "expected": "spline_right_value_d1", "old": "gw_FLAG flg = bFromLeft ? NL_LEFT : NL_RIGHT;",
+     "new": "gw_FLAG flg = NL_RIGHT;"},
+    {"name": "drop_seam_interval", "path": "source/SMLib/src/SmCurve.cpp", "suite": "seams",
+     "expected": "seam_interval_count", "old": "for(ii=0;ii<sStepDomains.GetSize();ii++)",
+     "new": "for(ii=0;ii<sStepDomains.GetSize() && ii<1;ii++)"},
+    {"name": "partial_control_reversal", "path": "source/SMLib/src/NL_CrvNurb.cpp", "suite": "multispan",
+     "expected": "spline_reverse_d1", "old": "k = n / 2;", "new": "k = 0;"},
 )
 
 
@@ -91,7 +99,7 @@ def main():
     manifest = source_manifest(source)
     explore.write(output / "source-manifest.json", manifest)
     originals = {item["path"]: (source / item["path"]).read_bytes() for item in MUTATIONS}
-    # Fail before compiling if a source update invalidated any of the three anchors.
+    # Fail before compiling if a source update invalidated any selected anchor.
     for item in MUTATIONS:
         replace_once(originals[item["path"]], item["old"].encode(), item["new"].encode())
     configure = ["cmake", "-S", source / "tests/curve_properties", "-B", build,
@@ -145,6 +153,7 @@ def main():
                 explore.write(experiment / "mutation.json", {**item, "sha256": hashlib.sha256(mutated).hexdigest(),
                                                             "binaries": mutated_identity})
                 result = execute([sys.executable, "-B", explorer, "run", "--probe", probe, "--cases", 8,
+                                  "--suite", item.get("suite", "legacy"),
                                   "--output", experiment / "discovery"], experiment / "discovery.log", expected=None)
                 discovery = json.loads((experiment / "discovery/summary.json").read_text(encoding="utf-8"))
                 if result == 0:

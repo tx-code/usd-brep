@@ -25,7 +25,13 @@ class MutationContracts(unittest.TestCase):
 
     def test_required_fault_classes_are_distinct(self):
         self.assertEqual({item["expected"] for item in mutations.MUTATIONS},
-                         {"analytic_bounds", "reverse_interval", "bernstein_d2"})
+                         {"analytic_bounds", "reverse_interval", "bernstein_d2", "spline_right_value_d1",
+                          "seam_interval_count", "spline_reverse_d1"})
+
+    def test_new_faults_use_their_feature_suites(self):
+        extension = {item["name"]: item["suite"] for item in mutations.MUTATIONS if "suite" in item}
+        self.assertEqual(extension, {"ignore_knot_side": "repeated", "drop_seam_interval": "seams",
+                                     "partial_control_reversal": "multispan"})
 
 
 if __name__ == "__main__":

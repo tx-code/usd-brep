@@ -131,7 +131,7 @@ python tests/curve_properties/mutations.py --revision HEAD \
     --output .local/curve-properties/mutations --config Release --parallel 4
 ```
 
-该命令将指定提交的内核与测试一起导出到全新目录，独立编译未变异基线，再依次编译三个
+该命令将指定提交的内核与测试一起导出到全新目录，独立编译未变异基线，再依次编译六个
 真实的单文件生产代码变异。测试判据保持冻结，不修改工作区或复用其他构建树的对象文件。
 运行前检查每个替换锚点恰好命中一次，适配原有 LF／CRLF，保存所有源文件的 SHA-256，
 并核对每次编译只改变指定的生产文件。二进制哈希不变不能当作有效变异。
@@ -141,10 +141,13 @@ python tests/curve_properties/mutations.py --revision HEAD \
 | 重新加入裁剪区间外的节点 | `analytic_bounds` |
 | 反向区间下端点错误地使用原下端点 | `reverse_interval` |
 | 丢弃已请求的二阶导数 | `bernstein_d2` |
+| 重复节点处忽略 `bFromLeft` 方向 | `spline_right_value_d1`（仅 `repeated` 组） |
+| 跨接缝转换时丢弃第二个原生区间 | `seam_interval_count`（仅 `seams` 组） |
+| 反向时只交换两端控制点，遗漏内部控制点 | `spline_reverse_d1`（仅 `multispan` 组） |
 
-验收要求三个变异均由指定几何属性发现；各自缩减后的完整输入必须在变异版本上命中同一
+验收要求六个变异均由指定几何属性发现；各自缩减后的完整输入必须在变异版本上命中同一
 属性、在保存的未变异基线上通过。编译错误、进程错误和超时不计入检测成功。
 最后逐字节恢复导出的源，重建并重跑固定属性。导出源没有独立 Git 根时，探索收据的
 Git 版本留空，由实验的固定提交和源清单归属；不借用父目录仓库的版本作证明。
-这是三个明确故障类别的检测实验，不是全库 mutation score 或全部错误类别的覆盖率。
+这是六个明确故障类别的检测实验，不是全库 mutation score 或全部错误类别的覆盖率。
 常规 CTest 只运行变异工具自身的合同检查；完整编译实验需显式执行。
