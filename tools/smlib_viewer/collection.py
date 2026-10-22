@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 """Validate every body before atomically adopting one native display scene."""
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import re
 import numpy as np
 import pyvista as pv
@@ -9,10 +9,10 @@ from .topology import (BodyInfo, TopologyData, read_topology, MAX_FACES, MAX_EDG
                        MAX_VERTICES, MAX_DISPLAY_POINTS, MAX_DISPLAY_CELLS, MAX_TOPOLOGY_BYTES)
 
 
-def read_collection(directory, manifest, resolve):
+def read_collection(directory, manifest, resolve, *, _allow_single=False):
     bodies = manifest.get('body_scenes')
     count = manifest.get('body_count')
-    if (type(count) is not int or count < 2 or count > MAX_FACES or
+    if (type(count) is not int or count < (1 if _allow_single else 2) or count > MAX_FACES or
             not isinstance(bodies, list) or len(bodies) != count or
             manifest.get('units') != 'mm' or manifest.get('role') != 'MaterialSolidCollection' or
             manifest.get('auxiliary_required') is not False or 'auxiliary' in manifest):
@@ -83,3 +83,81 @@ def read_collection(directory, manifest, resolve):
     data = TopologyData(tuple(faces), tuple(edges), tuple(vertices), complete, area_accuracy, length_accuracy,
                         bodies=tuple(ownership), payload_bytes=payload_bytes)
     return mesh, boundary, data
+
+
+@dataclass(frozen=True, slots=True)
+class DefinitionScene:
+    """Owning display projection in one source definition's local frame."""
+
+    mesh: pv.PolyData
+    boundary: pv.PolyData
+    metadata: dict
+
+
+def read_document(directory, manifest, resolve):
+    """Validate ALL definitions before returning any displayable projection.
+
+    Reuse body transport validation per definition, but enforce inventory,
+    payload identity and capacity across the complete request. Definition-local
+    coordinates are never appended into a fictitious assembly/world space.
+    """
+    count, bodies = manifest.get('definition_count'), manifest.get('body_scenes')
+    if (manifest.get('coordinate_scope') != 'DefinitionLocal' or
+            manifest.get('role') != 'IndependentProductDefinitions' or manifest.get('units') != 'mm' or
+            manifest.get('auxiliary_required') is not False or 'auxiliary' in manifest or
+            type(count) is not int or count < 2 or count > MAX_FACES or not isinstance(bodies, list) or
+            type(manifest.get('body_count')) is not int or not count <= len(bodies) <= MAX_FACES or
+            manifest['body_count'] != len(bodies)):
+        raise ValueError('InvalidDocumentManifest')
+    groups = [[] for _ in range(count)]
+    definitions, used_paths = {}, set()
+    limits = dict(faces=MAX_FACES, edges=MAX_EDGES, vertices=MAX_VERTICES,
+                  triangles=MAX_DISPLAY_CELLS, points=MAX_DISPLAY_POINTS)
+    totals = dict.fromkeys(limits, 0)
+    previous = 0
+    for ordinal, body in enumerate(bodies):
+        if not isinstance(body, dict):
+            raise ValueError('InvalidDocumentBody')
+        index, source = body.get('definition'), body.get('source_definition_id')
+        if (type(body.get('ordinal')) is not int or body['ordinal'] != ordinal or type(index) is not int or
+                not 0 <= index < count or index not in (previous, previous + 1) or
+                (ordinal == 0 and index != 0) or body.get('role') != 'MaterialSolid' or
+                not isinstance(source, str) or not re.fullmatch(r'0|[1-9][0-9]*', source)):
+            raise ValueError('InvalidDocumentBody')
+        if index in definitions and definitions[index] != source:
+            raise ValueError('InconsistentDocumentDefinition')
+        definitions[index] = source
+        previous = index
+        for key, limit in limits.items():
+            value = body.get(key)
+            if type(value) is not int or value < 0:
+                raise ValueError('InvalidDocumentInventory')
+            totals[key] += value
+            if totals[key] > limit:
+                raise ValueError('DocumentDisplayLimit')
+        paths = [resolve(directory, body[k]) for k in ('mesh', 'boundary', 'topology')]
+        if len(set(paths)) != 3 or any(path in used_paths for path in paths):
+            raise ValueError('ReusedDocumentPayload')
+        used_paths.update(paths)
+        groups[index].append(dict(body, ordinal=len(groups[index])))
+    if (len(definitions) != count or len(set(definitions.values())) != count or
+            any(type(manifest.get(k)) is not int or manifest[k] != n for k, n in totals.items())):
+        raise ValueError('InvalidDocumentInventory')
+    scenes = []
+    topology_bytes = boundary_points = boundary_cells = 0
+    for index, group in enumerate(groups):
+        projection = dict(manifest, role='MaterialSolidCollection', body_count=len(group), body_scenes=group)
+        for key in limits:
+            projection[key] = sum(body[key] for body in group)
+        mesh, boundary, topology = read_collection(directory, projection, resolve, _allow_single=True)
+        topology_bytes += topology.payload_bytes
+        boundary_points += boundary.n_points
+        boundary_cells += boundary.n_cells
+        if (topology_bytes > MAX_TOPOLOGY_BYTES or boundary_points > MAX_DISPLAY_POINTS or
+                boundary_cells > MAX_DISPLAY_CELLS):
+            raise ValueError('DocumentDisplayLimit')
+        projection.update(role='MaterialSolid' if len(group) == 1 else 'MaterialSolidCollection',
+                          definition_index=index, source_definition_id=definitions[index],
+                          document_body_count=len(bodies), _topology=topology)
+        scenes.append(DefinitionScene(mesh, boundary, projection))
+    return tuple(scenes)

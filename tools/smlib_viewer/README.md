@@ -236,8 +236,8 @@ by older workers rather than silently ignored).
 
 ## Material collections
 
-The native worker uses canonical `ImportPartFile`: one capture/check, followed by
-single-body or whole-collection dispatch from the checked source inventory.
+The native worker uses canonical `ImportModelFile`: one capture/check, followed by
+single-body, whole-collection or independent-document dispatch from the checked source inventory.
 Single-body associated geometry retains its existing complete export. Multiple
 material bodies are independent native display copies; overlapping/coincident
 points are not welded. The application explicitly selects CompactV2 for its
@@ -250,13 +250,38 @@ Missing/corrupt later bodies cannot replace a previous scene with a partial one.
 The GUI assembles display projections without a Boolean union. Body-local topology
 indices become globally unique display IDs, retaining body ordinal and local ID;
 the HUD identifies the selected body alongside native measurements. Two selected
-vertices can still measure world-mm distance across bodies. Picks remain display
+vertices can still measure distance in the definition's physical mm frame across bodies. Picks remain display
 proxies, not live kernel ray queries or source STEP face/edge/vertex IDs.
 
 The HUD reports an entity collection and body count. Mesh bounds fit the entire
 scene. Scans and receipts retain native import qualification and whole-scene
 completion. Unsupported collection associated geometry and assembly transforms
 retain their native refusal; the viewer does not drop them or retry another path.
+
+## Independent product definitions
+
+Qualified independent material definitions use `brep-view-scene.v5`. The worker
+exports every body before publishing the manifest; the loader validates all
+required meshes, boundaries, topology inventories and per-definition ownership
+before replacing the previous request. Budgets and payload-path uniqueness cover
+the complete file. A source shape may be shared by distinct definitions, each
+with its own unit normalization; this is not a duplicate body to discard.
+
+Definitions have separate source coordinate frames. A small toolbar selector
+shows one definition at a time, labelled **local coordinates**. All other
+validated definition scenes remain owned by the accepted request. Fit/clipping,
+Hover, selection and measurements use only the displayed definition. Switching
+clears selection and invalidates old picker hits, so a distance cannot bridge
+unrelated definitions. Bodies within the same definition retain their shared
+frame and existing collection measurements. No assembly placement, Boolean
+union, cross-definition extent or total material volume is inferred.
+
+Scans/receipts retain the complete imported/exported inventory and explicitly
+record `DefinitionLocal` display scope and initial definition index 0. A single
+thumbnail shows that initial definition, not every definition or an assembly.
+Missing/corrupt later payloads, cancellation and display failure retain the
+previous accepted scene. Native assembly placement and document-level associated
+geometry outside the qualified material subset remain explicit unsupported cases.
 
 
 `--carrier-interpretation BlankLevelAsCorrectedEncoding` explicitly handles only

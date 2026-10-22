@@ -194,6 +194,75 @@ int main(int argc, char** argv)
             "document combines complete per-definition material collections without flattening identity"
         );
         Archive(*mixed.document, std::filesystem::path(argv[2]) / "mixed.smb");
+        captures = 0;
+        auto file = ImportModelBytes(text, options);
+        Require(
+            file.status == Status::Accepted && captures == 1 && file.model.index() == 3,
+            "whole-file dispatch captures once and retains every independent definition"
+        );
+        const auto fileDocument = std::get<std::shared_ptr<const DocumentSnapshot>>(file.model);
+        Require(fileDocument->PartCount() == 2 && fileDocument->BodyCount() == 2, "whole-file document preserves definition inventory");
+        Near(*fileDocument->Body(1)->MaterialVolumeMm3(), 6000000, 1e-3, "whole-file per-definition units");
+        Archive(*fileDocument, std::filesystem::path(argv[2]) / "whole-file.smb");
+        for (const auto* fixture : { "two_material_boxes.step", "supporting_geometry.step", "linked_wireframe.step" })
+        {
+            const auto path = std::filesystem::path(argv[1]).parent_path() / fixture;
+            const auto original = ImportPartFile(path, Config());
+            captures = 0;
+            const auto whole = ImportModelFile(path, options);
+            Require(
+                original.status == Status::Accepted && whole.status == Status::Accepted && captures == 1 &&
+                    whole.model.index() == original.part.index(),
+                "one-definition owning type stays compatible"
+            );
+            if (whole.model.index() == 1)
+            {
+                const auto sourceModel = std::get<std::shared_ptr<const ModelSnapshot>>(original.part);
+                const auto model = std::get<std::shared_ptr<const ModelSnapshot>>(whole.model);
+                Require(
+                    model->Wireframes().size() == sourceModel->Wireframes().size() &&
+                        model->SupportingGeometry().size() == sourceModel->SupportingGeometry().size() &&
+                        (!model->Wireframes().empty() || !model->SupportingGeometry().empty()),
+                    "whole-file dispatch retains every associated physical role"
+                );
+                Require(
+                    model->Source()->Source().Bytes() == sourceModel->Source()->Source().Bytes(),
+                    "whole-file dispatch never rewrites source bytes"
+                );
+            }
+        }
+        const auto fileCapped = ImportModelBytes(text, cap);
+        Require(
+            fileCapped.status == Status::ResourceLimit && fileCapped.model.index() == 0 && fileCapped.report.candidateDiscarded,
+            "whole-file cumulative cap publishes no earlier definition"
+        );
+        const auto fileLater = ImportModelBytes(tiny, Config());
+        Require(
+            fileLater.status != Status::Accepted && fileLater.model.index() == 0 && fileLater.report.definitions[0].checksPassed &&
+                fileLater.report.candidateDiscarded,
+            "whole-file later numerical failure clears all candidates"
+        );
+        auto fileCancel = Config();
+        fileCancel.execution.control = std::make_shared<ImportControl>();
+        fileCancel.execution.progress = [&](Progress p)
+        {
+            if (p.phase == Phase::BeforeCommit)
+            {
+                fileCancel.execution.control->RequestCancel();
+            }
+        };
+        const auto fileStopped = ImportModelBytes(text, fileCancel);
+        Require(
+            fileStopped.status == Status::Cancelled && fileStopped.model.index() == 0 && fileStopped.report.candidateDiscarded,
+            "whole-file final arbitration precedes every owning alternative"
+        );
+        auto fileReport = Config();
+        fileReport.nativeLimits.reportBytes = file.report.json.size() - 1;
+        const auto fileOverflow = ImportModelBytes(text, fileReport);
+        Require(
+            fileOverflow.status == Status::ResourceLimit && fileOverflow.model.index() == 0,
+            "whole-file mandatory report cannot publish an incomplete alternative"
+        );
         std::cout << "independent document contracts passed\n";
     }
     catch (const std::exception& e)

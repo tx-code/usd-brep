@@ -51,6 +51,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
         self.file_label.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.file_label.setTextFormat(QtCore.Qt.PlainText)
         bar.addWidget(self.file_label, 1)
+        self.definition_selector = QtWidgets.QComboBox()
+        self.definition_selector.setMaximumWidth(235)
+        self.definition_selector.setToolTip("切换独立零件定义；坐标属于当前定义，不代表装配位置")
+        self.definition_selector.currentIndexChanged.connect(self._switch_definition)
+        self.definition_selector.hide()
+        bar.addWidget(self.definition_selector)
         actions = [("打开", "打开文件 · Ctrl+O", self.open_dialog), ("适配", "适配视图 · F", self.fit),
                    ("斜视", "等轴测视图 · I", lambda: self.named_view("isometric"))]
         for text, tip, callback in actions:
@@ -132,6 +138,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
             QToolButton:hover { background:#2c3644; color:#ffffff; }
             QToolButton:checked { background:#263f50; border-color:#426377; color:#a7dbf2; }
             QToolTip { background:#26303d; color:#e2e9f2; border:1px solid #48566a; padding:5px; }
+            QComboBox { background:#26303d; color:#e2e9f2; border:1px solid #48566a;
+                        border-radius:4px; padding:4px; }
+            QComboBox QAbstractItemView { background:#26303d; color:#e2e9f2;
+                                        selection-background-color:#365567; }
             QLabel { background:transparent; }
             QProgressBar { background:#202936; border:0; }
             QProgressBar::chunk { background:#73b8cc; }
@@ -179,7 +189,31 @@ class ViewerWindow(QtWidgets.QMainWindow):
         # shown as text; unknown remaining work never becomes a guessed percent.
         self.status.setText(update.text)
 
-    def _loaded(self, filename, mesh, boundary, metadata):
+    def _sync_definitions(self):
+        definitions = self.metadata.get('_definitions', ())
+        # A display projection is disposable; all owning definition scenes stay
+        # with the accepted request. Updating this control must not re-enter
+        # adoption or replace a failed selection with a new file request.
+        blocked = self.definition_selector.blockSignals(True)
+        try:
+            self.definition_selector.clear()
+            for index in range(len(definitions)):
+                self.definition_selector.addItem(f"定义 {index + 1}/{len(definitions)} · 本地坐标")
+            if definitions:
+                self.definition_selector.setCurrentIndex(self.metadata['definition_index'])
+            self.definition_selector.setVisible(len(definitions) > 1)
+        finally:
+            self.definition_selector.blockSignals(blocked)
+
+    def _switch_definition(self, index):
+        definitions = self.metadata.get('_definitions', ())
+        if not 0 <= index < len(definitions) or index == self.metadata.get('definition_index'):
+            return
+        scene = definitions[index]
+        self._loaded(self.filename, scene.mesh, scene.boundary,
+                     dict(scene.metadata, _definitions=definitions), definition_switch=True)
+
+    def _loaded(self, filename, mesh, boundary, metadata, *, definition_switch=False):
         previous = self.mesh, self.boundary, self.metadata, self.filename, self.selected, self._scene_summary
         try:
             self.selected = []
@@ -194,6 +228,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             role = roles.get(metadata.get("role"), "BRep")
             if metadata.get('role') == 'MaterialSolidCollection':
                 role = f"实体集合 · {metadata['body_count']} 件"
+            if metadata.get('_definitions'):
+                role = f"定义 {metadata['definition_index'] + 1}/{metadata['definition_count']} · 本地坐标\n" + role
             unit = "mm" if metadata.get("units") == "mm" else "单位未声明"
             dimensions = np.asarray(mesh.bounds)[1::2] - np.asarray(mesh.bounds)[::2]
             size = " × ".join(f"{value:.5g}" for value in dimensions)
@@ -220,6 +256,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 self.hud.setText(self.hud.text() + text)
             self._scene_summary = self.hud.text()
             self._update_measurements()
+            self._sync_definitions()
+            if definition_switch:
+                self.status.setText("已切换独立定义 · 本地坐标 · 只读预览")
+                return
             self.cancel_button.hide()
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(100)
@@ -237,9 +277,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
                     self._redraw()
                 except Exception:
                     pass
-            self._failed("显示失败", str(error))
+            self._sync_definitions()
+            self._failed("显示失败", str(error), notify=not definition_switch)
 
-    def _failed(self, title, details):
+    def _failed(self, title, details, *, notify=True):
         self.cancel_button.hide()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
@@ -252,7 +293,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self._arrange_overlays()
         # Keep an existing accepted scene labelled with its original filename.
         # A failed new request never re-labels it as the failed file.
-        self.load_complete.emit(False)
+        if notify:
+            self.load_complete.emit(False)
 
     def _redraw(self, *_):
         if self.mesh is None:

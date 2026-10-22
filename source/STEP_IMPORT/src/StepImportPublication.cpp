@@ -34,9 +34,13 @@ Publication::Publication(const Options& options, DocumentOutcome& outcome, const
       m_documentSink(&outcome.document)
 {
 }
+Publication::Publication(const Options& options, FileOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution)
+    : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_fileSink(&outcome.model)
+{
+}
 void Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
 {
-    if (!m_documentSink || !candidate || candidate->PartCount() != m_report.definitions.size() ||
+    if ((!m_documentSink && !m_fileSink) || !candidate || candidate->PartCount() != m_report.definitions.size() ||
         std::any_of(
             m_report.definitions.begin(),
             m_report.definitions.end(),
@@ -54,7 +58,7 @@ void Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candida
 void Publication::Accept(std::shared_ptr<ModelData> candidate)
 {
     m_candidate = std::move(candidate);
-    if (!m_modelSink && !m_partSink)
+    if (!m_modelSink && !m_partSink && !m_fileSink)
     {
         throw std::logic_error("SinglePublicationTargetRequired");
     }
@@ -63,7 +67,7 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
 }
 void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates)
 {
-    if (!m_collectionSink && !m_partSink)
+    if (!m_collectionSink && !m_partSink && !m_fileSink)
     {
         throw std::logic_error("CollectionPublicationTargetRequired");
     }
@@ -120,7 +124,25 @@ void Publication::FinishAccept()
     // Publication contract: docs/design/step-import.md. After successful
     // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
-    if (m_documentSink)
+    if (m_fileSink)
+    {
+        static_assert(std::is_nothrow_assignable_v<FileModel&, decltype(m_prepared)>);
+        static_assert(std::is_nothrow_assignable_v<FileModel&, decltype(m_preparedCollection)>);
+        static_assert(std::is_nothrow_assignable_v<FileModel&, decltype(m_preparedDocument)>);
+        if (m_preparedDocument)
+        {
+            *m_fileSink = std::move(m_preparedDocument);
+        }
+        else if (m_preparedCollection)
+        {
+            *m_fileSink = std::move(m_preparedCollection);
+        }
+        else
+        {
+            *m_fileSink = std::move(m_prepared);
+        }
+    }
+    else if (m_documentSink)
     {
         *m_documentSink = std::move(m_preparedDocument);
     }

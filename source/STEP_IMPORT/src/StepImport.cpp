@@ -187,7 +187,7 @@ Result Import(const Options& options, Capture capture)
         }
         if (options.generalBrep)
         {
-            if constexpr (std::is_same_v<Result, DocumentOutcome>)
+            if constexpr (std::is_same_v<Result, DocumentOutcome> || std::is_same_v<Result, FileOutcome>)
             {
                 report.generalSource = step_semantics::CheckIndependentProducts(
                     raw,
@@ -233,6 +233,34 @@ Result Import(const Options& options, Capture capture)
                     throw std::logic_error("QualifiedProductDocumentRequired");
                 }
                 publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution));
+            }
+            else if constexpr (std::is_same_v<Result, FileOutcome>)
+            {
+                if (!checked.document)
+                {
+                    throw std::logic_error("QualifiedProductDocumentRequired");
+                }
+                if (checked.document->PartCount() > 1)
+                {
+                    report.productDocument = true;
+                    publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution));
+                }
+                else
+                {
+                    // Select from the one qualified inventory, without a
+                    // retry/re-read. One definition keeps the established
+                    // builder, including associated physical geometry.
+                    const auto single = checked.document->Part(0);
+                    if (single->PartDefinition().shapes.size() > 1)
+                    {
+                        report.materialCollection = true;
+                        publication.AcceptCollection(single, detail::BuildMaterialCollection(single, options, report, execution));
+                    }
+                    else
+                    {
+                        publication.Accept(detail::BuildGeneral(single, options, report, execution));
+                    }
+                }
             }
             else if constexpr (std::is_same_v<Result, CollectionOutcome>)
             {
@@ -454,6 +482,51 @@ PartOutcome ImportPartBytes(std::string bytes, const Options& options)
         throw std::invalid_argument("Part import requires the general source path");
     }
     return Import<PartOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectBytes(
+                std::move(bytes),
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+FileOutcome ImportModelFile(const std::filesystem::path& path, const Options& options)
+{
+    const Options frozen = options;
+    const auto capturedPath = path;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Whole-file model import requires the general source path");
+    }
+    return Import<FileOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectFile(
+                capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+FileOutcome ImportModelBytes(std::string bytes, const Options& options)
+{
+    const Options frozen = options;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Whole-file model import requires the general source path");
+    }
+    return Import<FileOutcome>(
         frozen,
         [&]
         {

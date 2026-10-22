@@ -601,6 +601,19 @@ struct PartOutcome
     PartModel part;
     Report report;
 };
+// Complete general-source request. Definitions retain separate local frames;
+// this variant does not imply assembly placement or partial acceptance.
+using FileModel = std::variant<
+    std::monostate,
+    std::shared_ptr<const ModelSnapshot>,
+    std::shared_ptr<const MaterialCollectionSnapshot>,
+    std::shared_ptr<const DocumentSnapshot>>;
+struct FileOutcome
+{
+    Status status = Status::BuildFailure;
+    FileModel model;
+    Report report;
+};
 class EditableBrep
 {
 public:
@@ -633,6 +646,10 @@ PartOutcome ImportPartFile(const std::filesystem::path& path, const Options& opt
 PartOutcome ImportPartBytes(std::string bytes, const Options& options);
 DocumentOutcome ImportDocumentFile(const std::filesystem::path& path, const Options& options);
 DocumentOutcome ImportDocumentBytes(std::string bytes, const Options& options);
+// Capture/check once, then dispatch from the qualified definition/body inventory.
+// A single definition keeps its associated geometry and existing owning type.
+FileOutcome ImportModelFile(const std::filesystem::path& path, const Options& options);
+FileOutcome ImportModelBytes(std::string bytes, const Options& options);
 // Invalid options throw std::invalid_argument; allocation failure is not a qualified recoverable outcome.
 const char* StatusName(Status status);
 const char* MaterialPointClassName(MaterialPointClass classification);

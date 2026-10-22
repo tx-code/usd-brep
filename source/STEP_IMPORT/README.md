@@ -1,5 +1,13 @@
 # STEP_IMPORT（内部 C++20）
 
+通用文件入口 `ImportModelFile/Bytes` 捕获、检查源一次，按已资格化清单返回
+`FileOutcome.model` 的单体、单定义实体集合或独立多定义文档 alternative。
+单定义继续使用既有构建路径，保留其全部附属线框／支撑几何；多定义复用下述文档构建。
+它不在单零件失败后重读或重试，不推断装配，不交付部分定义，也不扩大质量或修复权限。
+旧 `ImportFile`、`ImportPartFile`、集合及显式文档入口保持选择合同。
+新入口要求显式 general BRep 质量配置；源报告为 owning 的产品文档证据，单定义的
+原生模型仍持有其独立语义 view。库与消费者须使用匹配的内部 C++20 头文件和静态库。
+
 独立多零件可显式调用 `ImportDocumentFile/Bytes`，CLI 使用
 `--independent-products` 并选择通用质量配置。源只捕获、检查一次；每个定义保留自身
 几何归属、物理单位及源身份，再依次复用单体／实体集合构建。所有候选共用原生调用、

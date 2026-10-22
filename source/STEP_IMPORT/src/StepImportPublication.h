@@ -15,6 +15,7 @@ public:
     Publication(const Options& options, CollectionOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
     Publication(const Options& options, PartOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
     Publication(const Options& options, DocumentOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
+    Publication(const Options& options, FileOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
     Publication(const Publication&) = delete;
     Publication& operator=(const Publication&) = delete;
 
@@ -32,6 +33,7 @@ private:
     const step_source::InspectOutcome& m_source;
     Execution& m_execution;
     PartModel* m_partSink = nullptr;
+    FileModel* m_fileSink = nullptr;
     std::shared_ptr<const ModelSnapshot>* m_modelSink = nullptr;
     std::shared_ptr<const MaterialCollectionSnapshot>* m_collectionSink = nullptr;
     std::shared_ptr<const DocumentSnapshot>* m_documentSink = nullptr;

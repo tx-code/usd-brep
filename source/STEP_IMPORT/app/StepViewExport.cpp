@@ -193,6 +193,8 @@ struct BodyScene
     std::string directory, sourceShapeId;
     step_import::Statistics info;
     std::size_t triangles = 0, points = 0;
+    std::size_t definition = 0;
+    std::string sourceDefinitionId;
 };
 void Publish(
     const std::filesystem::path& output,
@@ -211,7 +213,8 @@ void Publish(
     bool asciiInvariant = false,
     bool asciiApplied = false,
     const std::vector<BodyScene>* bodyScenes = nullptr,
-    std::string_view unitInterpretation = "DeclaredOnly"
+    std::string_view unitInterpretation = "DeclaredOnly",
+    std::size_t definitionCount = 0
 )
 {
     std::string json;
@@ -222,18 +225,21 @@ void Publish(
             [&](Writer& w)
             {
                 w.Add(
-                    bodyScenes ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
-                    info       ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
-                                 "{\"format\":\"brep-view-scene.v1\",\"status\":"
+                    definitionCount ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
+                    bodyScenes      ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
+                    info            ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
+                                      "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
                 w.Add(",\"requested_unit_interpretation\":");
                 w.String(unitInterpretation);
-                const auto appliedUnit = report.generalSource && report.generalSource->snapshot ?
-                                             report.generalSource->snapshot->AppliedUnitInterpretation() :
-                                             step_semantics::UnitInterpretation::DeclaredOnly;
+                const auto sourceView = report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
+                                                                report.generalSource->document ? report.generalSource->document->Part(0) :
+                                                                                                 nullptr) :
+                                                               nullptr;
+                const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : step_semantics::UnitInterpretation::DeclaredOnly;
                 w.Add(",\"applied_unit_interpretation\":");
                 w.String(step_semantics::UnitInterpretationName(appliedUnit));
                 w.Add(",\"import_report_encoding\":");
@@ -283,6 +289,13 @@ void Publish(
                     }
                     else
                     {
+                        if (definitionCount)
+                        {
+                            // These are inventory totals, not assembled-space
+                            // metrics. Source definitions have separate frames.
+                            w.Add(",\"coordinate_scope\":\"DefinitionLocal\",\"definition_count\":");
+                            w.Number(definitionCount);
+                        }
                         w.Add(",\"body_count\":");
                         w.Number(bodyScenes->size());
                         w.Add(",\"body_scenes\":[");
@@ -297,6 +310,15 @@ void Publish(
                             w.Number(i);
                             w.Add(",\"source_shape_id\":");
                             w.String(body.sourceShapeId);
+                            if (definitionCount)
+                            {
+                                w.Add(",\"definition\":");
+                                w.Number(body.definition);
+                                w.Add(",\"source_definition_id\":");
+                                w.String(body.sourceDefinitionId);
+                            }
+                            w.Add(",\"role\":");
+                            w.String(body.info.shapeRole);
                             w.Add(",\"format\":\"brep-view-scene.v3\",\"units\":\"mm\",\"auxiliary_required\":false,\"mesh\":");
                             w.String(body.directory + "/mesh.vtk");
                             w.Add(",\"boundary\":");
@@ -372,7 +394,7 @@ int Run(
     Good(!strict || !fileNameText, "FileNameTextRequiresInteroperability");
     Good(!strict || !asciiInvariant, "AsciiInvariantDataRequiresInteroperability");
     bool asciiApplied = false;
-    step_import::PartOutcome result;
+    step_import::FileOutcome result;
     std::string nativeStatus; // Empty until the core actually returns an outcome.
     try
     {
@@ -480,19 +502,22 @@ int Run(
         // capacity stay identical. Dispatch is based on the one checked source,
         // not a second read or a retry after single-body failure.
         options.reportEncoding = step_import::ReportEncoding::CompactV2;
-        result = step_import::ImportPartFile(input, options);
-        const auto singleAlternative = std::get_if<std::shared_ptr<const step_import::ModelSnapshot>>(&result.part);
-        const auto collectionAlternative = std::get_if<std::shared_ptr<const step_import::MaterialCollectionSnapshot>>(&result.part);
+        result = step_import::ImportModelFile(input, options);
+        const auto singleAlternative = std::get_if<std::shared_ptr<const step_import::ModelSnapshot>>(&result.model);
+        const auto collectionAlternative = std::get_if<std::shared_ptr<const step_import::MaterialCollectionSnapshot>>(&result.model);
+        const auto documentAlternative = std::get_if<std::shared_ptr<const step_import::DocumentSnapshot>>(&result.model);
         const auto model = singleAlternative ? *singleAlternative : nullptr;
         const auto collection = collectionAlternative ? *collectionAlternative : nullptr;
+        const auto document = documentAlternative ? *documentAlternative : nullptr;
         asciiApplied = (model && model->Source()->Source().HasAsciiInvariantDataAssumption()) ||
-                       (collection && collection->Source()->Source().HasAsciiInvariantDataAssumption());
+                       (collection && collection->Source()->Source().HasAsciiInvariantDataAssumption()) ||
+                       (document && document->Source()->Source().HasAsciiInvariantDataAssumption());
         nativeStatus = step_import::StatusName(result.status);
         std::ofstream report(output / "import-report.json", std::ios::binary);
         report << result.report.json;
         report.close();
         Good(bool(report), "ImportReportWriteFailed");
-        if (!model && !collection)
+        if (!model && !collection && !document)
         {
             Publish(
                 output,
@@ -515,17 +540,27 @@ int Run(
             );
             return 1;
         }
-        if (collection)
+        if (collection || document)
         {
             step_view::DisplayBudget budget;
             std::vector<BodyScene> scenes;
             step_import::Statistics total;
-            total.shapeRole = "MaterialSolidCollection";
-            for (std::size_t i = 0; i < collection->BodyCount(); ++i)
+            total.shapeRole = document ? "IndependentProductDefinitions" : "MaterialSolidCollection";
+            const auto count = document ? document->BodyCount() : collection->BodyCount();
+            for (std::size_t i = 0; i < count; ++i)
             {
-                Progress("bodies", i, collection->BodyCount());
-                auto body = collection->Body(i);
-                BodyScene scene{ "body-" + std::to_string(i), collection->SourceShapeId(i), body->Info(), 0, 0 };
+                Progress("bodies", i, count);
+                auto body = document ? document->Body(i) : collection->Body(i);
+                BodyScene scene{ "body-" + std::to_string(i),
+                                 document ? document->SourceShapeId(i) : collection->SourceShapeId(i),
+                                 body->Info(),
+                                 0,
+                                 0 };
+                if (document)
+                {
+                    scene.definition = document->BodyPartIndex(i);
+                    scene.sourceDefinitionId = document->SourceDefinitionId(i);
+                }
                 const auto directory = output / scene.directory;
                 Good(std::filesystem::create_directory(directory), "DisplayBodyDirectoryFailed");
                 auto copy = body->CopyBrepForModeling();
@@ -541,7 +576,7 @@ int Run(
                 total.vertices += scene.info.vertices;
                 scenes.push_back(std::move(scene));
             }
-            Progress("bodies", collection->BodyCount(), collection->BodyCount());
+            Progress("bodies", count, count);
             Publish(
                 output,
                 "Ready",
@@ -559,7 +594,8 @@ int Run(
                 asciiInvariant,
                 asciiApplied,
                 &scenes,
-                unitInterpretation
+                unitInterpretation,
+                document ? document->PartCount() : 0
             );
             return 0;
         }

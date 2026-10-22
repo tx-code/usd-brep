@@ -212,7 +212,8 @@ class SceneLoader(QtCore.QObject):
                 raise ValueError("WorkerFailedOrCrashed")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if (not isinstance(manifest, dict)
-                    or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3", "brep-view-scene.v4"}):
+                    or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3",
+                                                      "brep-view-scene.v4", "brep-view-scene.v5"}):
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -223,6 +224,23 @@ class SceneLoader(QtCore.QObject):
                 return
             import pyvista as pv
             import numpy as np
+            if manifest['format'] == 'brep-view-scene.v5':
+                from .collection import read_document
+                definitions = read_document(directory, manifest, scene_file)
+                first = definitions[0]
+                metadata = dict(first.metadata, _definitions=definitions)
+                self.worker_result['topology_inventory'] = dict(
+                    faces=sum(len(d.metadata['_topology'].faces) for d in definitions),
+                    edges=sum(len(d.metadata['_topology'].edges) for d in definitions),
+                    vertices=sum(len(d.metadata['_topology'].vertices) for d in definitions),
+                    bodies=manifest['body_count'], definitions=len(definitions),
+                    face_labels_complete=all(d.metadata['_topology'].face_labels_complete for d in definitions))
+                self.worker_result['display_scope'] = 'DefinitionLocal'
+                self.worker_result['initial_display_definition'] = 0
+                self.progress.emit(Progress('render'))
+                if generation == self.generation and not job['stopped']:
+                    self.loaded.emit(str(job['path']), first.mesh, first.boundary, metadata)
+                return
             if manifest['format'] == 'brep-view-scene.v4':
                 from .collection import read_collection
                 mesh, boundary, topology = read_collection(directory, manifest, scene_file)
