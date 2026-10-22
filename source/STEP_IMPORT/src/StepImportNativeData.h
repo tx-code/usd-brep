@@ -70,6 +70,23 @@ struct CollectionData
     std::shared_ptr<const step_semantics::Snapshot> source;
     std::vector<std::shared_ptr<ModelData>> bodies;
 };
+struct DocumentData
+{
+    struct Body
+    {
+        std::size_t part, definition, shape;
+        std::shared_ptr<ModelData> model;
+    };
+    std::shared_ptr<const step_semantics::ProductDocument> source;
+    std::vector<PartModel> parts;
+    std::vector<Body> bodies;
+};
+std::shared_ptr<const DocumentSnapshot> BuildDocument(
+    std::shared_ptr<const step_semantics::ProductDocument> source,
+    const Options& options,
+    Report& report,
+    Execution& execution
+);
 std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const Options& options,

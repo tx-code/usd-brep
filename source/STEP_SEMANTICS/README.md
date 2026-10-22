@@ -1088,3 +1088,29 @@ in `baseline-product-structure`; it is not an independent schema witness.
 The internal C++ Outcome layout adds an owning observation pointer: rebuild
 source/semantic/planar/native consumers together. Public source bytes and earlier
 result qualifications retain their meaning.
+
+## Qualified independent definitions
+
+`CheckIndependentProducts` / CLI `--independent-products` explicitly requests all
+independent definitions. It captures/maps input once, checks every definition's
+actual PD/formation/product/PDS/SDR chain and representation group, then proves
+one whole-request closure including presentation, properties and administrative
+metadata. A category may retain a shared source product set only when every
+member belongs to the complete selected request. Unknown influence remains a
+failure; forward reachability alone does not establish source admission.
+
+`Outcome::document` is published only after every definition, physical unit
+context and applicable interoperability proof succeeds. `snapshot` remains null
+for this interface. `ProductDocument::Part(i)` returns an owning read-only
+Snapshot view with definition-specific `PartDefinition()` and `UnitContext()`;
+field/type/reference queries share the complete immutable source bindings.
+SI roots, conversion dependencies and source-derived dimension evidence are
+collected from each actual context, never copied from the first part. Deferred
+conversion scales retain their existing qualification and native handoff.
+
+Usage, transformation and context-dependent shape links are explicitly refused
+by this independent-definition request; they cannot turn an assembly into a set
+of coincident parts. Representation relationships joining distinct roots also
+remain unsupported. Legacy `Check` keeps its single-part admission. Failure or
+budget exhaustion exposes no qualified surviving parts. Candidate scopes and
+unit walks use sparse per-definition work sets and one indexed source graph.

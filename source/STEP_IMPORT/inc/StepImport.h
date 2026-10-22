@@ -28,6 +28,7 @@ namespace detail
 {
 struct ModelData;
 struct CollectionData;
+struct DocumentData;
 struct EditableData;
 struct Access;
 struct UnitRatioAccess;
@@ -467,12 +468,22 @@ struct MaterialBodyReport
     bool checksPassed = false;
     std::shared_ptr<Report> checks;
 };
+struct ProductDefinitionReport
+{
+    std::size_t sourceDefinitionRecord = 0;
+    bool checksPassed = false;
+    std::shared_ptr<Report> checks;
+};
 struct Report
 {
     ReportEncoding encoding = ReportEncoding::ExpandedV1;
     bool generalBrep = false;
     bool materialCollection = false;
+    bool productDocument = false;
+    std::string sourceEvidenceScope;
+    std::vector<ProductDefinitionReport> definitions;
     std::vector<MaterialBodyReport> bodies; // Per-body observations share the one root source report.
+    std::size_t selectedBodyCount = 0; // Complete per-definition inventory when source evidence is held by a document root.
     bool supportDomainRestrictionRequested = false;
     std::optional<NumericalIntegrationObservation> numericalIntegration; // Explicit requests only; survives failure without a model.
     bool periodicNormalizationRequested = false;
@@ -558,6 +569,32 @@ struct CollectionOutcome
     Report report;
 };
 using PartModel = std::variant<std::monostate, std::shared_ptr<const ModelSnapshot>, std::shared_ptr<const MaterialCollectionSnapshot>>;
+class DocumentSnapshot
+{
+public:
+
+    std::size_t PartCount() const;
+    PartModel Part(std::size_t index) const;
+    std::size_t BodyCount() const;
+    std::shared_ptr<const ModelSnapshot> Body(std::size_t index) const;
+    std::size_t BodyPartIndex(std::size_t index) const;
+    std::string SourceDefinitionId(std::size_t bodyIndex) const;
+    std::string SourceShapeId(std::size_t bodyIndex) const;
+    std::shared_ptr<const step_semantics::ProductDocument> Source() const;
+    void WriteNative(const std::filesystem::path& path) const; // Ordered definitions/bodies; no union or source-qualification transfer.
+
+private:
+
+    friend struct detail::Access;
+    explicit DocumentSnapshot(std::shared_ptr<detail::DocumentData> data);
+    std::shared_ptr<detail::DocumentData> m_data;
+};
+struct DocumentOutcome
+{
+    Status status = Status::BuildFailure;
+    std::shared_ptr<const DocumentSnapshot> document;
+    Report report;
+};
 struct PartOutcome
 {
     Status status = Status::BuildFailure;
@@ -594,6 +631,8 @@ CollectionOutcome ImportMaterialCollectionFile(const std::filesystem::path& path
 // ownership is selected from the checked inventory. Accepted results hold exactly one alternative.
 PartOutcome ImportPartFile(const std::filesystem::path& path, const Options& options);
 PartOutcome ImportPartBytes(std::string bytes, const Options& options);
+DocumentOutcome ImportDocumentFile(const std::filesystem::path& path, const Options& options);
+DocumentOutcome ImportDocumentBytes(std::string bytes, const Options& options);
 // Invalid options throw std::invalid_argument; allocation failure is not a qualified recoverable outcome.
 const char* StatusName(Status status);
 const char* MaterialPointClassName(MaterialPointClass classification);

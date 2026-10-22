@@ -53,6 +53,33 @@ void ProductStructureOwnership(std::string text)
         "declared graph evidence remains separate from single-part admission"
     );
     auto graph = result.productStructure;
+    auto qualified = CheckIndependentProducts(raw, Limits{}, SourcePolicy::Strict);
+    Require(
+        qualified.status == Status::Checked && qualified.document && !qualified.snapshot && qualified.document->PartCount() == 2,
+        "whole independent source document qualifies all definitions"
+    );
+    auto first = qualified.document->Part(0), second = qualified.document->Part(1);
+    Require(
+        &first->Source() == &second->Source() &&
+            std::any_of(
+                first->PartDefinition().roles.begin(),
+                first->PartDefinition().roles.end(),
+                [&](const auto& role)
+                {
+                    return role.name == "definition" && role.recordIndex == Index(*first, "7");
+                }
+            ) &&
+            std::any_of(
+                second->PartDefinition().roles.begin(),
+                second->PartDefinition().roles.end(),
+                [&](const auto& role)
+                {
+                    return role.name == "definition" && role.recordIndex == Index(*second, "902");
+                }
+            ),
+        "definition views share bindings without merging source roles"
+    );
+    qualified = {};
     Require(graph->Definitions().size() == 2 && graph->Roots().size() == 2 && graph->Usages().empty(), "complete independent definition inventory");
     auto limits = Limits{};
     limits.dependencyVisits = result.dependencyVisits - 1;
@@ -63,6 +90,10 @@ void ProductStructureOwnership(std::string text)
     );
     result = {};
     raw = {};
+    Require(
+        first->Source().Bytes() == text && second->Source().Bytes() == text && first->UnitContext().lengthUnit == second->UnitContext().lengthUnit,
+        "qualified definition views retain one source owner and their unit evidence after document outcome release"
+    );
     Require(
         graph->Source().Bytes() == text && graph->Source().Records()[graph->Definitions()[1].product].id == "900",
         "structure owns immutable source identities after inspection outcomes are released"

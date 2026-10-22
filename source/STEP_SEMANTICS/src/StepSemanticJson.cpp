@@ -547,7 +547,8 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         }
         out.Add("]}");
     }
-    const auto appliedUnit = result.snapshot ? result.snapshot->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
+    const auto sourceView = result.snapshot ? result.snapshot : result.document ? result.document->Part(0) : std::shared_ptr<const Snapshot>{};
+    const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
     if (result.requestedUnitInterpretation != UnitInterpretation::DeclaredOnly || appliedUnit != UnitInterpretation::DeclaredOnly)
     {
         out.Add(",\"unit_interpretation\":{\"requested\":");
@@ -557,17 +558,17 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Add(",\"source_declaration_conforming\":");
         out.Add(appliedUnit == UnitInterpretation::DeclaredOnly ? "null" : "false");
         out.Add(",\"proof_scope\":\"ExactDimensionalEquivalenceOnly\",\"native_scale_resolution\":\"Required\",\"units\":[");
-        if (result.snapshot)
+        if (sourceView)
         {
             bool first = true;
-            for (const auto& unit : result.snapshot->UnitDimensionAssumptions())
+            for (const auto& unit : sourceView->UnitDimensionAssumptions())
             {
                 if (!first)
                 {
                     out.Add(",");
                 }
                 first = false;
-                const auto& records = result.snapshot->Source().Records();
+                const auto& records = sourceView->Source().Records();
                 out.Add("{\"unit\":");
                 out.String(records[unit.unit].id);
                 out.Add(",\"explicit_dimensions\":");
@@ -1020,6 +1021,107 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             "\"target_mapping\":\"NotRun\",\"geometry_conversion\":\"NotRun\"}}"
         );
     }
+    if (result.document)
+    {
+        const auto& document = *result.document;
+        const auto& records = document.Source().Records();
+        const auto id = [&](std::size_t r)
+        {
+            out.String(records.at(r).id);
+        };
+        out.Add(",\"document\":{\"qualification\":\"IndependentDefinitionsQualified\",\"assembly_placements\":\"NotRun\",\"parts\":[");
+        for (std::size_t i = 0; i < document.PartCount(); ++i)
+        {
+            if (i)
+            {
+                out.Add(",");
+            }
+            const auto part = document.Part(i);
+            out.Add("{\"roles\":{");
+            bool comma = false;
+            for (const auto& role : part->PartDefinition().roles)
+            {
+                if (comma)
+                {
+                    out.Add(",");
+                }
+                comma = true;
+                out.String(role.name);
+                out.Add(":");
+                id(role.recordIndex);
+            }
+            out.Add("},\"shape_role\":");
+            out.String(part->PartDefinition().shapeRole);
+            out.Add(",\"shapes\":[");
+            comma = false;
+            for (const auto& shape : part->PartDefinition().shapes)
+            {
+                if (comma)
+                {
+                    out.Add(",");
+                }
+                comma = true;
+                out.Add("{\"shape\":");
+                id(shape.shape);
+                out.Add(",\"shell\":");
+                id(shape.shell);
+                out.Add(",\"role\":");
+                out.String(shape.role);
+                out.Add("}");
+            }
+            out.Add("],\"units\":{\"length_unit\":");
+            id(part->UnitContext().lengthUnit);
+            out.Add(",\"plane_angle_unit\":");
+            id(part->UnitContext().planeAngleUnit);
+            out.Add(",\"length_scale_mm\":");
+            if (part->UnitContext().lengthPower10Mm)
+            {
+                Scale(out, *part->UnitContext().lengthPower10Mm);
+            }
+            else
+            {
+                out.Add("null");
+            }
+            out.Add(",\"si_definitions\":[");
+            comma = false;
+            for (const auto& unit : part->UnitContext().siDefinitions)
+            {
+                if (comma)
+                {
+                    out.Add(",");
+                }
+                comma = true;
+                out.Add("{\"source_id\":");
+                id(unit.recordIndex);
+                out.Add(",\"quantity\":");
+                out.String(unit.quantity);
+                out.Add(",\"name\":");
+                out.String(unit.siName);
+                out.Add(",\"prefix\":");
+                out.String(unit.prefix);
+                out.Add(",\"scale\":");
+                Scale(out, unit.canonicalPower10);
+                out.Add("}");
+            }
+            out.Add("]}}");
+        }
+        out.Add("],\"ownership_roots\":[");
+        bool comma = false;
+        for (const auto& role : document.Roles())
+        {
+            if (comma)
+            {
+                out.Add(",");
+            }
+            comma = true;
+            out.Add("{\"role\":");
+            out.String(role.name);
+            out.Add(",\"source_id\":");
+            id(role.recordIndex);
+            out.Add("}");
+        }
+        out.Add("]}");
+    }
     out.Add(",\"diagnostics\":");
     Diagnostics(out, source, result.diagnostics);
     if (result.policy == SourcePolicy::PreserveNonGeometric)
@@ -1028,10 +1130,10 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         Diagnostics(out, source, result.preservedDiagnostics);
         out.Add(",\"source_conformance\":");
         out.String(
-            result.snapshot ? (appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
-                               result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
-                                                                                 "NonGeometricIssuesPreserved") :
-                              "NotQualified"
+            (result.snapshot || result.document) ? (appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
+                                                    result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
+                                                                                                      "NonGeometricIssuesPreserved") :
+                                                   "NotQualified"
         );
     }
     if (result.geometryScope == GeometryScope::GeneralBrep)

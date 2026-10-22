@@ -25,6 +25,32 @@ Publication::Publication(const Options& options, PartOutcome& outcome, const ste
     : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_partSink(&outcome.part)
 {
 }
+Publication::Publication(const Options& options, DocumentOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution)
+    : m_options(options),
+      m_status(outcome.status),
+      m_report(outcome.report),
+      m_source(source),
+      m_execution(execution),
+      m_documentSink(&outcome.document)
+{
+}
+void Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
+{
+    if (!m_documentSink || !candidate || candidate->PartCount() != m_report.definitions.size() ||
+        std::any_of(
+            m_report.definitions.begin(),
+            m_report.definitions.end(),
+            [](const auto& definition)
+            {
+                return !definition.checksPassed;
+            }
+        ))
+    {
+        throw std::logic_error("CompleteDocumentPublicationRequired");
+    }
+    m_preparedDocument = std::move(candidate);
+    FinishAccept();
+}
 void Publication::Accept(std::shared_ptr<ModelData> candidate)
 {
     m_candidate = std::move(candidate);
@@ -75,7 +101,9 @@ void Publication::FinishAccept()
     {
         // Release this temporary source owner before the commit region. The
         // prepared model remains the authoritative owner of both assumptions.
-        const auto semantic = m_preparedCollection ? m_preparedCollection->Source() : m_prepared->Source();
+        const auto semantic = m_preparedDocument   ? m_preparedDocument->Source()->Part(0) :
+                              m_preparedCollection ? m_preparedCollection->Source() :
+                                                     m_prepared->Source();
         interpreted = semantic->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
                       semantic->Source().AppliedCarrierAssumption() != nullptr || semantic->Source().HasAsciiInvariantDataAssumption() ||
                       semantic->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
@@ -92,7 +120,11 @@ void Publication::FinishAccept()
     // Publication contract: docs/design/step-import.md. After successful
     // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
-    if (m_partSink)
+    if (m_documentSink)
+    {
+        *m_documentSink = std::move(m_preparedDocument);
+    }
+    else if (m_partSink)
     {
         static_assert(std::is_nothrow_assignable_v<PartModel&, decltype(m_prepared)>);
         static_assert(std::is_nothrow_assignable_v<PartModel&, decltype(m_preparedCollection)>);
@@ -134,11 +166,30 @@ void Publication::FinishFailure()
 {
     // Preserve the existing disposal-before-report ordering and any discard
     // evidence already recorded by a builder that failed before handoff.
-    const bool held = bool(m_candidate) || bool(m_prepared) || bool(m_preparedCollection) || !m_collectionCandidates.empty();
+    const bool held = bool(m_candidate) || bool(m_prepared) || bool(m_preparedCollection) || bool(m_preparedDocument) ||
+                      !m_collectionCandidates.empty();
+    m_preparedDocument.reset();
     m_prepared.reset();
     m_preparedCollection.reset();
     m_collectionCandidates.clear();
     m_candidate.reset();
+    for (auto& definition : m_report.definitions)
+    {
+        if (definition.checks && definition.checks->nativeCalls)
+        {
+            definition.checks->candidateDiscarded = true;
+        }
+        if (definition.checks)
+        {
+            for (auto& body : definition.checks->bodies)
+            {
+                if (body.checks && body.checks->nativeCalls)
+                {
+                    body.checks->candidateDiscarded = true;
+                }
+            }
+        }
+    }
     for (auto& body : m_report.bodies)
     {
         if (body.checks && body.checks->nativeCalls)

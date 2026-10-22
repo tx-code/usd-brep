@@ -491,7 +491,11 @@ void WriteReportJson(
         // Separate scope: do not serialize unexecuted planar proofs as
         // qualification for analytic/NURBS models or complete AP214 rules.
         w.Add(
-            nestedBody ? "{\"format_version\":\"step-material-body-checks.v1\",\"scope\":\"WithinMaterialCollection\",\"status\":" :
+            nestedBody ? (report.sourceEvidenceScope == "ProductDocumentRoot" ?
+                              "{\"format_version\":\"step-product-definition-checks.v1\",\"scope\":\"WithinProductDocument\",\"status\":" :
+                              "{\"format_version\":\"step-material-body-checks.v1\",\"scope\":\"WithinMaterialCollection\",\"status\":") :
+            report.productDocument ?
+                         "{\"format_version\":\"step-product-document-development.v1\",\"scope\":\"IndependentProductDefinitions\",\"status\":" :
             report.materialCollection ?
                          "{\"format_version\":\"step-material-collection-development.v1\",\"scope\":\"MaterialCollectionDevelopment\",\"status\":" :
                          "{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":"
@@ -537,11 +541,14 @@ void WriteReportJson(
         {
             w.Add(",\"data_string_interpretation\":\"PreserveAsciiInvariantBytes\",\"data_encoding_verified\":false");
         }
-        if (report.generalSource && report.generalSource->snapshot &&
-            report.generalSource->snapshot->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly)
+        const auto sourceView = report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
+                                                        report.generalSource->document ? report.generalSource->document->Part(0) :
+                                                                                         std::shared_ptr<const step_semantics::Snapshot>{}) :
+                                                       std::shared_ptr<const step_semantics::Snapshot>{};
+        if (sourceView && sourceView->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly)
         {
             w.Add(",\"source_unit_interpretation\":");
-            w.String(step_semantics::UnitInterpretationName(report.generalSource->snapshot->AppliedUnitInterpretation()));
+            w.String(step_semantics::UnitInterpretationName(sourceView->AppliedUnitInterpretation()));
             w.Add(",\"source_unit_declaration_conforming\":false");
         }
         w.Add(",\"repair\":\"None\",\"quality_id\":");
@@ -666,14 +673,20 @@ void WriteReportJson(
         }
         if (nestedBody)
         {
-            w.Add(",\"source_evidence\":\"CollectionRoot\",\"execution_evidence\":\"CollectionRoot\"");
+            w.Add(",\"source_evidence\":");
+            w.String(report.sourceEvidenceScope.empty() ? "CollectionRoot" : report.sourceEvidenceScope);
+            w.Add(",\"execution_evidence\":");
+            w.String(report.sourceEvidenceScope.empty() ? "CollectionRoot" : report.sourceEvidenceScope);
         }
         if (report.materialCollection)
         {
             w.Add(",\"material_collection\":{\"complete\":");
             w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation);
             w.Add(",\"selected_body_count\":");
-            w.Number(report.generalSource && report.generalSource->snapshot ? report.generalSource->snapshot->PartDefinition().shapes.size() : 0);
+            w.Number(
+                report.generalSource && report.generalSource->snapshot ? report.generalSource->snapshot->PartDefinition().shapes.size() :
+                                                                         report.selectedBodyCount
+            );
             w.Add(",\"bodies\":[");
             for (std::size_t i = 0; i < report.bodies.size(); ++i)
             {
@@ -694,6 +707,37 @@ void WriteReportJson(
                 if (body.checks)
                 {
                     WriteReportJson(w, status, *body.checks, quality, source, true);
+                }
+                else
+                {
+                    w.Add("null");
+                }
+                w.Add("}");
+            }
+            w.Add("]}");
+        }
+        if (report.productDocument)
+        {
+            w.Add(",\"product_document\":{\"complete\":");
+            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation);
+            w.Add(",\"selected_definition_count\":");
+            w.Number(report.generalSource && report.generalSource->document ? report.generalSource->document->PartCount() : 0);
+            w.Add(",\"definitions\":[");
+            for (std::size_t i = 0; i < report.definitions.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& definition = report.definitions[i];
+                w.Add("{\"source_definition_id\":");
+                w.String(source.source->Records().at(definition.sourceDefinitionRecord).id);
+                w.Add(",\"checks_passed\":");
+                w.Bool(definition.checksPassed);
+                w.Add(",\"checks\":");
+                if (definition.checks)
+                {
+                    WriteReportJson(w, status, *definition.checks, quality, source, true);
                 }
                 else
                 {

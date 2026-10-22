@@ -152,6 +152,7 @@ Result Import(const Options& options, Capture capture)
     Result result;
     auto& report = result.report;
     report.materialCollection = std::is_same_v<Result, CollectionOutcome>;
+    report.productDocument = std::is_same_v<Result, DocumentOutcome>;
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
     report.encoding = options.reportEncoding;
@@ -186,20 +187,33 @@ Result Import(const Options& options, Capture capture)
         }
         if (options.generalBrep)
         {
-            report.generalSource = step_semantics::Check(
-                raw,
-                options.semanticLimits,
-                options.sourcePolicy,
-                step_semantics::GeometryScope::GeneralBrep,
-                options.schemaInterpretation,
-                options.unitInterpretation
-            );
+            if constexpr (std::is_same_v<Result, DocumentOutcome>)
+            {
+                report.generalSource = step_semantics::CheckIndependentProducts(
+                    raw,
+                    options.semanticLimits,
+                    options.sourcePolicy,
+                    options.schemaInterpretation,
+                    options.unitInterpretation
+                );
+            }
+            else
+            {
+                report.generalSource = step_semantics::Check(
+                    raw,
+                    options.semanticLimits,
+                    options.sourcePolicy,
+                    step_semantics::GeometryScope::GeneralBrep,
+                    options.schemaInterpretation,
+                    options.unitInterpretation
+                );
+            }
             const auto& checked = *report.generalSource;
             report.sourceSchema = checked.schemaSelection;
             report.semanticStatus = step_semantics::StatusName(checked.status);
             report.planarStatus = "NotApplicable";
             report.diagnostics = checked.diagnostics;
-            if (!checked.snapshot)
+            if (!checked.snapshot && !checked.document)
             {
                 // Raw capture failures precede semantic classification. Preserve
                 // I/O, carrier and resource categories, as on the planar path.
@@ -212,7 +226,15 @@ Result Import(const Options& options, Capture capture)
                 throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
             }
             execution.Check(Phase::SemanticsChecked);
-            if constexpr (std::is_same_v<Result, CollectionOutcome>)
+            if constexpr (std::is_same_v<Result, DocumentOutcome>)
+            {
+                if (!checked.document)
+                {
+                    throw std::logic_error("QualifiedProductDocumentRequired");
+                }
+                publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution));
+            }
+            else if constexpr (std::is_same_v<Result, CollectionOutcome>)
             {
                 publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution));
             }
@@ -432,6 +454,51 @@ PartOutcome ImportPartBytes(std::string bytes, const Options& options)
         throw std::invalid_argument("Part import requires the general source path");
     }
     return Import<PartOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectBytes(
+                std::move(bytes),
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+DocumentOutcome ImportDocumentFile(const std::filesystem::path& path, const Options& options)
+{
+    const Options frozen = options;
+    const auto capturedPath = path;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Document import requires the general source path");
+    }
+    return Import<DocumentOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectFile(
+                capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+DocumentOutcome ImportDocumentBytes(std::string bytes, const Options& options)
+{
+    const Options frozen = options;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Document import requires the general source path");
+    }
+    return Import<DocumentOutcome>(
         frozen,
         [&]
         {

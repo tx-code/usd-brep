@@ -17,6 +17,7 @@ std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
 )
 {
     const auto& part = source->PartDefinition();
+    report.selectedBodyCount = part.shapes.size();
     if (part.shapes.empty() || std::any_of(
                                    part.shapes.begin(),
                                    part.shapes.end(),
@@ -56,6 +57,7 @@ std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
             auto checks = std::make_shared<Report>();
             checks->generalBrep = true;
             checks->encoding = report.encoding;
+            checks->sourceEvidenceScope = report.sourceEvidenceScope;
             checks->source = report.source;
             checks->sourceSha256 = report.sourceSha256;
             checks->sourceSchema = report.sourceSchema;

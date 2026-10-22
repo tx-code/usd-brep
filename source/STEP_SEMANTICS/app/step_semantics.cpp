@@ -26,6 +26,7 @@ int main(int argc, char** argv)
         auto limits = step_source::Limits::PlanarFixtures();
         step_semantics::Limits semanticLimits;
         auto policy = step_semantics::SourcePolicy::Strict;
+        bool independentProducts = false;
         auto geometryScope = step_semantics::GeometryScope::ExplicitOuterBounds;
         auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
@@ -56,6 +57,11 @@ int main(int argc, char** argv)
             else if (arg == "--interop-nongeometric")
             {
                 policy = step_semantics::SourcePolicy::PreserveNonGeometric;
+            }
+            else if (arg == "--independent-products")
+            {
+                independentProducts = true;
+                geometryScope = step_semantics::GeometryScope::GeneralBrep;
             }
             else if (arg == "--general-brep-source")
             {
@@ -160,7 +166,9 @@ int main(int argc, char** argv)
             return 64;
         }
         const auto source = step_source::InspectFile(std::filesystem::path(path), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
-        const auto semantics = step_semantics::Check(source, semanticLimits, policy, geometryScope, interpretation, unitInterpretation);
+        const auto semantics = independentProducts ?
+                                   step_semantics::CheckIndependentProducts(source, semanticLimits, policy, interpretation, unitInterpretation) :
+                                   step_semantics::Check(source, semanticLimits, policy, geometryScope, interpretation, unitInterpretation);
         std::string output;
         if (!step_semantics::InspectJson(source, semantics, output))
         {

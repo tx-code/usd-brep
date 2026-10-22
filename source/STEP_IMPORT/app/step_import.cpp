@@ -85,6 +85,7 @@ int main(int argc, char** argv)
     try
     {
         bool materialCollection = false;
+        bool productDocument = false;
         auto options = step_import::Options::PlanarFixture();
         std::optional<step_import::Point> query;
         std::string file;
@@ -113,6 +114,10 @@ int main(int argc, char** argv)
                 {
                     throw std::invalid_argument("Unsupported explicit quality identifier");
                 }
+            }
+            else if (arg == "--independent-products")
+            {
+                productDocument = true;
             }
             else if (arg == "--material-collection")
             {
@@ -307,6 +312,25 @@ int main(int argc, char** argv)
             // The general report embeds the full owning source inspection.
             // One explicit CLI report cap must bound both nested and outer output.
             options.sourceLimits.reportBytes = options.nativeLimits.reportBytes;
+        }
+        if (productDocument)
+        {
+            if (materialCollection || query)
+            {
+                throw std::invalid_argument("Independent document queries require explicit part/body selection");
+            }
+            auto document = step_import::ImportDocumentFile(file, options);
+            if (document.report.json.empty())
+            {
+                std::cerr << "Mandatory import report was not published\n";
+                return 5;
+            }
+            if (nativeOutput && document.document)
+            {
+                document.document->WriteNative(*nativeOutput);
+            }
+            std::cout << document.report.json;
+            return Exit(document.status);
         }
         if (materialCollection)
         {

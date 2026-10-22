@@ -82,6 +82,7 @@ struct Access
         std::shared_ptr<const step_semantics::Snapshot> source,
         std::vector<std::shared_ptr<ModelData>> bodies
     );
+    static std::shared_ptr<const DocumentSnapshot> Document(std::shared_ptr<DocumentData> data);
 };
 void Serialize(
     Status status,

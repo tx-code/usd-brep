@@ -3,6 +3,7 @@
 #include "StepAp203N916Profile.h"
 #include "StepCatalog.h"
 #include "StepGeometryDependencies.h"
+#include "StepIndependentProducts.h"
 #include "StepProductStructure.h"
 #include "StepSchemaSelection.h"
 #include "StepSourceNumber.h"
@@ -89,7 +90,8 @@ class Checker
 {
 public:
 
-    Checker(std::shared_ptr<SemanticData> data, Outcome& outcome) : m_data(std::move(data)), m_outcome(outcome)
+    Checker(std::shared_ptr<SemanticData> data, Outcome& outcome, bool independentRequest = false)
+        : m_data(std::move(data)), m_outcome(outcome), m_independentRequest(independentRequest)
     {
     }
     void Run()
@@ -165,18 +167,58 @@ public:
                     throw Failure{ structure.failure->status, std::move(structure.failure->diagnostic) };
                 }
                 m_outcome.productStructure = std::move(structure.structure);
-                Product();
+                if (m_independentRequest && m_outcome.productStructure && m_outcome.productStructure->Definitions().size() > 1)
+                {
+                    IndependentProducts();
+                }
+                else
+                {
+                    Product();
+                }
                 Closure();
+                if (!m_data->independentParts.empty())
+                {
+                    std::unordered_map<std::size_t, std::size_t> owners;
+                    for (std::size_t i = 0; i < m_data->independentParts.size(); ++i)
+                    {
+                        for (const auto& role : m_data->independentParts[i].part.roles)
+                        {
+                            if (role.name == "definition")
+                            {
+                                owners.emplace(role.recordIndex, i);
+                            }
+                        }
+                    }
+                    for (const auto& attachment : m_data->part.propertyAttachments)
+                    {
+                        m_data->independentParts.at(owners.at(attachment.productDefinition)).part.propertyAttachments.push_back(attachment);
+                    }
+                }
             }
         );
         RunPhase(
             Phase::Units,
             [&]
             {
-                UnitContext();
+                if (m_data->independentParts.empty())
+                {
+                    UnitContext();
+                }
+                else
+                {
+                    IndependentUnits();
+                }
             }
         );
-        if (!m_data->units.lengthPower10Mm)
+        if ((!m_data->independentParts.empty() && std::any_of(
+                                                      m_data->independentParts.begin(),
+                                                      m_data->independentParts.end(),
+                                                      [](const auto& part)
+                                                      {
+                                                          return !part.units.lengthPower10Mm;
+                                                      }
+                                                  )) ||
+            (m_data->independentParts.empty() && !m_data->units.lengthPower10Mm))
         {
             State(Phase::Units) = Progress::Deferred;
         }
@@ -352,6 +394,229 @@ private:
     std::size_t m_representation = 0;
     std::optional<std::size_t> m_wireframeRepresentation;
     std::optional<std::size_t> m_constructionRepresentation;
+    bool m_independentRequest = false;
+    const std::map<std::size_t, std::vector<std::size_t>>* m_scopedPopulations = nullptr;
+    std::vector<std::size_t> m_documentPhysical, m_documentBodies;
+    std::unordered_set<std::size_t> m_documentBodySet;
+    std::unordered_set<std::size_t> m_requestedProducts;
+    class PopulationScope
+    {
+    public:
+
+        PopulationScope(const std::map<std::size_t, std::vector<std::size_t>>*& slot, const std::map<std::size_t, std::vector<std::size_t>>& selected)
+            : m_slot(slot), m_previous(slot)
+        {
+            m_slot = &selected;
+        }
+        PopulationScope(const PopulationScope&) = delete;
+        PopulationScope& operator=(const PopulationScope&) = delete;
+        ~PopulationScope()
+        {
+            m_slot = m_previous;
+        }
+
+    private:
+
+        const std::map<std::size_t, std::vector<std::size_t>>*& m_slot;
+        const std::map<std::size_t, std::vector<std::size_t>>* m_previous;
+    };
+
+    std::vector<std::size_t> PhysicalRepresentations(bool associated = true) const
+    {
+        if (m_data->independentParts.empty())
+        {
+            std::vector<std::size_t> result{ m_representation };
+            if (associated && m_wireframeRepresentation)
+            {
+                result.push_back(*m_wireframeRepresentation);
+            }
+            if (associated && m_constructionRepresentation)
+            {
+                result.push_back(*m_constructionRepresentation);
+            }
+            return result;
+        }
+        return associated ? m_documentPhysical : m_documentBodies;
+    }
+    bool SelectedBodyRepresentation(std::size_t record) const
+    {
+        return m_data->independentParts.empty() ? record == m_representation : m_documentBodySet.contains(record);
+    }
+    std::vector<std::size_t> PhysicalItems(bool associated = true) const
+    {
+        std::vector<std::size_t> items;
+        for (const auto representation : PhysicalRepresentations(associated))
+        {
+            for (const auto& value : FieldValue(representation, "items").children)
+            {
+                items.push_back(Target(value));
+            }
+        }
+        return items;
+    }
+    void BuildReferenceIndex()
+    {
+        if (!m_outgoing.empty())
+        {
+            return;
+        }
+        m_outgoing.resize(m_data->types.size());
+        const auto& references = m_data->source->References();
+        for (std::size_t i = 0; i < references.size(); ++i)
+        {
+            m_outgoing[references[i].recordIndex].push_back(i);
+        }
+    }
+    void IndependentProducts()
+    {
+        BuildReferenceIndex();
+        auto plan = PlanIndependentProducts(
+            *m_data,
+            *m_outcome.productStructure,
+            [this](Span span)
+            {
+                Visit(span);
+            }
+        );
+        if (plan.failure)
+        {
+            throw Failure{ plan.failure->status, std::move(plan.failure->diagnostic) };
+        }
+        if (plan.parts.empty())
+        {
+            Fail(
+                "IndependentProductsRequireDefinitions",
+                "D2",
+                "No independent definitions were established",
+                m_data->source->Header()[2].span,
+                Status::Unsupported
+            );
+        }
+        // Scopes alter only role/population queries. All values, source indices,
+        // type bindings and reference identities still belong to one source.
+        for (const auto& definition : m_outcome.productStructure->Definitions())
+        {
+            m_requestedProducts.insert(definition.product);
+        }
+        for (const auto& scope : plan.parts)
+        {
+            PopulationScope selected(m_scopedPopulations, scope.populations);
+            m_data->part = {};
+            m_wireframeRepresentation.reset();
+            m_constructionRepresentation.reset();
+            try
+            {
+                Product();
+            }
+            catch (Failure& failure)
+            {
+                failure.diagnostic.source.related.push_back(Record(scope.definition).idSpan);
+                throw;
+            }
+            m_data->independentParts.push_back({ std::move(m_data->part), {} });
+        }
+        m_scopedPopulations = nullptr;
+        m_data->part = {};
+        m_data->part.shapeRole = "IndependentProductDefinitions";
+        for (const auto& part : m_data->independentParts)
+        {
+            m_data->part.roles.insert(m_data->part.roles.end(), part.part.roles.begin(), part.part.roles.end());
+            m_data->part.shapes.insert(m_data->part.shapes.end(), part.part.shapes.begin(), part.part.shapes.end());
+            m_data->part.applicationProtocolPresent &= part.part.applicationProtocolPresent;
+            for (const auto& role : part.part.roles)
+            {
+                if (role.name == "representation")
+                {
+                    m_documentBodies.push_back(role.recordIndex);
+                    m_documentBodySet.insert(role.recordIndex);
+                }
+                if (role.name == "representation" || role.name == "wireframe_representation" || role.name == "construction_representation")
+                {
+                    m_documentPhysical.push_back(role.recordIndex);
+                }
+            }
+        }
+    }
+    std::vector<std::size_t> SparseReach(std::size_t root)
+    {
+        std::unordered_set<std::size_t> visited;
+        std::vector<std::size_t> stack{ root };
+        const auto& references = m_data->source->References();
+        while (!stack.empty())
+        {
+            const auto r = stack.back();
+            stack.pop_back();
+            if (!visited.insert(r).second)
+            {
+                continue;
+            }
+            Visit(Record(r).span);
+            for (auto edge : m_outgoing[r])
+            {
+                Visit(references[edge].span);
+                stack.push_back(references[edge].targetRecordIndex);
+            }
+        }
+        std::vector<std::size_t> result(visited.begin(), visited.end());
+        std::sort(result.begin(), result.end());
+        return result;
+    }
+    void IndependentUnits()
+    {
+        auto dimensions = std::move(m_data->units.dimensionDefinitions);
+        std::unordered_map<std::size_t, const UnitDimensionDefinition*> dimensionByRecord;
+        for (const auto& dimension : dimensions)
+        {
+            dimensionByRecord.emplace(dimension.recordIndex, &dimension);
+        }
+        Units summary;
+        summary.dimensionDefinitions = dimensions;
+        std::unordered_set<std::size_t> observedSi;
+        for (auto& part : m_data->independentParts)
+        {
+            const auto context = std::find_if(
+                part.part.roles.begin(),
+                part.part.roles.end(),
+                [](const auto& role)
+                {
+                    return role.name == "unit_context";
+                }
+            );
+            Expects(context != part.part.roles.end());
+            m_context = context->recordIndex;
+            const auto reachable = SparseReach(m_context);
+            m_data->units = {};
+            for (auto record : reachable)
+            {
+                if (auto found = dimensionByRecord.find(record); found != dimensionByRecord.end())
+                {
+                    m_data->units.dimensionDefinitions.push_back(*found->second);
+                }
+            }
+            std::map<std::size_t, std::vector<std::size_t>> selected;
+            std::vector<std::size_t> si;
+            for (auto record : reachable)
+            {
+                if (IsA(*m_data, record, "SI_UNIT"))
+                {
+                    si.push_back(record);
+                }
+            }
+            selected.emplace(Schema(*m_data).RequireType("SI_UNIT"), std::move(si));
+            PopulationScope scope(m_scopedPopulations, selected);
+            UnitContext();
+            part.units = std::move(m_data->units);
+            for (const auto& unit : part.units.siDefinitions)
+            {
+                if (observedSi.insert(unit.recordIndex).second)
+                {
+                    summary.siDefinitions.push_back(unit);
+                }
+            }
+        }
+        m_scopedPopulations = nullptr;
+        m_data->units = std::move(summary); // Global assumptions are approved against the complete owned document.
+    }
 
     [[noreturn]] void Fail(
         std::string key,
@@ -1478,7 +1743,16 @@ private:
 
     const std::vector<std::size_t>& Population(std::string_view name) const
     {
-        return m_data->populations[Schema(*m_data).RequireType(name)];
+        const auto type = Schema(*m_data).RequireType(name);
+        if (m_scopedPopulations)
+        {
+            const auto found = m_scopedPopulations->find(type);
+            if (found != m_scopedPopulations->end())
+            {
+                return found->second;
+            }
+        }
+        return m_data->populations[type];
     }
     std::size_t One(std::string_view type)
     {
@@ -2216,7 +2490,26 @@ private:
         {
             const auto category = categories[0];
             const auto& products = FieldValue(category, "products");
-            if (products.children.size() != 1 || Target(products.children[0]) != product || FieldValue(category, "name").text != "part")
+            const bool membership = m_scopedPopulations && m_independentRequest ?
+                                        !products.children.empty() &&
+                                            std::all_of(
+                                                products.children.begin(),
+                                                products.children.end(),
+                                                [&](const auto& member)
+                                                {
+                                                    return m_requestedProducts.contains(Target(member));
+                                                }
+                                            ) &&
+                                            std::any_of(
+                                                products.children.begin(),
+                                                products.children.end(),
+                                                [&](const auto& member)
+                                                {
+                                                    return Target(member) == product;
+                                                }
+                                            ) :
+                                        products.children.size() == 1 && Target(products.children[0]) == product;
+            if (!membership || FieldValue(category, "name").text != "part")
             {
                 try
                 {
@@ -2237,8 +2530,8 @@ private:
                 catch (Failure& failure)
                 {
                     // An arbitrary source category label is not geometry, but
-                    // membership must still be exactly the selected product.
-                    if (!Interoperability() || products.children.size() != 1 || Target(products.children[0]) != product)
+                    // membership must still stay within the complete selected product set.
+                    if (!Interoperability() || !membership)
                     {
                         throw;
                     }
@@ -2425,13 +2718,16 @@ private:
     }
     void AttachAp214Properties()
     {
-        // Product() already proved one selected PD/PDS and their identity link.
+        // Product() already proved each selected PD/PDS identity link.
         // AP214E3_2010.exp PDR/PD fields supply source references; allowing these
         // metadata roots is a project attachment guard, not full EXPRESS WHERE.
         const auto& definitions = Population("PRODUCT_DEFINITION");
         const auto& shapes = Population("PRODUCT_DEFINITION_SHAPE");
-        Expects(definitions.size() == 1 && shapes.size() == 1);
-        const auto pd = definitions.front(), pds = shapes.front();
+        Expects(!definitions.empty() && !shapes.empty());
+        if (m_data->independentParts.empty())
+        {
+            Expects(definitions.size() == 1 && shapes.size() == 1);
+        }
         std::vector<Part::PropertyAttachment> attached;
         const auto reject = [&](std::size_t owner,
                                 std::string_view field,
@@ -2474,7 +2770,19 @@ private:
             const auto& characterized = FieldValue(property, "definition");
             Visit(characterized.span);
             const auto owner = Target(characterized);
-            if (owner != pd && owner != pds)
+            std::optional<std::size_t> selectedDefinition;
+            for (const auto& role : m_data->part.roles)
+            {
+                if (role.name == "definition" && role.recordIndex == owner)
+                {
+                    selectedDefinition = owner;
+                }
+                if (role.name == "product_shape" && role.recordIndex == owner)
+                {
+                    selectedDefinition = Target(FieldValue(owner, "definition"));
+                }
+            }
+            if (!selectedDefinition)
             {
                 reject(property, "definition", characterized, "UnsupportedPropertyAttachment", "selected PD or PDS identity");
             }
@@ -2521,7 +2829,7 @@ private:
             }
             const auto& context = FieldValue(representation, "context_of_items");
             Visit(context.span);
-            attached.push_back({ link, property, owner, pd, representation, Target(context) });
+            attached.push_back({ link, property, owner, *selectedDefinition, representation, Target(context) });
         }
         // Grant roots only after every link has proven its owner and item boundary.
         // Preserve every source link, shared representation/item and original context;
@@ -2673,25 +2981,7 @@ private:
     }
     void AttachAp214Presentations()
     {
-        std::vector<std::size_t> items;
-        for (const auto& value : FieldValue(m_representation, "items").children)
-        {
-            items.push_back(Target(value));
-        }
-        if (m_wireframeRepresentation)
-        {
-            for (const auto& value : FieldValue(*m_wireframeRepresentation, "items").children)
-            {
-                items.push_back(Target(value));
-            }
-        }
-        if (m_constructionRepresentation)
-        {
-            for (const auto& value : FieldValue(*m_constructionRepresentation, "items").children)
-            {
-                items.push_back(Target(value));
-            }
-        }
+        auto items = PhysicalItems();
         const auto selectedGeometryUse = Reach(std::move(items), true);
         const auto selectedStyleTarget = [&](const Value& value)
         {
@@ -2700,7 +2990,7 @@ private:
             // This exact selected root only supplies a metadata attachment; its
             // geometry, units and complete body graph were checked separately.
             return selectedGeometryUse[target] || (Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep &&
-                                                   IsAp214SourceProfile(m_data->profile.kind) && target == m_representation);
+                                                   IsAp214SourceProfile(m_data->profile.kind) && SelectedBodyRepresentation(target));
         };
         const auto& presentations = Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION");
         for (std::size_t i = 0; i < presentations.size(); ++i)
@@ -3447,12 +3737,8 @@ private:
     }
     void Closure()
     {
-        m_outgoing.resize(m_data->types.size());
+        BuildReferenceIndex();
         const auto& references = m_data->source->References();
-        for (std::size_t i = 0; i < references.size(); ++i)
-        {
-            m_outgoing[references[i].recordIndex].push_back(i);
-        }
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             CheckAp214ValueItemContexts();
@@ -3521,11 +3807,7 @@ private:
                 };
                 if (Interoperability() && std::any_of(orphans.begin(), orphans.end(), styledItem))
                 {
-                    std::vector<std::size_t> bodyItems;
-                    for (const auto& value : FieldValue(m_representation, "items").children)
-                    {
-                        bodyItems.push_back(Target(value));
-                    }
+                    auto bodyItems = PhysicalItems(false);
                     bodyUse = Reach(std::move(bodyItems), true);
                 }
                 const auto nondefiningResidue = [&](std::size_t r)
@@ -3589,11 +3871,7 @@ private:
                 Preserve(std::move(failure));
             }
         }
-        std::vector<std::size_t> items;
-        for (const auto& value : FieldValue(m_representation, "items").children)
-        {
-            items.push_back(Target(value));
-        }
+        auto items = PhysicalItems(false);
         if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             // RI use follows actual representation items and RI references, never the
@@ -3623,14 +3901,23 @@ private:
         // All property roots are now proven. A bad MRI may be retained only if
         // it is an actual metadata item and is absent from body geometry and
         // physical-unit dependencies (including conversion-factor references).
-        std::vector<std::size_t> physicalRoots{ m_representation, m_context };
-        if (m_wireframeRepresentation)
+        auto physicalRoots = PhysicalRepresentations();
+        if (m_data->independentParts.empty())
         {
-            physicalRoots.push_back(*m_wireframeRepresentation);
+            physicalRoots.push_back(m_context);
         }
-        if (m_constructionRepresentation)
+        else
         {
-            physicalRoots.push_back(*m_constructionRepresentation);
+            for (const auto& part : m_data->independentParts)
+            {
+                for (const auto& role : part.part.roles)
+                {
+                    if (role.name == "unit_context")
+                    {
+                        physicalRoots.push_back(role.recordIndex);
+                    }
+                }
+            }
         }
         const auto physical = Reach(std::move(physicalRoots), false);
         std::optional<std::vector<unsigned char>> presentationUse;
@@ -4062,7 +4349,8 @@ private:
                     }
                     const auto target = IndexOf(*m_data, issue.diagnostic.source.targetId);
                     if (!IsAp214SourceProfile(m_data->profile.kind) || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                        !IsA(*m_data, record, "STYLED_ITEM") || target != m_representation || !(*presentationUse)[record] || physical[record])
+                        !IsA(*m_data, record, "STYLED_ITEM") || !SelectedBodyRepresentation(target) || !(*presentationUse)[record] ||
+                        physical[record])
                     {
                         State(Phase::Types) = FailureProgress(issue.status);
                         State(Phase::Interoperability) = FailureProgress(issue.status);
@@ -4285,6 +4573,37 @@ Snapshot::Snapshot(std::shared_ptr<const SemanticData> data) : m_data(std::move(
         throw std::invalid_argument("Semantic snapshot requires complete type/part data");
     }
 }
+Snapshot::Snapshot(std::shared_ptr<const SemanticData> data, std::size_t partIndex) : Snapshot(std::move(data))
+{
+    if (partIndex >= m_data->independentParts.size())
+    {
+        throw std::out_of_range("Unknown qualified source definition");
+    }
+    m_partIndex = partIndex;
+}
+ProductDocument::ProductDocument(std::shared_ptr<const SemanticData> data) : m_data(std::move(data))
+{
+    if (!m_data || !m_data->bindingsComplete || m_data->independentParts.empty())
+    {
+        throw std::invalid_argument("Complete independent source definitions required");
+    }
+}
+const step_source::SourceSnapshot& ProductDocument::Source() const
+{
+    return *m_data->source;
+}
+std::size_t ProductDocument::PartCount() const
+{
+    return m_data->independentParts.size();
+}
+const std::vector<Role>& ProductDocument::Roles() const
+{
+    return m_data->part.roles;
+}
+std::shared_ptr<const Snapshot> ProductDocument::Part(std::size_t index) const
+{
+    return std::shared_ptr<const Snapshot>(new Snapshot(m_data, index));
+}
 const step_source::SourceSnapshot& Snapshot::Source() const
 {
     return *m_data->source;
@@ -4314,7 +4633,7 @@ const std::vector<Diagnostic>& Snapshot::UnitInterpretationDiagnostics() const
 }
 const Part& Snapshot::PartDefinition() const
 {
-    return m_data->part;
+    return m_partIndex ? m_data->independentParts.at(*m_partIndex).part : m_data->part;
 }
 const QualifiedSchemaProfile& Snapshot::SelectedProfile() const
 {
@@ -4334,7 +4653,7 @@ const std::vector<Diagnostic>& Snapshot::InterpretationDiagnostics() const
 }
 const Units& Snapshot::UnitContext() const
 {
-    return m_data->units;
+    return m_partIndex ? m_data->independentParts.at(*m_partIndex).units : m_data->units;
 }
 const std::vector<Diagnostic>& Snapshot::PreservedDiagnostics() const
 {
@@ -4464,13 +4783,14 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
 {
     return Check(source, limits, policy, scope, interpretation, UnitInterpretation::DeclaredOnly);
 }
-Outcome Check(
+static Outcome CheckImpl(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
     GeometryScope scope,
     SchemaInterpretation interpretation,
-    UnitInterpretation unitInterpretation
+    UnitInterpretation unitInterpretation,
+    bool independentRequest
 )
 {
     if (unitInterpretation != UnitInterpretation::DeclaredOnly &&
@@ -4533,12 +4853,32 @@ Outcome Check(
     data->geometryScope = scope;
     data->requestedUnitInterpretation = unitInterpretation;
     data->preservedDiagnosticLimit = limits.preservedDiagnostics;
-    Checker checker(data, result);
+    Checker checker(data, result, independentRequest);
     try
     {
         checker.Run();
-        result.status = data->units.lengthPower10Mm ? Status::Checked : Status::Deferred;
-        if (!data->part.deferredRegionFaces.empty())
+        if (independentRequest && data->independentParts.empty())
+        {
+            data->independentParts.push_back({ data->part, data->units });
+        }
+        const bool unitsResolved = data->independentParts.empty() ? data->units.lengthPower10Mm.has_value() :
+                                                                    std::all_of(
+                                                                        data->independentParts.begin(),
+                                                                        data->independentParts.end(),
+                                                                        [](const auto& part)
+                                                                        {
+                                                                            return part.units.lengthPower10Mm.has_value();
+                                                                        }
+                                                                    );
+        result.status = unitsResolved ? Status::Checked : Status::Deferred;
+        if (!data->part.deferredRegionFaces.empty() || std::any_of(
+                                                           data->independentParts.begin(),
+                                                           data->independentParts.end(),
+                                                           [](const auto& part)
+                                                           {
+                                                               return !part.part.deferredRegionFaces.empty();
+                                                           }
+                                                       ))
         {
             result.status = Status::Deferred;
         }
@@ -4549,7 +4889,14 @@ Outcome Check(
         {
             result.status = Status::CheckedWithDiagnostics;
         }
-        result.snapshot = std::make_shared<const Snapshot>(std::move(data));
+        if (data->independentParts.empty())
+        {
+            result.snapshot = std::make_shared<const Snapshot>(std::move(data));
+        }
+        else
+        {
+            result.document = std::make_shared<const ProductDocument>(std::move(data));
+        }
     }
     catch (const Failure& failure)
     {
@@ -4558,6 +4905,27 @@ Outcome Check(
     }
     checker.PublishProgress();
     return result;
+}
+Outcome Check(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    GeometryScope scope,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation
+)
+{
+    return CheckImpl(source, limits, policy, scope, interpretation, unitInterpretation, false);
+}
+Outcome CheckIndependentProducts(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation
+)
+{
+    return CheckImpl(source, limits, policy, GeometryScope::GeneralBrep, interpretation, unitInterpretation, true);
 }
 const char* StatusName(Status status)
 {

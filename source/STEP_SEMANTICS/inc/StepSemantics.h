@@ -310,6 +310,8 @@ public:
     const std::vector<Diagnostic>& UnitInterpretationDiagnostics() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
+    // In document views, only part/unit qualification is definition-scoped.
+    // Type/field/reference queries still inspect the one captured source graph.
     const std::vector<Diagnostic>& PreservedDiagnostics() const;
     const std::vector<std::size_t>& UnattachedNonGeometricDeclarations() const;
     std::span<const std::string_view> RegisteredTypes() const;
@@ -324,6 +326,26 @@ public:
     std::size_t ReferenceTarget(const step_source::Value& value) const;
     std::vector<std::size_t> UsedIn(std::string_view targetId, std::string_view ownerType, std::string_view field) const;
     bool UsedByRepresentation(std::size_t recordIndex) const; // RI-filtered use closure, not a generic management walk.
+
+private:
+
+    friend class ProductDocument;
+    Snapshot(std::shared_ptr<const SemanticData> data, std::size_t partIndex);
+    std::shared_ptr<const SemanticData> m_data;
+    std::optional<std::size_t> m_partIndex;
+};
+
+// Complete independent definitions sharing one immutable source/type binding
+// owner. There are no assembly placements or implicit surviving-root selection.
+class ProductDocument
+{
+public:
+
+    explicit ProductDocument(std::shared_ptr<const SemanticData> data);
+    const step_source::SourceSnapshot& Source() const;
+    std::size_t PartCount() const;
+    std::shared_ptr<const Snapshot> Part(std::size_t index) const;
+    const std::vector<Role>& Roles() const; // Whole-document ownership roots, not a singular role map.
 
 private:
 
@@ -361,6 +383,7 @@ struct Outcome
     SchemaInterpretation requestedInterpretation = SchemaInterpretation::DeclaredOnly;
     UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
     std::shared_ptr<const Snapshot> snapshot;
+    std::shared_ptr<const ProductDocument> document;
     std::shared_ptr<const ProductStructure> productStructure; // Separate, structure-only evidence can survive single-part refusal.
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
@@ -395,5 +418,12 @@ Outcome Check(
     UnitInterpretation unitInterpretation
 );
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& semantics, std::string& output);
+Outcome CheckIndependentProducts(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly
+);
 const char* StatusName(Status status);
 } // namespace step_semantics

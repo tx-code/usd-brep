@@ -305,6 +305,12 @@ struct SemanticData
     bool bindingsComplete = false;
     Part part;
     Units units;
+    struct QualifiedPart
+    {
+        Part part;
+        Units units;
+    };
+    std::vector<QualifiedPart> independentParts; // Candidate source parts; exposed only after the whole request succeeds.
 };
 
 const Catalog& Schema(const SemanticData& data);

@@ -26,7 +26,7 @@ endif()
 
 add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportPointClassification.cpp src/StepImportWireframe.cpp src/StepImportGeneral.cpp src/StepImportCurvePointDefinitions.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportDerivedUv.cpp src/StepImportSurfaceProof.cpp src/StepImportSupportDomain.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
-target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp src/StepImportCollection.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp src/StepImportCollection.cpp src/StepImportDocument.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportPeriodicNormalization.cpp)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
@@ -114,6 +114,18 @@ if(STEP_IMPORT_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/box_and_cylinder.step"
         "${CMAKE_CURRENT_BINARY_DIR}/collection-contract-output")
     set_tests_properties(step_import_collection_contracts PROPERTIES TIMEOUT 60)
+    add_executable(step_import_document_tests tests/StepImportDocumentTests.cpp)
+    target_link_libraries(step_import_document_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_document_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_document_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_document_contracts COMMAND step_import_document_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/independent_two_parts.step" "${CMAKE_CURRENT_BINARY_DIR}/document-contract-output"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/independent_distinct_parts.step")
+    set_tests_properties(step_import_document_contracts PROPERTIES TIMEOUT 60)
+    if(MSVC)
+        target_compile_options(step_import_document_tests PRIVATE /W4 /WX /permissive- /utf-8)
+    endif()
     add_executable(step_import_general_tests tests/StepImportGeneralTests.cpp)
     target_link_libraries(step_import_general_tests PRIVATE STEP_IMPORT)
     target_include_directories(step_import_general_tests PRIVATE src)
