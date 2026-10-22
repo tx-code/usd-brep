@@ -32,6 +32,7 @@
 #include <SmLoopProps.h>
 #include <SmPlane.h>
 #include <SmRegion.h>
+#include <SmSphere.h>
 #include <SmTol.h>
 #include <SmTorus.h>
 #include <SmVertex.h>
@@ -1539,6 +1540,73 @@ private:
             Step(g);
             Good(cone->AdjustSTEPUVDomain(SmExtent2d(angles[0], domain.GetMin().y, angles[1], domain.GetMax().y)));
             return cone;
+        }
+        if (Is(g, "SPHERICAL_SURFACE"))
+        {
+            const double radius = N(g, "radius") * scale;
+            // Source positive-length validation does not establish the kernel's
+            // finite nondegenerate range. Never use its negative-radius inside-
+            // out convention to encode source face orientation.
+            if (!std::isfinite(radius) || radius <= SM_EFF_ZERO)
+            {
+                Fail("GeneralSphericalKernelRadiusRange", g, Status::Unsupported);
+            }
+            SmSphere* raw = nullptr;
+            Step(g);
+            const auto status = SmSphere::CreateCanonical(*m_model->context, frame.Native(), radius, raw);
+            std::unique_ptr<SmSphere> sphere(raw);
+            Good(status);
+            Need(sphere && sphere->GetRadius() == radius, "GeneralSphericalDefinitionChanged", g);
+            // Choose a full-period chart using the endpoint longitude of a
+            // repeated source arc as a cut candidate. Endpoint agreement alone
+            // does not prove the whole arc is a meridian: final seam/UV checks
+            // still gate publication. Only the target chart cut moves; no source
+            // seam is created/welded and the spherical locus is unchanged.
+            std::map<Index, Index> counts;
+            for (const auto& loop : f.loops)
+            {
+                for (const auto& use : loop.uses)
+                {
+                    ++counts[use.edge];
+                }
+            }
+            for (const auto& [edge, count] : counts)
+            {
+                const auto& curve = curves[edge];
+                if (count != 2 || !Is(curve.geometry, "CIRCLE"))
+                {
+                    continue;
+                }
+                const auto a = Sub(curve.p0, frame.o), b = Sub(curve.p1, frame.o);
+                const double ax = Dot(a, frame.x), ay = Dot(a, frame.y), bx = Dot(b, frame.x), by = Dot(b, frame.y);
+                if (std::hypot(ax, ay) <= SM_EFF_ZERO || std::hypot(bx, by) <= SM_EFF_ZERO)
+                {
+                    continue; // A pole does not establish a unique longitude.
+                }
+                const double first = std::atan2(ay, ax), last = std::atan2(by, bx);
+                if (std::abs(std::remainder(first - last, 2 * std::numbers::pi)) > 1e-10)
+                {
+                    continue;
+                }
+                const auto angles = FullPeriodDegrees(first > 0 ? first - 2 * std::numbers::pi : first);
+                Step(g);
+                Good(sphere->AdjustSTEPUVDomain(SmExtent2d(angles[0], -90, angles[1], 90)));
+                ParameterMapping mapping;
+                mapping.kind = "SphericalLongitudeChart";
+                mapping.sourceGeometryId = Id(g);
+                mapping.sourceUseId = Id(f.record);
+                mapping.targetFaceIndex = m_model->faces.size();
+                mapping.equation = "target analytic longitude domain is degrees with one full period; source frame/radius unchanged; no source-pcurve or ordinary-NURBS-UV identity asserted";
+                mapping.parameters = { { "native_analytic_domain_degrees", { angles[0], -90, angles[1], 90 } } };
+                m_report.parameterMappings.push_back(std::move(mapping));
+                break;
+            }
+            Need(sphere->GetRadius() == radius, "GeneralSphericalDefinitionChanged", g);
+            // STEP u/v are angular parameters; the native analytic chart uses
+            // degrees and its ordinary evaluator uses rational NURBS UV. The
+            // source definition is retained; no identity UV mapping is asserted.
+            // Existing seam, installed-trim and native checks must still pass.
+            return sphere;
         }
         if (Is(g, "TOROIDAL_SURFACE"))
         {
