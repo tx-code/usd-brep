@@ -732,3 +732,16 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 选择现有纠正编码语法。它要求 general 非几何互操作配置；原始声明、错误诊断和未验证
 身份保留，成功仍为 `AcceptedUnderInterpretation`。默认及旧 level1 选项不接纳空白声明。
 类型、物理单位、几何和原生验收继续执行，不自动改写声明或重试另一编码。
+
+
+显式 `Options.unitInterpretation=VerifiedExplicitUnitDimensions`／CLI
+`--interpret-explicit-unit-dimensions` 支持经精确验证的 AP214 SI/换算长度单位派生槽位引用。
+它要求 general 非几何互操作配置，默认关闭。单位指数、换算依赖、原始引用和诊断保留；
+维度矛盾、循环、不支持的单位和非正换算因子继续拒绝。精确物理缩放仍由原生单位解析器
+验证，容量不足仍为 Indeterminate，不能因维度一致而跳过缩放检查。
+
+源快照记录独立的单位解释证据；面、线框和支撑几何 owning view 的
+`AppliedUnitInterpretation()` 读取同一证据。最终模型成功时为
+`AcceptedUnderInterpretation`，并报告 `source_unit_declaration_conforming=false`。
+修复仍为 None，几何定义、预算、检查、取消与原子发布保持原合同。查看器通过
+`--unit-interpretation VerifiedExplicitUnitDimensions` 显式选择，并保留 HUD/扫描资格。

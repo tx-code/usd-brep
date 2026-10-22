@@ -1566,6 +1566,10 @@ step_semantics::SchemaInterpretation FaceView::AppliedSourceInterpretation() con
     // Reading this qualification does not dispatch into the native kernel.
     return m_data->source->AppliedInterpretation();
 }
+step_semantics::UnitInterpretation FaceView::AppliedUnitInterpretation() const
+{
+    return m_data->source->AppliedUnitInterpretation();
+}
 bool FaceView::HasAsciiInvariantDataAssumption() const
 {
     return m_data->source->Source().HasAsciiInvariantDataAssumption();

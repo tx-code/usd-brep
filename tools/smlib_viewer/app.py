@@ -206,6 +206,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             policy = "\n研究配置" if study else ""
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
+            if metadata.get('applied_unit_interpretation') == 'VerifiedExplicitUnitDimensions':
+                policy += "\n单位声明经验证解释"
             if metadata.get("ascii_invariant_data_applied"):
                 policy += "\n文本编码未验证"
             self.hud.setText(f"{role}{policy}\n{counts}\n≈ {size}  {unit}")
@@ -487,7 +489,8 @@ def run(options):
                               carrier_interpretation=options.carrier_interpretation,
                               report_budget_mib=options.report_budget_mib,
                               preserve_opaque_file_name_text=options.preserve_opaque_file_name_text,
-                              assume_ascii_invariant_data=options.assume_ascii_invariant_data)
+                              assume_ascii_invariant_data=options.assume_ascii_invariant_data,
+                              unit_interpretation=options.unit_interpretation)
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

@@ -83,6 +83,7 @@ def run_case(path, directory, options, caption):
                "--scan-child", "--profile", options.profile]
     command.extend(["--schema-interpretation", options.schema_interpretation,
                     "--carrier-interpretation", options.carrier_interpretation,
+                    "--unit-interpretation", options.unit_interpretation,
                     "--report-budget-mib", str(options.report_budget_mib)])
     for enabled, flag in [(options.normalize_periodic_faces, "--normalize-periodic-faces"),
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
@@ -269,6 +270,7 @@ def _summary(roots, records, count, started, options, complete, counts, *, inclu
         "settings": {"profile": options.profile, "strict_source": options.strict_source,
                      "schema_interpretation": options.schema_interpretation,
                      "carrier_interpretation": options.carrier_interpretation,
+                     "unit_interpretation": options.unit_interpretation,
                      "report_budget_mib": options.report_budget_mib,
                      "preserve_opaque_file_name_text": options.preserve_opaque_file_name_text,
                      "assume_ascii_invariant_data": options.assume_ascii_invariant_data,

@@ -265,3 +265,12 @@ corrected grammar. It is unavailable in strict-source mode, never selected by
 schema/year or a failed load, and retains native interpreted qualification.
 Required unit/geometry errors still prevent a scene. Deliver a matching worker
 when selecting this additional closed enum value.
+
+
+`--unit-interpretation VerifiedExplicitUnitDimensions` separately requests exact
+validation of redundant AP214 SI/conversion-length dimension declarations. It
+requires interoperability, retains original source errors, and never rounds a
+conversion scale or changes geometry. Native acceptance still requires its full
+scale and geometry checks. The HUD/receipts mark an applied unit interpretation;
+an unused request does not acquire the marker. This option requires the matching
+worker and is independent of schema/carrier/opaque-text choices.

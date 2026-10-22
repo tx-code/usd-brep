@@ -29,6 +29,7 @@ int main(int argc, char** argv)
         auto geometryScope = step_semantics::GeometryScope::ExplicitOuterBounds;
         auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
+        auto unitInterpretation = step_semantics::UnitInterpretation::DeclaredOnly;
         auto interpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
         auto carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
         const std::unordered_map<std::string_view, std::size_t*> options = { { "--max-input-bytes", &limits.inputBytes },
@@ -98,6 +99,10 @@ int main(int argc, char** argv)
                 }
                 dataStringPolicy = choice;
             }
+            else if (arg == "--interpret-explicit-unit-dimensions")
+            {
+                unitInterpretation = step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions;
+            }
             else if (arg == "--interpret-blank-level-as-corrected")
             {
                 if (carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&
@@ -155,7 +160,7 @@ int main(int argc, char** argv)
             return 64;
         }
         const auto source = step_source::InspectFile(std::filesystem::path(path), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
-        const auto semantics = step_semantics::Check(source, semanticLimits, policy, geometryScope, interpretation);
+        const auto semantics = step_semantics::Check(source, semanticLimits, policy, geometryScope, interpretation, unitInterpretation);
         std::string output;
         if (!step_semantics::InspectJson(source, semantics, output))
         {

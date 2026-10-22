@@ -126,6 +126,12 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Opaque DATA text requires explicit general interoperability");
     }
+    if (options.unitInterpretation != step_semantics::UnitInterpretation::DeclaredOnly &&
+        (options.unitInterpretation != step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("Verified unit interpretation requires explicit general interoperability");
+    }
     if (options.schemaInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&
         ((options.schemaInterpretation != step_semantics::SchemaInterpretation::UnregisteredAp214As2010 &&
           options.schemaInterpretation != step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010) ||
@@ -185,7 +191,8 @@ Result Import(const Options& options, Capture capture)
                 options.semanticLimits,
                 options.sourcePolicy,
                 step_semantics::GeometryScope::GeneralBrep,
-                options.schemaInterpretation
+                options.schemaInterpretation,
+                options.unitInterpretation
             );
             const auto& checked = *report.generalSource;
             report.sourceSchema = checked.schemaSelection;

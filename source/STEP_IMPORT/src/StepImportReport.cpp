@@ -529,6 +529,13 @@ void WriteReportJson(
         {
             w.Add(",\"data_string_interpretation\":\"PreserveAsciiInvariantBytes\",\"data_encoding_verified\":false");
         }
+        if (report.generalSource && report.generalSource->snapshot &&
+            report.generalSource->snapshot->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly)
+        {
+            w.Add(",\"source_unit_interpretation\":");
+            w.String(step_semantics::UnitInterpretationName(report.generalSource->snapshot->AppliedUnitInterpretation()));
+            w.Add(",\"source_unit_declaration_conforming\":false");
+        }
         w.Add(",\"repair\":\"None\",\"quality_id\":");
         w.String(quality.id);
         if (report.numericalIntegration)

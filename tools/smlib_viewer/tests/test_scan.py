@@ -27,7 +27,7 @@ def options(**values):
                     restrict_unused_support_domains=False, strict_source=False, edges=False,
                     wireframe=False, thumbnails=False, timeout=150,
                     schema_interpretation="DeclaredOnly", carrier_interpretation="DeclaredOnly", report_budget_mib=16,
-                    preserve_opaque_file_name_text=False, assume_ascii_invariant_data=False)
+                    preserve_opaque_file_name_text=False, assume_ascii_invariant_data=False, unit_interpretation="DeclaredOnly")
     return SimpleNamespace(**(defaults | values))
 
 

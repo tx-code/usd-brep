@@ -269,7 +269,8 @@ struct SemanticData
         ContextApplicationProtocols,
         ForeignRealItem,
         N916RepresentationCaption,
-        AsciiInvariantRepresentationPurpose
+        AsciiInvariantRepresentationPurpose,
+        VerifiedExplicitUnitDimensions
     };
     struct PendingIssue
     {
@@ -282,6 +283,9 @@ struct SemanticData
     std::size_t preservedDiagnosticLimit = 1024;
     std::vector<PendingIssue> pendingIssues; // Provisional only; no metadata/root qualification until the final proof.
     std::vector<Diagnostic> preservedDiagnostics;
+    UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
+    std::vector<UnitDimensionAssumption> unitAssumptions;
+    std::vector<Diagnostic> unitInterpretationDiagnostics;
     SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.

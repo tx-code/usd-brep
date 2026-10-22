@@ -579,6 +579,74 @@ double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::
     return volume;
 }
 using step_import_test::ArchiveClassChanges;
+void UnitInterpretationContract(const std::filesystem::path& fixture, const std::filesystem::path& directory)
+{
+    std::ifstream input(fixture, std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    const auto replace = [&](std::string_view old, std::string_view value)
+    {
+        const auto pos = text.find(old);
+        Require(pos != std::string::npos, "unit interpretation fixture binding");
+        text.replace(pos, old.size(), value);
+    };
+    replace(
+        "AP203_CONFIGURATION_CONTROLLED_3D_DESIGN_OF_MECHANICAL_PARTS_AND_ASSEMBLIES_MIM_LF {1 0 10303 403 2 1 2}",
+        "AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}"
+    );
+    replace("'ap203_configuration_controlled_3d_design_of_mechanical_parts_and_assemblies',2011", "'automotive_design',2010");
+    replace("#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT", "#10=(LENGTH_UNIT() NAMED_UNIT(#990000) SI_UNIT");
+    replace("ENDSEC;\nEND-ISO", "#990000=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\nENDSEC;\nEND-ISO");
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
+    options.unitInterpretation = step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions;
+    auto result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::AcceptedUnderInterpretation && result.model, "verified unit native result");
+    const auto source = result.model->Source();
+    const auto unit = source->UnitContext().lengthUnit;
+    Require(
+        source->Field(unit, "dimensions").Declaration().derivedSlot &&
+            source->Field(unit, "dimensions").Value().kind == step_source::ValueKind::Reference,
+        "source derived slot and original explicit reference both retained"
+    );
+    Require(
+        source->UnitDimensionAssumptions().size() == 1 && source->UnitInterpretationDiagnostics()[0].source.key == "DerivedSlotMarkerRequired",
+        "unit receipt original fact"
+    );
+    const auto held = result.model->Face();
+    const auto archive = directory / "verified-units.smb";
+    result.model->WriteNative(archive);
+    auto loaded = ReloadNative(archive);
+    auto copy = result.model->CopyBrepForModeling();
+    copy.model->Edit(
+        [&](SmBrep& original)
+        {
+            step_import_test::CompareNativeDefinitions(original, *loaded.brep);
+        }
+    );
+    result = {};
+    Require(
+        held.AppliedUnitInterpretation() == step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions && source->Source().Bytes() == text,
+        "owning unit receipt survives outcome destruction"
+    );
+    auto cancelled = options;
+    cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+    cancelled.execution.progress = [&](step_import::Progress p)
+    {
+        if (p.phase == step_import::Phase::NativeReady)
+        {
+            cancelled.execution.control->RequestCancel();
+        }
+    };
+    const auto stopped = step_import::ImportBytes(text, cancelled);
+    Require(
+        stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded,
+        "unit interpretation cannot bypass commit cleanup"
+    );
+}
+
+
 using step_import_test::CompareNativeDefinitions;
 
 void RationalContract(const std::filesystem::path& source, const std::filesystem::path& directory)
@@ -1373,7 +1441,8 @@ void DevelopmentContract(
     bool headerText = false,
     bool asciiInvariant = false,
     bool compactReport = false,
-    bool blankCarrier = false
+    bool blankCarrier = false,
+    bool explicitDimensions = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1438,6 +1507,10 @@ void DevelopmentContract(
         Require(!carrier && !lowercaseHex, "choose one carrier interpretation");
         options.carrierInterpretation = step_source::CarrierInterpretation::BlankLevelAsCorrectedEncoding;
     }
+    if (explicitDimensions)
+    {
+        options.unitInterpretation = step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions;
+    }
     auto result = step_import::ImportFile(source, options);
     std::filesystem::create_directories(directory);
     std::ofstream report(directory / "import.json", std::ios::binary);
@@ -1446,7 +1519,8 @@ void DevelopmentContract(
     const bool schemaAssumed = result.model && result.model->Source()->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly;
     const bool carrierAssumed = result.model && result.model->Source()->Source().AppliedCarrierAssumption();
     const bool dataAssumed = result.model && result.model->Source()->Source().HasAsciiInvariantDataAssumption();
-    const bool assumed = schemaAssumed || carrierAssumed || dataAssumed;
+    const bool unitAssumed = result.model && result.model->Source()->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
+    const bool assumed = schemaAssumed || carrierAssumed || dataAssumed || unitAssumed;
     if (result.model)
     {
         Require(result.model->Face().HasAsciiInvariantDataAssumption() == dataAssumed, "owning face retains DATA interpretation");
@@ -1654,7 +1728,7 @@ int main(int argc, char** argv)
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
                  lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false, compactReport = false,
-                 blankCarrier = false;
+                 blankCarrier = false, explicitDimensions = false;
             std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
@@ -1676,10 +1750,14 @@ int main(int argc, char** argv)
                         flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex" ||
                         flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text" ||
                         flag == "--assume-ascii-invariant-data" || flag == "--compact-source-report" ||
-                        flag == "--interpret-blank-level-as-corrected",
+                        flag == "--interpret-blank-level-as-corrected" || flag == "--interpret-explicit-unit-dimensions",
                     "unknown explicit source flag"
                 );
-                if (flag == "--interpret-blank-level-as-corrected")
+                if (flag == "--interpret-explicit-unit-dimensions")
+                {
+                    explicitDimensions = true;
+                }
+                else if (flag == "--interpret-blank-level-as-corrected")
                 {
                     blankCarrier = true;
                 }
@@ -1746,7 +1824,8 @@ int main(int argc, char** argv)
                 headerText,
                 asciiInvariant,
                 compactReport,
-                blankCarrier
+                blankCarrier,
+                explicitDimensions
             );
             return 0;
         }
@@ -1772,6 +1851,7 @@ int main(int argc, char** argv)
         DerivedUvEndpointContract();
         RationalContract(argv[1], argv[2]);
         OpaqueHeaderContract(argv[1]);
+        UnitInterpretationContract(argv[1], argv[2]);
         OpaqueDataContract(argv[1]);
         OpaqueDataContract(argv[1], true);
         OpaqueDataContract(argv[1], true, true);

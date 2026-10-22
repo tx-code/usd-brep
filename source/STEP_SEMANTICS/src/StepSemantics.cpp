@@ -245,6 +245,11 @@ public:
                 m_outcome.unitDependencies = "CheckedWithDiagnostics";
             }
         }
+        if (!m_data->unitInterpretationDiagnostics.empty())
+        {
+            m_outcome.types = "CheckedWithDiagnostics";
+            m_outcome.unitDependencies = "CheckedWithDiagnostics";
+        }
         // A source-region deferral qualifies a completed ownership check. It
         // must never hide a later orphan failure or a traversal resource limit.
         if (State(Phase::Part) == Progress::Passed && !m_data->part.deferredRegionFaces.empty())
@@ -1394,19 +1399,28 @@ private:
                             }
                             catch (Failure& failure)
                             {
-                                // AP214's CBU dimensions are DERIVE, so an explicit
-                                // mass-dimensions reference remains a source error.
-                                // Retain only this well-typed metadata spelling;
-                                // final approval must prove property ownership and
-                                // absence from every physical dependency. Never
-                                // rewrite it to '*' or use it as a derived value.
+                                // AP214 derived slots still require '*'. Mass metadata
+                                // retains its existing nonphysical proof. Separately
+                                // requested SI/conversion-length interpretation must
+                                // prove every supplied exponent against its derivation
+                                // and pass closure; neither path rewrites the source.
+                                const bool interpretedUnit = m_data->requestedUnitInterpretation ==
+                                                                 UnitInterpretation::VerifiedExplicitUnitDimensions &&
+                                                             m_data->geometryScope == GeometryScope::GeneralBrep &&
+                                                             (IsA(*m_data, r, "LENGTH_UNIT") || IsA(*m_data, r, "SI_UNIT"));
                                 if (!Interoperability() || !IsAp214SourceProfile(m_data->profile.kind) || field.name != "dimensions" ||
-                                    value.kind != ValueKind::Reference || !IsA(*m_data, r, "CONVERSION_BASED_UNIT") || !IsA(*m_data, r, "MASS_UNIT"))
+                                    value.kind != ValueKind::Reference ||
+                                    (!IsA(*m_data, r, "SI_UNIT") && !IsA(*m_data, r, "CONVERSION_BASED_UNIT")) ||
+                                    (!IsA(*m_data, r, "MASS_UNIT") && !interpretedUnit) || (IsA(*m_data, r, "SI_UNIT") && !interpretedUnit))
                                 {
                                     throw;
                                 }
                                 Scalar(value, FieldKind::Reference, field, r, c, path);
-                                Preserve(std::move(failure));
+                                Preserve(
+                                    std::move(failure),
+                                    interpretedUnit ? SemanticData::PreservationProof::VerifiedExplicitUnitDimensions :
+                                                      SemanticData::PreservationProof::ExistingMetadata
+                                );
                             }
                         }
                         continue;
@@ -3681,6 +3695,33 @@ private:
             }
             const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
             const auto& key = issue.diagnostic.source.key;
+            if (issue.proof == SemanticData::PreservationProof::VerifiedExplicitUnitDimensions)
+            {
+                // The complete unit pass verified all explicit exponents against
+                // SI-name/factor-derived dimensions, nominal quantity constraints
+                // and conversion dependencies. Closure established ownership;
+                // this interpretation grants no new roots. Nonphysical source
+                // declarations remain source errors just as physical ones do.
+                const auto found = std::find_if(
+                    m_data->units.dimensionDefinitions.begin(),
+                    m_data->units.dimensionDefinitions.end(),
+                    [&](const auto& definition)
+                    {
+                        return definition.recordIndex == record;
+                    }
+                );
+                const bool supportedUnit = IsA(*m_data, record, "SI_UNIT") ||
+                                           (IsA(*m_data, record, "CONVERSION_BASED_UNIT") && IsA(*m_data, record, "LENGTH_UNIT"));
+                if (m_data->requestedUnitInterpretation != UnitInterpretation::VerifiedExplicitUnitDimensions ||
+                    !IsAp214SourceProfile(m_data->profile.kind) || !supportedUnit || found == m_data->units.dimensionDefinitions.end() ||
+                    State(Phase::Part) != Progress::Passed || State(Phase::UnitDependencies) != Progress::Passed ||
+                    issue.diagnostic.field != "dimensions" || key != "DerivedSlotMarkerRequired")
+                {
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
             if (issue.proof == SemanticData::PreservationProof::ContextApplicationProtocols)
             {
                 const auto selectedProtocol = [&](std::size_t protocol)
@@ -4093,7 +4134,21 @@ private:
         }
         for (auto& issue : m_data->pendingIssues)
         {
-            m_data->preservedDiagnostics.push_back(std::move(issue.diagnostic));
+            if (issue.proof == SemanticData::PreservationProof::VerifiedExplicitUnitDimensions)
+            {
+                const auto record = IndexOf(*m_data, issue.diagnostic.source.recordId);
+                m_data->unitAssumptions.push_back(
+                    { record,
+                      Target(FieldValue(record, "dimensions")),
+                      IsA(*m_data, record, "SI_UNIT") ? std::optional<std::size_t>{} :
+                                                        std::optional<std::size_t>{ Target(FieldValue(record, "conversion_factor")) } }
+                );
+                m_data->unitInterpretationDiagnostics.push_back(std::move(issue.diagnostic));
+            }
+            else
+            {
+                m_data->preservedDiagnostics.push_back(std::move(issue.diagnostic));
+            }
         }
         m_data->pendingIssues.clear();
     }
@@ -4254,6 +4309,29 @@ const step_source::SourceSnapshot& Snapshot::Source() const
 {
     return *m_data->source;
 }
+const char* UnitInterpretationName(UnitInterpretation interpretation)
+{
+    switch (interpretation)
+    {
+        case UnitInterpretation::DeclaredOnly:
+            return "DeclaredOnly";
+        case UnitInterpretation::VerifiedExplicitUnitDimensions:
+            return "VerifiedExplicitUnitDimensions";
+    }
+    return "Unknown";
+}
+UnitInterpretation Snapshot::AppliedUnitInterpretation() const
+{
+    return m_data->unitAssumptions.empty() ? UnitInterpretation::DeclaredOnly : UnitInterpretation::VerifiedExplicitUnitDimensions;
+}
+const std::vector<UnitDimensionAssumption>& Snapshot::UnitDimensionAssumptions() const
+{
+    return m_data->unitAssumptions;
+}
+const std::vector<Diagnostic>& Snapshot::UnitInterpretationDiagnostics() const
+{
+    return m_data->unitInterpretationDiagnostics;
+}
 const Part& Snapshot::PartDefinition() const
 {
     return m_data->part;
@@ -4404,6 +4482,23 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
 }
 Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope, SchemaInterpretation interpretation)
 {
+    return Check(source, limits, policy, scope, interpretation, UnitInterpretation::DeclaredOnly);
+}
+Outcome Check(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    GeometryScope scope,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation
+)
+{
+    if (unitInterpretation != UnitInterpretation::DeclaredOnly &&
+        (unitInterpretation != UnitInterpretation::VerifiedExplicitUnitDimensions || policy != SourcePolicy::PreserveNonGeometric ||
+         scope != GeometryScope::GeneralBrep))
+    {
+        throw std::invalid_argument("Verified unit interpretation requires explicit general interoperability");
+    }
     if ((policy != SourcePolicy::Strict && policy != SourcePolicy::PreserveNonGeometric) ||
         (scope != GeometryScope::ExplicitOuterBounds && scope != GeometryScope::GeneralBrep))
     {
@@ -4428,6 +4523,7 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
     result.policy = policy;
     result.geometryScope = scope;
     result.requestedInterpretation = interpretation;
+    result.requestedUnitInterpretation = unitInterpretation;
     if (!source.source || source.status != step_source::Status::Inspected)
     {
         for (const auto& diagnostic : source.diagnostics)
@@ -4455,6 +4551,7 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
     data->source = source.source;
     data->policy = policy;
     data->geometryScope = scope;
+    data->requestedUnitInterpretation = unitInterpretation;
     data->preservedDiagnosticLimit = limits.preservedDiagnostics;
     Checker checker(data, result);
     try
@@ -4466,8 +4563,9 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
             result.status = Status::Deferred;
         }
         result.preservedDiagnostics = data->preservedDiagnostics;
-        if (result.status == Status::Checked &&
-            (!result.preservedDiagnostics.empty() || !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
+        result.unitInterpretationDiagnostics = data->unitInterpretationDiagnostics;
+        if (result.status == Status::Checked && (!result.preservedDiagnostics.empty() || !data->unitInterpretationDiagnostics.empty() ||
+                                                 !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
         {
             result.status = Status::CheckedWithDiagnostics;
         }

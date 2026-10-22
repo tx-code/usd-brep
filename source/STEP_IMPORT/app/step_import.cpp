@@ -163,6 +163,10 @@ int main(int argc, char** argv)
                 }
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
             }
+            else if (arg == "--interpret-explicit-unit-dimensions")
+            {
+                options.unitInterpretation = step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions;
+            }
             else if (arg == "--interpret-blank-level-as-corrected")
             {
                 if (options.carrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly &&

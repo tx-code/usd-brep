@@ -144,6 +144,10 @@ step_semantics::SchemaInterpretation WireframeView::AppliedSourceInterpretation(
 {
     return m_data->source->AppliedInterpretation();
 }
+step_semantics::UnitInterpretation WireframeView::AppliedUnitInterpretation() const
+{
+    return m_data->source->AppliedUnitInterpretation();
+}
 bool WireframeView::HasAsciiInvariantDataAssumption() const
 {
     return m_data->source->Source().HasAsciiInvariantDataAssumption();
@@ -249,6 +253,10 @@ SupportingGeometryInfo SupportingGeometryView::Info() const
 step_semantics::SchemaInterpretation SupportingGeometryView::AppliedSourceInterpretation() const
 {
     return m_data->source->AppliedInterpretation();
+}
+step_semantics::UnitInterpretation SupportingGeometryView::AppliedUnitInterpretation() const
+{
+    return m_data->source->AppliedUnitInterpretation();
 }
 bool SupportingGeometryView::HasAsciiInvariantDataAssumption() const
 {

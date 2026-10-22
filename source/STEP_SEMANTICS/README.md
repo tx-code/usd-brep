@@ -1006,3 +1006,28 @@ Metadata comparison includes nested dimension contents and does not depend on
 catalog addresses. Null snapshots need no dictionary. Default encoding remains v1.
 The encoder bounds auxiliary storage at 65,536 distinct descriptors and shares the
 outer writer's output capacity; exhaustion publishes no partial report.
+
+
+`UnitInterpretation::VerifiedExplicitUnitDimensions` is a separate, explicit,
+default-off general interoperability policy for registered AP214 profiles. It
+handles references supplied in a derived `NAMED_UNIT.dimensions` slot only for
+supported SI units and conversion length units. Original values, references,
+spans and `DerivedSlotMarkerRequired` facts remain unchanged. It never changes
+that reference to `*` or grants another entity/signature/part root.
+
+The existing exact unit dependency graph must complete: seven explicit rational
+exponents equal SI-name/factor-derived dimensions, nominal quantity predicates
+still hold, and cycles/unsupported dependencies fail. Conversion length factors
+handled by this interpretation must be positive; native scale resolution retains
+its separate positive SI-rooted exact arithmetic and capacity checks. Complete
+part closure must establish ownership. This works for owned physical or attribute
+units without describing a physical exception as nongeometric metadata.
+
+`Snapshot::UnitDimensionAssumptions()` and `UnitInterpretationDiagnostics()` own
+the admitted unit/dimensions/factor identities and original errors (SI has no
+factor). `AppliedUnitInterpretation()` is independent of schema/carrier choices.
+The report labels the nonconforming declaration and `ExactDimensionalEquivalenceOnly`
+proof; source success does not establish a representable native scale. An unused
+request creates no receipt. Unit errors are separate from `PreservedDiagnostics`.
+A failed full source request publishes no partial unit receipt. Existing strict,
+planar, property-only mass and valid derived-marker paths keep their behavior.

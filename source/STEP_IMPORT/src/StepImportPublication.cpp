@@ -77,7 +77,8 @@ void Publication::FinishAccept()
         // prepared model remains the authoritative owner of both assumptions.
         const auto semantic = m_preparedCollection ? m_preparedCollection->Source() : m_prepared->Source();
         interpreted = semantic->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
-                      semantic->Source().AppliedCarrierAssumption() != nullptr || semantic->Source().HasAsciiInvariantDataAssumption();
+                      semantic->Source().AppliedCarrierAssumption() != nullptr || semantic->Source().HasAsciiInvariantDataAssumption() ||
+                      semantic->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
     }
     m_status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
     m_execution.Check(Phase::BeforeReport);

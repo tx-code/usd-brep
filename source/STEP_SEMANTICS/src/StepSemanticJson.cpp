@@ -368,6 +368,47 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             "{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":"
     );
     out.String(StatusName(result.status));
+    const auto appliedUnit = result.snapshot ? result.snapshot->AppliedUnitInterpretation() : UnitInterpretation::DeclaredOnly;
+    if (result.requestedUnitInterpretation != UnitInterpretation::DeclaredOnly || appliedUnit != UnitInterpretation::DeclaredOnly)
+    {
+        out.Add(",\"unit_interpretation\":{\"requested\":");
+        out.String(UnitInterpretationName(result.requestedUnitInterpretation));
+        out.Add(",\"applied\":");
+        out.String(UnitInterpretationName(appliedUnit));
+        out.Add(",\"source_declaration_conforming\":");
+        out.Add(appliedUnit == UnitInterpretation::DeclaredOnly ? "null" : "false");
+        out.Add(",\"proof_scope\":\"ExactDimensionalEquivalenceOnly\",\"native_scale_resolution\":\"Required\",\"units\":[");
+        if (result.snapshot)
+        {
+            bool first = true;
+            for (const auto& unit : result.snapshot->UnitDimensionAssumptions())
+            {
+                if (!first)
+                {
+                    out.Add(",");
+                }
+                first = false;
+                const auto& records = result.snapshot->Source().Records();
+                out.Add("{\"unit\":");
+                out.String(records[unit.unit].id);
+                out.Add(",\"explicit_dimensions\":");
+                out.String(records[unit.dimensions].id);
+                out.Add(",\"conversion_factor\":");
+                if (unit.factor)
+                {
+                    out.String(records[*unit.factor].id);
+                }
+                else
+                {
+                    out.Add("null");
+                }
+                out.Add("}");
+            }
+        }
+        out.Add("],\"original_diagnostics\":");
+        Diagnostics(out, source, result.snapshot ? result.snapshot->UnitInterpretationDiagnostics() : result.unitInterpretationDiagnostics);
+        out.Add("}");
+    }
     out.Add(",\"deferred_reason\":");
     if (result.status == Status::Deferred)
     {
@@ -807,7 +848,12 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Add(",\"source_policy\":\"PreserveNonGeometric\",\"preserved_diagnostics\":");
         Diagnostics(out, source, result.preservedDiagnostics);
         out.Add(",\"source_conformance\":");
-        out.String(result.snapshot ? (result.preservedDiagnostics.empty() ? "SelectedSubsetChecked" : "NonGeometricIssuesPreserved") : "NotQualified");
+        out.String(
+            result.snapshot ? (appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
+                               result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
+                                                                                 "NonGeometricIssuesPreserved") :
+                              "NotQualified"
+        );
     }
     if (result.geometryScope == GeometryScope::GeneralBrep)
     {

@@ -210,7 +210,8 @@ void Publish(
     bool fileNameText = false,
     bool asciiInvariant = false,
     bool asciiApplied = false,
-    const std::vector<BodyScene>* bodyScenes = nullptr
+    const std::vector<BodyScene>* bodyScenes = nullptr,
+    std::string_view unitInterpretation = "DeclaredOnly"
 )
 {
     std::string json;
@@ -228,6 +229,13 @@ void Publish(
                 w.String(status);
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
+                w.Add(",\"requested_unit_interpretation\":");
+                w.String(unitInterpretation);
+                const auto appliedUnit = report.generalSource && report.generalSource->snapshot ?
+                                             report.generalSource->snapshot->AppliedUnitInterpretation() :
+                                             step_semantics::UnitInterpretation::DeclaredOnly;
+                w.Add(",\"applied_unit_interpretation\":");
+                w.String(step_semantics::UnitInterpretationName(appliedUnit));
                 w.Add(",\"import_report_encoding\":");
                 w.String(report.encoding == step_import::ReportEncoding::CompactV2 ? "CompactV2" : "ExpandedV1");
                 w.Add(",\"requested_schema_interpretation\":");
@@ -347,7 +355,8 @@ int Run(
     const std::string& carrier,
     const std::string& reportBudget,
     bool fileNameText,
-    bool asciiInvariant
+    bool asciiInvariant,
+    const std::string& unitInterpretation
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -425,7 +434,18 @@ int Run(
         // Match the core's closed policy enums, never infer an interpretation
         // from file content or a failed default import. Strict mode cannot gain
         // a carrier/schema exception through this transport entry point.
-        Good(!strict || (schema == "DeclaredOnly" && carrier == "DeclaredOnly"), "InterpretationRequiresInteroperability");
+        Good(
+            !strict || (schema == "DeclaredOnly" && carrier == "DeclaredOnly" && unitInterpretation == "DeclaredOnly"),
+            "InterpretationRequiresInteroperability"
+        );
+        if (unitInterpretation == "VerifiedExplicitUnitDimensions")
+        {
+            options.unitInterpretation = step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions;
+        }
+        else
+        {
+            Good(unitInterpretation == "DeclaredOnly", "UnknownUnitInterpretation");
+        }
         if (schema == "Ap214NameOnlyAs2010")
         {
             options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
@@ -489,7 +509,9 @@ int Run(
                 reportMiB,
                 fileNameText,
                 asciiInvariant,
-                asciiApplied
+                asciiApplied,
+                nullptr,
+                unitInterpretation
             );
             return 1;
         }
@@ -536,7 +558,8 @@ int Run(
                 fileNameText,
                 asciiInvariant,
                 asciiApplied,
-                &scenes
+                &scenes,
+                unitInterpretation
             );
             return 0;
         }
@@ -577,7 +600,9 @@ int Run(
             reportMiB,
             fileNameText,
             asciiInvariant,
-            asciiApplied
+            asciiApplied,
+            nullptr,
+            unitInterpretation
         );
         return 0;
     }
@@ -600,7 +625,9 @@ int Run(
                 reportMiB,
                 fileNameText,
                 asciiInvariant,
-                asciiApplied
+                asciiApplied,
+                nullptr,
+                unitInterpretation
             );
         }
         return 1;
@@ -610,7 +637,7 @@ int Run(
 #ifdef _WIN32
 int wmain(int argc, wchar_t** argv)
 {
-    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12)
+    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12 && argc != 13)
     {
         return 2;
     }
@@ -628,7 +655,7 @@ int wmain(int argc, wchar_t** argv)
         {
             Good(std::wstring_view(argv[10]) == L"0" || std::wstring_view(argv[10]) == L"1", "InvalidHeaderFlag");
         }
-        if (argc == 12)
+        if (argc >= 12)
         {
             Good(std::wstring_view(argv[11]) == L"0" || std::wstring_view(argv[11]) == L"1", "InvalidDataFlag");
         }
@@ -643,7 +670,8 @@ int wmain(int argc, wchar_t** argv)
             argc >= 9 ? std::filesystem::path(argv[8]).string() : "DeclaredOnly",
             argc >= 10 ? std::filesystem::path(argv[9]).string() : "16",
             argc >= 11 && argv[10][0] == L'1',
-            argc == 12 && argv[11][0] == L'1'
+            argc >= 12 && argv[11][0] == L'1',
+            argc == 13 ? std::filesystem::path(argv[12]).string() : "DeclaredOnly"
         );
     }
     catch (...)
@@ -654,7 +682,7 @@ int wmain(int argc, wchar_t** argv)
 #else
 int main(int argc, char** argv)
 {
-    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12)
+    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12 && argc != 13)
     {
         return 2;
     }
@@ -670,7 +698,7 @@ int main(int argc, char** argv)
         {
             Good(std::string_view(argv[10]) == "0" || std::string_view(argv[10]) == "1", "InvalidHeaderFlag");
         }
-        if (argc == 12)
+        if (argc >= 12)
         {
             Good(std::string_view(argv[11]) == "0" || std::string_view(argv[11]) == "1", "InvalidDataFlag");
         }
@@ -685,7 +713,8 @@ int main(int argc, char** argv)
             argc >= 9 ? argv[8] : "DeclaredOnly",
             argc >= 10 ? argv[9] : "16",
             argc >= 11 && argv[10][0] == '1',
-            argc == 12 && argv[11][0] == '1'
+            argc >= 12 && argv[11][0] == '1',
+            argc == 13 ? argv[12] : "DeclaredOnly"
         );
     }
     catch (...)

@@ -413,6 +413,30 @@ private:
                     }
                 }
             }
+            const auto& dimensions = Field(r, "dimensions");
+            if (m_data.requestedUnitInterpretation == UnitInterpretation::VerifiedExplicitUnitDimensions &&
+                dimensions.declaration.value->kind == step_source::ValueKind::Reference)
+            {
+                const auto explicitRecord = Target(*dimensions.declaration.value);
+                Dimensions explicitDimensions;
+                for (std::size_t i = 0; i < 7; ++i)
+                {
+                    explicitDimensions[i] = Decimal(explicitRecord, Field(explicitRecord, DimensionFields[i]));
+                }
+                Count(dimensions.declaration.value->span);
+                if (explicitDimensions != node.dimensions)
+                {
+                    Fail(
+                        Status::Rejected,
+                        r,
+                        dimensions,
+                        "ExplicitUnitDimensionsConflict",
+                        "SI-name-derived dimensional vector",
+                        "contradictory explicit source vector",
+                        "explicit SI interpretation requires all seven exponents to agree"
+                    );
+                }
+            }
         }
         else if (IsA(r, "CONVERSION_BASED_UNIT"))
         {
@@ -424,11 +448,11 @@ private:
                 const auto& dimensions = Field(r, "dimensions");
                 if (dimensions.declaration.value->kind == step_source::ValueKind::Reference)
                 {
-                    // The checker bound this nonconforming reference only for
-                    // the explicit property-only mass exception. It is NOT an
-                    // AP214 transport value. Before retaining its marker error,
-                    // require its seven source exponents to agree with the
-                    // factor-derived vector; never hide contradictory metadata.
+                    // Binding admitted this nonconforming reference provisionally
+                    // for property-only mass or separately selected unit spelling
+                    // interpretation. It is not conforming AP214 transport. All
+                    // seven source exponents must equal factor-derived dimensions;
+                    // ownership/admission is still checked by the caller.
                     const auto sourceDimensions = Target(*dimensions.declaration.value);
                     Dimensions explicitDimensions;
                     for (std::size_t i = 0; i < 7; ++i)
@@ -442,10 +466,30 @@ private:
                             Status::Rejected,
                             r,
                             dimensions,
-                            "MetadataMassUnitDimensionsConflict",
+                            IsA(r, "LENGTH_UNIT") ? "ExplicitLengthUnitDimensionsConflict" : "MetadataMassUnitDimensionsConflict",
                             "factor-derived dimensional vector",
                             "contradictory explicit source vector",
-                            "property-only compatibility guard; no contradictory unit dimensions retained"
+                            IsA(r, "LENGTH_UNIT") ? "explicit length interpretation requires exact factor-derived dimensions" :
+                                                    "property-only compatibility guard; no contradictory unit dimensions retained"
+                        );
+                    }
+                }
+                if (m_data.requestedUnitInterpretation == UnitInterpretation::VerifiedExplicitUnitDimensions && IsA(r, "LENGTH_UNIT") &&
+                    dimensions.declaration.value->kind == step_source::ValueKind::Reference)
+                {
+                    const auto factor = Target(*Field(r, "conversion_factor").declaration.value);
+                    const auto& value = Field(factor, "value_component");
+                    Count(value.declaration.value->span);
+                    if (CompareSourceReals(value.declaration.value->children.front().text, "0.") <= 0)
+                    {
+                        Fail(
+                            Status::Rejected,
+                            factor,
+                            value,
+                            "SourceUnitScaleNonPositive",
+                            ">0",
+                            value.declaration.value->children.front().text,
+                            "explicit length interpretation requires a positive physical factor"
                         );
                     }
                 }

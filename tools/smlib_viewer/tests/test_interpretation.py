@@ -35,7 +35,9 @@ class InterpretationOptionsTests(unittest.TestCase):
                      dict(strict_source=True, preserve_opaque_file_name_text=True),
                      dict(preserve_opaque_file_name_text='false'),
                      dict(strict_source=True, assume_ascii_invariant_data=True),
-                     dict(assume_ascii_invariant_data='false')]:
+                     dict(assume_ascii_invariant_data='false'),
+                     dict(strict_source=True, unit_interpretation='VerifiedExplicitUnitDimensions'),
+                     dict(unit_interpretation='Guess')]:
             with self.assertRaises(ValueError):
                 ImportSettings(**args)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
@@ -191,3 +193,22 @@ class InterpretationWorkerTests(unittest.TestCase):
             self.assertEqual('AcceptedUnderInterpretation', metadata['native_import_status'])
             self.assertEqual('BlankLevelAsCorrectedEncoding', metadata['requested_carrier_interpretation'])
             self.assertEqual(source, path.read_bytes())
+
+    def test_verified_unit_interpretation_transport_retains_source_and_hud(self):
+        from tools.step_import_native_validation.tests.test_verified_unit_dimensions import explicit_dimensions
+        self.loader.settings = ImportSettings(unit_interpretation='VerifiedExplicitUnitDimensions')
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder)/'public.step'
+            source = explicit_dimensions()
+            path.write_bytes(source)
+            _, mesh, boundary, metadata = self.load(path)
+            self.assertEqual('AcceptedUnderInterpretation', metadata['native_import_status'])
+            self.assertEqual('VerifiedExplicitUnitDimensions', metadata['applied_unit_interpretation'])
+            self.assertEqual(source, path.read_bytes())
+            from tools.smlib_viewer.app import ViewerWindow
+            window = ViewerWindow(self.loader.settings)
+            try:
+                window._loaded(str(path), mesh, boundary, metadata)
+                self.assertIn('单位声明经验证解释', window.hud.text())
+            finally:
+                window.close()

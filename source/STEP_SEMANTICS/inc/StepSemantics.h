@@ -58,6 +58,17 @@ enum class SchemaInterpretation
 };
 const char* SchemaInterpretationName(SchemaInterpretation interpretation);
 
+enum class UnitInterpretation
+{
+    DeclaredOnly,
+    VerifiedExplicitUnitDimensions // Exact redundant AP214 SI/conversion-length dimensions, original marker error retained.
+};
+const char* UnitInterpretationName(UnitInterpretation interpretation);
+struct UnitDimensionAssumption
+{
+    std::size_t unit, dimensions; // Original source records, never substituted unit definitions.
+    std::optional<std::size_t> factor; // Absent for SI dimensions derived from the original SI name.
+};
 enum class Protocol
 {
     Unknown,
@@ -237,6 +248,9 @@ public:
     const SchemaIdentifier& SchemaIdentity() const;
     SchemaInterpretation AppliedInterpretation() const;
     const std::vector<Diagnostic>& InterpretationDiagnostics() const;
+    UnitInterpretation AppliedUnitInterpretation() const;
+    const std::vector<UnitDimensionAssumption>& UnitDimensionAssumptions() const;
+    const std::vector<Diagnostic>& UnitInterpretationDiagnostics() const;
     const Part& PartDefinition() const;
     const Units& UnitContext() const;
     const std::vector<Diagnostic>& PreservedDiagnostics() const;
@@ -288,6 +302,7 @@ struct Outcome
     SourcePolicy policy = SourcePolicy::Strict;
     GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
     SchemaInterpretation requestedInterpretation = SchemaInterpretation::DeclaredOnly;
+    UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
     std::shared_ptr<const Snapshot> snapshot;
     std::optional<SchemaSelection> schemaSelection; // Null means the binding phase did not run.
     std::string binding = "NotRun";
@@ -307,11 +322,20 @@ struct Outcome
     // Original unsupported binding, separately retained as an application
     // assumption. Never describe this as a proven nongeometric exception.
     std::vector<Diagnostic> interpretationDiagnostics;
+    std::vector<Diagnostic> unitInterpretationDiagnostics; // Physical source nonconformance, not a metadata-only exception.
 };
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
 Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope = GeometryScope::ExplicitOuterBounds);
 Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope, SchemaInterpretation interpretation);
+Outcome Check(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    GeometryScope scope,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation
+);
 bool InspectJson(const step_source::InspectOutcome& source, const Outcome& semantics, std::string& output);
 const char* StatusName(Status status);
 } // namespace step_semantics
