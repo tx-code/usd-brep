@@ -25,6 +25,7 @@ using Fraction = step_planar::Rational;
 namespace detail
 {
 struct ModelData;
+struct CollectionData;
 struct EditableData;
 struct Access;
 class Execution;
@@ -428,10 +429,19 @@ struct ParameterMapping
     std::optional<std::string> sourceBasisGeometryId; // Trim wrapper and defining basis keep distinct source identities.
     std::optional<std::size_t> targetCurveIndex; // Detached linked geometry, never an invented EDGE_CURVE.
 };
+struct Report;
+struct MaterialBodyReport
+{
+    std::size_t sourceShapeRecord = 0, sourceShellRecord = 0;
+    bool checksPassed = false;
+    std::shared_ptr<Report> checks;
+};
 struct Report
 {
     ReportEncoding encoding = ReportEncoding::ExpandedV1;
     bool generalBrep = false;
+    bool materialCollection = false;
+    std::vector<MaterialBodyReport> bodies; // Per-body observations share the one root source report.
     bool supportDomainRestrictionRequested = false;
     std::optional<NumericalIntegrationObservation> numericalIntegration; // Explicit requests only; survives failure without a model.
     bool periodicNormalizationRequested = false;
@@ -493,6 +503,29 @@ struct Outcome
     std::shared_ptr<const ModelSnapshot> model;
     Report report;
 };
+class MaterialCollectionSnapshot
+{
+public:
+
+    std::size_t BodyCount() const;
+    std::shared_ptr<const ModelSnapshot> Body(std::size_t index) const;
+    std::string SourceShapeId(std::size_t index) const;
+    std::shared_ptr<const step_semantics::Snapshot> Source() const;
+    // Ordered independent BReps, with an empty CSG tree. No union/qualification transfer is implied.
+    void WriteNative(const std::filesystem::path& path) const;
+
+private:
+
+    friend struct detail::Access;
+    explicit MaterialCollectionSnapshot(std::shared_ptr<detail::CollectionData> data);
+    std::shared_ptr<detail::CollectionData> m_data;
+};
+struct CollectionOutcome
+{
+    Status status = Status::BuildFailure;
+    std::shared_ptr<const MaterialCollectionSnapshot> collection;
+    Report report;
+};
 class EditableBrep
 {
 public:
@@ -516,6 +549,9 @@ struct EditableCopyOutcome
 };
 Outcome ImportBytes(std::string bytes, const Options& options);
 Outcome ImportFile(const std::filesystem::path& path, const Options& options);
+// Explicit whole material collection. Every selected MSB must pass; no partial body result.
+CollectionOutcome ImportMaterialCollectionBytes(std::string bytes, const Options& options);
+CollectionOutcome ImportMaterialCollectionFile(const std::filesystem::path& path, const Options& options);
 // Invalid options throw std::invalid_argument; allocation failure is not a qualified recoverable outcome.
 const char* StatusName(Status status);
 const char* MaterialPointClassName(MaterialPointClass classification);

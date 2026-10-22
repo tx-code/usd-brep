@@ -12,22 +12,30 @@ class Publication
 public:
 
     Publication(const Options& options, Outcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
+    Publication(const Options& options, CollectionOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
     Publication(const Publication&) = delete;
     Publication& operator=(const Publication&) = delete;
 
     void Accept(std::shared_ptr<ModelData> candidate);
+    void AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates);
     void Fail(const Failure& failure);
     void FinishFailure();
 
 private:
 
     const Options& m_options;
-    Outcome& m_outcome;
+    Status& m_status;
+    Report& m_report;
     const step_source::InspectOutcome& m_source;
     Execution& m_execution;
+    std::shared_ptr<const ModelSnapshot>* m_modelSink = nullptr;
+    std::shared_ptr<const MaterialCollectionSnapshot>* m_collectionSink = nullptr;
+    std::vector<std::shared_ptr<ModelData>> m_collectionCandidates;
+    std::shared_ptr<const MaterialCollectionSnapshot> m_preparedCollection;
     std::shared_ptr<ModelData> m_candidate;
     std::shared_ptr<const ModelSnapshot> m_prepared;
 
+    void FinishAccept();
     void WriteReport();
     void Diagnostic(const Failure& failure);
 };

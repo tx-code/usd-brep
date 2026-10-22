@@ -636,9 +636,9 @@ AP214 表示名称，排除纯 ASCII 特殊用途；转义、控制字节、未�
 
 
 同一零件的多个 MSB 现在可以经过 general 源检查，并在源报告中完整列出
-`part.source_shapes`，聚合角色为 `MaterialSolidCollection`。原生集合构建尚未实现：
-导入器在任何原生分配之前以 `GeneralMaterialCollectionNotImplemented` 拒绝完整请求，
-不会取第一件、最大件或把实体默默合并。单体路径保持原行为；源检查成功不计入原生导入成功。
+`part.source_shapes`，聚合角色为 `MaterialSolidCollection`。原有单体 API 对集合请求在原生分配前返回
+`GeneralMaterialCollectionNotImplemented`；显式集合 API 的范围见下节。源检查成功本身
+不计入原生导入成功。
 
 
 显式 `Options.reportEncoding=ReportEncoding::CompactV2`／CLI
@@ -651,3 +651,68 @@ AP214 表示名称，排除纯 ASCII 特殊用途；转义、控制字节、未�
 该选项不改变报告容量、几何预算、验收、取消、两次报告生成或最终原子提交；不在
 失败后自动切换。紧凑报告仍超限时不发布模型或部分 JSON。它改善报告表达，不授予
 任何新几何能力；多实体构建未实现时仍返回明确的 Unsupported。
+
+
+## Material collections
+
+`ImportMaterialCollectionFile/Bytes` returns `CollectionOutcome` for one part's
+complete registered MSB inventory. It requires the general path and preserves
+one immutable source snapshot with independent native BReps. A successful outcome
+owns `collection`; the existing `ImportFile/Bytes` still owns a single `model` and
+retains its multiplicity refusal. CLI users select `--material-collection` and may
+also select `--compact-source-report` for the mandatory report.
+
+`MaterialCollectionSnapshot::BodyCount`, `Body(index)`, `SourceShapeId(index)` and
+`Source()` expose the complete ordered inventory and owning body snapshots. A body
+or its face view can outlive the collection outcome; modeling uses that body's
+existing independent copy API. Body indices follow serialized representation item
+order, not size or geometric priority. Shared source shells/geometry never merge
+source solid identities or native context ownership. Overlapping bodies remain
+separate. No aggregate union volume or material classification is inferred.
+
+Every body uses the existing construction, installed-UV, native validation,
+tolerance, source correspondence and measurement checks. One request execution
+ledger charges all body work; it never resets the budget between members. The
+collection and required report publish only after every body and the final
+cancellation decision succeed. Failures discard all unpublished bodies while
+retaining per-body observations. Late cancellation/report failure likewise returns
+no collection. Separate native contexts do not imply kernel thread safety;
+construction, queries, destruction and archive copying retain native serialization.
+
+The report format is `step-material-collection-development.v1`. One root source
+inspection serves all bodies. `material_collection.bodies` records source
+shape/shell IDs, `checks_passed`, and `step-material-body-checks.v1` observations.
+Nested source/execution evidence explicitly references `CollectionRoot`; nested
+status follows the whole request and is not independent publication. On failure,
+no nested `model` is published. Original source interpretations qualify the whole
+collection as `AcceptedUnderInterpretation` when applicable.
+
+`WriteNative` writes an ordered native BRep array with an empty CSG tree, using
+private deep copies to protect snapshot UV data from kernel writer normalization.
+Native archive order matches body order; source identities and import qualification
+remain in the owning snapshot/report and are not conferred on an arbitrary native
+archive load. Archive readers must validate all bodies and their defining geometry.
+The CLI supports collection `--write-native`; queries require explicit body selection
+through the C++ API.
+
+Current scope is body-only material collections in one part/common representation
+context. Assembly transforms and collection-level associated wireframe/construction
+ownership remain unsupported. Mixed requests return
+`MaterialCollectionAssociatedGeometryUnimplemented` before constructing bodies;
+source surface models are never upgraded to material solids. The standalone viewer
+has not yet been switched to the collection API.
+
+
+The reusable collection controls use public synthetic fixtures:
+`tests/fixtures/two_material_boxes.step` contains two 10 x 20 x 30 mm boxes
+with a 100 mm X translation. Each has volume 6000 mm3 and area 2200 mm2;
+their centroids are (7, 7, 20) and (107, 7, 20) mm. The source carrier derives
+from the public P0 analytic box; the independent generator is
+`tools/step_import_native_validation/tests/test_material_collection.py`.
+`tests/fixtures/box_and_cylinder.step` adds a radius-3, height-7 mm cylinder
+(volume 63*pi, area 60*pi) overlapping the box. Its purpose is to verify separate
+body identity and an empty native CSG tree, not a union-volume assertion.
+Collection contracts include exact defining coefficients and installed UV after
+native archive readback, independent copies, shared source shell identities,
+late/second-body cancellation, cumulative budgets, second-body failure and
+mandatory-report cleanup.

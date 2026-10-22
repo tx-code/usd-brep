@@ -9,15 +9,60 @@
 namespace step_import::detail
 {
 Publication::Publication(const Options& options, Outcome& outcome, const step_source::InspectOutcome& source, Execution& execution)
-    : m_options(options), m_outcome(outcome), m_source(source), m_execution(execution)
+    : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_modelSink(&outcome.model)
+{
+}
+Publication::Publication(const Options& options, CollectionOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution)
+    : m_options(options),
+      m_status(outcome.status),
+      m_report(outcome.report),
+      m_source(source),
+      m_execution(execution),
+      m_collectionSink(&outcome.collection)
 {
 }
 void Publication::Accept(std::shared_ptr<ModelData> candidate)
 {
-    // Ownership stays here across callback/report failures. Expected failures
-    // are disposed before their report; unexpected exceptions unwind the owner.
     m_candidate = std::move(candidate);
+    if (!m_modelSink)
+    {
+        throw std::logic_error("SinglePublicationTargetRequired");
+    }
     m_prepared = Access::Snapshot(std::move(m_candidate));
+    FinishAccept();
+}
+void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates)
+{
+    if (!m_collectionSink)
+    {
+        throw std::logic_error("CollectionPublicationTargetRequired");
+    }
+    if (candidates.size() != m_report.bodies.size() || std::any_of(
+                                                           m_report.bodies.begin(),
+                                                           m_report.bodies.end(),
+                                                           [](const auto& body)
+                                                           {
+                                                               return !body.checksPassed;
+                                                           }
+                                                       ))
+    {
+        m_report.candidateDiscarded = m_report.nativeCalls > 0;
+        throw std::logic_error("UncheckedMaterialCollection");
+    }
+    m_collectionCandidates = std::move(candidates);
+    try
+    {
+        m_preparedCollection = Access::Collection(std::move(source), std::move(m_collectionCandidates));
+    }
+    catch (...)
+    {
+        m_report.candidateDiscarded = m_report.nativeCalls > 0;
+        throw;
+    }
+    FinishAccept();
+}
+void Publication::FinishAccept()
+{
     m_execution.Check(Phase::NativeReady);
     // Complete checks do not authenticate an assumed source schema or carrier.
     // Choose this result before either report and final arbitration; after
@@ -26,11 +71,11 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
     {
         // Release this temporary source owner before the commit region. The
         // prepared model remains the authoritative owner of both assumptions.
-        const auto semantic = m_prepared->Source();
+        const auto semantic = m_preparedCollection ? m_preparedCollection->Source() : m_prepared->Source();
         interpreted = semantic->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
                       semantic->Source().AppliedCarrierAssumption() != nullptr || semantic->Source().HasAsciiInvariantDataAssumption();
     }
-    m_outcome.status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
+    m_status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
     m_execution.Check(Phase::BeforeReport);
     WriteReport();
     m_execution.Check(Phase::ReportReady);
@@ -42,31 +87,48 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
     // Publication contract: docs/design/step-import.md. After successful
     // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
-    m_outcome.model = std::move(m_prepared);
+    if (m_collectionSink)
+    {
+        *m_collectionSink = std::move(m_preparedCollection);
+    }
+    else
+    {
+        *m_modelSink = std::move(m_prepared);
+    }
 }
 void Publication::WriteReport()
 {
     Serialize(
-        m_outcome,
+        m_status,
+        m_report,
         m_options.quality,
         m_source,
         std::min(m_options.nativeLimits.reportBytes, m_source.limits.reportBytes),
-        m_outcome.report.json
+        m_report.json
     );
 }
 void Publication::Fail(const Failure& failure)
 {
-    m_outcome.status = failure.status;
+    m_status = failure.status;
     Diagnostic(failure);
 }
 void Publication::FinishFailure()
 {
     // Preserve the existing disposal-before-report ordering and any discard
     // evidence already recorded by a builder that failed before handoff.
-    const bool held = bool(m_candidate) || bool(m_prepared);
+    const bool held = bool(m_candidate) || bool(m_prepared) || bool(m_preparedCollection) || !m_collectionCandidates.empty();
     m_prepared.reset();
+    m_preparedCollection.reset();
+    m_collectionCandidates.clear();
     m_candidate.reset();
-    auto& report = m_outcome.report;
+    for (auto& body : m_report.bodies)
+    {
+        if (body.checks && body.checks->nativeCalls)
+        {
+            body.checks->candidateDiscarded = true;
+        }
+    }
+    auto& report = m_report;
     report.candidateDiscarded = report.candidateDiscarded || held;
     try
     {
@@ -76,9 +138,9 @@ void Publication::FinishFailure()
     {
         // A bounded report failure cannot undo observed cancellation, and no
         // partial JSON may escape even when the failure report also overflows.
-        if (m_outcome.status != Status::Cancelled)
+        if (m_status != Status::Cancelled)
         {
-            m_outcome.status = failure.status;
+            m_status = failure.status;
         }
         Diagnostic(failure);
         report.json.clear();
@@ -86,7 +148,7 @@ void Publication::FinishFailure()
 }
 void Publication::Diagnostic(const Failure& failure)
 {
-    auto& report = m_outcome.report;
+    auto& report = m_report;
     step_semantics::Diagnostic diagnostic;
     diagnostic.source.key = failure.key;
     diagnostic.source.stage = failure.stage;

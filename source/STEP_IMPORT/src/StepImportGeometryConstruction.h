@@ -144,12 +144,7 @@ protected:
     }
     void Step(Index a)
     {
-        m_execution.Check(Phase::BeforeNativeCall);
-        if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
-        {
-            Fail("NativeCallLimit", a, Status::ResourceLimit);
-        }
-        ++m_report.nativeCalls;
+        m_execution.ChargeNative(m_report, a);
     }
     const step_source::Value& F(Index a, std::string_view name) const
     {

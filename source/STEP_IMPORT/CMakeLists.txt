@@ -25,7 +25,7 @@ endif()
 
 add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportPointClassification.cpp src/StepImportWireframe.cpp src/StepImportGeneral.cpp src/StepImportCurvePointDefinitions.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportDerivedUv.cpp src/StepImportSurfaceProof.cpp src/StepImportSupportDomain.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
-target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp src/StepImportCollection.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportPeriodicNormalization.cpp)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
@@ -103,6 +103,16 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_uv_short_retry_contracts COMMAND step_import_uv_tolerance_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/split_circle_projection_cylinder.step" --short-retry-only)
     set_tests_properties(step_import_uv_tolerance_contracts step_import_uv_short_retry_contracts PROPERTIES TIMEOUT 30)
+    add_executable(step_import_collection_tests tests/StepImportCollectionTests.cpp)
+    target_link_libraries(step_import_collection_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_collection_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_collection_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_collection_contracts COMMAND step_import_collection_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/two_material_boxes.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/box_and_cylinder.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/collection-contract-output")
+    set_tests_properties(step_import_collection_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_general_tests tests/StepImportGeneralTests.cpp)
     target_link_libraries(step_import_general_tests PRIVATE STEP_IMPORT)
     target_include_directories(step_import_general_tests PRIVATE src)

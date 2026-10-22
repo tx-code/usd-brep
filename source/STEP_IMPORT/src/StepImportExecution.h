@@ -12,6 +12,7 @@ public:
     Execution(const Options& options, Report& report);
     ~Execution();
     void Check(Phase phase);
+    void ChargeNative(Report& bodyReport, std::size_t sourceRecord); // Shared request budget; local body observations are separate.
     void Commit(); // Sole success/cancellation arbitration. No allocation or native operation after success.
 
 private:

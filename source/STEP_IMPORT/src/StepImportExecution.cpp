@@ -81,6 +81,19 @@ void Execution::Cancel()
     m_control->m_state.compare_exchange_strong(requested, ImportControl::State::Cancelled);
     throw Failure{ Status::Cancelled, "ImportCancelled", "Cooperative cancellation observed at a safe boundary", {}, "Execution" };
 }
+void Execution::ChargeNative(Report& observation, std::size_t record)
+{
+    Check(Phase::BeforeNativeCall);
+    if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
+    {
+        throw Failure{ Status::ResourceLimit, "NativeCallLimit", "General source-to-native contract is unestablished", record, "GeneralBrep" };
+    }
+    ++m_report.nativeCalls;
+    if (&observation != &m_report)
+    {
+        ++observation.nativeCalls;
+    }
+}
 void Execution::Check(Phase phase)
 {
     m_report.lastBoundary = phase;

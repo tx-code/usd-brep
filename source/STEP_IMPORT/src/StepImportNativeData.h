@@ -64,7 +64,26 @@ struct ModelData
     Statistics info;
     mutable std::mutex mutex;
 };
+struct CollectionData
+{
+    // No native context at this level. Each body owns its context and destruction lock.
+    std::shared_ptr<const step_semantics::Snapshot> source;
+    std::vector<std::shared_ptr<ModelData>> bodies;
+};
+std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
+    std::shared_ptr<const step_semantics::Snapshot> source,
+    const Options& options,
+    Report& report,
+    Execution& execution
+);
 void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path);
+std::shared_ptr<ModelData> BuildGeneralBody(
+    std::shared_ptr<const step_semantics::Snapshot> source,
+    const step_semantics::Part::Shape& binding,
+    const Options& options,
+    Report& report,
+    Execution& execution
+);
 std::shared_ptr<ModelData> BuildGeneral(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const Options& options,

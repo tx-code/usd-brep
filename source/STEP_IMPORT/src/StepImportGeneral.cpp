@@ -108,8 +108,14 @@ class GeneralBuilder : private GeometryConstruction
 {
 public:
 
-    GeneralBuilder(std::shared_ptr<const step_semantics::Snapshot> source, const Options& options, Report& report, Execution& execution)
-        : GeometryConstruction(std::move(source), options, report, execution), m_model(std::make_shared<ModelData>())
+    GeneralBuilder(
+        std::shared_ptr<const step_semantics::Snapshot> source,
+        const Options& options,
+        Report& report,
+        Execution& execution,
+        std::optional<step_semantics::Part::Shape> binding = {}
+    )
+        : GeometryConstruction(std::move(source), options, report, execution), m_model(std::make_shared<ModelData>()), m_binding(std::move(binding))
     {
         m_model->source = m_source;
         m_model->queryTolerance = Q(m_options.quality.queryMm);
@@ -257,6 +263,7 @@ public:
 private:
 
     std::shared_ptr<ModelData> m_model;
+    std::optional<step_semantics::Part::Shape> m_binding;
     Index shape = 0, shell = 0;
     std::vector<Index> vertices;
     std::vector<V> points;
@@ -348,7 +355,7 @@ private:
         // Source checking can inventory every MSB in one part. Until collection
         // publication is implemented, reject the whole request before selecting
         // a singular role or making any native allocation. Never import body 0.
-        if (m_source->PartDefinition().shapes.size() > 1)
+        if (!m_binding && m_source->PartDefinition().shapes.size() > 1)
         {
             throw Failure{ Status::Unsupported,
                            "GeneralMaterialCollectionNotImplemented",
@@ -367,9 +374,30 @@ private:
                 supportingRepresentation = role.recordIndex;
             }
         }
-        Need(m_source->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
-        shape = Role("shape");
-        shell = Role("shell");
+        if (m_binding)
+        {
+            const auto& inventory = m_source->PartDefinition().shapes;
+            const bool selected = std::any_of(
+                inventory.begin(),
+                inventory.end(),
+                [&](const auto& item)
+                {
+                    return item.shape == m_binding->shape && item.shell == m_binding->shell && item.role == m_binding->role;
+                }
+            );
+            if (!selected || m_binding->role != "MaterialSolid")
+            {
+                throw std::logic_error("UnregisteredMaterialBodyBinding");
+            }
+            shape = m_binding->shape;
+            shell = m_binding->shell;
+        }
+        else
+        {
+            Need(m_source->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
+            shape = Role("shape");
+            shell = Role("shell");
+        }
         Need(Is(shape, "MANIFOLD_SOLID_BREP") && Is(shell, "CLOSED_SHELL"), "GeneralUnsupportedShape", shape);
         const auto power = m_source->UnitContext().lengthPower10Mm;
         std::optional<ResolvedLengthScale> convertedLength;
@@ -2767,6 +2795,25 @@ private:
     }
 };
 } // namespace
+std::shared_ptr<ModelData> BuildGeneralBody(
+    std::shared_ptr<const step_semantics::Snapshot> source,
+    const step_semantics::Part::Shape& binding,
+    const Options& options,
+    Report& report,
+    Execution& execution
+)
+{
+    std::lock_guard lock(NativeMutex());
+    try
+    {
+        return GeneralBuilder(std::move(source), options, report, execution, binding).Run();
+    }
+    catch (...)
+    {
+        report.candidateDiscarded = report.nativeCalls > 0;
+        throw;
+    }
+}
 std::shared_ptr<ModelData> BuildGeneral(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const Options& options,

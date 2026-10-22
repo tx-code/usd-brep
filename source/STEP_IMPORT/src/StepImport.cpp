@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <tuple>
+#include <type_traits>
 
 namespace step_import
 {
@@ -114,8 +115,7 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");
     }
-    if (options.reportEncoding != ReportEncoding::ExpandedV1 &&
-        (options.reportEncoding != ReportEncoding::CompactV2 || !options.generalBrep))
+    if (options.reportEncoding != ReportEncoding::ExpandedV1 && (options.reportEncoding != ReportEncoding::CompactV2 || !options.generalBrep))
     {
         throw std::invalid_argument("Compact source report requires the explicit general import path");
     }
@@ -140,11 +140,12 @@ void Validate(const Options& options)
         throw std::invalid_argument("Unverified carrier interpretation requires explicit general interoperability");
     }
 }
-template <class Capture>
-Outcome Import(const Options& options, Capture capture)
+template <class Result = Outcome, class Capture>
+Result Import(const Options& options, Capture capture)
 {
-    Outcome result;
+    Result result;
     auto& report = result.report;
+    report.materialCollection = std::is_same_v<Result, CollectionOutcome>;
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
     report.encoding = options.reportEncoding;
@@ -204,7 +205,14 @@ Outcome Import(const Options& options, Capture capture)
                 throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
             }
             execution.Check(Phase::SemanticsChecked);
-            publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
+            if constexpr (std::is_same_v<Result, CollectionOutcome>)
+            {
+                publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution));
+            }
+            else
+            {
+                publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
+            }
             return result;
         }
         auto semantics = step_semantics::Check(raw, options.semanticLimits);
@@ -315,6 +323,51 @@ Outcome ImportFile(const std::filesystem::path& path, const Options& options)
     const auto capturedPath = path;
     Validate(frozen);
     return Import(
+        frozen,
+        [&]
+        {
+            return step_source::InspectFile(
+                capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+CollectionOutcome ImportMaterialCollectionBytes(std::string bytes, const Options& options)
+{
+    const Options frozen = options;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Material collection requires the general source path");
+    }
+    return Import<CollectionOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectBytes(
+                std::move(bytes),
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+CollectionOutcome ImportMaterialCollectionFile(const std::filesystem::path& path, const Options& options)
+{
+    const Options frozen = options;
+    const auto capturedPath = path;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Material collection requires the general source path");
+    }
+    return Import<CollectionOutcome>(
         frozen,
         [&]
         {
