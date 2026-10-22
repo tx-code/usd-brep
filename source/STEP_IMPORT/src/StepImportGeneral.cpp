@@ -216,12 +216,23 @@ public:
         if (!derivedPoles.empty())
         {
             VerifyPoleInventory();
-            for (Index i = 0; i < curves.size(); ++i)
+            if (m_model->topologyNormalization->completed)
             {
-                Step(curves[i].record);
-                const auto interval = m_model->edges[i]->GetInterval();
-                Need(interval.GetMin() == curves[i].t0 && interval.GetMax() == curves[i].t1,
-                     "SphericalPoleSourceIntervalChanged", curves[i].record);
+                // The periodic pass may split source edges. Its checked union
+                // of original-basis child intervals replaces pointer/interval
+                // identity; do not dereference pre-split edge handles here.
+                Need(m_model->topologyNormalization->sourceCurveIntervalsCovered,
+                     "SphericalPoleSourceCoverageUnestablished", shape);
+            }
+            else
+            {
+                for (Index i = 0; i < curves.size(); ++i)
+                {
+                    Step(curves[i].record);
+                    const auto interval = m_model->edges[i]->GetInterval();
+                    Need(interval.GetMin() == curves[i].t0 && interval.GetMax() == curves[i].t1,
+                         "SphericalPoleSourceIntervalChanged", curves[i].record);
+                }
             }
             for (Index i = 0; i < vertices.size(); ++i)
             {
@@ -1478,9 +1489,10 @@ private:
         {
             return;
         }
-        // Composition with the separate native splitting pass needs lineage
-        // transport for these new surface-derived vertices; refuse until proven.
-        if (m_options.normalizePeriodicFaces || m_options.restrictUnusedSupportDomains)
+        // Support-domain composition needs updated domain evidence for these
+        // origins. The periodic pass separately distinguishes no-op requests
+        // from actual splitting before it may mutate the target inventory.
+        if (m_options.restrictUnusedSupportDomains)
         {
             Fail("SphericalPoleNormalizationCompositionUnestablished", shape, Status::Unsupported);
         }

@@ -29,6 +29,17 @@ def offset_seam(cone=False, delta=1e-5):
     return data
 
 
+def offset_seam_with_implicit_spherical_cap():
+    # Keep the cap's rim vertex exact for its definition-budget proof. The
+    # lower seam endpoint/LINE still has the existing explicit study offset,
+    # so the cylindrical face requires a real periodic split.
+    data = offset_seam()
+    old = f"#103=CARTESIAN_POINT('',(0.,{3+1e-5:.17g},7.));".encode()
+    assert data.count(old) == 1
+    data = data.replace(old, b"#103=CARTESIAN_POINT('',(0.,3.,7.));")
+    return data.replace(b"#141=PLANE('',#107);", b"#141=SPHERICAL_SURFACE('',#107,3.);")
+
+
 class PeriodicNormalizationTests(unittest.TestCase):
     def invoke(self, data, *flags, quality=WORK):
         with tempfile.TemporaryDirectory(prefix="step-periodic-") as folder:
@@ -109,3 +120,47 @@ class PeriodicNormalizationTests(unittest.TestCase):
                 checks = json.loads((output / "checks.json").read_bytes())
                 self.assertEqual("Passed", checks["status"])
                 self.assertTrue(checks["defining_coefficients_and_uv_checked"])
+
+
+    def test_periodic_split_composes_surface_pole_origins_without_fabricated_source_ids(self):
+        data = offset_seam_with_implicit_spherical_cap()
+        before, refused = self.invoke(data)
+        self.assertEqual(9, before.returncode)
+        self.assertEqual('GeneralLevel2Validation', refused['diagnostics'][0]['key'])
+        run, report = self.invoke(data, FLAG)
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        origins = report['topology_normalization']
+        self.assertTrue(origins['completed'])
+        self.assertTrue(origins['source_curve_intervals_covered'])
+        self.assertTrue(origins['source_vertices_preserved'])
+        for kind in ('faces', 'edges', 'vertices'):
+            self.assertEqual(report['model'][kind], len(origins[kind]))
+            self.assertEqual(list(range(len(origins[kind]))), [x['target'] for x in origins[kind]])
+        self.assertGreater(report['model']['faces'], 3)  # A real split, not the no-op request path.
+        poles = [v for v in origins['vertices'] if 'surface_pole' in v]
+        self.assertEqual(1, len(poles))
+        self.assertEqual({'source_face_id':'181','source_surface_id':'141','axis_sign':1}, poles[0]['surface_pole'])
+        self.assertNotIn('source_vertex_id', poles[0])
+        self.assertEqual([], poles[0]['basis_edge_parameters'])
+        self.assertEqual({'120','121'}, {v['source_vertex_id'] for v in origins['vertices'] if 'source_vertex_id' in v})
+        self.assertTrue(any(v['basis_edge_parameters'] for v in origins['vertices']))
+        # Cylinder R3 H7 plus its upper hemisphere: V=63pi+18pi,
+        # area=42pi lateral + 18pi hemisphere + 9pi bottom disk.
+        self.assertAlmostEqual(81*math.pi, report['model']['material_volume']['value_mm3'], delta=81*math.pi*2e-4)
+        self.assertAlmostEqual(69*math.pi, report['model']['area_mm2'], delta=69*math.pi*2e-4)
+        self.assertEqual('None', report['repair'])
+        self.assertEqual(data, report['source_inspection']['source']['input']['raw'].encode('latin1'))
+
+    def test_composed_pole_split_copy_archive_and_cancellation(self):
+        cli = Path(os.environ['STEP_NATIVE_BINARY'])
+        binary = os.environ.get('STEP_NATIVE_GENERAL_BINARY', str(cli.with_name('step_import_general_tests'+cli.suffix)))
+        with tempfile.TemporaryDirectory(prefix='step-pole-split-copy-') as directory:
+            source = Path(directory)/'source.step'
+            source.write_bytes(offset_seam_with_implicit_spherical_cap())
+            output = Path(directory)/'result'
+            run = subprocess.run([binary,'--development-file',str(source),str(output),'normal',
+                                  '--work-tolerance-study',FLAG],capture_output=True,timeout=45)
+            self.assertEqual(0,run.returncode,run.stderr)
+            checks = json.loads((output/'checks.json').read_bytes())
+        self.assertEqual('Passed',checks['status'])
+        self.assertTrue(checks['defining_coefficients_and_uv_checked'])

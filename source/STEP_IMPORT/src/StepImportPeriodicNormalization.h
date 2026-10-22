@@ -33,6 +33,9 @@ SmStatus RestrictPeriodicSupport(
 // Only nominal analytic cylinder/cone faces with a single explicit outer bound
 // and a U seam near-miss are considered. Every native/proof work boundary is
 // charged through step; read-only inventory/coefficients are not native calls.
+// A pending face-preserving pole inventory may be composed: prior pole handles,
+// positions and surface origins must survive. Completed/reordered inventories
+// are refused before candidate detection. A no-op retains prior evidence.
 void NormalizePeriodicTopology(
     ModelData& model,
     std::span<const std::size_t> faceRecords,

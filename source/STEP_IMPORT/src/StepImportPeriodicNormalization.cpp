@@ -174,6 +174,21 @@ public:
     }
     void Run()
     {
+        if (m.topologyNormalization)
+        {
+            // Candidate detection itself uses source face order. Do not even
+            // scan an already split/reordered inventory as if it were source.
+            Need(
+                !m.topologyNormalization->completed && m.faces.size() == faceRecords.size() && m.targetFaceSources.size() == faceRecords.size(),
+                "PeriodicNormalizationExistingOriginsUnsupported",
+                faceRecords.front(),
+                Status::Unsupported
+            );
+            for (std::size_t i = 0; i < faceRecords.size(); ++i)
+            {
+                Need(m.targetFaceSources[i] == i, "PeriodicNormalizationExistingFaceMap", faceRecords[i]);
+            }
+        }
         const auto originalFaces = m.faces;
         std::vector<std::size_t> candidates;
         for (std::size_t i = 0; i < faceRecords.size(); ++i)
@@ -197,7 +212,43 @@ public:
         }
         if (candidates.empty())
         {
-            return; // Explicit request was unused; do not invent normalization evidence.
+            // No new operation: keep any earlier pole provenance intact and
+            // do not invent a periodic-splitting result merely for the request.
+            return;
+        }
+        // Only the constructor's pending, face-preserving pole inventory is
+        // composable here. An already split inventory needs a different source
+        // face map and must not be reinterpreted as the original source order.
+        std::map<SmVertex*, std::pair<SurfacePoleOrigin, std::size_t>> priorPoles;
+        std::map<SmVertex*, Point> priorPolePoints;
+        if (m.topologyNormalization)
+        {
+            const auto& prior = *m.topologyNormalization;
+            Need(
+                !prior.completed && prior.faces.size() == faceRecords.size() && prior.vertices.size() == m.targetVertices.size(),
+                "PeriodicNormalizationExistingOriginsUnsupported",
+                faceRecords.front(),
+                Status::Unsupported
+            );
+            for (const auto& vertex : prior.vertices)
+            {
+                if (!vertex.surfacePole)
+                {
+                    continue;
+                }
+                const auto pointer = m.targetVertices.at(vertex.target);
+                const auto owner = m.targetVertexOwners.at(vertex.target);
+                Need(
+                    !vertex.sourceVertexId && vertex.basisEdgeParameters.empty() && vertex.surfacePole->sourceFaceId == Id(owner) &&
+                        vertex.surfacePole->sourceSurfaceId == Id(Ref(owner, "face_geometry")) &&
+                        (vertex.surfacePole->axisSign == 1 || vertex.surfacePole->axisSign == -1),
+                    "PeriodicNormalizationExistingPoleOrigin",
+                    owner
+                );
+                Need(priorPoles.emplace(pointer, std::pair{ *vertex.surfacePole, owner }).second, "PeriodicNormalizationExistingPoleDuplicate", owner);
+                priorPolePoints.emplace(pointer, PointOf(pointer));
+            }
+            Need(!priorPoles.empty(), "PeriodicNormalizationExistingOriginsUnsupported", faceRecords.front(), Status::Unsupported);
         }
         // Interacting cuts need composition evidence. Do not use a later source
         // face pointer that an earlier native split may have replaced.
@@ -384,6 +435,18 @@ public:
                 vertexRecords[i]
             );
         }
+        for (const auto& [vertex, origin] : priorPoles)
+        {
+            Need(retainedVertices.contains(vertex) && PointOf(vertex) == priorPolePoints.at(vertex),
+                 "PeriodicNormalizationExistingPoleChanged", origin.second);
+        }
+        // Rebuild target indices from the live inventory; never append a second
+        // mapping to indices left by the pole constructor.
+        m.targetEdges.clear();
+        m.targetVertices.clear();
+        m.targetFaceSources.clear();
+        m.targetEdgeOwners.clear();
+        m.targetVertexOwners.clear();
         TopologyNormalizationInfo info;
         std::map<long, std::vector<std::pair<double, double>>> coverage;
         std::map<SmEdge*, std::size_t> targetEdgeIndex;
@@ -539,6 +602,11 @@ public:
                 const auto sourceIndex = found->second;
                 owner = vertexRecords[sourceIndex];
                 origin.sourceVertexId = Id(owner);
+            }
+            else if (const auto pole = priorPoles.find(allVertices[i]); pole != priorPoles.end())
+            {
+                origin.surfacePole = pole->second.first;
+                owner = pole->second.second;
             }
             else
             {

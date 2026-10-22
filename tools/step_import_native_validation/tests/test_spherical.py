@@ -232,7 +232,7 @@ class SphericalImportTests(unittest.TestCase):
 
     def test_unestablished_normalization_composition_does_not_publish(self):
         path = Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/analytic_hemisphere.step'
-        for option in ('--normalize-periodic-faces', '--restrict-unused-support-domains'):
+        for option in ('--restrict-unused-support-domains',):
             run, report = self.invoke_bytes(path.read_bytes(), option)
             self.assertNotEqual(0, run.returncode)
             self.assertIsNone(report['model'])
@@ -354,3 +354,31 @@ class SphericalImportTests(unittest.TestCase):
         self.assertNotEqual(0, run.returncode)
         self.assertIsNone(report['model'])
         self.assertEqual(0, report['native_calls'])
+
+
+    def test_unused_periodic_request_preserves_existing_pole_origins(self):
+        source = (Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/analytic_hemisphere.step').read_bytes()
+        plain, baseline = self.invoke_bytes(source, '--integration-relative-accuracy', '1e-8')
+        run, report = self.invoke_bytes(source, '--integration-relative-accuracy', '1e-8', '--normalize-periodic-faces')
+        self.assertEqual(0, plain.returncode)
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertTrue(report['periodic_normalization_requested'])
+        self.assertEqual(baseline['topology_normalization'], report['topology_normalization'])
+        self.assertEqual(baseline['representation_normalizations'], report['representation_normalizations'])
+        self.assertEqual(baseline['model'], report['model'])
+        self.assertTrue(report['topology_normalization']['completed'])
+        self.assertEqual(source, report['source_inspection']['source']['input']['raw'].encode('latin1'))
+
+    def test_unused_periodic_request_still_runs_copy_archive_and_cancellation(self):
+        source = Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/analytic_hemisphere.step'
+        cli = Path(os.environ['STEP_NATIVE_BINARY'])
+        binary = os.environ.get('STEP_NATIVE_GENERAL_BINARY', str(cli.with_name('step_import_general_tests'+cli.suffix)))
+        with tempfile.TemporaryDirectory(prefix='step-pole-periodic-noop-') as directory:
+            output = Path(directory)/'result'
+            run = subprocess.run([binary, '--development-file', str(source), str(output), 'normal',
+                                  '--integration-relative-accuracy', '1e-8', '--normalize-periodic-faces'],
+                                 capture_output=True, timeout=30)
+            self.assertEqual(0, run.returncode, run.stderr)
+            checks = json.loads((output/'checks.json').read_bytes())
+        self.assertEqual('Passed', checks['status'])
+        self.assertTrue(checks['defining_coefficients_and_uv_checked'])
