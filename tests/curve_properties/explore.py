@@ -15,6 +15,7 @@ import time
 import uuid
 
 import harness
+import spline_oracle as spline
 
 SCHEMA = "curve-properties-replay-v1"
 
@@ -26,20 +27,23 @@ def validate(case):
         if any(type(x) not in (int, float) or not math.isfinite(x) or abs(x) > bound for x in values):
             raise ValueError("finite bounded numeric input required")
 
-    if not isinstance(case, dict) or case.get("kind") not in ("bezier", "circle", "ellipse"):
+    if not isinstance(case, dict) or case.get("kind") not in ("bezier", "circle", "ellipse", *spline.KINDS):
         raise ValueError("supported curve kind required")
     finite_vector(case.get("domain"), 2, 64)
     first, last = case["domain"]
     if not .125 <= last - first <= 64:
         raise ValueError("domain length outside pilot scope")
-    finite_vector(case.get("clip"), 2, 1)
+    finite_vector(case.get("clip"), 2, 2)
     lower, upper = case["clip"]
-    if not 0 <= lower < upper <= 1 or upper - lower < 1 / 64:
+    periodic = case["kind"] in ("circle", "ellipse", "periodic_nurbs")
+    if not 0 <= lower < 1 or not lower < upper <= (lower + 1 if periodic else 1) or upper - lower < 1 / 64:
         raise ValueError("clip outside pilot scope")
-    if case["kind"] == "bezier":
+    if case["kind"] == "bezier" or case["kind"] in spline.KINDS:
         points = case.get("points")
-        if not isinstance(points, list) or not 2 <= len(points) <= 4:
-            raise ValueError("Bezier degree must be 1..3")
+        maximum = 4 if case["kind"] == "bezier" else 8 if case["kind"] == "periodic_nurbs" else 25
+        minimum = 3 if case["kind"] == "periodic_nurbs" else 2
+        if not isinstance(points, list) or not minimum <= len(points) <= maximum:
+            raise ValueError("control count outside pilot scope")
         for point in points:
             finite_vector(point, 3)
         finite_vector(case.get("weights"), len(points), 64)
@@ -47,6 +51,20 @@ def validate(case):
             raise ValueError("positive bounded weights required")
         if len({tuple(p) for p in points}) < 2:
             raise ValueError("constant curves are outside this pilot")
+        if case["kind"] == "nurbs":
+            degree, knots = case.get("degree"), case.get("knots")
+            if type(degree) is not int or not 1 <= degree <= 3:
+                raise ValueError("NURBS degree must be 1..3")
+            finite_vector(knots, len(points) + degree + 1, 1)
+            if knots != sorted(knots) or knots[:degree + 1] != [0] * (degree + 1):
+                raise ValueError("ordered, clamped normalized knot vector required")
+            if knots[-degree - 1:] != [1] * (degree + 1):
+                raise ValueError("clamped upper knots required")
+            unique = sorted(set(knots))
+            if not 3 <= len(unique) <= 9 or any(b - a < 1 / 32 for a, b in zip(unique, unique[1:])):
+                raise ValueError("require 2..8 nonempty spans separated by at least 1/32")
+            if any(knots.count(knot) > degree for knot in unique[1:-1]):
+                raise ValueError("internal multiplicity must be 1..degree (C0 or better)")
     else:
         finite_vector(case.get("center"), 3)
         finite_vector(case.get("radii"), 2, 64)

@@ -4,6 +4,7 @@
 #include <SmCircle.h>
 #include <SmContext.h>
 #include <SmEllipse.h>
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
@@ -76,13 +77,48 @@ SmExtent3d Bounds(const SmCurve& curve, const std::vector<SmExtent1d>& intervals
 void Run()
 {
     std::string version, kind;
-    Require(bool(std::cin >> version >> kind) && version == "curve-properties-v1", "protocol");
+    Require(bool(std::cin >> version >> kind) && (version == "curve-properties-v1" || version == "curve-properties-v2"), "protocol");
+    const bool advanced = version == "curve-properties-v2";
+    const bool periodic = kind == "periodic_nurbs";
     const double first = Read(), last = Read(), lower = Read(), upper = Read();
-    Require(last > first && lower >= 0 && upper <= 1 && lower < upper, "domain");
+    const bool periodicWindow = periodic || kind == "circle" || kind == "ellipse";
+    Require(last > first && lower >= 0 && lower < 1 && upper <= (periodicWindow ? lower + 1 : 1) && lower < upper, "domain");
     // The context outlives all owning curves; no geometry escapes the worker process.
     SmContext context;
     std::unique_ptr<SmBSplineCurve> curve;
-    if (kind == "bezier")
+    if (advanced)
+    {
+        Require(kind == "nurbs" || periodic, "spline_kind");
+        const double degreeValue = Read(), countValue = Read(), knotCountValue = Read();
+        Require(degreeValue >= 1 && degreeValue <= 3 && degreeValue == std::floor(degreeValue), "degree");
+        Require(countValue >= degreeValue + 1 && countValue <= 33 && countValue == std::floor(countValue), "control_count");
+        Require(knotCountValue == countValue + degreeValue + 1, "knot_count");
+        const auto degree = static_cast<short>(degreeValue);
+        std::vector<gw_CPOINT> points;
+        for (int i = 0; i < static_cast<int>(countValue); ++i)
+        {
+            const double x = Read(), y = Read(), z = Read(), weight = Read();
+            Require(weight > 0, "positive_weight");
+            points.push_back({ x * weight, y * weight, z * weight, weight });
+        }
+        std::vector<double> knots;
+        for (int i = 0; i < static_cast<int>(knotCountValue); ++i)
+        {
+            const double t = Read();
+            Require(t >= first && t <= last && (knots.empty() || t >= knots.back()), "knot_order");
+            knots.push_back(t);
+        }
+        curve.reset(new (context) SmBSplineCurve(
+            3,
+            static_cast<ULONG>(points.size() - 1),
+            static_cast<ULONG>(knots.size() - 1),
+            degree,
+            points.data(),
+            knots.data(),
+            &context
+        ));
+    }
+    else if (kind == "bezier")
     {
         const double degreeValue = Read();
         Require(degreeValue >= 1 && degreeValue <= 3 && degreeValue == std::floor(degreeValue), "degree");
@@ -120,20 +156,24 @@ void Run()
     }
     std::vector<double> samples;
     const double countValue = Read();
-    Require(countValue >= 2 && countValue <= 65 && countValue == std::floor(countValue), "sample_count");
+    Require(countValue >= 2 && countValue <= (advanced ? 256 : 65) && countValue == std::floor(countValue), "sample_count");
     for (int i = 0; i < static_cast<int>(countValue); ++i)
     {
         const double q = Read();
-        Require(q >= 0 && q <= 1, "sample_parameter");
+        Require(advanced ? q >= first && q <= last : q >= 0 && q <= 1, "sample_parameter");
         samples.push_back(q);
     }
     std::string extra;
     Require(!(std::cin >> extra), "trailing_input");
     const auto domain = curve->GetNaturalInterval();
     std::vector<SmExtent1d> intervals;
-    if (kind == "bezier")
+    if (advanced || kind == "bezier")
     {
-        intervals.emplace_back(domain.Evaluate(lower), domain.Evaluate(upper));
+        intervals.emplace_back(domain.Evaluate(lower), domain.Evaluate(std::min(upper, 1.0)));
+        if (upper > 1)
+        {
+            intervals.emplace_back(domain.GetMin(), domain.Evaluate(upper - 1));
+        }
     }
     else
     {
@@ -171,6 +211,20 @@ void Run()
     Interval(ignored);
     std::cout << ",\"native_interval\":";
     Interval(intervals.front());
+    std::cout << ",\"native_intervals\":[";
+    for (std::size_t i = 0; i < intervals.size(); ++i)
+    {
+        if (i)
+        {
+            std::cout << ',';
+        }
+        Interval(intervals[i]);
+    }
+    std::cout << ']';
+    if (periodic)
+    {
+        std::cout << ",\"periodic\":" << (curve->IsPeriodic(domain) ? "true" : "false");
+    }
     std::cout << ",\"edited_domain\":";
     Interval(edited->GetNaturalInterval());
     std::cout << ",\"bounds\":";
@@ -186,8 +240,10 @@ void Run()
         {
             std::cout << ',';
         }
-        const double t = domain.Evaluate(samples[i]);
-        std::cout << "{\"value\":";
+        const double t = advanced ? samples[i] : domain.Evaluate(samples[i]);
+        const double reverseParameter = first + last - t, editedParameter = 11 + 2 * (t - first);
+        std::cout << "{\"parameter\":" << t << ",\"reverse_parameter\":" << reverseParameter << ",\"edited_parameter\":" << editedParameter
+                  << ",\"value\":";
         Evaluate(*curve, t);
         std::cout << ",\"point\":";
         SmPoint3d point;
@@ -195,10 +251,22 @@ void Run()
         Point(point);
         std::cout << ",\"reverse\":";
         // Reversal exchanges the two one-sided limits at a C1 conic span join.
-        Evaluate(*reversed, first + last - t, TRUE);
+        Evaluate(*reversed, reverseParameter, TRUE);
         std::cout << ",\"edited\":";
-        Evaluate(*edited, 11 + 2 * (t - first));
-        if (kind != "bezier")
+        Evaluate(*edited, editedParameter);
+        if (advanced)
+        {
+            // bFromLeft means the point is at the LEFT of its selected span:
+            // TRUE selects the mathematical right limit, FALSE the left limit.
+            // Preserve this existing public convention at repeated knots.
+            std::cout << ",\"right_value\":";
+            Evaluate(*curve, t, TRUE);
+            std::cout << ",\"reverse_left\":";
+            Evaluate(*reversed, reverseParameter, FALSE);
+            std::cout << ",\"edited_right\":";
+            Evaluate(*edited, editedParameter, TRUE);
+        }
+        if (kind == "circle" || kind == "ellipse")
         {
             double angle = 0, roundtrip = 0;
             Require(curve->ConvertTFromNURBSToSTEP(t, angle) == SM_SUCCESS, "native_to_angle");

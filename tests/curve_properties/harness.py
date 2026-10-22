@@ -10,6 +10,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+if __name__ == "__main__":
+    sys.modules["harness"] = sys.modules[__name__]
+import spline_oracle as spline
+
 
 class PropertyFailure(AssertionError):
     def __init__(self, name, detail):
@@ -132,15 +136,27 @@ def fixed_cases():
         for clip in ([0, 1], [.125, .625], [.25, .5]):
             cases.append({"kind": kind, "center": [2, -3, 5], "radii": radii,
                           "frame": 1, "domain": [-17, 29], "clip": clip})
+        cases.append({"kind": kind, "center": [2, -3, 5], "radii": radii,
+                      "frame": 1, "domain": [-17, 29], "clip": [.875, 1.125]})
+    cases.extend(spline.fixed_cases())
     return cases
 
 
 def samples(case):
     lower, upper = case["clip"]
-    return sorted({0.0, .125, .25, .5, .75, .875, 1.0, lower, upper, (lower + upper) / 2})
+    return sorted({q - 1 if q > 1 else q
+                   for q in (0.0, .125, .25, .5, .75, .875, 1.0, lower, upper, (lower + upper) / 2)})
 
 
 def encode(case):
+    if case["kind"] in spline.KINDS:
+        degree, points, weights, knots = spline.data(case)
+        values = ["curve-properties-v2", case["kind"], *case["domain"], *case["clip"],
+                  degree, len(points), len(knots)]
+        for point, weight in zip(points, weights):
+            values.extend([*point, weight])
+        values.extend([*knots, len(spline.parameters(case)), *spline.parameters(case)])
+        return " ".join(map(str, values)) + "\n"
     values = ["curve-properties-v1", case["kind"], *case["domain"], *case["clip"]]
     if case["kind"] == "bezier":
         values.append(len(case["points"]) - 1)
@@ -175,11 +191,16 @@ def observe(probe, case, timeout=10):
 
 
 def check(case, observed):
+    if case["kind"] in spline.KINDS:
+        return spline.check(case, observed)
     scale = max(1, *(abs(x) for p in case.get("points", [case.get("center", [0, 0, 0])]) for x in p),
                 *case.get("radii", [1]))
     # Fixed test budgets on a bounded input domain; never change product tolerances.
     position_tolerance = 1e-9 + 64 * sys.float_info.epsilon * scale
     first, last = case["domain"]
+    if case["kind"] in ("circle", "ellipse") and case["clip"][1] > 1:
+        if len(observed["native_intervals"]) != 2:
+            raise PropertyFailure("seam_interval_count", "cross-seam source window requires both native intervals")
     vector_near(observed["domain"], [first, last], 1e-12, "natural_domain")
     vector_near(observed["edited_domain"], [11, 11 + 2 * (last - first)], 1e-12, "edited_domain")
     native_low, native_high = observed["native_interval"]
@@ -248,7 +269,7 @@ def main():
             print(json.dumps({"status": "fail", "index": index, "property": error.name,
                               "detail": str(error), "case": case}, allow_nan=False))
             return 1
-    print(json.dumps({"status": "pass", "cases": passed, "scope": "curve-properties-v1"}))
+    print(json.dumps({"status": "pass", "cases": passed, "scope": "curve-properties-v2"}))
     return 0
 
 

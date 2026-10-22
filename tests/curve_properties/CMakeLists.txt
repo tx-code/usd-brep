@@ -51,6 +51,8 @@ add_test(NAME curve_properties COMMAND "${Python3_EXECUTABLE}"
 set_tests_properties(curve_properties PROPERTIES TIMEOUT 120)
 add_test(NAME curve_property_oracles COMMAND "${Python3_EXECUTABLE}" -m unittest discover
     -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_harness.py -v)
+add_test(NAME curve_property_spline_oracles COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+    -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_spline_oracle.py -v)
 add_test(NAME curve_property_exploration_contracts COMMAND "${Python3_EXECUTABLE}" -m unittest discover
     -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_explore.py -v)
 add_test(NAME curve_property_mutation_contracts COMMAND "${Python3_EXECUTABLE}" -m unittest discover
