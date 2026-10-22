@@ -156,6 +156,8 @@ def observe(probe, case, timeout=10):
     env = os.environ.copy()
     # Prefer the selected SDK; receipts in the exploration runner identify its DLLs.
     env["PATH"] = str(probe.parent) + os.pathsep + env.get("PATH", "")
+    for key in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+        env[key] = str(probe.parent) + os.pathsep + env.get(key, "")
     try:
         result = subprocess.run([str(probe)], input=encode(case), text=True, capture_output=True,
                                 timeout=timeout, env=env)

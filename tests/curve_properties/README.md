@@ -53,3 +53,38 @@ ctest --test-dir <separate-build> -C Release --output-on-failure
 Windows 消费者使用匹配的 C++20、Release `/MD` 或 Debug `/MDd` 和内核布局宏。
 每个用例由独立子进程执行，设置超时；原生上下文活到曲线销毁之后。
 测试不使用线程并发访问内核。构建产物、失败输入和本机运行收据保留在 Git 外。
+
+## 随机生成、重放与缩减
+
+`explore.py` 只依赖 Python 标准库。输入按曲线族构造，交替覆盖一至三次多项式／正权有理
+Bézier、圆和椭圆。选择带偏移且不同长度的实际参数域、完整／不对称裁剪、坐标偏移、
+不同尺度及两个正交坐标框架。它不靠内核拒绝大量非法输入来充数。
+`validate` 给出本试点明确的有限输入范围；这不是 SDK 的支持范围限制。
+
+```shell
+python tests/curve_properties/explore.py run --probe <runtime>/curve_property_probe.exe \
+    --seed 431 --cases 512 --output .local/curve-properties/run-431
+python tests/curve_properties/explore.py replay --probe <runtime>/curve_property_probe.exe \
+    --input <failure-directory>/minimized.json --output .local/curve-properties/replay
+python tests/curve_properties/explore.py shrink --probe <runtime>/curve_property_probe.exe \
+    --input <failure-directory>/failure.json --output .local/curve-properties/shrink
+```
+
+探索要求 probe 与匹配的 SMLib 运行库位于同一目录。收据记录原生二进制与 Python 工具的
+SHA-256、Git 版本和工作区状态、Python 版本、超时、完整物化输入及成功观测。
+Git 版本是调用时的源上下文，不能单凭它证明一个外部二进制的构建来源。
+执行前后重新核对二进制哈希；改变时结果标记为基础设施错误。
+运行中断保留 `running`，不能当成通过。失败立即保存完整输入、原始观测或进程诊断，
+随后才尝试缩减。seed 用于重建探索序列，固定回放使用完整输入，不依赖 RNG 版本。
+默认遇到首个失败停止，`selected` 与 `completed` 分开报告，未执行用例不算通过。
+
+缩减尝试降低次数、简化控制点／正权、参数域、裁剪区间及圆锥曲线参数；仅接纳仍在输入域、
+复杂度严格下降且触发同一个属性的候选。原生崩溃还须保留相同退出码。
+默认上限为 100 次、30 秒，在两次调用之间检查；正在运行的调用仍受单例超时限制。
+这是有界的贪心缩减，不保证全局最小。超时、崩溃、协议错误和几何属性错误分别保留。
+每次运行创建新收据目录，拒绝覆盖；CTest 使用 `--unique-output` 创建独立子目录。
+
+试点验收要求：固定属性全部通过；至少三个 seed、每个 512 个随机输入通过 Release，
+另有 Debug 的固定用例及随机抽样；失败回放命中相同属性，缩减保留该属性并降低复杂度。
+定向变异必须由几何属性断言发现，编译失败、超时或基础设施错误不算抓到变异。
+这些数量是该工具的可重复验收流程，不是对全库缺陷率或生产模型的资格保证。

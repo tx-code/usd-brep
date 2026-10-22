@@ -51,6 +51,16 @@ add_test(NAME curve_properties COMMAND "${Python3_EXECUTABLE}"
 set_tests_properties(curve_properties PROPERTIES TIMEOUT 120)
 add_test(NAME curve_property_oracles COMMAND "${Python3_EXECUTABLE}" -m unittest discover
     -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_harness.py -v)
+add_test(NAME curve_property_exploration_contracts COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+    -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_explore.py -v)
+# Exploration attests the co-located DLL; imported standalone SDKs can use check
+# and their existing runtime path without making an unverifiable loader claim.
+if(CURVE_HARNESS_BUILD_KERNEL OR NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    add_test(NAME curve_property_random_smoke COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/explore.py" run --probe "$<TARGET_FILE:curve_property_probe>"
+        --cases 32 --seed 431 --output "${CMAKE_CURRENT_BINARY_DIR}/exploration-receipts" --unique-output)
+    set_tests_properties(curve_property_random_smoke PROPERTIES TIMEOUT 120)
+endif()
 if(WIN32 AND SMLIB_RUNTIME_DIR)
     set_tests_properties(curve_properties PROPERTIES
         ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${SMLIB_RUNTIME_DIR}")
