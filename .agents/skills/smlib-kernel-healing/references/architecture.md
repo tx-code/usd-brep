@@ -46,7 +46,7 @@ flags, and geometry-only tracking currently has a narrower effect described belo
 | Entry | Behavior to verify |
 |---|---|
 | `_omni_solid.heal_brep` → `SmApiHealBrep` → `SmBrep::HealBrep` | Mutates the BRep; Python returns the same handle. The API requests `SM_HO_ALL` without per-stage control. |
-| `SmBrep::HealBrep` | Creates a temporary `SmHealData`. Currently discards the nested status and returns `SM_SUCCESS`; it is not proof all repairs succeeded. |
+| `SmBrep::HealBrep` | Creates a temporary `SmHealData` and propagates its failure status. Healing is in-place; earlier edits are not rolled back on failure. Success is not proof all repairs succeeded. |
 | `SmHealData::HealBrep` | Resets the session, gathers/copies optional target arrays, calls `LoadTargets`, then returns `HealTgts`'s status. Retain this object to inspect caches and problem lists. |
 | `SmHealData::LoadTargets` / `HealTgts` | Internal controls for explicit target sets and stage-level diagnosis. `LoadTargets` expects fresh/reset state. `HealTgts` runs from the beginning; it is not a resume API. |
 | `SmBrep::MakeTopologyFromData` | Calls healing when enabled and the stored healer version is older than `SM_HEALER_VERSION`, or when `bAlwaysHeal` forces it. Enabled import healing is not unconditional execution. |
@@ -266,8 +266,9 @@ corrupt voxel storage. Preserve that per-pair boundary. Loop/pole batches defer 
 traversal finishes. Stopping in only the first iteration loses subsequent events. Leaving an outer
 tracker active during recursive refresh conflicts with the context's single system slot.
 
-Current gap: `UpdateTargetLists` ignores the recursive `HealTgts` return. Check rebuilt state and
-diagnostics; its own `SM_SUCCESS` alone does not establish successful catch-up.
+`UpdateTargetLists` propagates recursive `HealTgts` failures and restores the outer stage,
+target offsets, and recursion depth on exit. A failed refresh can leave replaced properties and
+partial topology edits; it is not a transaction or permission to continue later repair stages.
 
 ## Seams and Loops
 
@@ -332,6 +333,11 @@ old-target offsets, property stage, live owning surface/topology, and linked pro
 
 Existing `smTopoTest.cpp` regressions named in `SKILL.md` cover actual seam movement plus
 refresh, geometry owner chains, detached loops, reset/deletion, and multiple missing-pole faces.
+`tests/healing_status` covers failed seam movement through the API, native entrypoint and stage
+sequence, failed catch-up after a real surface replacement, and U/V seam-insertion failures.
+It uses public virtual geometry operations to inject failures while retaining real classification
+and topology operations. Successful full-healer controls also check Level 2 validity; the low-level
+insertion controls establish status and pointer safety, not complete periodic-face repair.
 For a new defect, assert the repaired state and the next consumer's required caches, not only
 that an event appeared. Compare debug logs as well as exit status; use test-selection guidance
 for focused and broader suites.

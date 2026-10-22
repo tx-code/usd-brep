@@ -92,8 +92,8 @@ UpdateTargetLists asserts in a debug build after an edge split. Trace the stale 
   a copy because healing can mutate state before returning an error.
 - For `SM_SUCCESS` with bad output, inspect the requested stage, `m_eDoneHealOp`, and the
   remaining live problem flags. Check the incomplete-repair inventory before investigating a
-  notification bug. `SmBrep::HealBrep` and recursive refresh can discard nested status; successful
-  outer status alone is insufficient evidence.
+  notification bug. Some repair helpers still discard status; consult the current
+  [known issues](../../../KNOWN_ISSUES.md). Successful outer status alone is insufficient evidence.
 - For an assertion or crash in `UpdateTargetLists` or `StopTracking`, first check tracker activity
   and context ownership. Stop tracking before recursive refresh. Then check list/index-array
   alignment and reacquire properties from current targets; never inspect a removed object by
