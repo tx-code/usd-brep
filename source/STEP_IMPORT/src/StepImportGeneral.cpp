@@ -1746,7 +1746,10 @@ private:
         {
             const auto& f = faces[i];
             auto& native = m_model->faces[i];
-            if (Is(f.surface, "CYLINDRICAL_SURFACE"))
+            double controlledProjectionGap = 0;
+            const bool cylinderProjection = Is(f.surface, "CYLINDRICAL_SURFACE");
+            const bool coneProjection = Is(f.surface, "CONICAL_SURFACE");
+            if (cylinderProjection || coneProjection)
             {
                 SmTArray<SmEdgeuse*> uses;
                 native.face->GetUpwardEdgeuses(uses);
@@ -1759,7 +1762,8 @@ private:
                         continue;
                     }
                     const auto index = static_cast<Index>(found - m_model->edges.begin());
-                    if (index >= curves.size() || curves[index].v0 == curves[index].v1 || !Is(curves[index].geometry, "CIRCLE"))
+                    if (index >= curves.size() || curves[index].v0 == curves[index].v1 ||
+                        !(Is(curves[index].geometry, "CIRCLE") || (coneProjection && Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS"))))
                     {
                         continue;
                     }
@@ -1779,18 +1783,21 @@ private:
                         projected.curve.release();
                     }
                     Need(adopted && uses[k]->GetUVTrimCurve() == candidate, "GeneralProjectedUvOwnership", f.record);
-                    // Preserve the defining circle and its rational native t.
+                    controlledProjectionGap = std::max(controlledProjectionGap, *projected.projectionGapMm);
+                    // Preserve the defining curve and its native parameter t.
                     // Face closure/seam handling and final paired measurements
                     // still run below, followed by global topology/tolerance checks.
-                    RepresentationNormalization normalization{ "ControlledCircleUvProjection", Id(f.record), {}, {}, index };
+                    const char* kind = coneProjection ? "ControlledConeUvProjection" : "ControlledCircleUvProjection";
+                    RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, index };
                     for (const auto& loop : f.loops)
                     {
                         normalization.sourceBoundIds.push_back(Id(loop.bound));
                     }
                     m_report.normalizations.push_back(std::move(normalization));
-                    m_report.tolerances.push_back({ "ControlledCircleUvProjection", "RequestedProjectionAccuracy", Id(curves[index].record),
+                    m_report.tolerances.push_back({ kind, "RequestedProjectionAccuracy", Id(curves[index].record),
                                                     Q(m_options.quality.derivedUvMm) / 8 });
-                    m_report.tolerances.push_back({ "ControlledCircleUvProjection", "RawPairedParameterSampleMaximum", Id(curves[index].record),
+                    m_report.tolerances.push_back({ kind, "ProjectionSampleMaximum", Id(curves[index].record), *projected.projectionGapMm });
+                    m_report.tolerances.push_back({ kind, "RawPairedParameterSampleMaximum", Id(curves[index].record),
                                                     projected.rawPair->maximumMm });
                     m_rebuiltUv = true;
                 }
@@ -1798,6 +1805,13 @@ private:
             double mean = 0, max = 0, meanVertex = 0, maxVertex = 0, meanParam = 0, maxParam = 0;
             Step(f.record);
             Good(native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam));
+            // Cached preinstalled trims do not contribute to the face builder's
+            // new-projection statistic. Include their observed normal gap while
+            // preserving invalid native observations as failures.
+            if (std::isfinite(max) && max >= 0)
+            {
+                max = std::max(max, controlledProjectionGap);
+            }
             // FALSE requests no tolerance adjustment at the face level. Nested
             // edgeuse projection retries can still change edge working tolerances;
             // ObserveTolerances must reject any resulting budget excess.

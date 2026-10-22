@@ -2,6 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Analytic split-circle controls; projection retries cannot enlarge import budgets."""
 import math
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
 import unittest
 
 from tools.step_import_native_validation.tests import test_general
@@ -42,6 +47,47 @@ def split_circle_cylinder(first=0.2, second=1.1):
 
 class ProjectionToleranceTests(unittest.TestCase):
     invoke_bytes = test_general.GeneralTests.invoke_bytes
+
+    def test_exact_rational_cone_has_independent_area_and_volume(self):
+        # Public 3-4-5 frustum, radii 3/6 and height 4. Each circular rim is
+        # split at .2/1.1 radians into quadratic rational B-splines: tangent
+        # intersections are the middle poles and cos(half span) their weights.
+        path = Path(__file__).resolve().parents[3] / 'source/STEP_IMPORT/tests/fixtures/analytic_split_spline_cone.step'
+        source = path.read_bytes()
+        run, report = self.invoke_bytes(source, '--integration-relative-accuracy', '1e-6')
+        self.assertEqual(0, run.returncode, run.stderr or report['diagnostics'])
+        self.assertEqual('Accepted', report['status'])
+        self.assertEqual('None', report['repair'])
+        self.assertEqual(source, report['source_inspection']['source']['input']['raw'].encode('latin1'))
+        self.assertEqual((3, 5, 4), tuple(report['model'][k] for k in ['faces', 'edges', 'vertices']))
+        self.assertAlmostEqual(84*math.pi, report['model']['material_volume']['value_mm3'], delta=.001)
+        self.assertAlmostEqual(90*math.pi, report['model']['area_mm2'], delta=.001)
+        self.assertTrue(any(n['kind'] == 'ControlledConeUvProjection' for n in report['representation_normalizations']))
+        self.assertTrue(all(0 < t['value_mm'] <= .001 for t in report['measurements'] if t['stage'] == 'Postchecked'))
+
+    def test_cone_source_gap_is_not_hidden_by_tighter_projection(self):
+        path = Path(__file__).resolve().parents[3] / 'source/STEP_IMPORT/tests/fixtures/analytic_split_spline_cone.step'
+        source = path.read_bytes().replace(b"CONICAL_SURFACE('',#106,3.,", b"CONICAL_SURFACE('',#106,3.002,")
+        run, report = self.invoke_bytes(source)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report['model'])
+        self.assertTrue(report['candidate_discarded'])
+
+    def test_cone_copy_and_archive_preserve_definitions_uv_and_analytic_volume(self):
+        source = Path(__file__).resolve().parents[3] / 'source/STEP_IMPORT/tests/fixtures/analytic_split_spline_cone.step'
+        cli = Path(os.environ['STEP_NATIVE_BINARY'])
+        binary = os.environ.get('STEP_NATIVE_GENERAL_BINARY',
+                                str(cli.with_name('step_import_general_tests' + cli.suffix)))
+        with tempfile.TemporaryDirectory(prefix='step-public-cone-copy-') as directory:
+            output = Path(directory)/'result'
+            run = subprocess.run([binary, '--development-file', str(source), str(output), 'normal',
+                                  '--integration-relative-accuracy', '1e-6'], capture_output=True, timeout=30)
+            self.assertEqual(0, run.returncode, run.stderr)
+            checks = json.loads((output/'checks.json').read_bytes())
+        self.assertEqual('Passed', checks['status'])
+        self.assertTrue(checks['defining_coefficients_and_uv_checked'])
+        for field in ['volume_mm3', 'copied_volume_mm3', 'reloaded_volume_mm3']:
+            self.assertAlmostEqual(84*math.pi, checks[field], delta=.001)
 
     def test_axis_aligned_partition_has_independent_cylinder_truth(self):
         source = split_circle_cylinder(math.pi/2, 3*math.pi/2)

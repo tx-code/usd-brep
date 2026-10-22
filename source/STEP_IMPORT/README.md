@@ -11,6 +11,11 @@
 `ControlledCircleUvProjection`、来源面/边/边界及求解精度。随后仍执行面闭合、缝、
 最终配对 UV、原生校验与工作容差预算检查。采样不是连续误差界，也不是源 pcurve 修复。
 
+圆锥面上的非闭合 CIRCLE 和 B_SPLINE_CURVE_WITH_KNOTS 边同样可尝试单分支受控投影，
+记录 `ControlledConeUvProjection`。投影的数值逼近精度与源曲线到曲面的法向距离分别
+检查：后者可大于求解精度，但返回距离和最终参数配对误差都不得超过原派生 UV 预算。
+通过这一步不代表整个模型可用；后续 UV 曲线有效性、面闭合和容差检查仍可拒绝候选。
+
 通用构建支持已检查的 `CONVERSION_BASED_UNIT + LENGTH_UNIT` 链，终点必须是已登记的
 SI `METRE` 长度单位；SI prefix 与嵌套因子按实际实体引用求积，不使用单位名称猜测。
 因子必须逐项为正，毫米比例与每步结果使用既有有界精确有理数保存；容量不足返回

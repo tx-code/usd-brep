@@ -221,11 +221,12 @@ DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, cons
     {
         SurfaceOwnerScope owner(*surface);
         beforeNativeCall();
-        // A numerical safety margin, not a larger source/UV budget. KeepAll=FALSE
-        // also refuses genuine source gaps larger than this solve target; those
-        // cases continue through the existing path and its independent checks.
+        // Separate numerical approximation from normal source/surface distance.
+        // KeepAll permits the latter to exceed the tighter solve target, but
+        // both returned projection distance and paired lift must still satisfy
+        // maximumMm below. No topology tolerance is adjusted to obtain a curve.
         status = surface->DropCurve(*face->GetContext(), face->GetUVDomain(), *edge->GetCurve(), edge->GetInterval(),
-                                    SmApproxTol3d(maximumMm / 8), gap, approximation, curves, FALSE);
+                                    SmApproxTol3d(maximumMm / 8), gap, approximation, curves, TRUE);
     }
     if (status != SM_SUCCESS || curves.GetSize() != 1 || !curves[0] || !std::isfinite(gap) || gap < 0 || gap > maximumMm)
     {
