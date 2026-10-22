@@ -164,7 +164,7 @@ def bounds(case):
 def fixed_cases():
     result = []
     for degree in (1, 2, 3):
-        for multiplicity in sorted({1, degree}):
+        for multiplicity in range(1, degree + 1):
             knots = [0] * (degree + 1) + [.25] * multiplicity + [.75] * degree + [1] * (degree + 1)
             count = len(knots) - degree - 1
             for rational in (False, True):

@@ -7,6 +7,20 @@ Known bugs in the SMLib geometry SDK.
 
 ## Modeling
 
+### Tight NURBS bounds can miss an arch after a zero-length span
+
+`SmCurve::CalculateTightBoundingBox` can omit an interior extremum when a
+constant span precedes a nonconstant quadratic span. The public synthetic
+[complete replay input](tests/curve_properties/fixtures/zero-span-quadratic-bounds.json)
+has a known maximum Z of `0.5` at native parameter `0.875`; its current tight
+box does not contain that point. This is a kernel bounds failure, not an
+unsupported STEP source or an injected mutation.
+
+**Workaround:** no general tight-bounds correction is established. Do not use
+the returned tight box to cull this curve. The [curve harness](tests/curve_properties/README.md)
+replays the witness as an explicit failure; it is excluded from passing-suite
+qualification rather than treated as a successful or unsupported input.
+
 ### `remove_fillet` removes nothing and reports success
 
 `remove_fillet` (`SmApiRemoveFillet`) returns success without removing the fillet.

@@ -1,0 +1,14 @@
+{
+  "SPDX-FileCopyrightText": "Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.",
+  "SPDX-License-Identifier": "Apache-2.0",
+  "schema": "curve-properties-replay-v2",
+  "case": {
+    "kind": "nurbs",
+    "degree": 2,
+    "points": [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 1], [0, 0, 0]],
+    "weights": [1, 1, 1, 1, 1],
+    "knots": [0, 0, 0, 0.75, 0.75, 1, 1, 1],
+    "domain": [0, 1],
+    "clip": [0, 1]
+  }
+}

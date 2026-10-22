@@ -2,12 +2,20 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hand-derived answers for multispan and seam reference properties."""
 import unittest
+import json
+from pathlib import Path
 
 import explore
 import spline_oracle as spline
 
 
 class SplineOracleTests(unittest.TestCase):
+    def test_zero_span_witness_has_an_independent_half_unit_arch(self):
+        path = Path(__file__).with_name("fixtures") / "zero-span-quadratic-bounds.json"
+        case = json.loads(path.read_text(encoding="utf-8"))["case"]
+        explore.validate(case)
+        self.assertEqual(spline.bounds(case), [[0, 0, 0], [0, 0, .5]])
+        self.assertEqual(spline.value(spline.data(case), .875)[0], [0, 0, .5])
     def test_all_fixed_inputs_have_valid_knot_and_control_cardinality(self):
         for case in spline.fixed_cases():
             explore.validate(case)
@@ -28,6 +36,17 @@ class SplineOracleTests(unittest.TestCase):
         data = spline.data(case)
         self.assertEqual(spline.value(data, .5, True), [[1.5, 1, 0], [2, -4, 0], [-4, -24, 0]])
         self.assertEqual(spline.value(data, .5, False), [[1.5, 1, 0], [2, -4, 0], [12, 8, 0]])
+
+    def test_cubic_double_knot_has_hand_derived_c1_limits(self):
+        # One insertion at .5 gives two cubic Bezier spans sharing (P2+P3)/2.
+        # Endpoint Bernstein derivatives on spans of length .5 give these literals.
+        case = {"kind": "nurbs", "degree": 3,
+                "points": [[0, 0, 0], [1, 1, 0], [2, 2, 0], [3, 0, 0], [4, 1, 0], [5, 0, 0]],
+                "weights": [1] * 6, "knots": [0, 0, 0, 0, .5, .5, 1, 1, 1, 1],
+                "domain": [0, 1], "clip": [0, 1]}
+        data = spline.data(case)
+        self.assertEqual(spline.value(data, .5, True), [[2.5, 1, 0], [3, -6, 0], [-12, -48, 0]])
+        self.assertEqual(spline.value(data, .5, False), [[2.5, 1, 0], [3, -6, 0], [12, 48, 0]])
 
     def test_periodic_quadratic_has_known_seam_limits(self):
         case = {"kind": "periodic_nurbs", "points": [[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]],

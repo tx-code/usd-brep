@@ -124,6 +124,25 @@ Git 版本是调用时的源上下文，不能单凭它证明一个外部二进�
 多段扩展另要求三个 seed 各 512 个 `multispan` 随机输入、三个 seed 各 128 个 `seams`
 输入通过 Release；Debug 至少抽样 128 个多段、64 个接缝输入，并回放全部固定用例。
 
+变异实验通过 `--baseline-probe` 要求原输入和每个缩减候选在未变异版本通过。
+原版失败的候选写入 `baseline-rejections.jsonl`，不作为注入故障的缩减证据，也不改写成
+不支持输入。最终反例仍须在变异版本触发原属性、在基线通过；两边二进制都核对哈希。
+
+### 独立发现的基线缺陷
+
+缩减暴露了零长度分段之后二次拱形的紧包围盒漏包，见
+[已知问题](../../KNOWN_ISSUES.md#tight-nurbs-bounds-can-miss-an-arch-after-a-zero-length-span)。
+完整合成输入保存在 `fixtures/zero-span-quadratic-bounds.json`。
+它的最大 Z 为 `0.5`，原生参数为 `0.875`，由独立二次 Bernstein 公式确定。
+本批未修改内核全局极值算法；该用例当前重放失败，不包含在随机／固定通过声明中，
+不能把变异组的通过当成该问题已经修复。可独立运行：
+
+```shell
+python tests/curve_properties/explore.py replay --probe <runtime>/curve_property_probe.exe \
+    --input tests/curve_properties/fixtures/zero-span-quadratic-bounds.json \
+    --output .local/curve-properties/zero-span-witness
+```
+
 ## 定向代码变异
 
 ```shell

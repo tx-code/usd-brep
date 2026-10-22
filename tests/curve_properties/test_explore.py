@@ -26,6 +26,9 @@ class ExplorationTests(unittest.TestCase):
         self.assertEqual({len(set(case["knots"])) - 1 for case in cases if case["kind"] == "nurbs"}, set(range(2, 9)))
         self.assertTrue(any(case["kind"] == "nurbs" and case["knots"].count(.5) > 1 for case in cases))
         self.assertTrue(any(case["kind"] == "periodic_nurbs" and case["clip"][1] > 1 for case in cases))
+        self.assertTrue(any(case["kind"] == "nurbs" and case["degree"] == 3
+                            and any(case["knots"].count(t) == 2 for t in set(case["knots"]) - {0, 1})
+                            for case in cases))
         for case in cases:
             explore.validate(case)
 
@@ -72,6 +75,15 @@ class ExplorationTests(unittest.TestCase):
         reduced, attempts = explore.minimize(original, lambda case: False, budget=3)
         self.assertEqual(reduced, original)
         self.assertEqual(attempts, 3)
+
+    def test_baseline_rejections_never_become_mutation_counterexamples(self):
+        original = harness.fixed_cases()[0]
+        calls = []
+        reduced, attempts = explore.minimize(original, lambda candidate: calls.append(candidate) or True,
+                                            budget=3, baseline_accepts=lambda candidate: False)
+        self.assertEqual(reduced, original)
+        self.assertEqual(attempts, 3)
+        self.assertFalse(calls)
 
     def test_invalid_replay_inputs_are_rejected_before_native_calls(self):
         for field, value in (("weights", [0, 1]), ("domain", [1, 1]), ("clip", [.8, .2]),

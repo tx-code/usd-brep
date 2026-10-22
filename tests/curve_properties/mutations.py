@@ -154,6 +154,7 @@ def main():
                                                             "binaries": mutated_identity})
                 result = execute([sys.executable, "-B", explorer, "run", "--probe", probe, "--cases", 8,
                                   "--suite", item.get("suite", "legacy"),
+                                  "--baseline-probe", baseline_probe,
                                   "--output", experiment / "discovery"], experiment / "discovery.log", expected=None)
                 discovery = json.loads((experiment / "discovery/summary.json").read_text(encoding="utf-8"))
                 if result == 0:

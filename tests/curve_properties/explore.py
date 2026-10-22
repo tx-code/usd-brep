@@ -116,7 +116,7 @@ def generate(seed, count, suite="all"):
             joins = sorted(rng.sample(range(1, 16), rng.randrange(1, 8)))
             knots = [0] * (degree + 1)
             for knot in joins:
-                multiplicity = degree if suite == "repeated" else rng.choice([1, degree])
+                multiplicity = degree if suite == "repeated" else rng.randrange(1, degree + 1)
                 knots.extend([knot / 16] * multiplicity)
             knots.extend([1] * (degree + 1))
             size = len(knots) - degree - 1
@@ -234,7 +234,7 @@ def reductions(case):
             yield candidate
 
 
-def minimize(case, still_fails, budget=100, seconds=30):
+def minimize(case, still_fails, budget=100, seconds=30, baseline_accepts=None):
     reduced = copy.deepcopy(case)
     attempts = 0
     deadline = time.monotonic() + seconds
@@ -243,6 +243,8 @@ def minimize(case, still_fails, budget=100, seconds=30):
             if attempts >= budget or time.monotonic() >= deadline:
                 return reduced, attempts
             attempts += 1
+            if baseline_accepts is not None and not baseline_accepts(candidate):
+                continue
             if still_fails(candidate):
                 reduced = candidate
                 break
@@ -305,6 +307,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["run", "replay", "shrink"])
     parser.add_argument("--probe", type=Path, required=True)
+    parser.add_argument("--baseline-probe", type=Path, help="require the unmodified baseline to accept counterexamples")
     parser.add_argument("--output", type=Path, required=True, help="new receipt directory")
     parser.add_argument("--unique-output", action="store_true", help="create a fresh child below --output (CTest)")
     parser.add_argument("--input", type=Path, help="complete replay/failure JSON, independent of seed")
@@ -323,11 +326,15 @@ def main():
         parser.error("replay/shrink requires --input")
     probe = args.probe.resolve()
     native_identity = identity(probe)
+    baseline_probe = args.baseline_probe.resolve() if args.baseline_probe else None
+    baseline_identity = identity(baseline_probe) if baseline_probe else None
     root = Path(__file__).resolve().parents[2]
     source_identity = {str(path.relative_to(root)): digest(path) for path in Path(__file__).parent.glob("*.py")}
     provenance = {**repository_context(root), "binaries": native_identity,
                   "harness": source_identity, "python": sys.version, "platform": sys.platform,
                   "timeout_seconds": args.timeout}
+    if baseline_identity:
+        provenance["baseline_binaries"] = baseline_identity
     if args.command == "run":
         cases = fixed_cases(args.suite) + list(generate(args.seed, args.cases, args.suite))
     else:
@@ -345,12 +352,31 @@ def main():
         for index, case in enumerate(cases):
             stream.write(json.dumps({"schema": SCHEMA, "index": index, "case": case}, allow_nan=False) + "\n")
     summary = {"schema": SCHEMA, "status": "running", "seed": args.seed, "suite": args.suite, "selected": len(cases),
-               "completed": 0, "failures": 0, "provenance": provenance}
+               "completed": 0, "failures": 0, "baseline_rejections": 0, "provenance": provenance}
     write(args.output / "summary.json", summary)
     started = time.monotonic()
+
+    def baseline_accepts(candidate):
+        if baseline_probe is None:
+            return True
+        try:
+            evaluate(baseline_probe, candidate, args.timeout)
+        except harness.PropertyFailure as error:
+            summary["baseline_rejections"] += 1
+            # A baseline defect is evidence, not a valid reduction of the injected
+            # fault. Save it independently; never relabel it as source rejection.
+            with (args.output / "baseline-rejections.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps({"schema": SCHEMA, "case": candidate, "property": error.name,
+                                         "detail": error.detail, "observation": getattr(error, "observation", None)},
+                                        allow_nan=False) + "\n")
+            return False
+        return True
+
     with (args.output / "observations.jsonl").open("w", encoding="utf-8") as observations:
         for index, case in enumerate(cases):
             try:
+                if not baseline_accepts(case):
+                    raise harness.PropertyFailure("baseline_failure", "see baseline-rejections.jsonl")
                 observation = evaluate(probe, case, args.timeout)
                 observations.write(json.dumps({"index": index, "status": "pass", "observation": observation},
                                               allow_nan=False) + "\n")
@@ -360,7 +386,7 @@ def main():
                            "property": error.name, "detail": error.detail, "provenance": provenance,
                            "observation": getattr(error, "observation", None), "features": features(case)}
                 write(args.output / "failure.json", failure)
-                if args.command in ("run", "shrink"):
+                if args.command in ("run", "shrink") and error.name != "baseline_failure":
                     wanted = signature(error)
 
                     def still_fails(candidate):
@@ -370,22 +396,25 @@ def main():
                             return signature(other) == wanted
                         return False
 
-                    reduced, attempts = minimize(case, still_fails, args.shrink_budget, args.shrink_seconds)
+                    reduced, attempts = minimize(case, still_fails, args.shrink_budget, args.shrink_seconds,
+                                                baseline_accepts=baseline_accepts)
                     minimized = {**failure, "case": reduced, "attempts": attempts,
                                  "original_case": case, "original_detail": error.detail,
-                                 "observation": None, "reproduced": False}
+                                 "observation": None, "reproduced": False,
+                                 "baseline_accepted": baseline_accepts(reduced) if baseline_probe else None}
                     try:
                         evaluate(probe, reduced, args.timeout)
                     except harness.PropertyFailure as confirmed:
                         minimized.update(detail=confirmed.detail, observation=getattr(confirmed, "observation", None),
-                                         reproduced=signature(confirmed) == wanted)
+                                         reproduced=signature(confirmed) == wanted
+                                         and minimized["baseline_accepted"] is not False)
                     write(args.output / "minimized.json", minimized)
                 summary["completed"] = index + 1
                 break
             summary["completed"] = index + 1
     summary["status"] = "fail" if summary["failures"] else "pass"
     summary["elapsed_seconds"] = time.monotonic() - started
-    if identity(probe) != native_identity:
+    if identity(probe) != native_identity or (baseline_probe and identity(baseline_probe) != baseline_identity):
         summary["status"] = "infrastructure_error"
         summary["detail"] = "native binaries changed while testing"
     write(args.output / "summary.json", summary)

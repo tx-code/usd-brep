@@ -18,7 +18,7 @@ class MutationContracts(unittest.TestCase):
         self.assertEqual(mutations.replace_once(b"a\r\nb\r\nc", b"a\nb", b"x\ny"), b"x\r\ny\r\nc")
 
     def test_infrastructure_errors_do_not_kill_a_mutant(self):
-        for name in ("native_failure", "timeout", "native_protocol", "something_else"):
+        for name in ("native_failure", "timeout", "native_protocol", "baseline_failure", "something_else"):
             self.assertFalse(mutations.is_detection("analytic_bounds", 1, {"property": name}))
         self.assertFalse(mutations.is_detection("analytic_bounds", 0, {"property": "analytic_bounds"}))
         self.assertTrue(mutations.is_detection("analytic_bounds", 1, {"property": "analytic_bounds"}))
