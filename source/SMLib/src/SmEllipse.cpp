@@ -7,6 +7,7 @@
 **********************************************************************/
 
 #include "StdAfx.h"
+#include <cmath>
 
 #include <SmEllipse.h>
 #include <SmLine.h>
@@ -238,6 +239,24 @@ SmStatus SmPolarConversion::SetUpPolarConversion
   // (This will be an issue if the Nurbs curve has increased
   // in size, such as after JoinWith().)
 
+  // Cache construction needs the geometric angle in degrees, without the
+  // seam classification performed by STEPInversion. Its spatial/angular seam
+  // tolerance can fold a real endpoint just below 360 degrees to zero and
+  // enlarge the analytic interval. This changes the parameter correspondence
+  // of an unchanged NURBS curve (not its defining knots or control points).
+  const auto geometricAngle = [&](const SmPoint3d &point)
+    {
+      const auto &position = cpQuadCircle->GetPosition();
+      const SmVector3d delta = point - position.GetOriginRef();
+      const double x = delta.Dot(position.GetXAxisRef());
+      const double y = delta.Dot(position.GetYAxisRef());
+      double angle = cpQuadCircle->GetYRadius() != 0.0
+                       ? smos_ArcTangent2(cpQuadCircle->GetXRadius() / cpQuadCircle->GetYRadius() * y, x)
+                       : 0.0;
+      if (angle < 0.0) { angle += SM_2PI; }
+      return SM_RAD2DEG(angle);
+    };
+
   // If it's already a full circle, then there's no problem here.
 
   SmExtent1d sAnalIvl = cpQuadCircle->GetSTEPInterval();
@@ -251,19 +270,13 @@ SmStatus SmPolarConversion::SetUpPolarConversion
 
       double dLowestDeg, dHighestDeg;
 
-      // Temporarily set the curve's domain to a full circle,
-      // so that STEPInversion() won't bump into the limits.
-      // It doesn't matter which period we set it to,
-      // because we will sort it out afterwards.
-      SmExtent1d fullCircle( 0, 360 );
-      cpQuadCircle->SetSTEPInterval( fullCircle );
-
-      // Get Polar angle about ZAxis from XAxis in degrees.
+      // Invert coordinates without changing the curve's declared chart or
+      // applying seam tolerance; select the equivalent period below.
       SER( cpQuadCircle->EvaluatePoint( dLowestAngleParam, sPnt1 ));
-      cpQuadCircle->STEPInversion( sPnt1, dLowestDeg );
+      dLowestDeg = geometricAngle(sPnt1);
 
       SER( cpQuadCircle->EvaluatePoint( dHighestAngleParam, sPnt2 ));
-      cpQuadCircle->STEPInversion( sPnt2, dHighestDeg );
+      dHighestDeg = geometricAngle(sPnt2);
 
       // STEPInversion will snap dHighestDeg to Min param according to tolerance
       // Only account for noise here. [B630]
@@ -373,8 +386,12 @@ SmStatus SmPolarConversion::SetUpPolarConversion
 
       // when knots match up with Interval endPoints - use the sAnalIvl end value when appropriate
       SmBoolean bEndPt = FALSE ;
-      if(ii==0 && (   smos_Fabs(dAngleDeg - sAnalIvl.GetMin()) < dAngleTol
-                   || smos_Fabs(dAngleDeg - sAnalIvl.GetMax()) < dAngleTol))
+      // Inversion may return a different representative of the same periodic
+      // endpoint. Compare modulo one turn, retaining the existing angular
+      // threshold and the endpoint role (including reversed NURBS direction).
+      const auto nearEndpoint = [&](double bound)
+        { return smos_Fabs(std::remainder(dAngleDeg - bound, 360.0)) < dAngleTol; };
+      if(ii==0 && (nearEndpoint(sAnalIvl.GetMin()) || nearEndpoint(sAnalIvl.GetMax())))
         { 
           // bInsideOut == 1 means that the Nurb and Step parameterizations are switched,
           //                 so make sure proper endValue is used for endpoints 
@@ -382,8 +399,7 @@ SmStatus SmPolarConversion::SetUpPolarConversion
                                  : sAnalIvl.GetMin() ;
           bEndPt = TRUE ; 
         }
-      if(ii==lCnt-1 && (   smos_Fabs(dAngleDeg - sAnalIvl.GetMax()) < dAngleTol
-                        || smos_Fabs(dAngleDeg - sAnalIvl.GetMin()) < dAngleTol))
+      if(ii==lCnt-1 && (nearEndpoint(sAnalIvl.GetMax()) || nearEndpoint(sAnalIvl.GetMin())))
         {
           dAngleDeg = bInsideOut ? sAnalIvl.GetMin()
                                  : sAnalIvl.GetMax() ;
