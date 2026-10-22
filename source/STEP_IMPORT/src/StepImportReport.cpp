@@ -477,6 +477,20 @@ void DeclarationsJson(Writer& w, const SourceDeclarations& declarations)
 } // namespace
 namespace
 {
+void RepairEditJson(Writer& w, const FaceOrientationEdit& edit)
+{
+    w.Add("{\"source_definition_id\":");
+    w.String(edit.definitionId);
+    w.Add(",\"source_shape_id\":");
+    w.String(edit.shapeId);
+    w.Add(",\"source_face_id\":");
+    w.String(edit.faceId);
+    w.Add(",\"original_same_sense\":");
+    w.Bool(edit.expectedSourceSameSense);
+    w.Add(",\"effective_same_sense\":");
+    w.Bool(edit.targetSameSense);
+    w.Add("}");
+}
 void WriteReportJson(
     Writer& w,
     Status status,
@@ -491,7 +505,9 @@ void WriteReportJson(
         // Separate scope: do not serialize unexecuted planar proofs as
         // qualification for analytic/NURBS models or complete AP214 rules.
         w.Add(
-            nestedBody ? (report.sourceEvidenceScope == "ProductDocumentRoot" ?
+            nestedBody ? (report.sourceEvidenceScope == "RepairParent" ?
+                              "{\"format_version\":\"step-repair-original-attempt.v1\",\"scope\":\"WithinRepairRequest\",\"status\":" :
+                          report.sourceEvidenceScope == "ProductDocumentRoot" ?
                               "{\"format_version\":\"step-product-definition-checks.v1\",\"scope\":\"WithinProductDocument\",\"status\":" :
                               "{\"format_version\":\"step-material-body-checks.v1\",\"scope\":\"WithinMaterialCollection\",\"status\":") :
             report.productDocument ?
@@ -501,6 +517,118 @@ void WriteReportJson(
                          "{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":"
         );
         w.String(StatusName(status));
+        if (report.repairRequest)
+        {
+            const auto& request = *report.repairRequest;
+            w.Add(",\"repair_request\":{\"configuration\":\"FaceOrientationZeroGeometry-0.1\",\"source_sha256\":");
+            w.String(request.sourceSha256);
+            w.Add(",\"maximum_face_edits\":");
+            w.Number(request.maximumFaceEdits);
+            w.Add(",\"maximum_proof_controls\":");
+            w.Number(request.maximumProofControls);
+            w.Add(",\"maximum_proof_products\":");
+            w.Number(request.maximumProofProducts);
+            w.Add(",\"proof_products_spent\":");
+            w.Number(report.repairProofProducts);
+            w.Add(",\"proof_accounting_scope\":\"CompletedProofOperations\"");
+            w.Add(",\"geometry_displacement_allowance_mm\":0,\"tolerance_growth_allowance_mm\":0,\"edits\":[");
+            for (std::size_t i = 0; i < request.edits.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                RepairEditJson(w, request.edits[i]);
+            }
+            w.Add("]}");
+        }
+        if (report.repairs)
+        {
+            const auto& repair = *report.repairs;
+            w.Add(",\"repair_evidence\":{\"scope\":\"NativeBinary64Definitions\",\"source_sha256\":");
+            w.String(repair.sourceSha256);
+            w.Add(",\"source_interpretation_applied\":");
+            w.Bool(repair.sourceInterpretationApplied);
+            w.Add(",\"definitions_identical\":");
+            w.Bool(repair.definitionsIdentical);
+            w.Add(",\"working_tolerances_identical\":");
+            w.Bool(repair.workingTolerancesIdentical);
+            w.Add(",\"vertices_compared\":");
+            w.Number(repair.verticesCompared);
+            w.Add(",\"edges_compared\":");
+            w.Number(repair.edgesCompared);
+            w.Add(",\"surfaces_compared\":");
+            w.Number(repair.surfacesCompared);
+            w.Add(
+                ",\"defining_data_displacement_bound_mm\":0,\"material_orientation_changed\":true,\"original_material_equivalence\":\"NotEstablished_InvalidOriginal\",\"tolerance_growth_mm\":0,\"actions\":["
+            );
+            for (std::size_t i = 0; i < repair.actions.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& action = repair.actions[i];
+                w.Add("{\"edit\":");
+                RepairEditJson(w, action.edit);
+                w.Add(",\"target_face\":");
+                w.Number(action.targetFace);
+                w.Add(",\"injectivity_method\":\"ProjectedStrongMonotonicity\",\"projection\":[");
+                for (std::size_t row = 0; row < 2; ++row)
+                {
+                    if (row)
+                    {
+                        w.Add(",");
+                    }
+                    w.Add("[");
+                    for (std::size_t k = 0; k < 3; ++k)
+                    {
+                        if (k)
+                        {
+                            w.Add(",");
+                        }
+                        Number(w, action.projection[row][k]);
+                    }
+                    w.Add("]");
+                }
+                w.Add("],\"support_domain\":[");
+                for (std::size_t k = 0; k < 4; ++k)
+                {
+                    if (k)
+                    {
+                        w.Add(",");
+                    }
+                    Number(w, action.supportDomain[k]);
+                }
+                w.Add("],\"first_diagonal_lower\":");
+                Number(w, action.firstDiagonalLower);
+                w.Add(",\"second_diagonal_lower\":");
+                Number(w, action.secondDiagonalLower);
+                w.Add(",\"symmetric_determinant_lower\":");
+                Number(w, action.symmetricDeterminantLower);
+                w.Add(",\"continuous_lift_bound_mm\":");
+                Number(w, action.continuousLiftBoundMm);
+                w.Add(",\"lift_cells\":");
+                w.Number(action.liftCells);
+                w.Add("}");
+            }
+            w.Add("]}");
+        }
+        if (report.originalAttempt)
+        {
+            w.Add(",\"original_attempt\":");
+            WriteReportJson(w, report.originalAttemptStatus.value_or(Status::PostcheckFailure), *report.originalAttempt, quality, source, true);
+        }
+        if (!report.repairStage.empty())
+        {
+            w.Add(",\"repair_progress\":{\"stage\":");
+            w.String(report.repairStage);
+            w.Add(",\"edits_attempted\":");
+            w.Number(report.repairEditsAttempted);
+            w.Add(",\"model_published\":");
+            w.Bool(status == Status::AcceptedWithRepairs);
+            w.Add("}");
+        }
         if (report.periodicNormalizationRequested || report.topologyNormalization)
         {
             w.Add(",\"periodic_normalization_requested\":");
@@ -551,7 +679,9 @@ void WriteReportJson(
             w.String(step_semantics::UnitInterpretationName(sourceView->AppliedUnitInterpretation()));
             w.Add(",\"source_unit_declaration_conforming\":false");
         }
-        w.Add(",\"repair\":\"None\",\"quality_id\":");
+        w.Add(",\"repair\":");
+        w.String(report.repairs ? "FaceOrientationZeroGeometry-0.1" : "None");
+        w.Add(",\"quality_id\":");
         w.String(quality.id);
         if (report.numericalIntegration)
         {
@@ -681,7 +811,7 @@ void WriteReportJson(
         if (report.materialCollection)
         {
             w.Add(",\"material_collection\":{\"complete\":");
-            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation);
+            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs);
             w.Add(",\"selected_body_count\":");
             w.Number(
                 report.generalSource && report.generalSource->snapshot ? report.generalSource->snapshot->PartDefinition().shapes.size() :
@@ -719,7 +849,7 @@ void WriteReportJson(
         if (report.productDocument)
         {
             w.Add(",\"product_document\":{\"complete\":");
-            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation);
+            w.Bool(status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs);
             w.Add(",\"selected_definition_count\":");
             w.Number(report.generalSource && report.generalSource->document ? report.generalSource->document->PartCount() : 0);
             w.Add(",\"definitions\":[");
@@ -771,7 +901,7 @@ void WriteReportJson(
             w.Add("}");
         }
         w.Add("],\"model\":");
-        if (report.native && (status == Status::Accepted || status == Status::AcceptedUnderInterpretation))
+        if (report.native && (status == Status::Accepted || status == Status::AcceptedUnderInterpretation || status == Status::AcceptedWithRepairs))
         {
             StatisticsJson(w, *report.native);
         }

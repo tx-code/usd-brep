@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Isolated display worker: no native handle crosses the process boundary.
 #include "StepImport.h"
+#include "StepRepairArguments.h"
 #include "StepSourceReport.h"
 #include "StepViewAuxiliary.h"
 #include "StepViewTopology.h"
@@ -196,6 +197,27 @@ struct BodyScene
     std::size_t definition = 0;
     std::string sourceDefinitionId;
 };
+std::pair<std::size_t, bool> RepairSummary(const step_import::Report& report)
+{
+    std::size_t count = report.repairs ? report.repairs->actions.size() : 0;
+    bool interpreted = report.repairs && report.repairs->sourceInterpretationApplied;
+    const auto include = [&](const auto& entries)
+    {
+        for (const auto& entry : entries)
+        {
+            if (!entry.checks)
+            {
+                continue;
+            }
+            const auto child = RepairSummary(*entry.checks);
+            count += child.first;
+            interpreted = interpreted || child.second;
+        }
+    };
+    include(report.bodies);
+    include(report.definitions);
+    return { count, interpreted };
+}
 void Publish(
     const std::filesystem::path& output,
     const std::string& status,
@@ -233,6 +255,14 @@ void Publish(
                 w.String(status);
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
+                if (info && nativeStatus == "AcceptedWithRepairs")
+                {
+                    const auto repair = RepairSummary(report);
+                    w.Add(",\"repair_applied\":true,\"repaired_face_count\":");
+                    w.Number(repair.first);
+                    w.Add(",\"source_interpretation_applied\":");
+                    w.Bool(repair.second);
+                }
                 w.Add(",\"requested_unit_interpretation\":");
                 w.String(unitInterpretation);
                 const auto sourceView = report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
@@ -383,7 +413,8 @@ int Run(
     const std::string& reportBudget,
     bool fileNameText,
     bool asciiInvariant,
-    const std::string& unitInterpretation
+    const std::string& unitInterpretation,
+    const std::optional<step_import::FaceOrientationRepairRequest>& repair = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -405,6 +436,7 @@ int Run(
     {
         auto options = step_import::Options::PlanarFixture();
         options.generalBrep = true;
+        options.faceOrientationRepair = repair;
         options.quality = profile == "development"          ? step_import::Quality::GeneralDevelopment() :
                           profile == "tolerance-study"      ? step_import::Quality::GeneralToleranceStudy() :
                           profile == "work-tolerance-study" ? step_import::Quality::GeneralWorkToleranceStudy() :
@@ -421,6 +453,7 @@ int Run(
         options.nativeLimits.processPrivateBytes = 2ULL * 1024 * 1024 * 1024;
         options.execution.deadline = std::chrono::steady_clock::now() + std::chrono::seconds(90);
         const char* lastPhase = "";
+        const char* repairPhase = nullptr;
         options.execution.progress = [&](step_import::Progress p)
         {
             const char* phase = nullptr;
@@ -433,7 +466,17 @@ int Run(
                     phase = "check";
                     break;
                 case step_import::Phase::BeforeNativeCall:
-                    phase = "build";
+                    phase = repairPhase ? repairPhase : "build";
+                    break;
+                case step_import::Phase::BeforeRepairProof:
+                    repairPhase = phase = "repair-proof";
+                    break;
+                case step_import::Phase::BeforeRepair:
+                    repairPhase = phase = "repair";
+                    break;
+                case step_import::Phase::RepairReady:
+                    phase = "repair-ready";
+                    repairPhase = nullptr;
                     break;
                 case step_import::Phase::NativeReady:
                 case step_import::Phase::BeforeReport:
@@ -678,7 +721,7 @@ int Run(
 #ifdef _WIN32
 int wmain(int argc, wchar_t** argv)
 {
-    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12 && argc != 13)
+    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12 && !(argc >= 13 && (argc - 13) % 2 == 0))
     {
         return 2;
     }
@@ -700,6 +743,14 @@ int wmain(int argc, wchar_t** argv)
         {
             Good(std::wstring_view(argv[11]) == L"0" || std::wstring_view(argv[11]) == L"1", "InvalidDataFlag");
         }
+        step_import::Options request;
+        for (int i = 13; i < argc; i += 2)
+        {
+            Good(
+                step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request),
+                "UnknownRepairArgument"
+            );
+        }
         return Run(
             argv[1],
             argv[2],
@@ -712,7 +763,8 @@ int wmain(int argc, wchar_t** argv)
             argc >= 10 ? std::filesystem::path(argv[9]).string() : "16",
             argc >= 11 && argv[10][0] == L'1',
             argc >= 12 && argv[11][0] == L'1',
-            argc == 13 ? std::filesystem::path(argv[12]).string() : "DeclaredOnly"
+            argc >= 13 ? std::filesystem::path(argv[12]).string() : "DeclaredOnly",
+            request.faceOrientationRepair
         );
     }
     catch (...)
@@ -723,7 +775,7 @@ int wmain(int argc, wchar_t** argv)
 #else
 int main(int argc, char** argv)
 {
-    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12 && argc != 13)
+    if (argc != 7 && argc != 9 && argc != 10 && argc != 11 && argc != 12 && !(argc >= 13 && (argc - 13) % 2 == 0))
     {
         return 2;
     }
@@ -743,6 +795,11 @@ int main(int argc, char** argv)
         {
             Good(std::string_view(argv[11]) == "0" || std::string_view(argv[11]) == "1", "InvalidDataFlag");
         }
+        step_import::Options request;
+        for (int i = 13; i < argc; i += 2)
+        {
+            Good(step_import_app::RepairArgument(argv[i], argv[i + 1], request), "UnknownRepairArgument");
+        }
         return Run(
             argv[1],
             argv[2],
@@ -755,7 +812,8 @@ int main(int argc, char** argv)
             argc >= 10 ? argv[9] : "16",
             argc >= 11 && argv[10][0] == '1',
             argc >= 12 && argv[11][0] == '1',
-            argc == 13 ? argv[12] : "DeclaredOnly"
+            argc >= 13 ? argv[12] : "DeclaredOnly",
+            request.faceOrientationRepair
         );
     }
     catch (...)

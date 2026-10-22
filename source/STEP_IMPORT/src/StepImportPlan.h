@@ -20,6 +20,7 @@ struct Failure
     std::string stage = "D5";
     NativeFailureKind nativeKind = NativeFailureKind::Unclassified;
 };
+void AddFailureDiagnostic(Report& report, const Failure& failure);
 struct VertexPlan
 {
     std::size_t record;

@@ -72,7 +72,10 @@ enum class Phase
     NativeReady,
     BeforeReport,
     ReportReady,
-    BeforeCommit
+    BeforeCommit,
+    BeforeRepairProof,
+    BeforeRepair,
+    RepairReady
 };
 struct Progress
 {
@@ -157,6 +160,37 @@ enum class ReportEncoding
     ExpandedV1,
     CompactV2
 };
+struct FaceOrientationEdit
+{
+    std::string definitionId, shapeId, faceId;
+    bool expectedSourceSameSense = true, targetSameSense = false;
+};
+struct FaceOrientationRepairRequest
+{
+    std::string sourceSha256; // Exact original byte identity, never a pathname or rewritten carrier.
+    std::size_t maximumFaceEdits = 0; // Required explicit discrete budget; zero is not a default allowance.
+    std::size_t maximumProofControls = 0, maximumProofProducts = 0; // Workspace and request-cumulative proof work, independent of parser limits.
+    std::vector<FaceOrientationEdit> edits;
+};
+struct FaceOrientationRepairAction
+{
+    FaceOrientationEdit edit;
+    std::size_t targetFace = 0;
+    std::array<std::array<double, 3>, 2> projection{};
+    std::array<double, 4> supportDomain{};
+    double firstDiagonalLower = 0, secondDiagonalLower = 0, symmetricDeterminantLower = 0;
+    double continuousLiftBoundMm = 0;
+    std::size_t liftCells = 0;
+};
+struct FaceOrientationRepairHistory
+{
+    std::string sourceSha256;
+    std::vector<FaceOrientationRepairAction> actions;
+    std::vector<step_semantics::Diagnostic> originalDiagnostics;
+    std::size_t verticesCompared = 0, edgesCompared = 0, surfacesCompared = 0;
+    bool definitionsIdentical = false, workingTolerancesIdentical = false;
+    bool sourceInterpretationApplied = false;
+};
 struct Options
 {
     step_source::Limits sourceLimits{};
@@ -176,6 +210,7 @@ struct Options
     std::optional<NumericalIntegrationSettings> numericalIntegration; // Explicit general-only control; absent retains legacy 1e-4.
     bool normalizePeriodicFaces = false; // Equivalent target topology/chart only; never source repair or automatic tolerance growth.
     ReportEncoding reportEncoding = ReportEncoding::ExpandedV1; // Explicit lossless encoding; never an automatic budget fallback.
+    std::optional<FaceOrientationRepairRequest> faceOrientationRepair; // Explicit zero-geometry pilot; absent remains Repair=None.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -306,6 +341,7 @@ class FaceView
 public:
 
     std::string SourceId() const;
+    std::optional<FaceOrientationRepairAction> OrientationRepair() const; // This owning face's effective orientation change, if any.
     step_semantics::SchemaInterpretation AppliedSourceInterpretation() const; // Immutable schema assumption retained by this owning view.
     const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Borrow remains valid while this view owns its source.
     bool HasAsciiInvariantDataAssumption() const; // Snapshot-owned evidence survives releasing the import result.
@@ -341,6 +377,7 @@ public:
     std::optional<NumericalIntegrationObservation> NumericalIntegration() const; // Owning snapshot evidence; null for the proved planar path.
     UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
+    std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
@@ -462,6 +499,7 @@ struct ParameterMapping
     std::optional<std::size_t> targetCurveIndex; // Detached linked geometry, never an invented EDGE_CURVE.
 };
 struct Report;
+enum class Status;
 struct MaterialBodyReport
 {
     std::size_t sourceShapeRecord = 0, sourceShellRecord = 0;
@@ -524,6 +562,13 @@ struct Report
     bool deadlineConfigured = false;
     std::string json; // Mandatory bounded report, completed before a model is published.
     std::shared_ptr<const step_source::CarrierAssumption> carrierAssumption; // Also survives parsing failure without a record graph.
+    std::optional<FaceOrientationRepairRequest> repairRequest;
+    std::optional<FaceOrientationRepairHistory> repairs;
+    std::shared_ptr<Report> originalAttempt; // No native owners; source/evidence live at the complete request root.
+    std::optional<Status> originalAttemptStatus;
+    std::size_t repairProofProducts = 0;
+    std::string repairStage;
+    std::size_t repairEditsAttempted = 0;
 };
 enum class Status
 {
@@ -537,7 +582,8 @@ enum class Status
     PostcheckFailure,
     SourceFailure,
     Cancelled,
-    AcceptedUnderInterpretation // Complete native result with an assumed source schema or carrier; distinct from ordinary acceptance.
+    AcceptedUnderInterpretation, // Complete native result with an assumed source schema or carrier; distinct from ordinary acceptance.
+    AcceptedWithRepairs // Explicit repaired qualification; source assumptions remain separately owned/reported.
 };
 struct Outcome
 {

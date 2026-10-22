@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
 #include "StepImportNativeData.h"
+#include "StepImportOrientationRepair.h"
 #include "StepImportPlan.h"
 #include "StepImportPublication.h"
 
 #include <algorithm>
+#include <set>
 #include <stdexcept>
 #include <tuple>
 #include <type_traits>
@@ -49,6 +51,45 @@ namespace
 void Validate(const Options& options)
 {
     const auto& q = options.quality;
+    if (options.faceOrientationRepair)
+    {
+        const auto& r = *options.faceOrientationRepair;
+        const auto digits = [](const std::string& id)
+        {
+            return !id.empty() && id.size() <= 64 && (id.size() == 1 || id[0] != '0') &&
+                   std::all_of(
+                       id.begin(),
+                       id.end(),
+                       [](char c)
+                       {
+                           return c >= '0' && c <= '9';
+                       }
+                   );
+        };
+        if (!options.generalBrep || options.normalizePeriodicFaces || options.restrictUnusedSupportDomains || r.sourceSha256.size() != 64 ||
+            !std::all_of(
+                r.sourceSha256.begin(),
+                r.sourceSha256.end(),
+                [](char c)
+                {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                }
+            ) ||
+            !r.maximumFaceEdits || r.maximumFaceEdits > options.sourceLimits.records || !r.maximumProofControls || r.maximumProofControls > 2000000 ||
+            !r.maximumProofProducts || r.maximumProofProducts > 100000000 || r.edits.empty() || r.edits.size() > r.maximumFaceEdits)
+        {
+            throw std::invalid_argument("Face-orientation repair requires explicit general scope, source identity and a bounded nonempty edit plan");
+        }
+        std::set<std::tuple<std::string, std::string, std::string>> identities;
+        for (const auto& edit : r.edits)
+        {
+            if (!digits(edit.definitionId) || !digits(edit.shapeId) || !digits(edit.faceId) || edit.expectedSourceSameSense == edit.targetSameSense ||
+                !identities.emplace(edit.definitionId, edit.shapeId, edit.faceId).second)
+            {
+                throw std::invalid_argument("Repair edits require unique definition/shape/face identities and an explicit opposite target sense");
+            }
+        }
+    }
     if (options.normalizePeriodicFaces && !options.generalBrep)
     {
         throw std::invalid_argument("Periodic topology normalization requires explicit general geometry");
@@ -156,6 +197,7 @@ Result Import(const Options& options, Capture capture)
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
     report.encoding = options.reportEncoding;
+    report.repairRequest = options.faceOrientationRepair;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     report.periodicNormalizationRequested = options.normalizePeriodicFaces;
     if (options.numericalIntegration)
@@ -184,6 +226,14 @@ Result Import(const Options& options, Capture capture)
         if (raw.status == step_source::Status::Inspected)
         {
             execution.Check(Phase::Captured);
+            if (options.faceOrientationRepair && options.faceOrientationRepair->sourceSha256 != raw.sha256)
+            {
+                throw detail::Failure{ Status::Unsupported,
+                                       "RepairPlanInputMismatch",
+                                       "The repair plan does not bind these captured source bytes",
+                                       {},
+                                       "Repair" };
+            }
         }
         if (options.generalBrep)
         {
@@ -226,6 +276,7 @@ Result Import(const Options& options, Capture capture)
                 throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
             }
             execution.Check(Phase::SemanticsChecked);
+            detail::ValidateRepairTargets(checked, options, execution);
             if constexpr (std::is_same_v<Result, DocumentOutcome>)
             {
                 if (!checked.document)
@@ -593,6 +644,8 @@ const char* StatusName(Status status)
             return "Accepted";
         case Status::AcceptedUnderInterpretation:
             return "AcceptedUnderInterpretation";
+        case Status::AcceptedWithRepairs:
+            return "AcceptedWithRepairs";
         case Status::Rejected:
             return "Rejected";
         case Status::Unsupported:

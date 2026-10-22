@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImport.h"
+#include "StepRepairArguments.h"
 #include "StepSourceReport.h"
 
 #include <charconv>
@@ -55,6 +56,8 @@ int Exit(step_import::Status status)
             return 0;
         case Status::AcceptedUnderInterpretation:
             return 11; // A model exists, with an unverified schema or carrier assumption.
+        case Status::AcceptedWithRepairs:
+            return 12; // Owning repair history and independent source assumptions must be retained.
         case Status::Rejected:
             return 1;
         case Status::Unsupported:
@@ -94,7 +97,16 @@ int main(int argc, char** argv)
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
-            if (arg == "--fixture-limits")
+            if (arg == "--repair-source-sha256" || arg == "--max-face-orientation-edits" || arg == "--repair-face-orientation" ||
+                arg == "--max-repair-proof-controls" || arg == "--max-repair-proof-products")
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Repair option value required");
+                }
+                step_import_app::RepairArgument(arg, argv[++i], options);
+            }
+            else if (arg == "--fixture-limits")
             {
                 limits = true;
             }

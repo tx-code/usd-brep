@@ -3,6 +3,7 @@
 #include "StepImportPublication.h"
 
 #include "StepImportExecution.h"
+#include "StepImportNativeData.h"
 
 #include <algorithm>
 
@@ -97,6 +98,7 @@ void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapsho
 }
 void Publication::FinishAccept()
 {
+    m_execution.CheckRepairCompletion();
     m_execution.Check(Phase::NativeReady);
     // Complete checks do not authenticate an assumed source schema or carrier.
     // Choose this result before either report and final arbitration; after
@@ -108,11 +110,24 @@ void Publication::FinishAccept()
         const auto semantic = m_preparedDocument   ? m_preparedDocument->Source()->Part(0) :
                               m_preparedCollection ? m_preparedCollection->Source() :
                                                      m_prepared->Source();
-        interpreted = semantic->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
-                      semantic->Source().AppliedCarrierAssumption() != nullptr || semantic->Source().HasAsciiInvariantDataAssumption() ||
-                      semantic->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
+        interpreted = HasAppliedSourceInterpretation(*semantic);
     }
-    m_status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
+    bool repaired = m_prepared && m_prepared->Repairs().has_value();
+    if (m_preparedCollection)
+    {
+        for (std::size_t i = 0; i < m_preparedCollection->BodyCount(); ++i)
+        {
+            repaired = repaired || m_preparedCollection->Body(i)->Repairs().has_value();
+        }
+    }
+    if (m_preparedDocument)
+    {
+        for (std::size_t i = 0; i < m_preparedDocument->BodyCount(); ++i)
+        {
+            repaired = repaired || m_preparedDocument->Body(i)->Repairs().has_value();
+        }
+    }
+    m_status = repaired ? Status::AcceptedWithRepairs : interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
     m_execution.Check(Phase::BeforeReport);
     WriteReport();
     m_execution.Check(Phase::ReportReady);
@@ -239,7 +254,10 @@ void Publication::FinishFailure()
 }
 void Publication::Diagnostic(const Failure& failure)
 {
-    auto& report = m_report;
+    AddFailureDiagnostic(m_report, failure);
+}
+void AddFailureDiagnostic(Report& report, const Failure& failure)
+{
     step_semantics::Diagnostic diagnostic;
     diagnostic.source.key = failure.key;
     diagnostic.source.stage = failure.stage;

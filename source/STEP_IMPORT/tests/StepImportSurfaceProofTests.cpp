@@ -4,6 +4,7 @@
 #include "StepImportSupportDomain.h"
 #include "StepImportSurfaceProof.h"
 
+#include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
 #include <SmBrep.h>
 #include <SmContext.h>
@@ -11,6 +12,7 @@
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
+#include <SmLine.h>
 #include <array>
 #include <cfenv>
 #include <iostream>
@@ -88,6 +90,139 @@ std::unique_ptr<SmBSplineSurface> Restricted(const SmBSplineSurface& source, SmC
     owned.release();
     return std::unique_ptr<SmBSplineSurface>(spline);
 }
+std::unique_ptr<SmBSplineCurve> Diagonal(SmContext& context, bool uv, bool bulge = false)
+{
+    SmTArray<SmPoint3d> points;
+    points.Add(SmPoint3d(0, 0, 0));
+    if (bulge)
+    {
+        points.Add(SmPoint3d(.5, .5, .02));
+    }
+    points.Add(SmPoint3d(1, 1, 0));
+    SmTArray<ULONG> mult;
+    mult.Add(bulge ? 3UL : 2UL);
+    mult.Add(bulge ? 3UL : 2UL);
+    SmTArray<double> knots;
+    knots.Add(0);
+    knots.Add(1);
+    SmBSplineCurve* raw = nullptr;
+    const auto status = SmBSplineCurve::CreateCanonical(
+        context,
+        uv ? 2 : 3,
+        bulge ? 2 : 1,
+        points,
+        SM_CF_UNSPECIFIED,
+        mult,
+        knots,
+        SM_KT_UNSPECIFIED,
+        nullptr,
+        nullptr,
+        raw
+    );
+    std::unique_ptr<SmBSplineCurve> result(raw);
+    Require(status == SM_SUCCESS && result, "native diagonal fixture");
+    return result;
+}
+void OrientationEvidence(SmContext& context)
+{
+    const auto checkpoint = []
+    {
+    };
+    const auto plane = Plane(context, false);
+    const auto unique = step_import::detail::ProveSurfaceInjectivity(*plane, 1000, 10000, checkpoint);
+    Require(
+        unique.established && unique.firstDiagonalLower && *unique.firstDiagonalLower > 0 && unique.symmetricDeterminantLower &&
+            *unique.symmetricDeterminantLower > 0,
+        "whole native support injectivity"
+    );
+    const auto rational = Plane(context, true);
+    Require(
+        !step_import::detail::ProveSurfaceInjectivity(*rational, 1000, 10000, checkpoint).established,
+        "rational support remains outside polynomial monotonicity proof"
+    );
+    Require(step_import::detail::ProveSurfaceInjectivity(*plane, 1, 10000, checkpoint).workLimit, "injectivity workspace cap");
+    auto edge = Diagonal(context, false), uv = Diagonal(context, true);
+    const auto lift = step_import::detail::ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint);
+    Require(lift.established && lift.maximumMm && *lift.maximumMm <= .001, "paired whole-interval lift proof");
+    SmLine* rawLine = nullptr;
+    Require(
+        SmLine::CreateLineSegment(context, 3, SmPoint3d(0, 0, 0), SmPoint3d(1, 1, 0), rawLine) == SM_SUCCESS && rawLine,
+        "analytic line with non-unit direction scale"
+    );
+    std::unique_ptr<SmLine> line(rawLine);
+    Require(
+        step_import::detail::ProveCurveLift(*line, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint).established,
+        "analytic affine line operands have their own continuous enclosure"
+    );
+    SmTArray<SmPoint3d> foldedPoints;
+    for (double x : { 0., 1., 0. })
+    {
+        for (double y : { 0., 1. })
+        {
+            foldedPoints.Add(SmPoint3d(x, y, 0));
+        }
+    }
+    SmTArray<ULONG> uMultiplicity, vMultiplicity;
+    uMultiplicity.Add(3);
+    uMultiplicity.Add(3);
+    vMultiplicity.Add(2);
+    vMultiplicity.Add(2);
+    SmTArray<double> endKnots;
+    endKnots.Add(0);
+    endKnots.Add(1);
+    SmBSplineSurface* rawFold = nullptr;
+    Require(
+        SmBSplineSurface::CreateCanonical(
+            context,
+            2,
+            1,
+            foldedPoints,
+            SM_SF_UNSPECIFIED,
+            uMultiplicity,
+            vMultiplicity,
+            endKnots,
+            endKnots,
+            SM_KT_UNSPECIFIED,
+            nullptr,
+            nullptr,
+            rawFold
+        ) == SM_SUCCESS &&
+            rawFold,
+        "folded support fixture"
+    );
+    std::unique_ptr<SmBSplineSurface> folded(rawFold);
+    Require(
+        !step_import::detail::ProveSurfaceInjectivity(*folded, 1000, 10000, checkpoint).established,
+        "matching opposite domain boundaries cannot obtain an injectivity certificate"
+    );
+    const auto bulged = Diagonal(context, false, true);
+    Require(
+        !step_import::detail::ProveCurveLift(*bulged, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint).established,
+        "matching endpoints cannot certify an interior gap"
+    );
+    Require(
+        step_import::detail::ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 1, checkpoint).workLimit,
+        "lift proof work cap is not a passing bound"
+    );
+    bool cancelled = false;
+    try
+    {
+        step_import::detail::ProveSurfaceInjectivity(
+            *plane,
+            1000,
+            10000,
+            []
+            {
+                throw std::runtime_error("cancel");
+            }
+        );
+    }
+    catch (const std::runtime_error&)
+    {
+        cancelled = true;
+    }
+    Require(cancelled, "proof callback exceptions remain execution decisions");
+}
 std::unique_ptr<SmBSplineSurface> MultiplePatches(SmContext& context, bool rational)
 {
     // Degree (3,2), a genuine interior U knot and nonplanar control net. The
@@ -129,6 +264,7 @@ int main()
     try
     {
         SmContext context;
+        OrientationEvidence(context);
         {
             // Independent public cylinder. These U bounds lie inside its old
             // quarter-circle knot spans; rebuilding the arc changes interior

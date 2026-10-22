@@ -14,6 +14,7 @@ from PySide6 import QtCore
 from .progress import Progress, ProgressReader
 from .process_guard import ProcessGuard
 from .interpretation import validate
+from .repair import arguments as repair_arguments
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -32,12 +33,18 @@ class ImportSettings:
     preserve_opaque_file_name_text: bool = False
     assume_ascii_invariant_data: bool = False
     unit_interpretation: str = "DeclaredOnly"
+    repair_source_sha256: str = ''
+    maximum_face_orientation_edits: int = 0
+    maximum_repair_proof_controls: int = 0
+    maximum_repair_proof_products: int = 0
+    face_orientation_edits: tuple[str, ...] = ()
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
                  self.preserve_opaque_file_name_text, self.assume_ascii_invariant_data, self.unit_interpretation)
+        repair_arguments(self)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -119,6 +126,11 @@ class SceneLoader(QtCore.QObject):
                     arguments.append(str(int(self.settings.assume_ascii_invariant_data)))
                 if self.settings.unit_interpretation != "DeclaredOnly":
                     arguments.append(self.settings.unit_interpretation)
+            repair = repair_arguments(self.settings)
+            if repair:
+                arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
+                    str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
+                    str(int(self.settings.assume_ascii_invariant_data)), self.settings.unit_interpretation, *repair]
         else:
             program = Path(sys.executable)
             script = Path(__file__).resolve().parents[1] / "scripts/brep_view.py"

@@ -7,6 +7,7 @@
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportGeometryConstruction.h"
 #include "StepImportNativeData.h"
+#include "StepImportOrientationRepair.h"
 #include "StepImportPeriodicNormalization.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
@@ -113,9 +114,15 @@ public:
         const Options& options,
         Report& report,
         Execution& execution,
-        std::optional<step_semantics::Part::Shape> binding = {}
+        std::optional<step_semantics::Part::Shape> binding = {},
+        bool captureRepairFailure = false,
+        FaceSenseOverrides overrides = {}
     )
-        : GeometryConstruction(std::move(source), options, report, execution), m_model(std::make_shared<ModelData>()), m_binding(std::move(binding))
+        : GeometryConstruction(std::move(source), options, report, execution),
+          m_model(std::make_shared<ModelData>()),
+          m_binding(std::move(binding)),
+          m_captureRepairFailure(captureRepairFailure),
+          m_faceSenseOverrides(std::move(overrides))
     {
         m_model->source = m_source;
         m_model->queryTolerance = Q(m_options.quality.queryMm);
@@ -257,6 +264,10 @@ public:
             m_model->topologyNormalization->completed = true;
             m_report.topologyNormalization = m_model->topologyNormalization;
         }
+        if (m_captureRepairFailure || !m_faceSenseOverrides.empty())
+        {
+            RememberRepairSources();
+        }
         return m_model;
     }
 
@@ -272,6 +283,17 @@ private:
     std::vector<Face> faces;
     double consistency = 0, uvGap = 0;
     bool m_rebuiltUv = false;
+    bool m_captureRepairFailure = false;
+    FaceSenseOverrides m_faceSenseOverrides;
+    void RememberRepairSources() const
+    {
+        m_model->repairVertexSources = vertices;
+        m_model->repairEdgeSources.clear();
+        for (const auto& curve : curves)
+        {
+            m_model->repairEdgeSources.push_back(curve.record);
+        }
+    }
     std::vector<Index> derivedEdgeFaces;
     std::vector<DerivedPole> derivedPoles;
     std::optional<Index> wireframeRepresentation;
@@ -423,6 +445,18 @@ private:
         for (const auto a : Refs(shell, "cfs_faces"))
         {
             Face f{ a, Ref(a, "face_geometry"), B(a, "same_sense"), {} };
+            const auto edited = std::find_if(
+                m_faceSenseOverrides.begin(),
+                m_faceSenseOverrides.end(),
+                [&](const auto& e)
+                {
+                    return e.first == a;
+                }
+            );
+            if (edited != m_faceSenseOverrides.end())
+            {
+                f.same = edited->second;
+            }
             for (const auto bound : Refs(a, "bounds"))
             {
                 const auto loop = Ref(bound, "bound");
@@ -2621,6 +2655,30 @@ private:
         if (orientationOnly)
         {
             failure.nativeKind = NativeFailureKind::FaceLoopOrientation;
+            if (m_captureRepairFailure)
+            {
+                OrientationFailureCandidate witness{ failure, m_model, {} };
+                for (ULONG i = 0; i < reports.GetSize(); ++i)
+                {
+                    const auto found = std::find_if(
+                        m_model->faces.begin(),
+                        m_model->faces.end(),
+                        [&](const auto& face)
+                        {
+                            return face.face == reports[i]->GetOwner();
+                        }
+                    );
+                    if (found == m_model->faces.end())
+                    {
+                        throw failure;
+                    }
+                    witness.targetFaces.push_back(static_cast<std::size_t>(found - m_model->faces.begin()));
+                }
+                std::sort(witness.targetFaces.begin(), witness.targetFaces.end());
+                witness.targetFaces.erase(std::unique(witness.targetFaces.begin(), witness.targetFaces.end()), witness.targetFaces.end());
+                RememberRepairSources();
+                throw witness;
+            }
         }
         throw failure;
     }
@@ -2800,7 +2858,7 @@ private:
                 f.info.vertices = faceVertices.size();
             }
             const auto& sourceFace = faces[SourceFaceIndex(i)];
-            m_report.faces.push_back({ f.faceId, Id(sourceFace.surface), sourceFace.same, f.info });
+            m_report.faces.push_back({ f.faceId, Id(sourceFace.surface), B(sourceFace.record, "same_sense"), f.info });
         }
         m_model->info = info;
         m_report.native = info;
@@ -2824,7 +2882,21 @@ std::shared_ptr<ModelData> BuildGeneralBody(
     std::lock_guard lock(NativeMutex());
     try
     {
-        return GeneralBuilder(std::move(source), options, report, execution, binding).Run();
+        if (!options.faceOrientationRepair)
+        {
+            return GeneralBuilder(std::move(source), options, report, execution, binding).Run();
+        }
+        return BuildWithOrientationRepair(
+            source,
+            binding,
+            options,
+            report,
+            execution,
+            [&](Report& checks, bool capture, const FaceSenseOverrides& overrides)
+            {
+                return GeneralBuilder(source, options, checks, execution, binding, capture, overrides).Run();
+            }
+        );
     }
     catch (...)
     {
@@ -2842,7 +2914,21 @@ std::shared_ptr<ModelData> BuildGeneral(
     std::lock_guard lock(NativeMutex());
     try
     {
-        return GeneralBuilder(std::move(source), options, report, execution).Run();
+        if (!options.faceOrientationRepair)
+        {
+            return GeneralBuilder(std::move(source), options, report, execution).Run();
+        }
+        return BuildWithOrientationRepair(
+            source,
+            {},
+            options,
+            report,
+            execution,
+            [&](Report& checks, bool capture, const FaceSenseOverrides& overrides)
+            {
+                return GeneralBuilder(source, options, checks, execution, {}, capture, overrides).Run();
+            }
+        );
     }
     catch (...)
     {

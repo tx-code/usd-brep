@@ -242,6 +242,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
             policy = "\n研究配置" if study else ""
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
+            if metadata.get('repair_applied'):
+                policy += f"\n已修复 {metadata['repaired_face_count']} 处面朝向"
+                if metadata.get('source_interpretation_applied'):
+                    policy += '\n源解释模式 · 条件接受'
             if metadata.get('applied_unit_interpretation') == 'VerifiedExplicitUnitDimensions':
                 policy += "\n单位声明经验证解释"
             if metadata.get("ascii_invariant_data_applied"):
@@ -532,7 +536,12 @@ def run(options):
                               report_budget_mib=options.report_budget_mib,
                               preserve_opaque_file_name_text=options.preserve_opaque_file_name_text,
                               assume_ascii_invariant_data=options.assume_ascii_invariant_data,
-                              unit_interpretation=options.unit_interpretation)
+                              unit_interpretation=options.unit_interpretation,
+                              repair_source_sha256=getattr(options, 'repair_source_sha256', ''),
+                              maximum_face_orientation_edits=getattr(options, 'maximum_face_orientation_edits', 0),
+                              maximum_repair_proof_controls=getattr(options, 'maximum_repair_proof_controls', 0),
+                              maximum_repair_proof_products=getattr(options, 'maximum_repair_proof_products', 0),
+                              face_orientation_edits=tuple(getattr(options, 'face_orientation_edits', ())))
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

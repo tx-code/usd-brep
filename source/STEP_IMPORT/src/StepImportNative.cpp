@@ -1525,6 +1525,10 @@ std::optional<TopologyNormalizationInfo> ModelSnapshot::TopologyNormalization() 
 {
     return m_data->topologyNormalization;
 }
+std::optional<FaceOrientationRepairHistory> ModelSnapshot::Repairs() const
+{
+    return m_data->repairs;
+}
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());
@@ -1559,6 +1563,20 @@ FaceView::FaceView(std::shared_ptr<detail::ModelData> data, std::size_t face) : 
 std::string FaceView::SourceId() const
 {
     return m_data->faces[m_face].faceId;
+}
+std::optional<FaceOrientationRepairAction> FaceView::OrientationRepair() const
+{
+    if (m_data->repairs)
+    {
+        for (const auto& action : m_data->repairs->actions)
+        {
+            if (action.targetFace == m_face)
+            {
+                return action;
+            }
+        }
+    }
+    return {};
 }
 step_semantics::SchemaInterpretation FaceView::AppliedSourceInterpretation() const
 {

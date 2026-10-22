@@ -14,6 +14,18 @@ public:
     void Check(Phase phase);
     void ChargeNative(Report& bodyReport, std::size_t sourceRecord); // Shared request budget; local body observations are separate.
     void Commit(); // Sole success/cancellation arbitration. No allocation or native operation after success.
+    std::size_t NativeCalls() const
+    {
+        return m_report.nativeCalls;
+    }
+    bool IsRootReport(const Report& report) const
+    {
+        return &report == &m_report;
+    }
+    void ClaimRepairEdits(const std::vector<std::size_t>& indices);
+    void CheckRepairCompletion();
+    std::size_t RepairProofRemaining() const;
+    void SpendRepairProof(std::size_t products);
 
 private:
 
@@ -21,6 +33,7 @@ private:
     Report& m_report;
     std::shared_ptr<ImportControl> m_control;
     bool m_committed = false;
+    std::vector<bool> m_repairEditsClaimed;
     void Cancel();
 };
 } // namespace step_import::detail

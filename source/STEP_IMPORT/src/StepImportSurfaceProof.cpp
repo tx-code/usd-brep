@@ -4,7 +4,9 @@
 
 #include "StepImportProofEnvironment.h"
 
+#include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
+#include <SmLine.h>
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -12,6 +14,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -244,6 +247,15 @@ Net Read(const SmBSplineSurface& s, Budget& budget)
         out.cp.push_back({ I(data[4 * i]), I(data[4 * i + 1]), I(data[4 * i + 2]), I(w) });
     }
     return out;
+}
+void NaturalDomain(const SmBSplineSurface& surface, const Net& net)
+{
+    const auto domain = surface.GetNaturalUVDomain();
+    if (domain.GetMin().x != net.u[net.p] || domain.GetMax().x != net.u[net.nu] || domain.GetMin().y != net.v[net.q] ||
+        domain.GetMax().y != net.v[net.nv])
+    {
+        throw Unestablished{};
+    }
 }
 std::vector<C> InsertCurve(const std::vector<C>& cp, const std::vector<double>& knots, unsigned p, double value, bool polynomial, Budget& budget)
 {
@@ -530,5 +542,624 @@ SurfaceRestrictionProof ProveSurfaceRestriction(
     {
     }
     return result;
+}
+namespace
+{
+using V3 = std::array<I, 3>;
+I Dot(const V3& v, const std::array<double, 3>& row)
+{
+    I result;
+    for (std::size_t k = 0; k < 3; ++k)
+    {
+        result = result + v[k] * I(row[k]);
+    }
+    return result;
+}
+void Include(I& range, I value, bool first)
+{
+    range = first ? value : I(std::min(range.lo, value.lo), std::max(range.hi, value.hi));
+}
+void Continuous(const std::vector<double>& knots, unsigned degree, std::size_t count)
+{
+    if (count <= degree)
+    {
+        throw Unestablished{};
+    }
+    for (std::size_t i = degree + 1; i < count;)
+    {
+        std::size_t next = i + 1;
+        while (next < knots.size() && knots[next] == knots[i])
+        {
+            ++next;
+        }
+        if (next - i > degree)
+        {
+            throw Unestablished{};
+        }
+        i = next;
+    }
+}
+std::function<void()> Checked(const std::function<void()>& checkpoint)
+{
+    return [checkpoint]
+    {
+        checkpoint();
+        if (!SurfaceProofNumericEnvironment())
+        {
+            throw Unestablished{};
+        }
+    };
+}
+struct CurveNet
+{
+    unsigned degree = 0;
+    bool polynomial = false;
+    std::vector<double> knots;
+    std::vector<C> cp;
+    bool analyticLine = false;
+    V3 lineOrigin{}, lineSlope{};
+    double lineBase = 0, lineStepBegin = 0;
+};
+CurveNet ReadCurve(const SmCurve& curve, Budget& budget)
+{
+    // Analytic conics can expose a NURBS base with a different evaluator
+    // parameter. Reading that base as curve(t) would be a false certificate.
+    if (curve.GetType() != SmBSplineCurve_TYPE && curve.GetType() != SmLine_TYPE)
+    {
+        throw Unestablished{};
+    }
+    const auto* spline = dynamic_cast<const SmBSplineCurve*>(&curve);
+    if (!spline || (curve.GetDim() != 2 && curve.GetDim() != 3))
+    {
+        throw Unestablished{};
+    }
+    CurveNet net;
+    net.degree = spline->GetDegree();
+    net.polynomial = !spline->IsRational();
+    ULONG count = 0;
+    double* data = nullptr;
+    SmTArray<double> knots;
+    if (!net.degree || net.degree > 32 || spline->GetControlPointsPointer(count, data) != SM_SUCCESS || !data ||
+        spline->GetKnotsAll(knots) != SM_SUCCESS)
+    {
+        throw Unestablished{};
+    }
+    budget.ControlCount(count, 1);
+    net.knots.assign(knots.GetDataArray(), knots.GetDataArray() + knots.GetSize());
+    if (net.knots.size() != count + net.degree + 1 ||
+        !std::all_of(
+            net.knots.begin(),
+            net.knots.end(),
+            [](double t)
+            {
+                return std::isfinite(t);
+            }
+        ) ||
+        !std::is_sorted(net.knots.begin(), net.knots.end()))
+    {
+        throw Unestablished{};
+    }
+    Continuous(net.knots, net.degree, count);
+    const auto domain = curve.GetNaturalInterval();
+    if (domain.GetMin() != net.knots[net.degree] || domain.GetMax() != net.knots[count] || !(domain.GetMax() > domain.GetMin()))
+    {
+        throw Unestablished{};
+    }
+    for (unsigned i = 0; i <= net.degree; ++i)
+    {
+        if (net.knots[i] != domain.GetMin() || net.knots[net.knots.size() - 1 - i] != domain.GetMax())
+        {
+            throw Unestablished{};
+        }
+    }
+    net.cp.reserve(count);
+    for (ULONG i = 0; i < count; ++i)
+    {
+        budget.Product();
+        const auto w = net.polynomial ? 1. : data[4 * i + 3];
+        if (!(w > 0))
+        {
+            throw Unestablished{};
+        }
+        net.cp.push_back({ I(data[4 * i]), I(data[4 * i + 1]), curve.GetDim() == 2 ? I() : I(data[4 * i + 2]), I(w) });
+    }
+    if (const auto line = dynamic_cast<const SmLine*>(&curve))
+    {
+        // SmLine::EvaluatePoint uses its analytic affine definition, not the
+        // rounded endpoints of its NURBS cache. Enclose those actual operands
+        // and the native->STEP map explicitly; no parameter identity is guessed.
+        const auto step = line->GetSTEPInterval();
+        if (!line->IsBounded() || !std::isfinite(domain.GetLength()) || SM_IS_ZERO(domain.GetLength()) || !std::isfinite(step.GetMin()) ||
+            !std::isfinite(step.GetLength()) || !(step.GetLength() > 0))
+        {
+            throw Unestablished{};
+        }
+        net.analyticLine = true;
+        net.lineBase = line->GetInsideOut() ? domain.GetMax() : domain.GetMin();
+        net.lineStepBegin = step.GetMin();
+        const auto origin = line->GetLinePoint();
+        const auto direction = line->GetLineVector();
+        const std::array p{ origin.x, origin.y, origin.z }, d{ direction.x, direction.y, direction.z };
+        I slope = step.GetLength() == domain.GetLength() ? I(1) : I(step.GetLength()) / I(domain.GetLength());
+        if (line->GetInsideOut())
+        {
+            slope = I(-slope.hi, -slope.lo);
+        }
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            const I vector = axis == 2 && curve.GetDim() == 2 ? I() :
+                             line->GetLineScale() == 1        ? I(d[axis]) :
+                             d[axis] == 1                     ? I(line->GetLineScale()) :
+                                                                I(line->GetLineScale()) * I(d[axis]);
+            net.lineOrigin[axis] = (axis == 2 && curve.GetDim() == 2 ? I() : I(p[axis])) + vector * I(net.lineStepBegin);
+            net.lineSlope[axis] = slope.lo == 1 && slope.hi == 1 ? vector : vector * slope;
+        }
+    }
+    return net;
+}
+C DeBoor(std::vector<C> work, const std::vector<double>& knots, unsigned degree, std::size_t span, I t, bool polynomial, Budget& budget)
+{
+    C hull = work[0];
+    for (std::size_t j = 1; j < work.size(); ++j)
+    {
+        for (std::size_t axis = 0; axis < 4; ++axis)
+        {
+            Include(hull[axis], work[j][axis], false);
+        }
+    }
+    for (unsigned level = 1; level <= degree; ++level)
+    {
+        for (unsigned j = degree; j >= level; --j)
+        {
+            budget.Product();
+            const auto i = span - degree + j;
+            const I alpha = (t - I(knots[i])) / (I(knots[i + degree + 1 - level]) - I(knots[i]));
+            for (std::size_t axis = 0; axis < 4; ++axis)
+            {
+                work[j][axis] = (I(1) - alpha) * work[j - 1][axis] + alpha * work[j][axis];
+            }
+            if (polynomial)
+            {
+                work[j][3] = I(1);
+            }
+        }
+    }
+    C result = work[degree];
+    // Nonnegative B-spline basis weights give a second, independent enclosure.
+    // Intersection preserves exact constant/zero boundary coordinates instead
+    // of inventing a small parameter excursion from arithmetic roundoff alone.
+    for (std::size_t axis = 0; axis < 4; ++axis)
+    {
+        result[axis] = I(std::max(result[axis].lo, hull[axis].lo), std::min(result[axis].hi, hull[axis].hi));
+    }
+    return result;
+}
+std::size_t CurveSpan(const CurveNet& net, double t)
+{
+    auto index = static_cast<std::size_t>(std::upper_bound(net.knots.begin(), net.knots.end(), t) - net.knots.begin() - 1);
+    return std::clamp(index, static_cast<std::size_t>(net.degree), net.cp.size() - 1);
+}
+C CurveRange(const CurveNet& net, I t, Budget& budget)
+{
+    if (net.analyticLine)
+    {
+        C result;
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            result[axis] = net.lineOrigin[axis] + net.lineSlope[axis] * (t - I(net.lineBase));
+        }
+        result[3] = I(1);
+        return result;
+    }
+    const auto span = CurveSpan(net, std::midpoint(t.lo, t.hi));
+    if (t.lo < net.knots[span] || t.hi > net.knots[span + 1])
+    {
+        throw Unestablished{};
+    }
+    return DeBoor({ net.cp.begin() + span - net.degree, net.cp.begin() + span + 1 }, net.knots, net.degree, span, t, net.polynomial, budget);
+}
+I DivideWeight(I value, I weight)
+{
+    return weight.lo == 1 && weight.hi == 1 ? value : value / weight;
+}
+CurveNet Derivative(const CurveNet& source, Budget& budget)
+{
+    CurveNet out;
+    if (source.analyticLine)
+    {
+        out.knots = { source.knots[source.degree], source.knots[source.cp.size()] };
+        out.cp.push_back({ source.lineSlope[0], source.lineSlope[1], source.lineSlope[2], I() });
+        return out;
+    }
+    out.degree = source.degree - 1;
+    // These are homogeneous derivatives, with w'=0 for polynomial curves.
+    // Do not apply the point evaluator's invariant w=1 to derivative controls.
+    out.knots.assign(source.knots.begin() + 1, source.knots.end() - 1);
+    for (std::size_t i = 0; i + 1 < source.cp.size(); ++i)
+    {
+        budget.Product();
+        const I factor = I(source.degree) / (I(source.knots[i + source.degree + 1]) - I(source.knots[i + 1]));
+        C value;
+        for (std::size_t axis = 0; axis < 4; ++axis)
+        {
+            value[axis] = (source.cp[i + 1][axis] - source.cp[i][axis]) * factor;
+        }
+        out.cp.push_back(value);
+    }
+    return out;
+}
+V3 EuclideanDerivative(const CurveNet& source, const CurveNet& derivative, I t, Budget& budget)
+{
+    const auto value = CurveRange(source, t, budget), tangent = CurveRange(derivative, t, budget);
+    V3 result;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        result[axis] = source.polynomial ? tangent[axis] : (tangent[axis] * value[3] - value[axis] * tangent[3]) / (value[3] * value[3]);
+    }
+    return result;
+}
+Net Derivative(const Net& source, bool uAxis, Budget& budget)
+{
+    Net out;
+    out.polynomial = true;
+    out.nu = source.nu - (uAxis ? 1 : 0);
+    out.nv = source.nv - (uAxis ? 0 : 1);
+    out.p = source.p - (uAxis ? 1 : 0);
+    out.q = source.q - (uAxis ? 0 : 1);
+    out.u = source.u;
+    out.v = source.v;
+    auto& knots = uAxis ? out.u : out.v;
+    knots.erase(knots.begin());
+    knots.pop_back();
+    out.cp.reserve(out.nu * out.nv);
+    const auto& original = uAxis ? source.u : source.v;
+    const auto degree = uAxis ? source.p : source.q;
+    for (std::size_t i = 0; i < out.nu; ++i)
+    {
+        for (std::size_t j = 0; j < out.nv; ++j)
+        {
+            budget.Product();
+            const auto k = uAxis ? i : j;
+            const I factor = I(degree) / (I(original[k + degree + 1]) - I(original[k + 1]));
+            C value;
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                value[axis] = (source.cp[(i + (uAxis ? 1 : 0)) * source.nv + j + (uAxis ? 0 : 1)][axis] - source.cp[i * source.nv + j][axis]) *
+                              factor;
+            }
+            value[3] = I(1);
+            out.cp.push_back(value);
+        }
+    }
+    return out;
+}
+V3 SurfaceRange(const Net& net, I u, I v, Budget& budget)
+{
+    if (u.lo < net.u[net.p] || u.hi > net.u[net.nu] || v.lo < net.v[net.q] || v.hi > net.v[net.nv])
+    {
+        throw Unestablished{};
+    }
+    V3 result{};
+    bool first = true;
+    for (std::size_t ku = net.p; ku < net.nu; ++ku)
+    {
+        if (!(net.u[ku] < net.u[ku + 1]) || net.u[ku] > u.hi || net.u[ku + 1] < u.lo)
+        {
+            continue;
+        }
+        const I us(std::max(u.lo, net.u[ku]), std::min(u.hi, net.u[ku + 1]));
+        for (std::size_t kv = net.q; kv < net.nv; ++kv)
+        {
+            if (!(net.v[kv] < net.v[kv + 1]) || net.v[kv] > v.hi || net.v[kv + 1] < v.lo)
+            {
+                continue;
+            }
+            std::vector<C> column;
+            for (std::size_t j = kv - net.q; j <= kv; ++j)
+            {
+                std::vector<C> row;
+                for (std::size_t i = ku - net.p; i <= ku; ++i)
+                {
+                    row.push_back(net.cp[i * net.nv + j]);
+                }
+                column.push_back(DeBoor(std::move(row), net.u, net.p, ku, us, true, budget));
+            }
+            const auto value = DeBoor(std::move(column), net.v, net.q, kv, I(std::max(v.lo, net.v[kv]), std::min(v.hi, net.v[kv + 1])), true, budget);
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                Include(result[axis], value[axis], first);
+            }
+            first = false;
+        }
+    }
+    if (first)
+    {
+        throw Unestablished{};
+    }
+    return result;
+}
+} // namespace
+
+SurfaceInjectivityProof ProveSurfaceInjectivity(
+    const SmBSplineSurface& surface,
+    std::size_t maximumControls,
+    std::size_t maximumProducts,
+    const std::function<void()>& checkpoint
+)
+{
+    SurfaceInjectivityProof result;
+    if (!checkpoint || !maximumControls || !maximumProducts || surface.GetType() != SmBSplineSurface_TYPE || !SurfaceProofNumericEnvironment())
+    {
+        return result;
+    }
+    const auto check = Checked(checkpoint);
+    Budget budget{ maximumControls, maximumProducts, 0, check };
+    const auto finish = [&]
+    {
+        result.productsUsed = budget.used;
+        return result;
+    };
+    try
+    {
+        check();
+        const auto net = Read(surface, budget);
+        NaturalDomain(surface, net);
+        if (!net.polynomial)
+        {
+            return finish();
+        }
+        Continuous(net.u, net.p, net.nu);
+        Continuous(net.v, net.q, net.nv);
+        if ((net.nu - 1) * net.nv > maximumControls - net.cp.size() ||
+            net.nu * (net.nv - 1) > maximumControls - net.cp.size() - (net.nu - 1) * net.nv)
+        {
+            throw WorkLimit{};
+        }
+        result.domain = { net.u[net.p], net.u[net.nu], net.v[net.q], net.v[net.nv] };
+        std::vector<V3> du, dv;
+        const auto derivative = [&](bool uAxis, std::vector<V3>& values)
+        {
+            const auto countU = net.nu - (uAxis ? 1 : 0), countV = net.nv - (uAxis ? 0 : 1);
+            const auto& knots = uAxis ? net.u : net.v;
+            const auto degree = uAxis ? net.p : net.q;
+            const auto count = uAxis ? net.nu : net.nv;
+            for (std::size_t i = 0; i < countU; ++i)
+            {
+                for (std::size_t j = 0; j < countV; ++j)
+                {
+                    budget.Product();
+                    const auto k = uAxis ? i : j;
+                    const I factor = I(degree) * (I(knots[count]) - I(knots[degree])) / (I(knots[k + degree + 1]) - I(knots[k + 1]));
+                    V3 value;
+                    for (std::size_t axis = 0; axis < 3; ++axis)
+                    {
+                        value[axis] = (net.cp[(i + (uAxis ? 1 : 0)) * net.nv + j + (uAxis ? 0 : 1)][axis] - net.cp[i * net.nv + j][axis]) * factor;
+                    }
+                    values.push_back(value);
+                }
+            }
+        };
+        derivative(true, du);
+        derivative(false, dv);
+        std::array<double, 3> a{}, b{};
+        for (const auto& v : du)
+        {
+            for (std::size_t k = 0; k < 3; ++k)
+            {
+                a[k] += std::midpoint(v[k].lo, v[k].hi) / static_cast<double>(du.size());
+            }
+        }
+        for (const auto& v : dv)
+        {
+            for (std::size_t k = 0; k < 3; ++k)
+            {
+                b[k] += std::midpoint(v[k].lo, v[k].hi) / static_cast<double>(dv.size());
+            }
+        }
+        double scale = 0;
+        for (std::size_t k = 0; k < 3; ++k)
+        {
+            scale = std::max({ scale, std::abs(a[k]), std::abs(b[k]) });
+        }
+        if (!(scale > 0) || !std::isfinite(scale))
+        {
+            return finish();
+        }
+        double aa = 0, ab = 0, bb = 0;
+        for (std::size_t k = 0; k < 3; ++k)
+        {
+            a[k] /= scale;
+            b[k] /= scale;
+            aa += a[k] * a[k];
+            ab += a[k] * b[k];
+            bb += b[k] * b[k];
+        }
+        const double determinant = aa * bb - ab * ab;
+        if (!(determinant > 0) || !std::isfinite(determinant))
+        {
+            return finish();
+        }
+        for (std::size_t k = 0; k < 3; ++k)
+        {
+            result.projection[0][k] = (bb * a[k] - ab * b[k]) / determinant / scale;
+            result.projection[1][k] = (aa * b[k] - ab * a[k]) / determinant / scale;
+        }
+        // The approximate inverse above only chooses a fixed binary64 map L.
+        // The certificate below treats its coefficients as exact operands.
+        // Convex derivative-control hulls enclose J(L*S) on EVERY knot cell.
+        // C0 continuity plus a uniformly positive symmetric part gives global
+        // strong monotonicity on the convex rectangle, hence injectivity of S.
+        I j00, j10, j01, j11;
+        bool first = true;
+        for (const auto& v : du)
+        {
+            budget.Product();
+            Include(j00, Dot(v, result.projection[0]), first);
+            Include(j10, Dot(v, result.projection[1]), first);
+            first = false;
+        }
+        first = true;
+        for (const auto& v : dv)
+        {
+            budget.Product();
+            Include(j01, Dot(v, result.projection[0]), first);
+            Include(j11, Dot(v, result.projection[1]), first);
+            first = false;
+        }
+        const I off = (j01 + j10) * I(.5);
+        const double radius = std::max(std::abs(off.lo), std::abs(off.hi));
+        result.firstDiagonalLower = j00.lo;
+        result.secondDiagonalLower = j11.lo;
+        result.symmetricDeterminantLower = (I(j00.lo) * I(j11.lo) - I(radius) * I(radius)).lo;
+        result.established = j00.lo > 0 && j11.lo > 0 && *result.symmetricDeterminantLower > 0;
+    }
+    catch (const WorkLimit&)
+    {
+        result.workLimit = true;
+    }
+    catch (const Unestablished&)
+    {
+    }
+    return finish();
+}
+
+CurveLiftProof ProveCurveLift(
+    const SmCurve& edge,
+    const SmCurve& uv,
+    const SmBSplineSurface& surface,
+    double begin,
+    double end,
+    double maximumMm,
+    std::size_t maximumControls,
+    std::size_t maximumProducts,
+    const std::function<void()>& checkpoint
+)
+{
+    CurveLiftProof result;
+    if (!checkpoint || !maximumControls || !maximumProducts || !std::isfinite(begin) || !std::isfinite(end) || !(end > begin) ||
+        !std::isfinite(maximumMm) || !(maximumMm > 0) || surface.GetType() != SmBSplineSurface_TYPE || !SurfaceProofNumericEnvironment())
+    {
+        return result;
+    }
+    const auto check = Checked(checkpoint);
+    Budget budget{ maximumControls, maximumProducts, 0, check };
+    const auto finish = [&]
+    {
+        result.productsUsed = budget.used;
+        return result;
+    };
+    try
+    {
+        check();
+        const auto net = Read(surface, budget);
+        NaturalDomain(surface, net);
+        if (!net.polynomial || edge.GetDim() != 3 || uv.GetDim() != 2)
+        {
+            return finish();
+        }
+        const auto curve = ReadCurve(edge, budget), trim = ReadCurve(uv, budget);
+        std::size_t total = 0;
+        for (const auto count :
+             { net.cp.size(), (net.nu - 1) * net.nv, net.nu * (net.nv - 1), curve.cp.size(), trim.cp.size(), curve.cp.size() - 1, trim.cp.size() - 1 })
+        {
+            if (count > maximumControls - total)
+            {
+                throw WorkLimit{};
+            }
+            total += count;
+        }
+        const auto dc = Derivative(curve, budget), dt = Derivative(trim, budget);
+        const auto su = Derivative(net, true, budget), sv = Derivative(net, false, budget);
+        if (begin < curve.knots[curve.degree] || end > curve.knots[curve.cp.size()] || begin < trim.knots[trim.degree] ||
+            end > trim.knots[trim.cp.size()])
+        {
+            return finish();
+        }
+        std::vector<double> breaks{ begin, end };
+        for (const auto* knots : { &curve.knots, &trim.knots })
+        {
+            for (double t : *knots)
+            {
+                if (t > begin && t < end)
+                {
+                    breaks.push_back(t);
+                }
+            }
+        }
+        std::sort(breaks.begin(), breaks.end());
+        breaks.erase(std::unique(breaks.begin(), breaks.end()), breaks.end());
+        const double allowed = (I(Down(maximumMm)) * I(Down(maximumMm))).lo;
+        double maximumSquared = 0;
+        std::vector<I> pending;
+        for (std::size_t i = 1; i < breaks.size(); ++i)
+        {
+            pending.emplace_back(breaks[i - 1], breaks[i]);
+        }
+        while (!pending.empty())
+        {
+            budget.Product();
+            const I t = pending.back();
+            pending.pop_back();
+            bool bounded = false;
+            double squared = 0;
+            try
+            {
+                const auto c = CurveRange(curve, t, budget), p = CurveRange(trim, t, budget);
+                const I u = DivideWeight(p[0], p[3]), v = DivideWeight(p[1], p[3]);
+                const auto lifted = SurfaceRange(net, u, v, budget);
+                const I middle(std::midpoint(t.lo, t.hi));
+                const auto cm = CurveRange(curve, middle, budget), pm = CurveRange(trim, middle, budget);
+                const auto sm = SurfaceRange(net, DivideWeight(pm[0], pm[3]), DivideWeight(pm[1], pm[3]), budget);
+                const auto cp = EuclideanDerivative(curve, dc, t, budget), tp = EuclideanDerivative(trim, dt, t, budget);
+                const auto sup = SurfaceRange(su, u, v, budget), svp = SurfaceRange(sv, u, v, budget);
+                I error;
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    const auto direct = DivideWeight(c[axis], c[3]) - lifted[axis];
+                    // A centered mean-value enclosure keeps paired t dependence.
+                    // Independent point hull subtraction alone would require
+                    // refinement proportional to edge length / error budget.
+                    // The residual derivative includes the UV chain rule and
+                    // every crossed surface-knot cell through SurfaceRange.
+                    const auto taylor = DivideWeight(cm[axis], cm[3]) - sm[axis] + (cp[axis] - sup[axis] * tp[0] - svp[axis] * tp[1]) * (t - middle);
+                    const I delta(std::max(direct.lo, taylor.lo), std::min(direct.hi, taylor.hi));
+                    const double absolute = std::max(std::abs(delta.lo), std::abs(delta.hi));
+                    error = error + I(absolute) * I(absolute);
+                }
+                squared = error.hi;
+                bounded = squared <= allowed;
+            }
+            catch (const Unestablished&)
+            {
+            }
+            if (bounded)
+            {
+                maximumSquared = std::max(maximumSquared, squared);
+                ++result.cells;
+            }
+            else
+            {
+                const auto middle = std::midpoint(t.lo, t.hi);
+                if (!(middle > t.lo && middle < t.hi))
+                {
+                    return finish();
+                }
+                // Depth-first refinement retains O(depth + knot count) nodes;
+                // work is shared with coefficient evaluation and never resets.
+                pending.emplace_back(middle, t.hi);
+                pending.emplace_back(t.lo, middle);
+            }
+        }
+        result.maximumMm = Up(std::sqrt(maximumSquared));
+        result.established = result.cells > 0 && *result.maximumMm <= maximumMm;
+    }
+    catch (const WorkLimit&)
+    {
+        result.workLimit = true;
+    }
+    catch (const Unestablished&)
+    {
+    }
+    return finish();
 }
 } // namespace step_import::detail

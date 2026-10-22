@@ -32,6 +32,12 @@ def main(argv=None):
     parser.add_argument("--report-budget-mib", type=int, choices=(16, 32, 64, 128, 256), default=16,
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
+    parser.add_argument('--repair-source-sha256', default='')
+    parser.add_argument('--max-face-orientation-edits', type=int, default=0, dest='maximum_face_orientation_edits')
+    parser.add_argument('--max-repair-proof-controls', type=int, default=0, dest='maximum_repair_proof_controls')
+    parser.add_argument('--max-repair-proof-products', type=int, default=0, dest='maximum_repair_proof_products')
+    parser.add_argument('--repair-face-orientation', action='append', default=[], dest='face_orientation_edits',
+                        help='显式单文件朝向修复：definition:shape:face:original:effective，朝向为 T/F')
     parser.add_argument("--wireframe", action="store_true", help="显示三角网格")
     parser.add_argument("--screenshot", type=Path, help="仅在本地保存画面")
     parser.add_argument("--quit-after-load", action="store_true", help="载入/截图完成后退出；失败返回非零")
@@ -43,8 +49,13 @@ def main(argv=None):
     parser.add_argument("--scan-child", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args(args)
     try:
+        from .repair import arguments as repair_arguments
+        repair = repair_arguments(options)
+        if repair and (options.scan or not options.file):
+            raise ValueError('RepairPlanRequiresOneExplicitFile')
         validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source,
-                 options.preserve_opaque_file_name_text, options.assume_ascii_invariant_data, options.unit_interpretation)
+                 options.preserve_opaque_file_name_text, options.assume_ascii_invariant_data,
+                 options.unit_interpretation)
     except ValueError as error:
         parser.error(str(error))
     if options.scan:

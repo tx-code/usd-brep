@@ -40,6 +40,22 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 STEP/STP uses the native importer with an explicitly selected development preview
 configuration; see the [import contract](../../source/STEP_IMPORT/README.md).
+
+An optional single-file face-orientation repair uses `--repair-source-sha256`,
+`--max-face-orientation-edits`, `--max-repair-proof-controls`,
+`--max-repair-proof-products`, and repeated
+`--repair-face-orientation DEFINITION:SHAPE:FACE:ORIGINAL:EFFECTIVE` (`T/F`).
+Every budget and source identity must be explicit; these are not default healing
+settings. The native core owns scope validation, continuous evidence and complete
+publication. A fixed input plan cannot accompany `--scan`, periodic normalization
+or support-domain restriction. Source metadata interoperability remains a separate policy.
+
+The worker retains `AcceptedWithRepairs`, original source identity and any
+independent source assumptions. The HUD marks the number of repaired face
+orientations, plus source interpretation when applicable. Repair-proof, rebuild
+and final verification stages retain the whole-request progress/cancellation
+contract. A rendered repair remains viewer-pipeline evidence; retain the original
+file and mandatory native report for its actual qualification.
 The default `--profile development` preserves proven nongeometric interoperability
 diagnostics and opaque source text. `--strict-source` disables those exceptions.
 No implicit schema assumption, tolerance retry or alternate reader is used.

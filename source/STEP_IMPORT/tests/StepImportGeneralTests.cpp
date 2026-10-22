@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "../app/StepRepairArguments.h"
 #include "StepImport.h"
 #include "StepImportCylinderChart.h"
 #include "StepImportDefinitionChecks.h"
@@ -1472,11 +1473,13 @@ void DevelopmentContract(
     bool asciiInvariant = false,
     bool compactReport = false,
     bool blankCarrier = false,
-    bool explicitDimensions = false
+    bool explicitDimensions = false,
+    std::optional<step_import::FaceOrientationRepairRequest> repair = {}
 )
 {
     auto options = step_import::Options::PlanarFixture();
     options.generalBrep = true;
+    options.faceOrientationRepair = repair;
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
     if (integrationAccuracy)
     {
@@ -1556,10 +1559,22 @@ void DevelopmentContract(
         Require(result.model->Face().HasAsciiInvariantDataAssumption() == dataAssumed, "owning face retains DATA interpretation");
     }
     Require(
-        result.status == (assumed ? step_import::Status::AcceptedUnderInterpretation : step_import::Status::Accepted) && bool(result.model),
+        result.status == (repair  ? step_import::Status::AcceptedWithRepairs :
+                          assumed ? step_import::Status::AcceptedUnderInterpretation :
+                                    step_import::Status::Accepted) &&
+            bool(result.model),
         "development native import"
     );
     const auto info = result.model->Info();
+    if (repair)
+    {
+        const auto history = result.model->Repairs();
+        Require(
+            history && history->sourceSha256 == repair->sourceSha256 && history->actions.size() == repair->edits.size() &&
+                history->definitionsIdentical && history->workingTolerancesIdentical,
+            "development repaired snapshot retains source identity and zero-definition-change evidence"
+        );
+    }
     if (normalizePeriodic || result.model->TopologyNormalization())
     {
         const auto origins = result.model->TopologyNormalization();
@@ -1697,6 +1712,10 @@ void DevelopmentContract(
     Near(queryDistance, distance, 1e-5, "archive boundary distance preserved");
     std::ofstream checks(directory / "checks.json", std::ios::binary);
     checks << std::setprecision(17) << "{\"status\":\"Passed\"";
+    if (repair)
+    {
+        checks << ",\"native_status\":\"AcceptedWithRepairs\",\"repaired_faces\":" << result.model->Repairs()->actions.size();
+    }
     if (dataAssumed)
     {
         checks << ",\"data_string_interpretation\":\"PreserveAsciiInvariantBytes\",\"data_encoding_verified\":false";
@@ -1760,9 +1779,17 @@ int main(int argc, char** argv)
                  lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false, compactReport = false,
                  blankCarrier = false, explicitDimensions = false;
             std::optional<double> integrationAccuracy;
+            step_import::Options repairArguments;
             for (int i = 5; i < argc; ++i)
             {
                 const std::string_view flag(argv[i]);
+                if (flag == "--repair-source-sha256" || flag == "--max-face-orientation-edits" || flag == "--repair-face-orientation" ||
+                    flag == "--max-repair-proof-controls" || flag == "--max-repair-proof-products")
+                {
+                    Require(i + 1 < argc, "repair option value required");
+                    step_import_app::RepairArgument(flag, argv[++i], repairArguments);
+                    continue;
+                }
                 if (flag == "--integration-relative-accuracy")
                 {
                     Require(i + 1 < argc, "numerical integration value required");
@@ -1855,7 +1882,8 @@ int main(int argc, char** argv)
                 asciiInvariant,
                 compactReport,
                 blankCarrier,
-                explicitDimensions
+                explicitDimensions,
+                repairArguments.faceOrientationRepair
             );
             return 0;
         }

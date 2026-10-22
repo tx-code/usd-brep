@@ -1,5 +1,43 @@
 # STEP_IMPORT（内部 C++20）
 
+## 显式面朝向修复（开发切片）
+
+`Options.faceOrientationRepair` 可选择 `FaceOrientationZeroGeometry-0.1`：调用者明确提供
+原文件 SHA256、零件定义／形状／面身份、预期源 `same_sense` 和目标朝向，并分别给出
+最大改动面数、证明控制点工作区及全请求累计证明运算预算。缺省仍为 `Repair=None`；
+没有生产默认预算，也不根据错误消息、源 uncertainty 或文件名自动选择修复。
+
+首版限定材料 BRep 中具有一个显式外环的面，目标为原生普通多项式 B 样条支撑面；
+以整个自然参数矩形上的投影强单调性证明单值性。三维边与派生 UV 必须采用受支持的
+B 样条／有限直线参数约定，且修前、修后逐边完成连续区间提升误差证明。
+有理支撑面、解析曲面子类、孔、未证明的多值／折叠、任意 healer 或定义几何拟合没有因此获得支持。
+该策略目前不能与周期分面或限制支撑域请求组合。其他未修复面的原能力保持。
+
+源只捕获、解释一次。先在私有候选上执行原严格原生构建，失败集合必须与显式计划完全
+匹配；方向诊断本身不足以授权修复。随后以同一源快照和受限的有效朝向覆盖重新构建，
+逐源身份比较全部顶点、边／曲面定义、参数域、控制网、权重、节点及解析参数，要求完全
+相同且工作容差不变；再完成原有全部后验与修后连续提升证明。前一候选在最终就绪前释放。
+零位移证据仅指这些定义数据，不声称原无效材料区域与修后区域等价；材料朝向变化是明确的修复。
+
+零件定义／形状／面三元身份隔离共享几何的各次定义使用；修复一个定义不会修改兄弟
+定义的源字段。全部选定体／定义继续全成全败。原生工作、截止、取消和报告预算不重置；
+证明运算预算跨所有体、所有修前／修后证明累计。报告中的运算计数对应已完成证明操作；
+中断中的操作不冒充完整计量。工作区不足、证明不成立、后验失败或必需报告不足均不发布模型。
+
+完整结果返回独立状态 `AcceptedWithRepairs`（CLI 12），原 schema／载体／文本／单位解释
+仍分别保留，不归入普通 `Accepted`。`ModelSnapshot::Repairs()` 和
+`FaceView::OrientationRepair()` 返回 owning 证据；清除可变 outcome/report 不会清除资格。
+`Source()` 仍返回真实原始字段和字节，报告分别保存原失败、有效朝向、进度、预算与证明。
+存档只编码修后原生 BRep，建模副本和回读模型不继承 STEP 修复资格，须另留原件与报告。
+
+CLI 显式参数为 `--repair-source-sha256 HASH --max-face-orientation-edits N`
+`--max-repair-proof-controls N --max-repair-proof-products N`，并重复
+`--repair-face-orientation DEFINITION:SHAPE:FACE:ORIGINAL:EFFECTIVE`（朝向为 `T/F`）。
+身份来自实际 inspect；过期哈希、错误作用域、重复／空计划或已有效模型不能变成一次修复接纳。
+本切片扩展内部 C++ Options/Report/快照布局与结果枚举，库和消费者需一并重建；内核 ABI 不变。
+
+## 诊断与通用入口
+
 通用后验诊断可附带 `classification=NativeFaceLoopOrientationFailure`。
 它表示完整已记录的失败集合仅含 `SmTrimmingTools::CheckFace` 的面环方向谓词；
 `ValidatePointers` 同时运行几何检查，原 `GeneralPointerValidation` 入口键不能用来断言

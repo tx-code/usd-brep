@@ -22,6 +22,12 @@ class SmVertex;
 namespace step_import::detail
 {
 std::recursive_mutex& NativeMutex();
+inline bool HasAppliedSourceInterpretation(const step_semantics::Snapshot& source)
+{
+    return source.AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly || source.Source().AppliedCarrierAssumption() ||
+           source.Source().HasAsciiInvariantDataAssumption() ||
+           source.AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly;
+}
 struct NativeFaceData
 {
     SmFace* face = nullptr;
@@ -56,6 +62,8 @@ struct ModelData
     std::optional<NumericalIntegrationObservation> numericalIntegration;
     std::optional<UnitNormalization> lengthUnits; // Independent of the caller's mutable report and output lifetime.
     std::optional<TopologyNormalizationInfo> topologyNormalization;
+    std::optional<FaceOrientationRepairHistory> repairs;
+    std::vector<std::size_t> repairVertexSources, repairEdgeSources; // Only private repair trials retain these comparison inventories.
     std::vector<SmEdge*> targetEdges; // Populated by explicit topology normalization; original source arrays remain separate.
     std::vector<SmVertex*> targetVertices;
     std::vector<std::size_t> targetFaceSources; // Source face ordinal for every target face, including source-to-many children.

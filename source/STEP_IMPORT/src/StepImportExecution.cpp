@@ -48,6 +48,12 @@ const char* PhaseName(Phase phase)
             return "ReportReady";
         case Phase::BeforeCommit:
             return "BeforeCommit";
+        case Phase::BeforeRepairProof:
+            return "BeforeRepairProof";
+        case Phase::BeforeRepair:
+            return "BeforeRepair";
+        case Phase::RepairReady:
+            return "RepairReady";
     }
     throw std::logic_error("Unknown execution boundary");
 }
@@ -63,6 +69,48 @@ Execution::Execution(const Options& options, Report& report)
     m_report.processPrivateLimitBytes = options.nativeLimits.processPrivateBytes;
     m_report.hardMemoryLimitBytes = options.nativeLimits.hardMemoryBytes;
     m_report.deadlineConfigured = bool(options.execution.deadline);
+    if (options.faceOrientationRepair)
+    {
+        m_repairEditsClaimed.resize(options.faceOrientationRepair->edits.size(), false);
+    }
+}
+void Execution::ClaimRepairEdits(const std::vector<std::size_t>& indices)
+{
+    for (const auto index : indices)
+    {
+        if (index >= m_repairEditsClaimed.size() || m_repairEditsClaimed[index])
+        {
+            throw Failure{ Status::Unsupported,
+                           "RepairEditScopeConflict",
+                           "An edit must apply to exactly one selected definition/body",
+                           {},
+                           "Repair" };
+        }
+        m_repairEditsClaimed[index] = true;
+    }
+}
+void Execution::CheckRepairCompletion()
+{
+    if (std::find(m_repairEditsClaimed.begin(), m_repairEditsClaimed.end(), false) != m_repairEditsClaimed.end())
+    {
+        throw Failure{ Status::Unsupported, "RepairEditNotApplied", "The complete selected request did not apply every explicit edit", {}, "Repair" };
+    }
+}
+std::size_t Execution::RepairProofRemaining() const
+{
+    if (!m_options.faceOrientationRepair || m_report.repairProofProducts >= m_options.faceOrientationRepair->maximumProofProducts)
+    {
+        return 0;
+    }
+    return m_options.faceOrientationRepair->maximumProofProducts - m_report.repairProofProducts;
+}
+void Execution::SpendRepairProof(std::size_t products)
+{
+    if (products > RepairProofRemaining())
+    {
+        throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Request-cumulative repair proof budget exhausted", {}, "Repair" };
+    }
+    m_report.repairProofProducts += products;
 }
 Execution::~Execution()
 {
