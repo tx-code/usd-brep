@@ -58,5 +58,10 @@ private:
     void StringValue(std::string_view text, bool utf8);
 };
 
-void WriteJson(Writer& writer, const InspectOutcome& outcome);
+enum class Encoding
+{
+    ExpandedV1,
+    SpanReferencesV2
+};
+void WriteJson(Writer& writer, const InspectOutcome& outcome, Encoding encoding = Encoding::ExpandedV1);
 } // namespace step_source::report

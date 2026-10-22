@@ -622,10 +622,20 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                 w.Bool(report.candidateDiscarded);
                 w.Add(",\"last_boundary\":");
                 w.String(PhaseName(report.lastBoundary));
+                if (report.encoding == ReportEncoding::CompactV2)
+                {
+                    w.Add(",\"source_report_encoding\":\"CompactV2\"");
+                }
                 w.Add(",\"source_inspection\":");
                 if (report.generalSource)
                 {
-                    step_semantics::report::WriteJson(w, source, *report.generalSource);
+                    step_semantics::report::WriteJson(
+                        w,
+                        source,
+                        *report.generalSource,
+                        report.encoding == ReportEncoding::CompactV2 ? step_semantics::report::Encoding::AttributeDictionaryV2 :
+                                                                       step_semantics::report::Encoding::ExpandedV1
+                    );
                 }
                 else
                 {

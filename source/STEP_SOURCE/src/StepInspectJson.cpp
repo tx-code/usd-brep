@@ -8,14 +8,17 @@ namespace
 {
 using report::Writer;
 
-void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
+void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source, report::Encoding encoding)
 {
     out.Add("{\"kind\":");
     out.String(ValueKindName(value.kind));
     out.Add(",\"span\":");
     out.Range(value.span);
-    out.Add(",\"raw\":");
-    out.String(source.Raw(value.span));
+    if (encoding == report::Encoding::ExpandedV1)
+    {
+        out.Add(",\"raw\":");
+        out.String(source.Raw(value.span));
+    }
     out.Add(",\"text\":");
     if (value.kind == ValueKind::OpaqueString)
     {
@@ -42,19 +45,22 @@ void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
         {
             out.Add(",");
         }
-        ValueJson(out, value.children[i], source);
+        ValueJson(out, value.children[i], source, encoding);
     }
     out.Add("]}");
 }
 
-void ComponentJson(Writer& out, const Component& component, const SourceSnapshot& source)
+void ComponentJson(Writer& out, const Component& component, const SourceSnapshot& source, report::Encoding encoding)
 {
     out.Add("{\"name\":");
     out.String(component.name);
     out.Add(",\"span\":");
     out.Range(component.span);
-    out.Add(",\"raw\":");
-    out.String(source.Raw(component.span));
+    if (encoding == report::Encoding::ExpandedV1)
+    {
+        out.Add(",\"raw\":");
+        out.String(source.Raw(component.span));
+    }
     out.Add(",\"parameters\":[");
     for (std::size_t i = 0; i < component.parameters.size(); ++i)
     {
@@ -62,7 +68,7 @@ void ComponentJson(Writer& out, const Component& component, const SourceSnapshot
         {
             out.Add(",");
         }
-        ValueJson(out, component.parameters[i], source);
+        ValueJson(out, component.parameters[i], source, encoding);
     }
     out.Add("]}");
 }
@@ -103,9 +109,19 @@ void DiagnosticJson(Writer& out, const InspectOutcome& result, const Diagnostic&
 }
 } // namespace
 
-void report::WriteJson(Writer& out, const InspectOutcome& result)
+void report::WriteJson(Writer& out, const InspectOutcome& result, Encoding encoding)
 {
-    out.Add("{\"format_version\":\"step-source.v1\",\"scope\":\"SyntaxIndexReferences\",\"status\":");
+    if (encoding != Encoding::ExpandedV1 && encoding != Encoding::SpanReferencesV2)
+    {
+        throw std::invalid_argument("Unknown source report encoding");
+    }
+    // V2 keeps the complete original byte string exactly once. Every omitted
+    // raw fragment is recoverable by its unchanged half-open byte span; decoded
+    // STRING text is never used as a substitute for those original bytes.
+    out.Add(
+        encoding == Encoding::SpanReferencesV2 ? "{\"format_version\":\"step-source.spans.v2\",\"scope\":\"SyntaxIndexReferences\",\"status\":" :
+                                                 "{\"format_version\":\"step-source.v1\",\"scope\":\"SyntaxIndexReferences\",\"status\":"
+    );
     out.String(StatusName(result.status));
     if (result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes)
     {
@@ -269,7 +285,7 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
             {
                 out.Add(",");
             }
-            ComponentJson(out, source.Header()[i], source);
+            ComponentJson(out, source.Header()[i], source, encoding);
         }
         out.Add("],\"records\":[");
         for (std::size_t i = 0; i < source.Records().size(); ++i)
@@ -289,8 +305,11 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
             out.Range(record.span);
             out.Add(",\"location\":");
             out.Position(source.Locate(record.span.begin));
-            out.Add(",\"raw\":");
-            out.String(source.Raw(record.span));
+            if (encoding == Encoding::ExpandedV1)
+            {
+                out.Add(",\"raw\":");
+                out.String(source.Raw(record.span));
+            }
             out.Add(",\"complex\":");
             out.Add(record.complex ? "true" : "false");
             out.Add(",\"components\":[");
@@ -300,7 +319,7 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
                 {
                     out.Add(",");
                 }
-                ComponentJson(out, record.components[j], source);
+                ComponentJson(out, record.components[j], source, encoding);
             }
             out.Add("]}");
         }

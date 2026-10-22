@@ -114,6 +114,11 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");
     }
+    if (options.reportEncoding != ReportEncoding::ExpandedV1 &&
+        (options.reportEncoding != ReportEncoding::CompactV2 || !options.generalBrep))
+    {
+        throw std::invalid_argument("Compact source report requires the explicit general import path");
+    }
     if (options.dataStringPolicy != step_source::DataStringPolicy::StrictAscii &&
         ((options.dataStringPolicy != step_source::DataStringPolicy::PreserveOpaqueBytes &&
           options.dataStringPolicy != step_source::DataStringPolicy::PreserveAsciiInvariantBytes) ||
@@ -142,6 +147,7 @@ Outcome Import(const Options& options, Capture capture)
     auto& report = result.report;
     report.sourceStatus = report.semanticStatus = report.planarStatus = "NotRun";
     report.generalBrep = options.generalBrep;
+    report.encoding = options.reportEncoding;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     report.periodicNormalizationRequested = options.normalizePeriodicFaces;
     if (options.numericalIntegration)

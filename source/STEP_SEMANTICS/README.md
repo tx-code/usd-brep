@@ -991,3 +991,18 @@ remain unchanged. The frozen planar profile and multi-shell surface models retai
 their existing multiplicity guard. This is source evidence only: native collection
 construction/publication is not yet implemented, and no body may be published as
 an implicit partial result. `shape_geometry_verified` remains false.
+
+
+Explicit internal `report::Encoding::AttributeDictionaryV2` emits
+`step-semantics.attributes.v2` and a nested `step-source.spans.v2` report.
+`snapshot.attribute_descriptors` contains complete attribute declaration metadata:
+name, declaring/effective/redeclaring types, optional/derived markers, aggregate
+kind, bounds, uniqueness and nested aggregate dimensions. Each record attribute
+retains its own component index, parameter index and source span, plus a zero-based
+`descriptor` reference. Expanding that reference restores the v1 attribute object;
+no source value or span is shared with another occurrence. Descriptor IDs are
+report-local first-occurrence ordinals, not persistent schema/type identities.
+Metadata comparison includes nested dimension contents and does not depend on
+catalog addresses. Null snapshots need no dictionary. Default encoding remains v1.
+The encoder bounds auxiliary storage at 65,536 distinct descriptors and shares the
+outer writer's output capacity; exhaustion publishes no partial report.

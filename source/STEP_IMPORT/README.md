@@ -639,3 +639,15 @@ AP214 表示名称，排除纯 ASCII 特殊用途；转义、控制字节、未�
 `part.source_shapes`，聚合角色为 `MaterialSolidCollection`。原生集合构建尚未实现：
 导入器在任何原生分配之前以 `GeneralMaterialCollectionNotImplemented` 拒绝完整请求，
 不会取第一件、最大件或把实体默默合并。单体路径保持原行为；源检查成功不计入原生导入成功。
+
+
+显式 `Options.reportEncoding=ReportEncoding::CompactV2`／CLI
+`--compact-source-report` 选择无损紧凑源报告，仅用于 general 路径。原格式仍为默认。
+原生报告以 `source_report_encoding=CompactV2` 标明选择，嵌入的语义/原始层分别采用
+`step-semantics.attributes.v2` 和 `step-source.spans.v2`：共用重复属性说明，原始输入
+保留一次，重复原文片段由原字节区间还原。字段重声明、单位、原始数值、来源身份、
+诊断和验收字段均保留；展开规则见相应组件 README。调用者必须识别新的嵌套格式。
+
+该选项不改变报告容量、几何预算、验收、取消、两次报告生成或最终原子提交；不在
+失败后自动切换。紧凑报告仍超限时不发布模型或部分 JSON。它改善报告表达，不授予
+任何新几何能力；多实体构建未实现时仍返回明确的 Unsupported。

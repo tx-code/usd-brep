@@ -147,6 +147,11 @@ struct TopologyNormalizationInfo
     std::vector<TargetVertexOrigin> vertices;
     bool sourceCurveIntervalsCovered = false, sourceVerticesPreserved = false, completed = false;
 };
+enum class ReportEncoding
+{
+    ExpandedV1,
+    CompactV2
+};
 struct Options
 {
     step_source::Limits sourceLimits{};
@@ -164,6 +169,7 @@ struct Options
     step_source::CarrierInterpretation carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
     std::optional<NumericalIntegrationSettings> numericalIntegration; // Explicit general-only control; absent retains legacy 1e-4.
     bool normalizePeriodicFaces = false; // Equivalent target topology/chart only; never source repair or automatic tolerance growth.
+    ReportEncoding reportEncoding = ReportEncoding::ExpandedV1; // Explicit lossless encoding; never an automatic budget fallback.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -424,6 +430,7 @@ struct ParameterMapping
 };
 struct Report
 {
+    ReportEncoding encoding = ReportEncoding::ExpandedV1;
     bool generalBrep = false;
     bool supportDomainRestrictionRequested = false;
     std::optional<NumericalIntegrationObservation> numericalIntegration; // Explicit requests only; survives failure without a model.

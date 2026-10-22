@@ -3,12 +3,162 @@
 #include "StepSemanticReport.h"
 
 #include <algorithm>
+#include <map>
+#include <tuple>
 
 namespace step_semantics
 {
 namespace
 {
 using step_source::report::Writer;
+
+// Attribute metadata is schema-bound; record position and source span are not.
+// Compare every redeclaration/nested aggregate qualifier by content. Catalog
+// address placement cannot affect dictionary identity or the emitted report.
+void AttributeFields(Writer& out, const AttributeView& view, bool first)
+{
+    out.Add(first ? "\"name\":" : ",\"name\":");
+    out.String(view.name);
+    out.Add(",\"declared_in\":");
+    out.String(view.declaredIn);
+    out.Add(",\"declared_type\":");
+    out.String(view.declaredType);
+    out.Add(",\"redeclared_by\":");
+    out.String(view.redeclaredBy);
+    out.Add(",\"optional\":");
+    out.Add(view.optional ? "true" : "false");
+    out.Add(",\"derived_slot\":");
+    out.Add(view.derivedSlot ? "true" : "false");
+    out.Add(",\"aggregate\":");
+    out.String(view.aggregate);
+    out.Add(",\"minimum\":");
+    out.Number(view.minimum);
+    out.Add(",\"maximum\":");
+    if (view.maximum)
+    {
+        out.Number(*view.maximum);
+    }
+    else
+    {
+        out.Add("null");
+    }
+    out.Add(",\"unique_elements\":");
+    out.Add(view.uniqueElements ? "true" : "false");
+    if (!view.nestedAggregates.empty())
+    {
+        out.Add(",\"nested_aggregates\":[");
+        for (std::size_t d = 0; d < view.nestedAggregates.size(); ++d)
+        {
+            const auto& dimension = view.nestedAggregates[d];
+            if (d)
+            {
+                out.Add(",");
+            }
+            out.Add("{\"aggregate\":");
+            out.String(dimension.aggregate);
+            out.Add(",\"minimum\":");
+            out.Number(dimension.minimum);
+            out.Add(",\"maximum\":");
+            if (dimension.maximum)
+            {
+                out.Number(*dimension.maximum);
+            }
+            else
+            {
+                out.Add("null");
+            }
+            out.Add(",\"unique_elements\":");
+            out.Add(dimension.uniqueElements ? "true" : "false");
+            out.Add("}");
+        }
+        out.Add("]");
+    }
+}
+auto AttributeMetadata(const AttributeView& v)
+{
+    return std::tuple(
+        v.name,
+        v.declaredIn,
+        v.declaredType,
+        v.redeclaredBy,
+        v.optional,
+        v.derivedSlot,
+        v.aggregate,
+        v.minimum,
+        v.maximum,
+        v.uniqueElements
+    );
+}
+struct AttributeKey
+{
+    explicit AttributeKey(const AttributeView& view) : metadata(AttributeMetadata(view)), nested(view.nestedAggregates)
+    {
+    }
+    bool operator<(const AttributeKey& other) const
+    {
+        if (metadata != other.metadata)
+        {
+            return metadata < other.metadata;
+        }
+        return std::lexicographical_compare(
+            nested.begin(),
+            nested.end(),
+            other.nested.begin(),
+            other.nested.end(),
+            [](const auto& a, const auto& b)
+            {
+                return std::tuple(a.aggregate, a.minimum, a.maximum, a.uniqueElements) <
+                       std::tuple(b.aggregate, b.minimum, b.maximum, b.uniqueElements);
+            }
+        );
+    }
+    decltype(AttributeMetadata(std::declval<AttributeView>())) metadata;
+    std::span<const AggregateDimension> nested; // Immutable catalog storage; compare content, never addresses.
+};
+class AttributeDictionary
+{
+public:
+
+    std::size_t Intern(AttributeView view)
+    {
+        const auto key = AttributeKey(view);
+        if (const auto found = m_ids.find(key); found != m_ids.end())
+        {
+            return found->second;
+        }
+        // Closed registered catalogs have a finite descriptor population. Bound
+        // auxiliary storage independently of input record count and report bytes.
+        if (m_views.size() == 65536)
+        {
+            throw std::length_error("ReportAttributeDictionaryLimit");
+        }
+        const auto id = m_views.size();
+        view.value = nullptr; // Never intern a value/span or infer it from another record.
+        m_views.push_back(view);
+        m_ids.emplace(key, id);
+        return id;
+    }
+    void Write(Writer& out) const
+    {
+        out.Add(",\"attribute_descriptors\":[");
+        for (std::size_t i = 0; i < m_views.size(); ++i)
+        {
+            if (i)
+            {
+                out.Add(",");
+            }
+            out.Add("{");
+            AttributeFields(out, m_views[i], true);
+            out.Add("}");
+        }
+        out.Add("]");
+    }
+
+private:
+
+    std::map<decltype(AttributeKey(std::declval<AttributeView>())), std::size_t> m_ids;
+    std::vector<AttributeView> m_views; // IDs are first occurrence order, never map/address iteration order.
+};
 
 void Scale(Writer& out, int power)
 {
@@ -206,9 +356,17 @@ void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelecti
     out.Add("}");
 }
 
-void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, const Outcome& result)
+void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, const Outcome& result, Encoding encoding)
 {
-    out.Add("{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":");
+    if (encoding != Encoding::ExpandedV1 && encoding != Encoding::AttributeDictionaryV2)
+    {
+        throw std::invalid_argument("Unknown semantic report encoding");
+    }
+    out.Add(
+        encoding == Encoding::AttributeDictionaryV2 ?
+            "{\"format_version\":\"step-semantics.attributes.v2\",\"scope\":\"SinglePartTypesSI\",\"status\":" :
+            "{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":"
+    );
     out.String(StatusName(result.status));
     out.Add(",\"deferred_reason\":");
     if (result.status == Status::Deferred)
@@ -232,7 +390,11 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.Add("null");
     }
     out.Add(",\"source\":");
-    step_source::report::WriteJson(out, source);
+    step_source::report::WriteJson(
+        out,
+        source,
+        encoding == Encoding::AttributeDictionaryV2 ? step_source::report::Encoding::SpanReferencesV2 : step_source::report::Encoding::ExpandedV1
+    );
     out.Add(",\"schema_selection\":");
     WriteSchemaSelection(out, result.schemaSelection);
     if (result.requestedInterpretation != SchemaInterpretation::DeclaredOnly)
@@ -320,6 +482,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     else
     {
         const auto& data = *result.snapshot;
+        AttributeDictionary dictionary;
         out.Add("{\"schema\":{\"name\":");
         out.String(data.SchemaIdentity().name);
         out.Add(",\"oid\":[");
@@ -390,61 +553,14 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
                     out.Number(c);
                     out.Add(",\"parameter_index\":");
                     out.Number(p);
-                    out.Add(",\"name\":");
-                    out.String(view.name);
-                    out.Add(",\"declared_in\":");
-                    out.String(view.declaredIn);
-                    out.Add(",\"declared_type\":");
-                    out.String(view.declaredType);
-                    out.Add(",\"redeclared_by\":");
-                    out.String(view.redeclaredBy);
-                    out.Add(",\"optional\":");
-                    out.Add(view.optional ? "true" : "false");
-                    out.Add(",\"derived_slot\":");
-                    out.Add(view.derivedSlot ? "true" : "false");
-                    out.Add(",\"aggregate\":");
-                    out.String(view.aggregate);
-                    out.Add(",\"minimum\":");
-                    out.Number(view.minimum);
-                    out.Add(",\"maximum\":");
-                    if (view.maximum)
+                    if (encoding == Encoding::AttributeDictionaryV2)
                     {
-                        out.Number(*view.maximum);
+                        out.Add(",\"descriptor\":");
+                        out.Number(dictionary.Intern(view));
                     }
                     else
                     {
-                        out.Add("null");
-                    }
-                    out.Add(",\"unique_elements\":");
-                    out.Add(view.uniqueElements ? "true" : "false");
-                    if (!view.nestedAggregates.empty())
-                    {
-                        out.Add(",\"nested_aggregates\":[");
-                        for (std::size_t d = 0; d < view.nestedAggregates.size(); ++d)
-                        {
-                            const auto& dimension = view.nestedAggregates[d];
-                            if (d)
-                            {
-                                out.Add(",");
-                            }
-                            out.Add("{\"aggregate\":");
-                            out.String(dimension.aggregate);
-                            out.Add(",\"minimum\":");
-                            out.Number(dimension.minimum);
-                            out.Add(",\"maximum\":");
-                            if (dimension.maximum)
-                            {
-                                out.Number(*dimension.maximum);
-                            }
-                            else
-                            {
-                                out.Add("null");
-                            }
-                            out.Add(",\"unique_elements\":");
-                            out.Add(dimension.uniqueElements ? "true" : "false");
-                            out.Add("}");
-                        }
-                        out.Add("]");
+                        AttributeFields(out, view, false);
                     }
                     out.Add(",\"span\":");
                     out.Range(view.value->span);
@@ -454,6 +570,10 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             out.Add("]}");
         }
         out.Add("]");
+        if (encoding == Encoding::AttributeDictionaryV2)
+        {
+            dictionary.Write(out);
+        }
         if (result.policy == SourcePolicy::PreserveNonGeometric)
         {
             out.Add(",\"unattached_non_geometric_declarations\":");

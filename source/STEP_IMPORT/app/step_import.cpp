@@ -113,6 +113,10 @@ int main(int argc, char** argv)
                     throw std::invalid_argument("Unsupported explicit quality identifier");
                 }
             }
+            else if (arg == "--compact-source-report")
+            {
+                options.reportEncoding = step_import::ReportEncoding::CompactV2;
+            }
             else if (arg == "--interop-nongeometric")
             {
                 options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;

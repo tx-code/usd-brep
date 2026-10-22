@@ -237,3 +237,14 @@ assumption. It does not establish equality between two opaque names, reference
 ownership, valid source STRING semantics, or permission to bypass a typed check.
 This policy is unsuitable for stateful encodings, byte-dropping decoders, or
 transliterating/normalizing interpretations. Reports mark encoding unverified.
+
+
+Internal report composition may explicitly select `report::Encoding::SpanReferencesV2`.
+`step-source.spans.v2` retains the complete `input.raw` byte string and all original
+half-open byte spans, parsed values, decoded text, identities, reference edges,
+locations and diagnostics. It omits only redundant `raw` members on records,
+components and values. Recover each omitted fragment from the captured bytes at
+`[span[0], span[1])`. `input.raw` uses byte-preserving JSON escapes: decode its
+code points 0..255 back to individual bytes before slicing; UTF-8 re-encoding the
+JSON string or slicing decoded STEP `text` is incorrect. Failed captures and null
+source graphs retain their existing meaning. Default `InspectJson` stays v1.

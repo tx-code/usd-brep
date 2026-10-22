@@ -867,7 +867,7 @@ void OpaqueHeaderContract(const std::filesystem::path& source)
         }
     );
 }
-void OpaqueDataContract(const std::filesystem::path& source, bool asciiInvariant = false)
+void OpaqueDataContract(const std::filesystem::path& source, bool asciiInvariant = false, bool compact = false)
 {
     std::ifstream input(source, std::ios::binary);
     std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
@@ -881,6 +881,10 @@ void OpaqueDataContract(const std::filesystem::path& source, bool asciiInvariant
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
     options.dataStringPolicy = asciiInvariant ? step_source::DataStringPolicy::PreserveAsciiInvariantBytes :
                                                 step_source::DataStringPolicy::PreserveOpaqueBytes;
+    if (compact)
+    {
+        options.reportEncoding = step_import::ReportEncoding::CompactV2;
+    }
     auto result = step_import::ImportBytes(text, options);
     Require(
         result.status == (asciiInvariant ? step_import::Status::AcceptedUnderInterpretation : step_import::Status::Accepted) && result.model,
@@ -1480,7 +1484,8 @@ void DevelopmentContract(
     std::optional<double> integrationAccuracy = {},
     bool normalizePeriodic = false,
     bool headerText = false,
-    bool asciiInvariant = false
+    bool asciiInvariant = false,
+    bool compactReport = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1535,6 +1540,10 @@ void DevelopmentContract(
     {
         Require(!interpret, "choose one schema interpretation");
         options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
+    }
+    if (compactReport)
+    {
+        options.reportEncoding = step_import::ReportEncoding::CompactV2;
     }
     auto result = step_import::ImportFile(source, options);
     std::filesystem::create_directories(directory);
@@ -1751,7 +1760,7 @@ int main(int argc, char** argv)
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
-                 lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false;
+                 lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false, compactReport = false;
             std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
@@ -1771,10 +1780,15 @@ int main(int argc, char** argv)
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
                         flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
                         flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex" ||
-                        flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text" || flag == "--assume-ascii-invariant-data",
+                        flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text" ||
+                        flag == "--assume-ascii-invariant-data" || flag == "--compact-source-report",
                     "unknown explicit source flag"
                 );
-                if (flag == "--assume-ascii-invariant-data")
+                if (flag == "--compact-source-report")
+                {
+                    compactReport = true;
+                }
+                else if (flag == "--assume-ascii-invariant-data")
                 {
                     asciiInvariant = true;
                 }
@@ -1831,7 +1845,8 @@ int main(int argc, char** argv)
                 integrationAccuracy,
                 normalizePeriodic,
                 headerText,
-                asciiInvariant
+                asciiInvariant,
+                compactReport
             );
             return 0;
         }
@@ -1859,6 +1874,7 @@ int main(int argc, char** argv)
         OpaqueHeaderContract(argv[1]);
         OpaqueDataContract(argv[1]);
         OpaqueDataContract(argv[1], true);
+        OpaqueDataContract(argv[1], true, true);
         InterpretationContract(argv[1]);
         CarrierContract(argv[1], argv[2]);
         LifecycleContract(argv[1], argv[2]);
