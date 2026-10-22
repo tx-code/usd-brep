@@ -63,8 +63,8 @@ An exact cylinder with circular rims split at non-axis-aligned angles exposed
 `GeneralUnexpectedToleranceGrowth` under the native import development quality.
 See the [public analytic regression](tools/step_import_native_validation/tests/test_projection_tolerance.py).
 
-**Workaround:** native STEP import now preprojects partial CIRCLE edges on
-CYLINDRICAL_SURFACE through a bounded surface projection, avoiding this retry
+**Workaround:** native STEP import now preprojects partial CIRCLE and nonclosed
+B-spline edges on CYLINDRICAL_SURFACE through a bounded surface projection, avoiding this retry
 path when a single checked UV candidate is available. Other callers and cases
 remain affected. Retain the final native working-tolerance budget check and
 reject an excessive candidate. Do not reset the stored tolerance or enlarge the

@@ -1763,10 +1763,15 @@ private:
                     }
                     const auto index = static_cast<Index>(found - m_model->edges.begin());
                     if (index >= curves.size() || curves[index].v0 == curves[index].v1 ||
-                        !(Is(curves[index].geometry, "CIRCLE") || (coneProjection && Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS"))))
+                        !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS")))
                     {
                         continue;
                     }
+                    // Rational spline arcs on cylinders need the same bounded
+                    // drop as circles/cone splines. Legacy UV retry may enlarge
+                    // edge tolerance even for an exact on-surface source curve.
+                    // Keep the defining spline and its parameter interval; a
+                    // single paired candidate must satisfy the unchanged budget.
                     const auto tolerance = SmTol::GetZoneTol3d(edge);
                     auto projected = ProjectDerivedUv(*uses[k], Q(m_options.quality.derivedUvMm), [&] { Step(f.record); });
                     Need(SmTol::GetZoneTol3d(edge) == tolerance, "GeneralProjectionChangedWorkTolerance", f.record);
@@ -1787,7 +1792,9 @@ private:
                     // Preserve the defining curve and its native parameter t.
                     // Face closure/seam handling and final paired measurements
                     // still run below, followed by global topology/tolerance checks.
-                    const char* kind = coneProjection ? "ControlledConeUvProjection" : "ControlledCircleUvProjection";
+                    const char* kind = coneProjection ? "ControlledConeUvProjection" :
+                                       Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
+                                                                                              "ControlledCircleUvProjection";
                     RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, index };
                     for (const auto& loop : f.loops)
                     {
