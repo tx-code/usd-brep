@@ -207,7 +207,7 @@ class SceneLoader(QtCore.QObject):
                 raise ValueError("WorkerFailedOrCrashed")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if (not isinstance(manifest, dict)
-                    or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3"}):
+                    or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3", "brep-view-scene.v4"}):
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -218,6 +218,16 @@ class SceneLoader(QtCore.QObject):
                 return
             import pyvista as pv
             import numpy as np
+            if manifest['format'] == 'brep-view-scene.v4':
+                from .collection import read_collection
+                mesh, boundary, topology = read_collection(directory, manifest, scene_file)
+                metadata = dict(manifest, _topology=topology)
+                self.worker_result['topology_inventory'] = dict(faces=len(topology.faces), edges=len(topology.edges),
+                    vertices=len(topology.vertices), bodies=len(topology.bodies), face_labels_complete=topology.face_labels_complete)
+                self.progress.emit(Progress('render'))
+                if generation == self.generation and not job['stopped']:
+                    self.loaded.emit(str(job['path']), mesh, boundary, metadata)
+                return
             mesh = pv.read(scene_file(directory, manifest["mesh"]))
             if (not isinstance(mesh, pv.PolyData) or not mesh.n_cells or mesh.n_cells > 2000000
                     or mesh.n_points > 6000000 or not np.isfinite(mesh.points).all()):

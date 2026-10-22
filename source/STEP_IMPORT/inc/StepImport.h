@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 class SmBrep;
@@ -526,6 +527,13 @@ struct CollectionOutcome
     std::shared_ptr<const MaterialCollectionSnapshot> collection;
     Report report;
 };
+using PartModel = std::variant<std::monostate, std::shared_ptr<const ModelSnapshot>, std::shared_ptr<const MaterialCollectionSnapshot>>;
+struct PartOutcome
+{
+    Status status = Status::BuildFailure;
+    PartModel part;
+    Report report;
+};
 class EditableBrep
 {
 public:
@@ -552,6 +560,10 @@ Outcome ImportFile(const std::filesystem::path& path, const Options& options);
 // Explicit whole material collection. Every selected MSB must pass; no partial body result.
 CollectionOutcome ImportMaterialCollectionBytes(std::string bytes, const Options& options);
 CollectionOutcome ImportMaterialCollectionFile(const std::filesystem::path& path, const Options& options);
+// Canonical one-part dispatch: source is read/checked once, then single or collection
+// ownership is selected from the checked inventory. Accepted results hold exactly one alternative.
+PartOutcome ImportPartFile(const std::filesystem::path& path, const Options& options);
+PartOutcome ImportPartBytes(std::string bytes, const Options& options);
 // Invalid options throw std::invalid_argument; allocation failure is not a qualified recoverable outcome.
 const char* StatusName(Status status);
 const char* MaterialPointClassName(MaterialPointClass classification);

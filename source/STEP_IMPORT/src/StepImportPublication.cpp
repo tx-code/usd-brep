@@ -21,10 +21,14 @@ Publication::Publication(const Options& options, CollectionOutcome& outcome, con
       m_collectionSink(&outcome.collection)
 {
 }
+Publication::Publication(const Options& options, PartOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution)
+    : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_partSink(&outcome.part)
+{
+}
 void Publication::Accept(std::shared_ptr<ModelData> candidate)
 {
     m_candidate = std::move(candidate);
-    if (!m_modelSink)
+    if (!m_modelSink && !m_partSink)
     {
         throw std::logic_error("SinglePublicationTargetRequired");
     }
@@ -33,7 +37,7 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
 }
 void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates)
 {
-    if (!m_collectionSink)
+    if (!m_collectionSink && !m_partSink)
     {
         throw std::logic_error("CollectionPublicationTargetRequired");
     }
@@ -87,7 +91,20 @@ void Publication::FinishAccept()
     // Publication contract: docs/design/step-import.md. After successful
     // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
-    if (m_collectionSink)
+    if (m_partSink)
+    {
+        static_assert(std::is_nothrow_assignable_v<PartModel&, decltype(m_prepared)>);
+        static_assert(std::is_nothrow_assignable_v<PartModel&, decltype(m_preparedCollection)>);
+        if (m_preparedCollection)
+        {
+            *m_partSink = std::move(m_preparedCollection);
+        }
+        else
+        {
+            *m_partSink = std::move(m_prepared);
+        }
+    }
+    else if (m_collectionSink)
     {
         *m_collectionSink = std::move(m_preparedCollection);
     }

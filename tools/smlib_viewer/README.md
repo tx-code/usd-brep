@@ -232,3 +232,28 @@ the HUD marks the text encoding unverified. An ASCII-only file does not acquire
 this marker merely because the option was requested. Deliver the updated worker
 and Python application modules together (the appended worker argument is rejected
 by older workers rather than silently ignored).
+
+
+## Material collections
+
+The native worker uses canonical `ImportPartFile`: one capture/check, followed by
+single-body or whole-collection dispatch from the checked source inventory.
+Single-body associated geometry retains its existing complete export. Multiple
+material bodies are independent native display copies; overlapping/coincident
+points are not welded. The application explicitly selects CompactV2 for its
+mandatory import report and retains the existing capacity setting.
+
+Collection scenes use `brep-view-scene.v4`. Every required body mesh, boundary
+and topology sidecar must validate before scene adoption. Root counts and
+cumulative mesh, boundary, topology and measurement budgets cover all bodies.
+Missing/corrupt later bodies cannot replace a previous scene with a partial one.
+The GUI assembles display projections without a Boolean union. Body-local topology
+indices become globally unique display IDs, retaining body ordinal and local ID;
+the HUD identifies the selected body alongside native measurements. Two selected
+vertices can still measure world-mm distance across bodies. Picks remain display
+proxies, not live kernel ray queries or source STEP face/edge/vertex IDs.
+
+The HUD reports an entity collection and body count. Mesh bounds fit the entire
+scene. Scans and receipts retain native import qualification and whole-scene
+completion. Unsupported collection associated geometry and assembly transforms
+retain their native refusal; the viewer does not drop them or retry another path.

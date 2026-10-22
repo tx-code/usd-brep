@@ -192,6 +192,8 @@ class ViewerWindow(QtWidgets.QMainWindow):
             self.setWindowTitle(Path(filename).name + " — BRep Viewer")
             roles = {"MaterialSolid": "实体", "SurfaceModel": "表面模型", "Mesh": "网格"}
             role = roles.get(metadata.get("role"), "BRep")
+            if metadata.get('role') == 'MaterialSolidCollection':
+                role = f"实体集合 · {metadata['body_count']} 件"
             unit = "mm" if metadata.get("units") == "mm" else "单位未声明"
             dimensions = np.asarray(mesh.bounds)[1::2] - np.asarray(mesh.bounds)[::2]
             size = " × ".join(f"{value:.5g}" for value in dimensions)
@@ -343,15 +345,18 @@ class ViewerWindow(QtWidgets.QMainWindow):
             if info is None:
                 continue
             prefix = "选中" if (hit.kind, hit.id) in self.selected else "悬停"
+            local_id = info.local_id if info.local_id is not None else hit.id
+            if info.local_id is not None:
+                prefix += f" 实体 {info.body + 1} ·"
             if hit.kind == "vertex":
                 value = " · ".join(f"{coordinate:.7g}" for coordinate in info.point_mm)
-                lines.append(f"{prefix} 点 {hit.id}：({value}) mm")
+                lines.append(f"{prefix} 点 {local_id}：({value}) mm")
             else:
                 face = hit.kind == "face"
                 value = info.area_mm2 if face else info.length_mm
                 measure = (f"≈ {value:.7g} {'mm²' if face else 'mm'}" if value is not None
                            else f"不可用 ({info.measurement_status})")
-                lines.append(f"{prefix} {'面' if face else '边'} {hit.id}：{measure}")
+                lines.append(f"{prefix} {'面' if face else '边'} {local_id}：{measure}")
         if len(self.selected) == 2 and all(kind == "vertex" for kind, _ in self.selected):
             points = [self.picker.info(self.picker.resolve(kind, index)) for kind, index in self.selected]
             if all(point is not None for point in points):

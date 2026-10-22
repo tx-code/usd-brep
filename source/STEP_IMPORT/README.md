@@ -699,8 +699,7 @@ Current scope is body-only material collections in one part/common representatio
 context. Assembly transforms and collection-level associated wireframe/construction
 ownership remain unsupported. Mixed requests return
 `MaterialCollectionAssociatedGeometryUnimplemented` before constructing bodies;
-source surface models are never upgraded to material solids. The standalone viewer
-has not yet been switched to the collection API.
+source surface models are never upgraded to material solids. The standalone viewer uses canonical part dispatch for complete collection scenes.
 
 
 The reusable collection controls use public synthetic fixtures:
@@ -716,3 +715,13 @@ Collection contracts include exact defining coefficients and installed UV after
 native archive readback, independent copies, shared source shell identities,
 late/second-body cancellation, cumulative budgets, second-body failure and
 mandatory-report cleanup.
+
+
+`ImportPartFile/Bytes` returns `PartOutcome` with a typed `PartModel` variant:
+`monostate` on failure, an owning single `ModelSnapshot`, or an owning
+`MaterialCollectionSnapshot` on success. It requires the general path. Source
+capture/check runs once; the checked inventory selects the construction path.
+Single-body associated geometry keeps the existing owner/export behavior; multiple
+material bodies use the collection contract above. No retry/reparse or source
+interpretation fallback is introduced. Both publication alternatives are prepared
+before the one commit point; final variant ownership transfer is nonthrowing.

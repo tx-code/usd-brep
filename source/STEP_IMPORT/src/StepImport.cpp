@@ -209,6 +209,18 @@ Result Import(const Options& options, Capture capture)
             {
                 publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution));
             }
+            else if constexpr (std::is_same_v<Result, PartOutcome>)
+            {
+                if (checked.snapshot->PartDefinition().shapes.size() > 1)
+                {
+                    report.materialCollection = true;
+                    publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution));
+                }
+                else
+                {
+                    publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
+                }
+            }
             else
             {
                 publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
@@ -373,6 +385,51 @@ CollectionOutcome ImportMaterialCollectionFile(const std::filesystem::path& path
         {
             return step_source::InspectFile(
                 capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+PartOutcome ImportPartFile(const std::filesystem::path& path, const Options& options)
+{
+    const Options frozen = options;
+    const auto capturedPath = path;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Part import requires the general source path");
+    }
+    return Import<PartOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectFile(
+                capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        }
+    );
+}
+PartOutcome ImportPartBytes(std::string bytes, const Options& options)
+{
+    const Options frozen = options;
+    Validate(frozen);
+    if (!frozen.generalBrep)
+    {
+        throw std::invalid_argument("Part import requires the general source path");
+    }
+    return Import<PartOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectBytes(
+                std::move(bytes),
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,

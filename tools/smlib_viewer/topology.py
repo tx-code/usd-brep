@@ -3,7 +3,7 @@
 """Owning native display-copy identities and measurements, separate from tessellation."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 from pathlib import Path
@@ -26,6 +26,8 @@ class FaceInfo:
     id: int
     area_mm2: float | None
     measurement_status: str
+    body: int = 0
+    local_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,12 +35,28 @@ class EdgeInfo:
     id: int
     length_mm: float | None
     measurement_status: str
+    body: int = 0
+    local_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class VertexInfo:
     id: int
     point_mm: tuple[float, float, float]
+    body: int = 0
+    local_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BodyInfo:
+    id: int
+    source_shape_id: str
+    face_start: int
+    face_count: int
+    edge_start: int
+    edge_count: int
+    vertex_start: int
+    vertex_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +77,8 @@ class TopologyData:
     identity_scope: str = "NativeDisplayCopy"
     units: str = "mm"
     continuous_error_bound_established: bool = False
+    bodies: tuple[BodyInfo, ...] = ()
+    payload_bytes: int = field(default=0, repr=False, compare=False)
 
 
 def _object(pairs):
@@ -176,4 +196,5 @@ def read_topology(path: Path, mesh, boundary, manifest: Mapping) -> TopologyData
             raise ValueError("InvalidTopologyVertex")
         vertices.append(VertexInfo(entry["id"], tuple(_number(value) for value in point)))
     _display(mesh, boundary, manifest, len(faces), len(edges), source["face_labels_complete"])
-    return TopologyData(faces, edges, tuple(vertices), source["face_labels_complete"], area_accuracy, length_accuracy)
+    return TopologyData(faces, edges, tuple(vertices), source["face_labels_complete"], area_accuracy, length_accuracy,
+                        payload_bytes=len(payload))

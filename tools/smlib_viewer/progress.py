@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 
 LABELS = {
+    "bodies": "准备实体显示数据",
     "measure": "计算原生测量信息",
     "start": "启动导入进程", "capture": "读取文件", "check": "检查源模型", "build": "构建与验证 BRep",
     "report": "整理导入报告", "copy": "准备显示副本", "mesh": "生成显示网格",

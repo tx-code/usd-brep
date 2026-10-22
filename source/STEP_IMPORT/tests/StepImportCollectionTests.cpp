@@ -81,6 +81,26 @@ void RoundTrip(const MaterialCollectionSnapshot& collection, const std::filesyst
 }
 void Controls(const std::string& source, const std::filesystem::path& output)
 {
+    auto canonical = Config();
+    std::size_t captures = 0, checks = 0;
+    canonical.execution.progress = [&](Progress p)
+    {
+        captures += p.phase == Phase::BeforeCapture;
+        checks += p.phase == Phase::SemanticsChecked;
+    };
+    auto dispatched = ImportPartBytes(source, canonical);
+    const auto collectionAlternative = std::get_if<std::shared_ptr<const MaterialCollectionSnapshot>>(&dispatched.part);
+    Require(
+        dispatched.status == Status::Accepted && collectionAlternative && *collectionAlternative && captures == 1 && checks == 1,
+        "one canonical capture/check for material collection"
+    );
+    auto singleton = source.substr(0, source.find("#10021=")) + "ENDSEC;\nEND-ISO-10303-21;\n";
+    const auto list = singleton.find("'body',(#21,#10021)");
+    Require(list != std::string::npos, "canonical singleton fixture");
+    singleton.replace(list, std::string("'body',(#21,#10021)").size(), "'body',(#21)");
+    auto one = ImportPartBytes(singleton, Config());
+    const auto singleAlternative = std::get_if<std::shared_ptr<const ModelSnapshot>>(&one.part);
+    Require(one.status == Status::Accepted && singleAlternative && *singleAlternative, "single-body canonical dispatch");
     auto result = ImportMaterialCollectionBytes(source, Config());
     Require(result.status == Status::Accepted && result.collection && result.collection->BodyCount() == 2, "whole two-box collection");
     Require(result.report.bodies.size() == 2 && result.report.bodies[0].checksPassed && result.report.bodies[1].checksPassed, "all body checks");
@@ -128,6 +148,12 @@ void Controls(const std::string& source, const std::filesystem::path& output)
                 o.execution.control->RequestCancel();
             }
         };
+        const auto canonicalCancelled = ImportPartBytes(source, o);
+        Require(
+            canonicalCancelled.status == Status::Cancelled && std::holds_alternative<std::monostate>(canonicalCancelled.part),
+            "canonical cancellation publishes neither alternative"
+        );
+        o.execution.control = std::make_shared<ImportControl>();
         auto r = ImportMaterialCollectionBytes(source, o);
         Require(r.status == Status::Cancelled && !r.collection && r.report.candidateDiscarded, "late cancellation cleanup");
     }
@@ -277,6 +303,12 @@ int main(int argc, char** argv)
         Require(argc == 4, "fixtures and output required");
         std::filesystem::create_directories(argv[3]);
         Controls(Read(argv[1]), argv[3]);
+        auto linked = ImportPartFile(std::filesystem::path(argv[1]).parent_path() / "linked_wireframe.step", Config());
+        const auto linkedAlternative = std::get_if<std::shared_ptr<const ModelSnapshot>>(&linked.part);
+        Require(
+            linked.status == Status::Accepted && linkedAlternative && *linkedAlternative && !(*linkedAlternative)->Wireframes().empty(),
+            "canonical single-body associated geometry is complete"
+        );
         auto mixed = ImportMaterialCollectionBytes(Read(argv[2]), Config());
         Require(
             mixed.status == Status::Accepted && mixed.collection && mixed.collection->BodyCount() == 2,

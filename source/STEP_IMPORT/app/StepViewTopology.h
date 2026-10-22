@@ -13,18 +13,31 @@
 
 namespace step_view
 {
+struct DisplayBudget
+{
+    std::size_t meshPoints = 0, meshCells = 0, boundaryPoints = 0, boundaryCells = 0;
+    std::size_t faces = 0, edges = 0, vertices = 0, topologyBytes = 0;
+    std::optional<std::chrono::steady_clock::time_point> measurementDeadline;
+};
 // These indices identify live topology of THIS independent display copy, not
 // STEP entity IDs. Never infer them from triangle or tessellation-point order.
 class DisplayTopology
 {
 public:
 
-    explicit DisplayTopology(SmBrep& body)
+    explicit DisplayTopology(SmBrep& body, DisplayBudget* budget = nullptr)
     {
         body.GetFaces(m_faces);
         body.GetEdges(m_edges);
         body.GetVertices(m_vertices);
         Need(m_faces.GetSize() <= 100000 && m_edges.GetSize() <= 200000 && m_vertices.GetSize() <= 200000, "DisplayTopologyLimit");
+        if (budget)
+        {
+            budget->faces += m_faces.GetSize();
+            budget->edges += m_edges.GetSize();
+            budget->vertices += m_vertices.GetSize();
+            Need(budget->faces <= 100000 && budget->edges <= 200000 && budget->vertices <= 200000, "DisplayTopologyLimit");
+        }
         for (ULONG i = 0; i < m_faces.GetSize(); ++i)
         {
             m_faceIndices.emplace(m_faces[i], i);
@@ -55,13 +68,17 @@ public:
         Need(found != m_edgeIndices.end(), "DisplayEdgeProvenanceUnavailable");
         return found->second;
     }
-    void Write(const std::filesystem::path& output)
+    void Write(const std::filesystem::path& output, DisplayBudget* budget = nullptr)
     {
         std::string text;
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+        if (budget && !budget->measurementDeadline)
+        {
+            budget->measurementDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+        }
+        const auto deadline = budget ? *budget->measurementDeadline : std::chrono::steady_clock::now() + std::chrono::seconds(20);
         Need(
             Writer::Publish(
-                32 * 1024 * 1024,
+                32 * 1024 * 1024 - (budget ? budget->topologyBytes : 0),
                 text,
                 [&](Writer& writer)
                 {
@@ -144,6 +161,10 @@ public:
             ),
             "DisplayTopologyReportLimit"
         );
+        if (budget)
+        {
+            budget->topologyBytes += text.size();
+        }
         std::ofstream file(output / "topology.json", std::ios::binary);
         file << text;
         file.close();

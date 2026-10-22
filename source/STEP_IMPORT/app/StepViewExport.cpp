@@ -57,7 +57,7 @@ void Point(std::ostream& out, const SmPoint3d& p)
         Network(out, std::bit_cast<std::uint64_t>(v));
     }
 }
-void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triangles, std::size_t& points)
+void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triangles, std::size_t& points, step_view::DisplayBudget* budget = nullptr)
 {
     SmTessellationParams params;
     params.dChordHeightTol = .01; // Display mm, independent of import acceptance/work tolerances.
@@ -73,8 +73,14 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
     mesh->GetPolyFaces(faces);
     points = vertices.GetSize();
     triangles = faces.GetSize();
-    step_view::DisplayTopology topology(body);
+    step_view::DisplayTopology topology(body, budget);
     Good(points && triangles && triangles <= 2000000 && points <= std::size_t(INT32_MAX), "DisplayMeshLimit");
+    if (budget)
+    {
+        budget->meshPoints += points;
+        budget->meshCells += triangles;
+        Good(budget->meshPoints <= 6000000 && budget->meshCells <= 2000000, "DisplayMeshLimit");
+    }
     std::unordered_map<SmPolyVertex*, std::uint32_t> indices;
     indices.reserve(points);
     Progress("mesh-points", 0, points);
@@ -132,6 +138,12 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
         }
     }
     Good(samples.GetSize() <= std::size_t(INT32_MAX) && entries <= std::size_t(INT32_MAX), "DisplayBoundaryLimit");
+    if (budget)
+    {
+        budget->boundaryPoints += samples.GetSize();
+        budget->boundaryCells += lines;
+        Good(budget->boundaryPoints <= 6000000 && budget->boundaryCells <= 2000000, "DisplayBoundaryLimit");
+    }
     std::ofstream wire(output / "edges.vtk", std::ios::binary);
     Progress("boundary-points", 0, samples.GetSize());
     wire << "# vtk DataFile Version 3.0\nBRep boundary display samples\nBINARY\nDATASET POLYDATA\nPOINTS " << samples.GetSize() << " double\n";
@@ -174,8 +186,14 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
     wire.close();
     Good(bool(wire), "BoundaryWriteFailed");
     Progress("measure");
-    topology.Write(output);
+    topology.Write(output, budget);
 }
+struct BodyScene
+{
+    std::string directory, sourceShapeId;
+    step_import::Statistics info;
+    std::size_t triangles = 0, points = 0;
+};
 void Publish(
     const std::filesystem::path& output,
     const std::string& status,
@@ -191,7 +209,8 @@ void Publish(
     std::size_t reportMiB = 16,
     bool fileNameText = false,
     bool asciiInvariant = false,
-    bool asciiApplied = false
+    bool asciiApplied = false,
+    const std::vector<BodyScene>* bodyScenes = nullptr
 )
 {
     std::string json;
@@ -202,12 +221,15 @@ void Publish(
             [&](Writer& w)
             {
                 w.Add(
-                    info ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
-                           "{\"format\":\"brep-view-scene.v1\",\"status\":"
+                    bodyScenes ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
+                    info       ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
+                                 "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
+                w.Add(",\"import_report_encoding\":");
+                w.String(report.encoding == step_import::ReportEncoding::CompactV2 ? "CompactV2" : "ExpandedV1");
                 w.Add(",\"requested_schema_interpretation\":");
                 w.String(schema);
                 w.Add(",\"requested_carrier_interpretation\":");
@@ -246,7 +268,47 @@ void Publish(
                     w.Number(info->edges);
                     w.Add(",\"vertices\":");
                     w.Number(info->vertices);
-                    w.Add(",\"mesh\":\"mesh.vtk\",\"boundary\":\"edges.vtk\",\"units\":\"mm\"");
+                    w.Add(",\"units\":\"mm\"");
+                    if (!bodyScenes)
+                    {
+                        w.Add(",\"mesh\":\"mesh.vtk\",\"boundary\":\"edges.vtk\"");
+                    }
+                    else
+                    {
+                        w.Add(",\"body_count\":");
+                        w.Number(bodyScenes->size());
+                        w.Add(",\"body_scenes\":[");
+                        for (std::size_t i = 0; i < bodyScenes->size(); ++i)
+                        {
+                            if (i)
+                            {
+                                w.Add(",");
+                            }
+                            const auto& body = (*bodyScenes)[i];
+                            w.Add("{\"ordinal\":");
+                            w.Number(i);
+                            w.Add(",\"source_shape_id\":");
+                            w.String(body.sourceShapeId);
+                            w.Add(",\"format\":\"brep-view-scene.v3\",\"units\":\"mm\",\"auxiliary_required\":false,\"mesh\":");
+                            w.String(body.directory + "/mesh.vtk");
+                            w.Add(",\"boundary\":");
+                            w.String(body.directory + "/edges.vtk");
+                            w.Add(",\"topology\":");
+                            w.String(body.directory + "/topology.json");
+                            w.Add(",\"faces\":");
+                            w.Number(body.info.faces);
+                            w.Add(",\"edges\":");
+                            w.Number(body.info.edges);
+                            w.Add(",\"vertices\":");
+                            w.Number(body.info.vertices);
+                            w.Add(",\"triangles\":");
+                            w.Number(body.triangles);
+                            w.Add(",\"points\":");
+                            w.Number(body.points);
+                            w.Add("}");
+                        }
+                        w.Add("]");
+                    }
                 }
                 w.Add(",\"diagnostics\":[");
                 for (std::size_t i = 0; i < report.diagnostics.size() && i < 5; ++i)
@@ -301,7 +363,7 @@ int Run(
     Good(!strict || !fileNameText, "FileNameTextRequiresInteroperability");
     Good(!strict || !asciiInvariant, "AsciiInvariantDataRequiresInteroperability");
     bool asciiApplied = false;
-    step_import::Outcome result;
+    step_import::PartOutcome result;
     std::string nativeStatus; // Empty until the core actually returns an outcome.
     try
     {
@@ -390,14 +452,23 @@ int Run(
         }
         options.normalizePeriodicFaces = normalize;
         options.restrictUnusedSupportDomains = restrictDomain;
-        result = step_import::ImportFile(input, options);
-        asciiApplied = result.model && result.model->Source()->Source().HasAsciiInvariantDataAssumption();
+        // The application selects compact evidence; model acceptance and report
+        // capacity stay identical. Dispatch is based on the one checked source,
+        // not a second read or a retry after single-body failure.
+        options.reportEncoding = step_import::ReportEncoding::CompactV2;
+        result = step_import::ImportPartFile(input, options);
+        const auto singleAlternative = std::get_if<std::shared_ptr<const step_import::ModelSnapshot>>(&result.part);
+        const auto collectionAlternative = std::get_if<std::shared_ptr<const step_import::MaterialCollectionSnapshot>>(&result.part);
+        const auto model = singleAlternative ? *singleAlternative : nullptr;
+        const auto collection = collectionAlternative ? *collectionAlternative : nullptr;
+        asciiApplied = (model && model->Source()->Source().HasAsciiInvariantDataAssumption()) ||
+                       (collection && collection->Source()->Source().HasAsciiInvariantDataAssumption());
         nativeStatus = step_import::StatusName(result.status);
         std::ofstream report(output / "import-report.json", std::ios::binary);
         report << result.report.json;
         report.close();
         Good(bool(report), "ImportReportWriteFailed");
-        if (!result.model)
+        if (!model && !collection)
         {
             Publish(
                 output,
@@ -418,6 +489,53 @@ int Run(
             );
             return 1;
         }
+        if (collection)
+        {
+            step_view::DisplayBudget budget;
+            std::vector<BodyScene> scenes;
+            step_import::Statistics total;
+            total.shapeRole = "MaterialSolidCollection";
+            for (std::size_t i = 0; i < collection->BodyCount(); ++i)
+            {
+                Progress("bodies", i, collection->BodyCount());
+                auto body = collection->Body(i);
+                BodyScene scene{ "body-" + std::to_string(i), collection->SourceShapeId(i), body->Info(), 0, 0 };
+                const auto directory = output / scene.directory;
+                Good(std::filesystem::create_directory(directory), "DisplayBodyDirectoryFailed");
+                auto copy = body->CopyBrepForModeling();
+                Good(copy.status == step_import::Status::Accepted && bool(copy.model), "DisplayCopyFailed");
+                copy.model->Edit(
+                    [&](SmBrep& native)
+                    {
+                        Mesh(native, directory, scene.triangles, scene.points, &budget);
+                    }
+                );
+                total.faces += scene.info.faces;
+                total.edges += scene.info.edges;
+                total.vertices += scene.info.vertices;
+                scenes.push_back(std::move(scene));
+            }
+            Progress("bodies", collection->BodyCount(), collection->BodyCount());
+            Publish(
+                output,
+                "Ready",
+                "",
+                result.report,
+                &total,
+                budget.meshCells,
+                budget.meshPoints,
+                false,
+                nativeStatus,
+                schema,
+                carrier,
+                reportMiB,
+                fileNameText,
+                asciiInvariant,
+                asciiApplied,
+                &scenes
+            );
+            return 0;
+        }
         // CopyBrepForModeling explicitly selects the body component. Complete
         // CopyForModeling still refuses mixed requests; we retain the owning
         // source snapshot and export EVERY associated role before publication.
@@ -427,10 +545,10 @@ int Run(
                 Progress("auxiliary", completed, total);
             }
         );
-        const bool auxiliary = auxiliaryExport.Write(*result.model, output);
-        const auto info = result.model->Info();
+        const bool auxiliary = auxiliaryExport.Write(*model, output);
+        const auto info = model->Info();
         Progress("copy");
-        auto copy = result.model->CopyBrepForModeling();
+        auto copy = model->CopyBrepForModeling();
         Good(copy.status == step_import::Status::Accepted && bool(copy.model), "DisplayCopyFailed");
         std::size_t triangles = 0, points = 0;
         copy.model->Edit(
