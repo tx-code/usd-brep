@@ -220,7 +220,10 @@ class SceneLoader(QtCore.QObject):
             self.worker_result = {**manifest, "exit_code": code}
             if code != 0 or manifest.get("status") != "Ready":
                 messages = [f"{d['key']}: {d['message']}" for d in manifest.get("diagnostics", [])]
-                self.failed.emit("模型未能载入", "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))
+                classifications = {d.get('classification') for d in manifest.get('diagnostics', [])}
+                title = ("面环方向检查未通过" if classifications == {'NativeFaceLoopOrientationFailure'}
+                         else "模型未能载入")
+                self.failed.emit(title, "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))
                 return
             import pyvista as pv
             import numpy as np

@@ -2604,7 +2604,25 @@ private:
             }
             message += "\n";
         }
-        throw Failure{ Status::PostcheckFailure, key, message, shape, "GeneralBrep" };
+        Failure failure{ Status::PostcheckFailure, key, message, shape, "GeneralBrep" };
+        // ValidatePointers also invokes SmTrimmingTools::CheckFace. Its
+        // sTrimmingCheckFace_list/SM_LIST_2 predicate 3 is geometric loop
+        // orientation, not a broken pointer. Match reporter, list, owner and
+        // predicate through the native identity API, never message parsing or
+        // a bare test index. Mixed/unrecorded findings remain unclassified;
+        // orientation evidence alone cannot authorize repair or blame source.
+        bool orientationOnly = reports.GetSize() > 0 && reports.GetSize() <= 128;
+        for (ULONG i = 0; orientationOnly && i < reports.GetSize(); ++i)
+        {
+            const auto problem = reports[i];
+            orientationOnly = problem->GetOwnerType() == SmFace_TYPE && problem->GetListIndex() == SM_LIST_2 &&
+                              problem->IsThisReport(problem->GetOwner(), 3, SmTrimmingTools_TYPE, problem->GetOwner(), nullptr);
+        }
+        if (orientationOnly)
+        {
+            failure.nativeKind = NativeFailureKind::FaceLoopOrientation;
+        }
+        throw failure;
     }
     void ObserveTolerances()
     {

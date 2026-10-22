@@ -253,6 +253,23 @@ class TopologyAdoptionTests(unittest.TestCase):
                          self.loader.worker_result["topology_inventory"])
         self.assertFalse(path.exists(), "The complete scene must own its data after worker cleanup")
 
+    def test_known_face_orientation_refusal_has_a_precise_caption_and_retains_prior_scene(self):
+        generation, _, _ = self.request()
+        self.loader._adopt(generation, 0)
+        previous = self.loaded[-1]
+        for classification, title in (('NativeFaceLoopOrientationFailure', '面环方向检查未通过'),
+                                      (None, '模型未能载入')):
+            generation, path, manifest = self.request()
+            manifest.update(status='PostcheckFailure', key='ImportFailed', diagnostics=[dict(
+                key='GeneralPointerValidation', message='Synthetic native refusal', classification=classification)])
+            self.write_manifest(path, manifest)
+            self.loader._adopt(generation, 1)
+            self.assertEqual(title, self.failed[-1][0])
+            self.assertIn('GeneralPointerValidation', self.failed[-1][1])
+            self.assertIs(previous, self.loaded[-1])
+            self.assertEqual(1, len(self.loaded))
+            self.assertFalse(path.exists())
+
     def test_legacy_v1_and_required_auxiliary_v2_remain_compatible(self):
         for version, auxiliary in (("v1", False), ("v2", True)):
             with self.subTest(version=version):

@@ -52,6 +52,36 @@ void Near(double actual, double expected, double tolerance, const char* message)
 {
     Require(std::isfinite(actual) && std::abs(actual - expected) <= tolerance, message);
 }
+void OrientationFailureContract(const std::filesystem::path& fixture)
+{
+    std::ifstream stream(fixture, std::ios::binary);
+    std::string source{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+    const auto face = source.find("ADVANCED_FACE(");
+    const auto end = source.find(");", face);
+    const auto sense = source.rfind(".T.", end);
+    Require(face != std::string::npos && end != std::string::npos && sense != std::string::npos && sense > face, "public box face sense");
+    // One source declaration conflicts with the independently authored box's
+    // outward surface/loop orientation. Geometry, bounds and edge uses stay
+    // unchanged; this is a refusal/diagnostic control, not an implicit repair.
+    source.replace(sense, 3, ".F.");
+    auto options = step_import::Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = step_import::Quality::GeneralDevelopment();
+    const auto result = step_import::ImportBytes(source, options);
+    Require(
+        result.status == step_import::Status::PostcheckFailure && !result.model && result.report.candidateDiscarded,
+        "wrong face sense remains an atomic native refusal"
+    );
+    Require(
+        result.report.diagnostics.size() == 1 && result.report.diagnostics[0].source.key == "GeneralPointerValidation" &&
+            result.report.diagnostics[0].classification == "NativeFaceLoopOrientationFailure",
+        "geometric predicate is distinct from the legacy validator entry key"
+    );
+    Require(
+        result.report.source && result.report.source->Bytes() == source && !result.report.deepReports,
+        "source remains immutable and unexecuted deep checks stay unexecuted"
+    );
+}
 double Dot(step_import::Point a, step_import::Point b)
 {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -1847,6 +1877,7 @@ int main(int argc, char** argv)
             Require(refused, "frozen work-study identity cannot hide different budgets");
         }
         GaugeContract();
+        OrientationFailureContract(argv[1]);
         FinalTrimContract();
         DerivedUvEndpointContract();
         RationalContract(argv[1], argv[2]);

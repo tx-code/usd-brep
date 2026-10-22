@@ -1,5 +1,14 @@
 # STEP_IMPORT（内部 C++20）
 
+通用后验诊断可附带 `classification=NativeFaceLoopOrientationFailure`。
+它表示完整已记录的失败集合仅含 `SmTrimmingTools::CheckFace` 的面环方向谓词；
+`ValidatePointers` 同时运行几何检查，原 `GeneralPointerValidation` 入口键不能用来断言
+存在断指针。匹配依据为原生报告的 reporter／list／owner／predicate 身份，不解析消息文本。
+混合、未知或超过有界明细范围的失败集合保持原分类。原状态、入口键、消息、检查顺序、
+未运行检查标记、预算和候选清理保持；成功报告字节不增加字段。
+新字段同样计入原有必需报告字节上限；报告不足仍拒绝发布。
+这只是目标检查观察，不能据此断言源错误、授予修复许可或忽略失败。严格路径继续 `Repair=None`。
+
 通用文件入口 `ImportModelFile/Bytes` 捕获、检查源一次，按已资格化清单返回
 `FileOutcome.model` 的单体、单定义实体集合或独立多定义文档 alternative。
 单定义继续使用既有构建路径，保留其全部附属线框／支撑几何；多定义复用下述文档构建。

@@ -257,6 +257,10 @@ void Publication::Diagnostic(const Failure& failure)
     {
         diagnostic.classification = "ExecutionFailure";
     }
+    if (failure.status == Status::PostcheckFailure && failure.nativeKind == NativeFailureKind::FaceLoopOrientation)
+    {
+        diagnostic.classification = "NativeFaceLoopOrientationFailure";
+    }
     diagnostic.responsibility = failure.stage == "Execution" ? "in-process cooperative execution" :
                                                                "native candidate preparation/construction/postcheck; Repair=None";
     if (failure.record && report.source)

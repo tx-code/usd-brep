@@ -6,12 +6,19 @@
 namespace step_import::detail
 {
 using ExactPoint = step_planar::Vector;
+// An observed target predicate, never a source-invalid or repair verdict.
+enum class NativeFailureKind
+{
+    Unclassified,
+    FaceLoopOrientation
+};
 struct Failure
 {
     Status status;
     std::string key, message;
     std::optional<std::size_t> record;
     std::string stage = "D5";
+    NativeFailureKind nativeKind = NativeFailureKind::Unclassified;
 };
 struct VertexPlan
 {

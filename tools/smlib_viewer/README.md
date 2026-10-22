@@ -30,6 +30,12 @@ after the complete scene is displayed, then hides after a short delay.
 Failure/cancellation stops it at zero,
 shows the reason and retains any previous scene with its original filename.
 
+A native refusal classified as `NativeFaceLoopOrientationFailure` is captioned
+as a failed face-loop orientation check. The original status, validator entry
+key and diagnostic message remain available. This does not identify the source
+as invalid, authorize repair or imply a broken pointer; mixed/unknown findings
+keep the generic failure caption. The previous accepted scene remains intact.
+
 ## Input and quality scope
 
 STEP/STP uses the native importer with an explicitly selected development preview

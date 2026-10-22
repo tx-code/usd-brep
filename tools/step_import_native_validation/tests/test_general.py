@@ -188,6 +188,23 @@ class GeneralTests(unittest.TestCase):
         self.assertEqual(0, result["native_calls"])
         self.assertEqual("GeneralRequiresMaterialSolid", result["diagnostics"][-1]["key"])
 
+    def test_wrong_face_sense_reports_orientation_without_changing_the_refusal_contract(self):
+        raw = (CORPUS / "S203-P04/input.step").read_bytes()
+        source = raw.replace(b"#507=ADVANCED_FACE('',(#506),#504,.T.);",
+                             b"#507=ADVANCED_FACE('',(#506),#504,.F.);", 1)
+        self.assertNotEqual(raw, source)
+        run, result = self.invoke_bytes(source)
+        self.assertEqual(9, run.returncode)
+        self.assertEqual('PostcheckFailure', result['status'])
+        self.assertIsNone(result['model'])
+        self.assertEqual('None', result['repair'])
+        self.assertTrue(result['candidate_discarded'])
+        self.assertIsNone(result['validations']['level2_reports'])
+        diagnostic = result['diagnostics'][0]
+        self.assertEqual('GeneralPointerValidation', diagnostic['key'])
+        self.assertEqual('NativeFaceLoopOrientationFailure', diagnostic['classification'])
+        self.assertEqual(source.decode('ascii'), result['source_inspection']['source']['input']['raw'])
+
     def test_tight_bounds_include_curved_face_interior_extrema(self):
         data = bulged_box_source()
         run, result = self.invoke_bytes(data)

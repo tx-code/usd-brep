@@ -761,6 +761,11 @@ void WriteReportJson(
             w.String(d.source.recordId);
             w.Add(",\"stage\":");
             w.String(d.source.stage);
+            if (d.classification == "NativeFaceLoopOrientationFailure")
+            {
+                w.Add(",\"classification\":");
+                w.String(d.classification);
+            }
             w.Add(",\"message\":");
             w.String(d.source.message);
             w.Add("}");
