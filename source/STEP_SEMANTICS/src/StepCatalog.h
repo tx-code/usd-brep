@@ -267,7 +267,8 @@ struct SemanticData
         OpaqueAdministrativeLabel,
         DistinctApplicationContexts,
         ContextApplicationProtocols,
-        ForeignRealItem
+        ForeignRealItem,
+        N916RepresentationCaption
     };
     struct PendingIssue
     {

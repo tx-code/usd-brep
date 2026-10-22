@@ -934,25 +934,28 @@ private:
                     catch (Failure& failure)
                     {
                         const auto& issue = failure.diagnostic;
-                        // REPRESENTATION.name is excluded: Product() still uses
-                        // it for the project's special-purpose exclusion. Unknown
-                        // text cannot silently satisfy that check as "".
+                        // AP214/N2635 representation names remain purpose-sensitive.
+                        // Modified N916 has no corresponding name predicates;
+                        // its separate proof must establish selected ownership.
                         const bool display = (issue.declaredIn == "PRODUCT" && (issue.field == "id" || issue.field == "name")) ||
                                              (issue.declaredIn == "PRESENTATION_LAYER_ASSIGNMENT" && issue.field == "name");
                         const bool partIdentity = issue.field == "id" &&
                                                   (issue.declaredIn == "PRODUCT_DEFINITION_FORMATION" || issue.declaredIn == "PRODUCT_DEFINITION");
                         const bool shapeCaption = issue.declaredIn == "REPRESENTATION_ITEM" && issue.field == "name" &&
                                                   (IsA(*m_data, r, "MANIFOLD_SOLID_BREP") || OpaqueTopologyCaption(r));
+                        const bool n916Representation = m_data->profile.kind == ProfileKind::Ap203N916Source &&
+                                                        issue.declaredIn == "REPRESENTATION" && issue.field == "name";
                         const bool administrative = OpaqueAdministrativeField(issue.declaredIn, issue.field);
                         const bool listElement = administrative && OpaqueAdministrativeList(issue.declaredIn, issue.field);
                         if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                            !(display || partIdentity || shapeCaption || administrative) || path.size() != (listElement ? 2u : 1u))
+                            !(display || partIdentity || shapeCaption || administrative || n916Representation) || path.size() != (listElement ? 2u : 1u))
                         {
                             throw;
                         }
                         const auto proof = display      ? SemanticData::PreservationProof::OpaqueDisplayText :
                                            partIdentity ? SemanticData::PreservationProof::OpaquePartIdentity :
                                            shapeCaption ? SemanticData::PreservationProof::OpaqueShapeCaption :
+                                           n916Representation ? SemanticData::PreservationProof::N916RepresentationCaption :
                                                           SemanticData::PreservationProof::OpaqueAdministrativeLabel;
                         Preserve(std::move(failure), proof);
                     }
@@ -2167,16 +2170,32 @@ private:
         }
         if (FieldValue(m_representation, "name").text == "centre of mass" || FieldValue(m_representation, "name").text == "treatment result")
         {
-            FieldFailure(
-                "UnsupportedRepresentationPurpose",
-                "D2",
-                "Special representation purpose is not supported",
-                FieldValue(m_representation, "name").span,
-                Status::Unsupported,
-                m_representation,
-                "name",
-                FieldDetail::AttributePath
-            );
+            try
+            {
+                FieldFailure(
+                    "UnsupportedRepresentationPurpose",
+                    "D2",
+                    "Special representation purpose is not supported",
+                    FieldValue(m_representation, "name").span,
+                    Status::Unsupported,
+                    m_representation,
+                    "name",
+                    FieldDetail::AttributePath
+                );
+            }
+            catch (Failure& failure)
+            {
+                // Preserve the existing strict profile diagnostic. The fixed
+                // modified N916 artifact (020b4d25...) REPRESENTATION has only
+                // a label/items/context declaration; unlike AP214's named
+                // purpose rules, it does not constrain items by this label.
+                if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                    m_data->profile.kind != ProfileKind::Ap203N916Source)
+                {
+                    throw;
+                }
+                Preserve(std::move(failure), SemanticData::PreservationProof::N916RepresentationCaption);
+            }
         }
         const auto& categories = Population("PRODUCT_RELATED_PRODUCT_CATEGORY");
         if (categories.size() > 1)
@@ -3678,6 +3697,30 @@ private:
                                                                                }
                                                                            ))
                 {
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
+            if (issue.proof == SemanticData::PreservationProof::N916RepresentationCaption)
+            {
+                // Only the selected body's representation or its proven SDR
+                // definition representation is a caption here. Do not turn an
+                // orphan, property representation or unknown profile into a
+                // geometry root, or infer a character encoding from its bytes.
+                const bool selectedRepresentation = std::any_of(
+                    m_data->part.roles.begin(), m_data->part.roles.end(), [&](const auto& role)
+                    {
+                        return role.recordIndex == record &&
+                               (role.name == "representation" || role.name == "definition_representation");
+                    });
+                const auto& value = FieldValue(record, "name");
+                const auto span = issue.diagnostic.source.primary;
+                if (m_data->profile.kind != ProfileKind::Ap203N916Source || m_data->geometryScope != GeometryScope::GeneralBrep ||
+                    issue.diagnostic.field != "name" || issue.diagnostic.declaredIn != "REPRESENTATION" ||
+                    !selectedRepresentation || (value.kind != ValueKind::OpaqueString && value.kind != ValueKind::String) ||
+                    value.span.begin != span.begin || value.span.end != span.end)
+                {
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
                     throw Failure{ issue.status, std::move(issue.diagnostic) };
                 }
                 continue;

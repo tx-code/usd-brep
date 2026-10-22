@@ -945,3 +945,15 @@ The closure is computed once with ordinary visit/cancellation accounting;
 new registered types do not automatically acquire this exception. Defining
 attributes, orphan checks and preservation/report budgets still apply. Strict
 and planar paths are unchanged. Representation purpose names remain excluded.
+
+For the fixed modified N916 profile only, explicit general nongeometric
+interoperability may preserve the selected body/SDR definition representation's
+`REPRESENTATION.name` as unavailable text, with its original diagnostic. The
+pinned artifact `020b4d25...` declares a label but has no AP214
+`restrict_centre_of_mass_representation` or `restrict_treatment_result` rules.
+Known spellings of those names may likewise retain the old strict profile
+refusal as a diagnostic in this mode. This is a profile-specific interpretation,
+not a guessed encoding or a change to AP214 purpose rules. Strict/P0 behavior,
+orphan/part selection, geometry, units, visit and report budgets remain checked.
+Only the approved selected representation roles qualify; another representation
+cannot become a geometry root through an opaque name. Source bytes are immutable.
