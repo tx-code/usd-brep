@@ -1278,6 +1278,10 @@ SmValidityCheckType eCheckFailed ;
   SmFace          *pF           = pFU->GetFace();
   SmSurface       *pSurface     = pF->GetSurface();
   const SmContext *pContext     = pF->GetContext();
+  const SmBrep    *pBrepForTolerancePolicy = pF->GetBrep();
+  // A retry may relax its local projection accuracy to obtain a candidate,
+  // but validation/no-adjust callers still own the working-tolerance budget.
+  const SmBoolean bAdjustTolerances = !pBrepForTolerancePolicy || !pBrepForTolerancePolicy->m_bValidateOnly;
   SmExtent2d       sFaceDomain  = pF->GetUVDomain();
   SmCurve         *pCurve       = SM_CAST_PTR( SmCurve, pEdge->GetCurve() );
 
@@ -2289,7 +2293,7 @@ SmValidityCheckType eCheckFailed ;
 
           // If we had to use a bigger tolerance, update the Edge's tolerance
           // according to the actual gaps.
-          if ( ii > 1 )
+          if ( ii > 1 && bAdjustTolerances )
             {
               double dError = ( pdMaxDeviation == NULL )
                                   ? rdMaxDistToSurf
@@ -2488,7 +2492,7 @@ SmValidityCheckType eCheckFailed ;
 
           // If we had to use a bigger tolerance, update the Edge's tolerance
           // according to the actual gaps.
-          if ( ii > 1 )
+          if ( ii > 1 && bAdjustTolerances )
             {
               double dError = ( pdMaxDeviation == NULL )
                                   ? rdMaxDistToSurf
@@ -4456,7 +4460,7 @@ SmStatus SmEdgeuse::RebuildUVTrimCurve()
 /*******************************************************************//**
 PURPOSE: Set edgeuse's UVTrimCurve and UVTrimCurve's Owner, 
          calc and cache max Edge/FaceTrimCurve gap, and
-           if (GetBrep()->m_bValidateOnly == TRUE)
+           if (GetBrep()->m_bValidateOnly == FALSE)
              and if needed, increase the edgeuse->edge's tolerance to 
                             2 times the given dMaxDistanceToSurface.
 NOTES:

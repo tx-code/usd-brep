@@ -8063,6 +8063,16 @@ SmStatus SmFace::CreateUVTrimCurves
   double                          & rdMaxPSCurveCurveGap   // out: max     UVTrimCurve/CCW_UVTrimCurve 2D gap
 ) const                           
 {
+  // A no-adjust request covers projection and UV installation too: both can
+  // otherwise enlarge edge tolerances (and cascade to vertices) before the
+  // checks below. Reuse the Brep's scoped validation policy, preserving an
+  // enclosing no-adjust operation and restoring it on every return/error.
+  SmBoolean bDetachedValidateOnly = FALSE;
+  SmBrep* pBrepForTolerancePolicy = GetBrep();
+  SmBoolean& bValidateOnly = pBrepForTolerancePolicy ? pBrepForTolerancePolicy->m_bValidateOnly : bDetachedValidateOnly;
+  if (bValidateOnly) { bAdjustTolerances = FALSE; }
+  SmTemporaryChangeValue<SmBoolean> tolerancePolicy(bValidateOnly, bAdjustTolerances ? bValidateOnly : TRUE);
+
   // init outputs
   double dMeanCSGap   = 0.0;
   double dMaxCSGap    = 0.0;

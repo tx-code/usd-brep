@@ -93,6 +93,14 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_compile_definitions(step_import_surface_proof_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
     add_test(NAME step_import_surface_proof_contracts COMMAND step_import_surface_proof_tests)
+    add_executable(step_import_uv_tolerance_tests tests/StepImportUvToleranceTests.cpp)
+    target_link_libraries(step_import_uv_tolerance_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_uv_tolerance_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_uv_tolerance_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_uv_tolerance_contracts COMMAND step_import_uv_tolerance_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/split_circle_projection_cylinder.step")
+    set_tests_properties(step_import_uv_tolerance_contracts PROPERTIES TIMEOUT 30)
     add_executable(step_import_general_tests tests/StepImportGeneralTests.cpp)
     target_link_libraries(step_import_general_tests PRIVATE STEP_IMPORT)
     target_include_directories(step_import_general_tests PRIVATE src)

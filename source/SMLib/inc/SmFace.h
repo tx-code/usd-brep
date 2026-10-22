@@ -613,6 +613,8 @@ public:
 
   // create or attach UVTrimCurves to face->Edgeuses, optionally
   // increase face->edge and face->vertex tolerances to include measured gaps 
+  // FALSE preserves working tolerances through projection retries and UV
+  // installation; measured gaps are still returned for the caller to check.
   #define CreateTrimCurves CreateUVTrimCurves
   SmStatus CreateUVTrimCurves
   (
