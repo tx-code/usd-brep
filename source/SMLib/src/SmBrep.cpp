@@ -20804,7 +20804,9 @@ SmBoolean bDebugMe = FALSE ;
 
   // pass the call along
   SmHealData sHealData ;
-  sHealData.HealBrep(this, eHealerOp, pOptVertices, pOptEdges, pOptFaces, bMakeUVTrimCurves) ;
+  // Healing is in-place, so failure can leave partial edits. Preserve that
+  // failure for callers instead of reporting the incomplete sequence as success.
+  SER(sHealData.HealBrep(this, eHealerOp, pOptVertices, pOptEdges, pOptFaces, bMakeUVTrimCurves)) ;
 
 #ifdef SM_DEBUG_CODE
 SmBoolean bDumpHealResults = FALSE ;              

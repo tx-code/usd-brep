@@ -1240,7 +1240,9 @@ SmBoolean bDebugMe = FALSE ;
 
       // run the heal sequence up to this eThruHealerOp on all the new Targets
       //   The heal sequence is setup to only run on the new tgts when m_lOldFaceCnt, m_lOldEdgeCnt, and/or m_lOldVertexCnt are Greater than 0
-      m_lRecursionCount++ ;
+      // Catch-up can fail just like the outer sequence. Restore depth together
+      // with the saved stage and target offsets on every exit.
+      SmTemporaryChangeValue<ULONG> sChangeRecursionCount(m_lRecursionCount, m_lRecursionCount + 1) ;
 #ifdef SM_DEBUG_CODE
       if(bDebugLog)
         { 
@@ -1257,7 +1259,7 @@ SmBoolean bDebugMe = FALSE ;
 #endif // SM_DEBUG_CODE
 
       // run recursive healing on New Tgts
-      HealTgts(eThruHealerOp, FALSE) ; // FALSE = don't rebuild UVTrimCurves - doesn't matter, ThruHealerOp < SM_HO_MAKE_UVTRIMCURVES
+      SER(HealTgts(eThruHealerOp, FALSE)) ; // FALSE = don't rebuild UVTrimCurves - doesn't matter, ThruHealerOp < SM_HO_MAKE_UVTRIMCURVES
 
 #ifdef SM_DEBUG_CODE
       if(bDebugLog)
@@ -1273,7 +1275,6 @@ SmBoolean bDebugMe = FALSE ;
           smos_WriteBuffer(_T("\n***\n")) ;
         }
 #endif // SM_DEBUG_CODE
-      if(m_lRecursionCount > 0) { m_lRecursionCount-- ; }
 
 #ifdef SM_DEBUG_CODE
       if(bDebugMe)
@@ -4374,7 +4375,9 @@ SmBoolean bDebugThisFaceIndx = FALSE ;
                 NULL,                               ///< [out]: New SeamEdges added if any, only with bOkToSplit==TRUE  <br>    
                 NULL,                               ///< [out]: New Vertices added at the Seam if any, only with bOkToSplit==TRUE  <br>          
                 pThisFaceProps) ;                   ///< [in] : optional FaceProps to save time, NULL to ignore, default:[NULL]  <br>   
-          SM_ASSERT(sRtn == SM_SUCCESS) ;
+          // A failed seam move must stop this sequence before later stages use
+          // an unchanged or partially edited face as if the repair succeeded.
+          SER(sRtn) ;
 
           // when changes were made - rebuild ThisFaceProps (updates stale cache vals and sees if any probs remain)
           if(eMoveSeamResult_U != SM_FSP_NO_CHANGES || eMoveSeamResult_V != SM_FSP_NO_CHANGES)
@@ -5416,7 +5419,7 @@ SmBoolean bDebugThisFaceIndx = FALSE ;
 #endif // SM_DEBUG_CODE
                                                   
           // Insert the MissingSeam Edge segments into the Face - may split a face one or more times
-          pThisFace->SplitAtSeam(*pThisFaceProps->m_pCrvClassU,      // in : ConstU_Seam from HasSeamProblem() output(bTgtLoopsOnly==FALSE), NULL = execute HasSeamProblem() in pBrep call 
+          SER(pThisFace->SplitAtSeam(*pThisFaceProps->m_pCrvClassU,      // in : ConstU_Seam from HasSeamProblem() output(bTgtLoopsOnly==FALSE), NULL = execute HasSeamProblem() in pBrep call
                                  *pThisFaceProps->m_pCrvClassV,      // in : ConstV_Seam from HasSeamProblem() output(bTgtLoopsOnly==FALSE), NULL = execute HasSeamProblem() in pBrep call 
                                  pThisFaceProps->m_eBadCrossedSeam,  // in : from HasSeamProblem() output(bTgtLoopsOnly==FALSE), not used when pOptCrvClass == NULL 
                                                                      //    : SM_SP_U       = periodic U bndry seam crossed by Face->Edges                 
@@ -5437,7 +5440,7 @@ SmBoolean bDebugThisFaceIndx = FALSE ;
                                 &sThisNewFaces,                      // out: NewFaces made by splitting if any.  (does not include this face)    
                                  NULL,                               // out: Edges Added at the Seam if any.  
                                  NULL,                               // out: Vertices Added at the Seam if any.
-                                 pThisFaceProps) ;                   // in : optional pre-cached set of this-Face properites, NULL to ignore
+                                 pThisFaceProps)) ;                   // in : optional pre-cached set of this-Face properites, NULL to ignore
                               
           // when Face is split - pThisFaceProps is now obsolete and should be on the sTopologyChanges RmList
           SM_ASSERT_MSG(sTopologyChanges.IsInRmList(pThisFace) == TRUE, _T("SmHealData::Fix_SplitFaceAtSeams bad assumption: ChangeTracker RmList does not contain split Face - needs debug")) ;

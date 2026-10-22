@@ -18159,13 +18159,15 @@ static constexpr SmBoolean bUseJGU = FALSE ;
       sm_RemoveSuspectSplitAtSeamUVTrimCurves(pCrvClassU) ; 
 
       // Merge rCrvClassU Ivls into Face - fixes both Missing Seams and EdgeCrossings
-      pCrvClassU->MergeIntervals(&sThisNewFaces,    // out: list of new faces, NULL to ignore.
+      // Insertion can fail after some topology edits; preserve its error and
+      // let the caller discard or inspect the partially modified model.
+      SER(pCrvClassU->MergeIntervals(&sThisNewFaces,    // out: list of new faces, NULL to ignore.
                                                     //      When an existing face is split into 2
                                                     //      the oldFace is reused and 1 newFace is
                                                     //      created and placed on this list.
                                  &sThisNewEdges,    // out: list of new edges, NULL to ignore
                                  &sThisNewVertices, // out: list of new vertices, NULL to ignore
-                                 this) ;            // in : pointer to original face - used for debug display only
+                                 this)) ;            // in : pointer to original face - used for debug display only
 
        // when only MergingU accumulate output
       if(bMergeV == FALSE) 
@@ -18220,7 +18222,7 @@ static constexpr SmBoolean bUseJGU = FALSE ;
           if(bHasSeamProblem)
             {
               // Insert ConstVSeam Ivls into ThisFace
-              SplitAtSeam(sThisCrvClassU, 
+              SER(SplitAtSeam(sThisCrvClassU,
                           sThisCrvClassV,
                           eThisCrossedSeam,
                           eThisMissingSeam,
@@ -18228,7 +18230,7 @@ static constexpr SmBoolean bUseJGU = FALSE ;
                           &sThisNewFaces2,
                           &sThisNewEdges2, 
                           &sThisNewVertices2,
-                          pOptFaceProps) ;
+                          pOptFaceProps)) ;
 
               // when asked - accumulate output - don't add this Face twice
               if(pOptNewFaces) { pOptNewFaces->Append(sThisNewFaces2) ; }
@@ -18249,10 +18251,10 @@ static constexpr SmBoolean bUseJGU = FALSE ;
       sm_RemoveSuspectSplitAtSeamUVTrimCurves(pCrvClassV) ; 
 
       // Merge rCrvClassV Ivls into Face - fixes both Missing Seams and EdgeCrossings
-      pCrvClassV->MergeIntervals(&sThisNewFaces, 
+      SER(pCrvClassV->MergeIntervals(&sThisNewFaces,
                                  &sThisNewEdges,
                                  &sThisNewVertices,
-                                 this) ;
+                                 this)) ;
     
       // accumulate output
       if(pOptNewFaces)     { pOptNewFaces->Append(sThisNewFaces) ; }

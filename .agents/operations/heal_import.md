@@ -36,6 +36,12 @@ repair are unimplemented. Uncontained-edge handling only adjusts cached state. B
 remains disabled because its classification and repair are unreliable. A successful return does not
 establish that every defect was repaired; validate the resulting topology and geometry.
 
+Failed seam movement/insertion and failed recursive property refresh propagate through
+`SmBrep::HealBrep` and `SmApiHealBrep`. Python's existing status check raises `RuntimeError` for
+these failures. Healing is in-place: earlier changes can remain after an error, so heal a copy
+when the original must be preserved. Some other stages still discard errors; see
+[known issues](../../KNOWN_ISSUES.md).
+
 **Design notes:**
 - For programmatically created geometry (using SM_API primitives and booleans), healing is usually unnecessary — the kernel produces clean geometry.
 - Healing is most valuable for imported geometry from external sources.
