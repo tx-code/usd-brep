@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Reproduction and reduction contracts for the exploration tool."""
 import copy
+from pathlib import Path
 import unittest
 
 import explore
@@ -47,6 +48,10 @@ class ExplorationTests(unittest.TestCase):
             case[field] = value
             with self.assertRaises(ValueError):
                 explore.validate(case)
+
+    def test_frozen_source_does_not_claim_a_parent_checkout_revision(self):
+        self.assertEqual(explore.repository_context(Path(__file__).resolve().parent),
+                         {"revision": None, "working_changes": None})
 
 
 if __name__ == "__main__":

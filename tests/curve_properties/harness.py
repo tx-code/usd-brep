@@ -224,7 +224,8 @@ def check(case, observed):
         for axis in range(3):
             lo = min(p[axis] for p in case["points"])
             hi = max(p[axis] for p in case["points"])
-            if observed["bounds"][0][axis] < lo - bounds_tolerance or observed["bounds"][1][axis] > hi + bounds_tolerance:
+            if (observed["bounds"][0][axis] < lo - bounds_tolerance
+                    or observed["bounds"][1][axis] > hi + bounds_tolerance):
                 raise PropertyFailure("positive_weight_hull", {"axis": axis})
     for side in range(2):
         if expected_bounds is not None:

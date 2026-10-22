@@ -53,6 +53,8 @@ add_test(NAME curve_property_oracles COMMAND "${Python3_EXECUTABLE}" -m unittest
     -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_harness.py -v)
 add_test(NAME curve_property_exploration_contracts COMMAND "${Python3_EXECUTABLE}" -m unittest discover
     -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_explore.py -v)
+add_test(NAME curve_property_mutation_contracts COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+    -s "${CMAKE_CURRENT_SOURCE_DIR}" -p test_mutations.py -v)
 # Exploration attests the co-located DLL; imported standalone SDKs can use check
 # and their existing runtime path without making an unverifiable loader claim.
 if(CURVE_HARNESS_BUILD_KERNEL OR NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)

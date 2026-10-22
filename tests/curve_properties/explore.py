@@ -170,7 +170,8 @@ def digest(path):
 def identity(probe):
     # Require a co-located kernel instead of guessing which DLL a system PATH loads.
     kernels = [path for path in probe.parent.iterdir()
-               if path.name.lower() == "smlib.dll" or path.name.startswith("libSMLib.so") or path.name == "libSMLib.dylib"]
+               if path.name.lower() == "smlib.dll" or path.name.startswith("libSMLib.so")
+               or path.name == "libSMLib.dylib"]
     if not kernels:
         raise ValueError("exploration requires a co-located SMLib runtime; use the isolated kernel build")
     return {str(path.resolve()): digest(path) for path in [probe, *kernels]}
@@ -178,6 +179,22 @@ def identity(probe):
 
 def write(path, data):
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
+
+
+def repository_context(root):
+    try:
+        result = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root, capture_output=True, text=True)
+    except FileNotFoundError:
+        return {"revision": None, "working_changes": None}
+    if result.returncode or Path(result.stdout.strip()).resolve() != root.resolve():
+        # An exported snapshot can live inside another checkout or outside Git.
+        # Its manifest owns source identity; a parent checkout's HEAD does not.
+        return {"revision": None, "working_changes": None}
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                              capture_output=True, text=True, check=True).stdout.strip()
+    status = subprocess.run(["git", "status", "--short"], cwd=root,
+                            capture_output=True, text=True, check=True).stdout
+    return {"revision": revision, "working_changes": status}
 
 
 def evaluate(probe, case, timeout):
@@ -218,10 +235,8 @@ def main():
     probe = args.probe.resolve()
     native_identity = identity(probe)
     root = Path(__file__).resolve().parents[2]
-    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
-    status = subprocess.run(["git", "status", "--short"], cwd=root, capture_output=True, text=True, check=True).stdout
     source_identity = {str(path.relative_to(root)): digest(path) for path in Path(__file__).parent.glob("*.py")}
-    provenance = {"revision": revision, "working_changes": status, "binaries": native_identity,
+    provenance = {**repository_context(root), "binaries": native_identity,
                   "harness": source_identity, "python": sys.version, "platform": sys.platform,
                   "timeout_seconds": args.timeout}
     if args.command == "run":

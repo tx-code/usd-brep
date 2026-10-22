@@ -19,7 +19,9 @@ namespace
 void Require(bool condition, const char* stage)
 {
     if (!condition)
+    {
         throw std::runtime_error(stage);
+    }
 }
 double Read()
 {
@@ -53,7 +55,9 @@ void Evaluate(const SmCurve& curve, double parameter, SmBoolean fromLeft = FALSE
     for (int i = 0; i < 3; ++i)
     {
         if (i)
+        {
             std::cout << ',';
+        }
         Point(result[i]);
     }
     std::cout << ']';
@@ -88,7 +92,7 @@ void Run()
         {
             const double x = Read(), y = Read(), z = Read(), weight = Read();
             Require(weight > 0, "positive_weight");
-            points.push_back({x * weight, y * weight, z * weight, weight});
+            points.push_back({ x * weight, y * weight, z * weight, weight });
         }
         std::vector<double> knots;
         knots.insert(knots.end(), degree + 1, first);
@@ -105,9 +109,13 @@ void Run()
         const SmVector3d x = frameValue == 0 ? SmVector3d(1, 0, 0) : SmVector3d(.6, .8, 0);
         const SmVector3d y = frameValue == 0 ? SmVector3d(0, 1, 0) : SmVector3d(-.48, .36, .8);
         if (kind == "circle")
+        {
             curve.reset(new (context) SmCircle(center, x, y, SmExtent1d(0, 360), a, 3, &context));
+        }
         else
+        {
             curve.reset(new (context) SmEllipse(center, x, y, SmExtent1d(0, 360), a, b, 3, &context));
+        }
         Require(curve->EditParameterization(SmExtent1d(first, last)) == SM_SUCCESS, "initial_domain_edit");
     }
     std::vector<double> samples;
@@ -124,14 +132,17 @@ void Run()
     const auto domain = curve->GetNaturalInterval();
     std::vector<SmExtent1d> intervals;
     if (kind == "bezier")
+    {
         intervals.emplace_back(domain.Evaluate(lower), domain.Evaluate(upper));
+    }
     else
     {
         SmTArray<SmExtent1d> native;
-        Require(curve->ConvertIvlFromSTEPToNURBS(SmExtent1d(360 * lower, 360 * upper), native) == SM_SUCCESS,
-                "angular_interval_conversion");
+        Require(curve->ConvertIvlFromSTEPToNURBS(SmExtent1d(360 * lower, 360 * upper), native) == SM_SUCCESS, "angular_interval_conversion");
         for (ULONG i = 0; i < native.GetSize(); ++i)
+        {
             intervals.push_back(native[i]);
+        }
     }
     Require(!intervals.empty(), "nonempty_intervals");
     // Query before editing to exercise any populated bounding/evaluation caches.
@@ -172,7 +183,9 @@ void Run()
     for (std::size_t i = 0; i < samples.size(); ++i)
     {
         if (i)
+        {
             std::cout << ',';
+        }
         const double t = domain.Evaluate(samples[i]);
         std::cout << "{\"value\":";
         Evaluate(*curve, t);
@@ -196,7 +209,7 @@ void Run()
     }
     std::cout << "]}\n";
 }
-}
+} // namespace
 int main()
 {
     std::cin.imbue(std::locale::classic());
