@@ -28,7 +28,7 @@ void Publication::Accept(std::shared_ptr<ModelData> candidate)
         // prepared model remains the authoritative owner of both assumptions.
         const auto semantic = m_prepared->Source();
         interpreted = semantic->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
-                      semantic->Source().AppliedCarrierAssumption() != nullptr;
+                      semantic->Source().AppliedCarrierAssumption() != nullptr || semantic->Source().HasAsciiInvariantDataAssumption();
     }
     m_outcome.status = interpreted ? Status::AcceptedUnderInterpretation : Status::Accepted;
     m_execution.Check(Phase::BeforeReport);

@@ -109,14 +109,15 @@ void Validate(const Options& options)
     // of selecting a geometry quality. Strict/P0 requests never relax carriers.
     if (options.headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii &&
         ((options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveOpaqueBytes &&
-          options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveFileNameText) || !options.generalBrep ||
-         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+          options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveFileNameText) ||
+         !options.generalBrep || options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
     {
         throw std::invalid_argument("Opaque HEADER name requires explicit general interoperability");
     }
     if (options.dataStringPolicy != step_source::DataStringPolicy::StrictAscii &&
-        (options.dataStringPolicy != step_source::DataStringPolicy::PreserveOpaqueBytes || !options.generalBrep ||
-         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+        ((options.dataStringPolicy != step_source::DataStringPolicy::PreserveOpaqueBytes &&
+          options.dataStringPolicy != step_source::DataStringPolicy::PreserveAsciiInvariantBytes) ||
+         !options.generalBrep || options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
     {
         throw std::invalid_argument("Opaque DATA text requires explicit general interoperability");
     }

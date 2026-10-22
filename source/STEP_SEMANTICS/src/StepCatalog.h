@@ -268,7 +268,8 @@ struct SemanticData
         DistinctApplicationContexts,
         ContextApplicationProtocols,
         ForeignRealItem,
-        N916RepresentationCaption
+        N916RepresentationCaption,
+        AsciiInvariantRepresentationPurpose
     };
     struct PendingIssue
     {

@@ -867,7 +867,7 @@ void OpaqueHeaderContract(const std::filesystem::path& source)
         }
     );
 }
-void OpaqueDataContract(const std::filesystem::path& source)
+void OpaqueDataContract(const std::filesystem::path& source, bool asciiInvariant = false)
 {
     std::ifstream input(source, std::ios::binary);
     std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
@@ -879,9 +879,13 @@ void OpaqueDataContract(const std::filesystem::path& source)
     options.generalBrep = true;
     options.quality = step_import::Quality::GeneralDevelopment();
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
-    options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+    options.dataStringPolicy = asciiInvariant ? step_source::DataStringPolicy::PreserveAsciiInvariantBytes :
+                                                step_source::DataStringPolicy::PreserveOpaqueBytes;
     auto result = step_import::ImportBytes(text, options);
-    Require(result.status == step_import::Status::Accepted && result.model, "opaque DATA native import");
+    Require(
+        result.status == (asciiInvariant ? step_import::Status::AcceptedUnderInterpretation : step_import::Status::Accepted) && result.model,
+        "opaque DATA native import"
+    );
     Near(*result.model->MaterialVolumeMm3(), 6000, 1e-5, "unknown product text preserves analytic box");
     auto snapshot = result.report.generalSource->snapshot;
     const auto product = std::find_if(
@@ -893,7 +897,9 @@ void OpaqueDataContract(const std::filesystem::path& source)
                              }
     )->recordIndex;
     auto field = snapshot->Field(product, "id");
+    const auto retainedFace = result.model->Face();
     result = {};
+    Require(retainedFace.HasAsciiInvariantDataAssumption() == asciiInvariant, "DATA assumption survives model result release");
     Require(field.Value().kind == step_source::ValueKind::OpaqueString && field.Value().text.empty(), "text is unavailable, not decoded");
     Require(snapshot->Source().Raw(field.Value().span) == raw && snapshot->Source().Bytes() == text, "owning original DATA bytes");
     auto cancelled = options;
@@ -1473,7 +1479,8 @@ void DevelopmentContract(
     bool lowercaseHex = false,
     std::optional<double> integrationAccuracy = {},
     bool normalizePeriodic = false,
-    bool headerText = false
+    bool headerText = false,
+    bool asciiInvariant = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1494,6 +1501,10 @@ void DevelopmentContract(
     if (opaqueDataText)
     {
         options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+    }
+    if (asciiInvariant)
+    {
+        options.dataStringPolicy = step_source::DataStringPolicy::PreserveAsciiInvariantBytes;
     }
     options.quality = study ? step_import::Quality::GeneralToleranceStudy() : step_import::Quality::GeneralDevelopment();
     if (workStudy)
@@ -1532,7 +1543,12 @@ void DevelopmentContract(
     report.close();
     const bool schemaAssumed = result.model && result.model->Source()->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly;
     const bool carrierAssumed = result.model && result.model->Source()->Source().AppliedCarrierAssumption();
-    const bool assumed = schemaAssumed || carrierAssumed;
+    const bool dataAssumed = result.model && result.model->Source()->Source().HasAsciiInvariantDataAssumption();
+    const bool assumed = schemaAssumed || carrierAssumed || dataAssumed;
+    if (result.model)
+    {
+        Require(result.model->Face().HasAsciiInvariantDataAssumption() == dataAssumed, "owning face retains DATA interpretation");
+    }
     Require(
         result.status == (assumed ? step_import::Status::AcceptedUnderInterpretation : step_import::Status::Accepted) && bool(result.model),
         "development native import"
@@ -1675,6 +1691,10 @@ void DevelopmentContract(
     Near(queryDistance, distance, 1e-5, "archive boundary distance preserved");
     std::ofstream checks(directory / "checks.json", std::ios::binary);
     checks << std::setprecision(17) << "{\"status\":\"Passed\"";
+    if (dataAssumed)
+    {
+        checks << ",\"data_string_interpretation\":\"PreserveAsciiInvariantBytes\",\"data_encoding_verified\":false";
+    }
     if (schemaAssumed)
     {
         checks << ",\"source_interpretation\":\"" << step_semantics::SchemaInterpretationName(result.model->Source()->AppliedInterpretation())
@@ -1731,7 +1751,7 @@ int main(int argc, char** argv)
         if (argc >= 5 && std::string_view(argv[1]) == "--development-file")
         {
             bool header = false, data = false, interpret = false, restrictSupport = false, workStudy = false, carrier = false, nameOnly = false,
-                 lowercaseHex = false, normalizePeriodic = false, headerText = false;
+                 lowercaseHex = false, normalizePeriodic = false, headerText = false, asciiInvariant = false;
             std::optional<double> integrationAccuracy;
             for (int i = 5; i < argc; ++i)
             {
@@ -1751,10 +1771,14 @@ int main(int argc, char** argv)
                         flag == "--interpret-unregistered-ap214-2010" || flag == "--restrict-unused-support-domains" ||
                         flag == "--work-tolerance-study" || flag == "--interpret-level1-as-corrected" ||
                         flag == "--interpret-ap214-name-only-as-2010" || flag == "--interpret-level1-with-lowercase-hex" ||
-                        flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text",
+                        flag == "--normalize-periodic-faces" || flag == "--preserve-opaque-file-name-text" || flag == "--assume-ascii-invariant-data",
                     "unknown explicit source flag"
                 );
-                if (flag == "--preserve-opaque-file-name-text")
+                if (flag == "--assume-ascii-invariant-data")
+                {
+                    asciiInvariant = true;
+                }
+                else if (flag == "--preserve-opaque-file-name-text")
                 {
                     headerText = true;
                 }
@@ -1806,7 +1830,8 @@ int main(int argc, char** argv)
                 lowercaseHex,
                 integrationAccuracy,
                 normalizePeriodic,
-                headerText
+                headerText,
+                asciiInvariant
             );
             return 0;
         }
@@ -1833,6 +1858,7 @@ int main(int argc, char** argv)
         RationalContract(argv[1], argv[2]);
         OpaqueHeaderContract(argv[1]);
         OpaqueDataContract(argv[1]);
+        OpaqueDataContract(argv[1], true);
         InterpretationContract(argv[1]);
         CarrierContract(argv[1], argv[2]);
         LifecycleContract(argv[1], argv[2]);

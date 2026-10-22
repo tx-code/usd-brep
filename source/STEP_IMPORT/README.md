@@ -618,3 +618,18 @@ C++ TargetVertexOrigin 布局已扩展，库及消费者须一起重建；内核
 极点补建与周期拆分的组合验收包含球冠＋圆柱的公开控制：圆柱实际拆分后，原始顶点、
 源边区间、派生极点和新切割顶点分别保留其来源；复制、存档回读和取消检查继续执行。
 该控制使用显式工作容差研究配置保留原有微小缝偏移，不将研究预算升级为生产默认。
+
+
+显式 `Options.dataStringPolicy=PreserveAsciiInvariantBytes`／CLI
+`--assume-ascii-invariant-data` 为原始 DATA 高位字节添加“不表示 ASCII 字符”的应用解释，
+不猜字符编码、不生成名称文本。它要求 general + nongeometric interoperability；
+默认路径与原 `PreserveOpaqueBytes` 行为保持不变。该解释用于已证明归属与反向用途的
+AP214 表示名称，排除纯 ASCII 特殊用途；转义、控制字节、未知用途不能获得此证明。
+原始文本与诊断保留，几何、单位、预算、取消与原子提交规则保持不变。
+实际捕获到该解释的模型返回 `AcceptedUnderInterpretation`（CLI exit 11），报告含
+`data_string_interpretation`、`data_encoding_verified=false`；只请求但没有适用文本时
+不会把结果标为已应用。源 snapshot 持有不可变 token 证明。此选项当前通过 C++ 和
+inspect/native CLI 提供，独立查看器的启动选项尚未接入。
+
+面、线框和支撑几何 owning view 的 `HasAsciiInvariantDataAssumption()` 同样读取源内证明，
+释放导入结果后不会丢失该解释资格。

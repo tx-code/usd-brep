@@ -1566,6 +1566,10 @@ step_semantics::SchemaInterpretation FaceView::AppliedSourceInterpretation() con
     // Reading this qualification does not dispatch into the native kernel.
     return m_data->source->AppliedInterpretation();
 }
+bool FaceView::HasAsciiInvariantDataAssumption() const
+{
+    return m_data->source->Source().HasAsciiInvariantDataAssumption();
+}
 const step_source::CarrierAssumption* FaceView::AppliedCarrierAssumption() const
 {
     // Source data belongs to this owning view, independent of mutable reports

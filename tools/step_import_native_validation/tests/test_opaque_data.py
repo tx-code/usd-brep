@@ -80,3 +80,66 @@ class OpaqueNativeTests(unittest.TestCase):
                 run, result = self.invoke_bytes(source, "--interop-nongeometric", "--preserve-opaque-data-strings")
                 self.assertNotEqual(0, run.returncode)
                 self.assertIsNone(result["model"])
+
+
+class AsciiInvariantPurposeTests(unittest.TestCase):
+    invoke_bytes = test_general.GeneralTests.invoke_bytes
+    options = ("--interop-nongeometric", "--assume-ascii-invariant-data")
+
+    def test_explicit_assumption_keeps_source_and_analytic_cylinder(self):
+        source = opaque_source("representation")
+        run, result = self.invoke_bytes(source, *self.options)
+        self.assertEqual(11, run.returncode, run.stderr or result)
+        self.assertEqual("AcceptedUnderInterpretation", result["status"])
+        self.assertEqual("PreserveAsciiInvariantBytes", result["data_string_interpretation"])
+        self.assertFalse(result["data_encoding_verified"])
+        self.assertEqual(source, result["source_inspection"]["source"]["input"]["raw"].encode("latin1"))
+        self.assertTrue(any(d["key"] == "OpaqueDataTextUnestablished"
+                            for d in result["source_inspection"]["preserved_diagnostics"]))
+        self.assertAlmostEqual(63 * math.pi, result["model"]["material_volume"]["value_mm3"], delta=0.04)
+        self.assertEqual((3, 3, 2), tuple(result["model"][k] for k in ("faces", "edges", "vertices")))
+
+    def test_known_reserved_names_still_reject_and_unused_option_is_not_applied(self):
+        ordinary = opaque_source("representation").replace(b"\x80\xfe", b"ordinary")
+        run, result = self.invoke_bytes(ordinary, *self.options)
+        self.assertEqual(0, run.returncode, run.stderr or result)
+        self.assertEqual("Accepted", result["status"])
+        for name in (b"centre of mass", b"treatment result"):
+            run, result = self.invoke_bytes(ordinary.replace(b"ordinary", name), *self.options)
+            self.assertNotEqual(0, run.returncode)
+            self.assertIsNone(result["model"])
+            self.assertEqual(0, result["native_calls"])
+            self.assertTrue(any(d["key"] == "UnsupportedRepresentationPurpose"
+                                for d in result["source_inspection"]["diagnostics"]))
+
+    def test_escape_bearing_opaque_name_and_physical_context_are_not_exempted(self):
+        for source in (opaque_source("representation").replace(b"\x80\xfe", b"\x80\\X2\\0041\\X0\\"),
+                       opaque_source("defining")):
+            run, result = self.invoke_bytes(source, *self.options)
+            self.assertNotEqual(0, run.returncode)
+            self.assertIsNone(result["model"])
+            self.assertEqual(0, result["native_calls"])
+
+    def test_new_policy_requires_explicit_interoperability(self):
+        run, result = self.invoke_bytes(opaque_source("representation"), "--assume-ascii-invariant-data")
+        self.assertEqual(2, run.returncode)
+        self.assertIsNone(result)
+
+    def test_inverse_property_use_and_orphan_representation_remain_unpublished(self):
+        source = opaque_source("representation")
+        for extra in (b"#950=PROPERTY_DEFINITION('surface texture',$,#7);\n#951=PROPERTY_DEFINITION_REPRESENTATION(#950,#20);\n",
+                      b"#950=REPRESENTATION('\x80\xfe',(#21),#12);\n"):
+            run, result = self.invoke_bytes(source.replace(b"ENDSEC;\nEND-ISO", extra + b"ENDSEC;\nEND-ISO"), *self.options)
+            self.assertNotEqual(0, run.returncode)
+            self.assertIsNone(result["model"])
+            self.assertEqual(0, result["native_calls"])
+
+    def test_conflicting_policy_flags_and_report_exhaustion_do_not_publish(self):
+        for flags in (("--assume-ascii-invariant-data", "--preserve-opaque-data-strings"),
+                      ("--preserve-opaque-data-strings", "--assume-ascii-invariant-data")):
+            run, result = self.invoke_bytes(opaque_source("representation"), "--interop-nongeometric", *flags)
+            self.assertEqual(2, run.returncode)
+            self.assertIsNone(result)
+        run, result = self.invoke_bytes(opaque_source("representation"), *self.options, "--max-report-bytes", "512")
+        self.assertEqual(5, run.returncode)
+        self.assertIsNone(result)

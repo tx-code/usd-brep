@@ -26,9 +26,9 @@ void ValueJson(Writer& out, const Value& value, const SourceSnapshot& source)
         // Preserve the existing HEADER notice bytes; DATA tokens cannot inherit
         // its filename provenance merely because they share an opaque ValueKind.
         out.String(
-            headerName ? "Nonstandard HEADER filename retained as original bytes; no code page inferred" :
+            headerName   ? "Nonstandard HEADER filename retained as original bytes; no code page inferred" :
             fileNameText ? "Nonstandard FILE_NAME metadata retained as original bytes; no code page inferred" :
-                         "Nonstandard DATA string retained as original bytes; no code page inferred"
+                           "Nonstandard DATA string retained as original bytes; no code page inferred"
         );
     }
     else
@@ -118,6 +118,13 @@ void report::WriteJson(Writer& out, const InspectOutcome& result)
     if (result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes)
     {
         out.Add(",\"data_string_policy\":\"PreserveOpaqueBytes\"");
+    }
+    if (result.dataStringPolicy == DataStringPolicy::PreserveAsciiInvariantBytes ||
+        (result.source && result.source->HasAsciiInvariantDataAssumption()))
+    {
+        out.Add(",\"data_string_interpretation\":{\"policy\":\"PreserveAsciiInvariantBytes\",\"applied\":");
+        out.Add(result.source && result.source->HasAsciiInvariantDataAssumption() ? "true" : "false");
+        out.Add(",\"encoding_verified\":false}");
     }
     // A completed snapshot is the qualification owner. Resettable outcome
     // annotations cannot hide its assumption; failures retain their own receipt.

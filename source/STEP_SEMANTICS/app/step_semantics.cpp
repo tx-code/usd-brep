@@ -81,16 +81,22 @@ int main(int argc, char** argv)
             else if (arg == "--preserve-opaque-header-name" || arg == "--preserve-opaque-file-name-text")
             {
                 const auto headerChoice = arg == "--preserve-opaque-header-name" ? step_source::HeaderNamePolicy::PreserveOpaqueBytes :
-                                                                                 step_source::HeaderNamePolicy::PreserveFileNameText;
+                                                                                   step_source::HeaderNamePolicy::PreserveFileNameText;
                 if (headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii && headerNamePolicy != headerChoice)
                 {
                     throw std::invalid_argument("Choose one FILE_NAME preservation policy");
                 }
                 headerNamePolicy = headerChoice;
             }
-            else if (arg == "--preserve-opaque-data-strings")
+            else if (arg == "--assume-ascii-invariant-data" || arg == "--preserve-opaque-data-strings")
             {
-                dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
+                const auto choice = arg == "--assume-ascii-invariant-data" ? step_source::DataStringPolicy::PreserveAsciiInvariantBytes :
+                                                                             step_source::DataStringPolicy::PreserveOpaqueBytes;
+                if (dataStringPolicy != step_source::DataStringPolicy::StrictAscii && dataStringPolicy != choice)
+                {
+                    throw std::invalid_argument("Choose one DATA text policy");
+                }
+                dataStringPolicy = choice;
             }
             else if (arg == "--interpret-level1-as-corrected")
             {

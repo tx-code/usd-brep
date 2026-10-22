@@ -19,6 +19,7 @@ struct SourceData
 {
     std::shared_ptr<const std::string> bytes;
     std::shared_ptr<const CarrierAssumption> carrierAssumption;
+    std::vector<Span> asciiInvariantDataTokens; // Immutable receipt; resettable outcome options cannot grant this assumption.
     std::vector<Component> header;
     std::vector<Record> records;
     std::vector<Reference> references;
@@ -275,7 +276,7 @@ public:
         {
             Fail("TrailingContent", "Content after the end marker is not accepted", Peek().span);
         }
-        if (m_result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes)
+        if (m_result.dataStringPolicy != DataStringPolicy::StrictAscii)
         {
             // Lexing establishes token spans, not text or field meaning. Before
             // publishing ANY source graph, reject every high byte outside an
@@ -409,10 +410,9 @@ private:
     }
     std::optional<Token> OpaqueString(std::size_t start)
     {
-        const bool header = !m_inData &&
-                            ((m_headerNameExpected && m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes) ||
-                             (m_fileNameHeader && m_result.headerNamePolicy == HeaderNamePolicy::PreserveFileNameText));
-        const bool data = m_inData && m_result.dataStringPolicy == DataStringPolicy::PreserveOpaqueBytes;
+        const bool header = !m_inData && ((m_headerNameExpected && m_result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes) ||
+                                          (m_fileNameHeader && m_result.headerNamePolicy == HeaderNamePolicy::PreserveFileNameText));
+        const bool data = m_inData && m_result.dataStringPolicy != DataStringPolicy::StrictAscii;
         if (!header && !data)
         {
             return {};
@@ -462,6 +462,23 @@ private:
                         else
                         {
                             m_opaqueDataStrings.push_back(span);
+                            // Application interpretation, not an inferred code page. A high byte
+                            // denotes non-ASCII only under this explicit policy. Escapes, control
+                            // bytes and state-changing encodings have no such proof here. Retain
+                            // the original token and unknown text; do not synthesize Unicode.
+                            const auto raw = std::string_view(*m_data->bytes).substr(start, m_pos - start);
+                            const bool literalBytes = std::none_of(
+                                raw.begin(),
+                                raw.end(),
+                                [](unsigned char ch)
+                                {
+                                    return ch == '\\' || ch < 32 || ch == 127;
+                                }
+                            );
+                            if (m_result.dataStringPolicy == DataStringPolicy::PreserveAsciiInvariantBytes && literalBytes)
+                            {
+                                m_data->asciiInvariantDataTokens.push_back(span);
+                            }
                         }
                         m_result.statistics.maxStringBytes = std::max(m_result.statistics.maxStringBytes, m_pos - start);
                         return Token{ TokenKind::OpaqueString, span, {} };
@@ -1142,6 +1159,30 @@ Location SourceSnapshot::Locate(std::size_t offset) const
     return { static_cast<std::size_t>(line), offset - m_data->lines[static_cast<std::size_t>(line) - 1] + 1 };
 }
 
+bool SourceSnapshot::HasAsciiInvariantDataAssumption() const
+{
+    return !m_data->asciiInvariantDataTokens.empty();
+}
+bool SourceSnapshot::IsAssumedNonAsciiData(const Value& value) const
+{
+    if (value.kind != ValueKind::OpaqueString)
+    {
+        return false;
+    }
+    // Parser receipts are ordered by source position. Compare against captured
+    // token identities rather than trusting a caller's policy or empty text.
+    const auto& spans = m_data->asciiInvariantDataTokens;
+    const auto found = std::lower_bound(
+        spans.begin(),
+        spans.end(),
+        value.span.begin,
+        [](Span span, std::size_t begin)
+        {
+            return span.begin < begin;
+        }
+    );
+    return found != spans.end() && found->begin == value.span.begin && found->end == value.span.end;
+}
 const CarrierAssumption* SourceSnapshot::AppliedCarrierAssumption() const
 {
     return m_data->carrierAssumption.get();
@@ -1172,7 +1213,8 @@ InspectOutcome InspectBytes(
     {
         throw std::invalid_argument("Unknown HEADER filename policy");
     }
-    if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes)
+    if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes &&
+        dataStringPolicy != DataStringPolicy::PreserveAsciiInvariantBytes)
     {
         throw std::invalid_argument("Unknown DATA string policy");
     }
@@ -1258,8 +1300,15 @@ InspectOutcome InspectBytes(
                 if (value.kind == ValueKind::OpaqueString)
                 {
                     result.diagnostics.push_back(
-                        { "OpaqueHeaderFileNameText", "D0", "Nonstandard FILE_NAME metadata retained; text and encoding remain unestablished",
-                          value.span, {}, {}, "FILE_NAME", std::move(path), {} }
+                        { "OpaqueHeaderFileNameText",
+                          "D0",
+                          "Nonstandard FILE_NAME metadata retained; text and encoding remain unestablished",
+                          value.span,
+                          {},
+                          {},
+                          "FILE_NAME",
+                          std::move(path),
+                          {} }
                     );
                 }
             };
@@ -1295,7 +1344,8 @@ InspectOutcome InspectFile(
     CarrierInterpretation carrierInterpretation
 )
 {
-    if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes)
+    if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes &&
+        dataStringPolicy != DataStringPolicy::PreserveAsciiInvariantBytes)
     {
         throw std::invalid_argument("Unknown DATA string policy");
     }

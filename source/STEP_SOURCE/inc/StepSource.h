@@ -63,7 +63,8 @@ enum class HeaderNamePolicy
 enum class DataStringPolicy
 {
     StrictAscii,
-    PreserveOpaqueBytes // Unknown DATA STRING text; downstream must qualify each field's use independently.
+    PreserveOpaqueBytes, // Unknown DATA STRING text; downstream must qualify each field's use independently.
+    PreserveAsciiInvariantBytes // Explicit assumption: raw high bytes denote non-ASCII characters; no decoding or normalization.
 };
 
 enum class CarrierInterpretation
@@ -168,6 +169,10 @@ public:
     const std::vector<std::size_t>& Incoming(std::string_view canonicalId) const;
     std::string_view Raw(Span span) const;
     Location Locate(std::size_t offset) const;
+    bool HasAsciiInvariantDataAssumption() const;
+    // True only for a captured DATA token proven non-ASCII under the explicit policy.
+    // False means unestablished, not ASCII. No decoding, case folding or Unicode normalization.
+    bool IsAssumedNonAsciiData(const Value& value) const;
     const CarrierAssumption* AppliedCarrierAssumption() const; // Borrows immutable snapshot-owned interpretation evidence.
 
 private:

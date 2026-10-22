@@ -35,8 +35,7 @@ bool OpaqueAdministrativeField(std::string_view owner, std::string_view field)
     // make these scalar labels, not roles, selectors or physical quantities.
     // This is only a candidate whitelist: final approval additionally proves
     // selected administrative attachment and exclusion from physical reach.
-    return (owner == "APPROVAL" && field == "level") ||
-           (owner == "PERSON" && (field == "id" || field == "last_name" || field == "first_name")) ||
+    return (owner == "APPROVAL" && field == "level") || (owner == "PERSON" && (field == "id" || field == "last_name" || field == "first_name")) ||
            (owner == "ORGANIZATION" && (field == "id" || field == "name")) || OpaqueAdministrativeList(owner, field);
 }
 bool IsA(const SemanticData& data, std::size_t record, std::string_view name)
@@ -881,8 +880,8 @@ private:
     {
         // Explicit audited label owners from pinned N2635/AP214/modified N916.
         // New topology registrations must not acquire this exception implicitly.
-        constexpr std::string_view owners[]{ "ADVANCED_FACE", "EDGE_CURVE", "VERTEX_POINT", "CLOSED_SHELL",
-                                              "OPEN_SHELL", "FACE_BOUND", "FACE_OUTER_BOUND", "EDGE_LOOP", "ORIENTED_EDGE" };
+        constexpr std::string_view owners[]{ "ADVANCED_FACE", "EDGE_CURVE",       "VERTEX_POINT", "CLOSED_SHELL", "OPEN_SHELL",
+                                             "FACE_BOUND",    "FACE_OUTER_BOUND", "EDGE_LOOP",    "ORIENTED_EDGE" };
         const auto& source = Record(record);
         return !source.complex && source.components.size() == 1 &&
                std::find(std::begin(owners), std::end(owners), source.components.front().name) != std::end(owners);
@@ -945,18 +944,22 @@ private:
                                                   (IsA(*m_data, r, "MANIFOLD_SOLID_BREP") || OpaqueTopologyCaption(r));
                         const bool n916Representation = m_data->profile.kind == ProfileKind::Ap203N916Source &&
                                                         issue.declaredIn == "REPRESENTATION" && issue.field == "name";
+                        const bool asciiPurpose = IsAp214SourceProfile(m_data->profile.kind) && issue.declaredIn == "REPRESENTATION" &&
+                                                  issue.field == "name" && m_data->source->IsAssumedNonAsciiData(value);
                         const bool administrative = OpaqueAdministrativeField(issue.declaredIn, issue.field);
                         const bool listElement = administrative && OpaqueAdministrativeList(issue.declaredIn, issue.field);
                         if (!Interoperability() || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                            !(display || partIdentity || shapeCaption || administrative || n916Representation) || path.size() != (listElement ? 2u : 1u))
+                            !(display || partIdentity || shapeCaption || administrative || n916Representation || asciiPurpose) ||
+                            path.size() != (listElement ? 2u : 1u))
                         {
                             throw;
                         }
-                        const auto proof = display      ? SemanticData::PreservationProof::OpaqueDisplayText :
-                                           partIdentity ? SemanticData::PreservationProof::OpaquePartIdentity :
-                                           shapeCaption ? SemanticData::PreservationProof::OpaqueShapeCaption :
+                        const auto proof = display            ? SemanticData::PreservationProof::OpaqueDisplayText :
+                                           partIdentity       ? SemanticData::PreservationProof::OpaquePartIdentity :
+                                           shapeCaption       ? SemanticData::PreservationProof::OpaqueShapeCaption :
                                            n916Representation ? SemanticData::PreservationProof::N916RepresentationCaption :
-                                                          SemanticData::PreservationProof::OpaqueAdministrativeLabel;
+                                           asciiPurpose       ? SemanticData::PreservationProof::AsciiInvariantRepresentationPurpose :
+                                                                SemanticData::PreservationProof::OpaqueAdministrativeLabel;
                         Preserve(std::move(failure), proof);
                     }
                     break;
@@ -1088,9 +1091,9 @@ private:
                         // provisionally; selected presentation ownership and the
                         // exact body representation are proved after binding.
                         const bool styledRepresentation = IsAp214SourceProfile(m_data->profile.kind) &&
-                                                          m_data->geometryScope == GeometryScope::GeneralBrep &&
-                                                          field.name == "item" && field.type == "REPRESENTATION_ITEM" && path.size() == 1 &&
-                                                          IsA(*m_data, r, "STYLED_ITEM") && IsA(*m_data, target, "SHAPE_REPRESENTATION");
+                                                          m_data->geometryScope == GeometryScope::GeneralBrep && field.name == "item" &&
+                                                          field.type == "REPRESENTATION_ITEM" && path.size() == 1 && IsA(*m_data, r, "STYLED_ITEM") &&
+                                                          IsA(*m_data, target, "SHAPE_REPRESENTATION");
                         if (!Interoperability() || (!approval && !styleOverride && !styledRepresentation))
                         {
                             throw;
@@ -2168,7 +2171,13 @@ private:
                 FieldDetail::AttributePath
             );
         }
-        if (FieldValue(m_representation, "name").text == "centre of mass" || FieldValue(m_representation, "name").text == "treatment result")
+        // AP214E3_2010.exp restrict_centre_of_mass_representation and
+        // restrict_treatment_result use exact ASCII literals. Opaque text is
+        // never an empty decoded name: its pending proof must establish explicit
+        // non-ASCII interpretation and selected ownership before publication.
+        const auto& representationName = FieldValue(m_representation, "name");
+        if (representationName.kind == ValueKind::String &&
+            (representationName.text == "centre of mass" || representationName.text == "treatment result"))
         {
             try
             {
@@ -2327,9 +2336,17 @@ private:
                     // not optional metadata or a missing native capability.
                     // Preserve both source bounds; never guess which to relabel.
                     FieldFailure(
-                        "SourceRuleViolation:FACE.WR2", "D3", "FACE has more than one FACE_OUTER_BOUND",
-                        FieldValue(face, "bounds").span, Status::Rejected, face, "bounds", FieldDetail::AttributePath,
-                        "at most one FACE_OUTER_BOUND", std::to_string(outer), "AP214E3_2010.exp FACE.WR2"
+                        "SourceRuleViolation:FACE.WR2",
+                        "D3",
+                        "FACE has more than one FACE_OUTER_BOUND",
+                        FieldValue(face, "bounds").span,
+                        Status::Rejected,
+                        face,
+                        "bounds",
+                        FieldDetail::AttributePath,
+                        "at most one FACE_OUTER_BOUND",
+                        std::to_string(outer),
+                        "AP214E3_2010.exp FACE.WR2"
                     );
                 }
                 if (outer == 0 && m_data->profile.kind != ProfileKind::Ap203e2Planar && m_data->geometryScope == GeometryScope::GeneralBrep)
@@ -2667,9 +2684,8 @@ private:
             // Interoperability does not reinterpret a representation as an RI.
             // This exact selected root only supplies a metadata attachment; its
             // geometry, units and complete body graph were checked separately.
-            return selectedGeometryUse[target] ||
-                   (Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep &&
-                    IsAp214SourceProfile(m_data->profile.kind) && target == m_representation);
+            return selectedGeometryUse[target] || (Interoperability() && m_data->geometryScope == GeometryScope::GeneralBrep &&
+                                                   IsAp214SourceProfile(m_data->profile.kind) && target == m_representation);
         };
         const auto& presentations = Population("MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION");
         for (std::size_t i = 0; i < presentations.size(); ++i)
@@ -3701,6 +3717,46 @@ private:
                 }
                 continue;
             }
+            if (issue.proof == SemanticData::PreservationProof::AsciiInvariantRepresentationPurpose)
+            {
+                // AP214E3_2010.exp (71ab140fe7f77432...) purpose predicates are
+                // exact comparisons, not transliteration or case folding. This
+                // explicit carrier assumption excludes ASCII reserved names;
+                // it does not establish decoded text or full schema conformance.
+                // Limit the proof to selected definition/body roles. Inverse
+                // property uses could impose surface_condition_correlation;
+                // only already-checked shape/presentation links qualify here.
+                const bool selected = std::any_of(
+                    m_data->part.roles.begin(),
+                    m_data->part.roles.end(),
+                    [&](const auto& role)
+                    {
+                        return role.recordIndex == record && (role.name == "representation" || role.name == "definition_representation");
+                    }
+                );
+                bool inverseSafe = true;
+                for (const auto referenceIndex : m_data->source->Incoming(Record(record).id))
+                {
+                    const auto& reference = m_data->source->References()[referenceIndex];
+                    Visit(reference.span);
+                    const auto owner = reference.recordIndex;
+                    if (!IsA(*m_data, owner, "SHAPE_DEFINITION_REPRESENTATION") && !IsA(*m_data, owner, "SHAPE_REPRESENTATION_RELATIONSHIP") &&
+                        !IsA(*m_data, owner, "STYLED_ITEM"))
+                    {
+                        inverseSafe = false;
+                    }
+                }
+                const auto& value = FieldValue(record, "name");
+                if (!IsAp214SourceProfile(m_data->profile.kind) || m_data->geometryScope != GeometryScope::GeneralBrep || !selected || !inverseSafe ||
+                    !m_data->source->IsAssumedNonAsciiData(value) || issue.diagnostic.field != "name" ||
+                    issue.diagnostic.declaredIn != "REPRESENTATION" || value.span.begin != issue.diagnostic.source.primary.begin ||
+                    value.span.end != issue.diagnostic.source.primary.end)
+                {
+                    State(Phase::Interoperability) = FailureProgress(issue.status);
+                    throw Failure{ issue.status, std::move(issue.diagnostic) };
+                }
+                continue;
+            }
             if (issue.proof == SemanticData::PreservationProof::N916RepresentationCaption)
             {
                 // Only the selected body's representation or its proven SDR
@@ -3708,17 +3764,19 @@ private:
                 // orphan, property representation or unknown profile into a
                 // geometry root, or infer a character encoding from its bytes.
                 const bool selectedRepresentation = std::any_of(
-                    m_data->part.roles.begin(), m_data->part.roles.end(), [&](const auto& role)
+                    m_data->part.roles.begin(),
+                    m_data->part.roles.end(),
+                    [&](const auto& role)
                     {
-                        return role.recordIndex == record &&
-                               (role.name == "representation" || role.name == "definition_representation");
-                    });
+                        return role.recordIndex == record && (role.name == "representation" || role.name == "definition_representation");
+                    }
+                );
                 const auto& value = FieldValue(record, "name");
                 const auto span = issue.diagnostic.source.primary;
                 if (m_data->profile.kind != ProfileKind::Ap203N916Source || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                    issue.diagnostic.field != "name" || issue.diagnostic.declaredIn != "REPRESENTATION" ||
-                    !selectedRepresentation || (value.kind != ValueKind::OpaqueString && value.kind != ValueKind::String) ||
-                    value.span.begin != span.begin || value.span.end != span.end)
+                    issue.diagnostic.field != "name" || issue.diagnostic.declaredIn != "REPRESENTATION" || !selectedRepresentation ||
+                    (value.kind != ValueKind::OpaqueString && value.kind != ValueKind::String) || value.span.begin != span.begin ||
+                    value.span.end != span.end)
                 {
                     State(Phase::Interoperability) = FailureProgress(issue.status);
                     throw Failure{ issue.status, std::move(issue.diagnostic) };
@@ -3797,8 +3855,7 @@ private:
                     }
                     // Administrative attachment already proved ALL assignment
                     // targets. Do not attach orphan labels by spelling/type.
-                    approved = !physical[record] && (*selectedUse)[record] &&
-                               OpaqueAdministrativeField(owner, field) && IsA(*m_data, record, owner);
+                    approved = !physical[record] && (*selectedUse)[record] && OpaqueAdministrativeField(owner, field) && IsA(*m_data, record, owner);
                 }
                 const Value* preservedValue = &FieldValue(record, field);
                 if (issue.proof == SemanticData::PreservationProof::OpaqueAdministrativeLabel && OpaqueAdministrativeList(owner, field))
@@ -3807,8 +3864,7 @@ private:
                     // values. Only the diagnosed one-based element may use this
                     // proof; aggregate cardinality/type checks still run normally.
                     const auto& path = issue.diagnostic.source.parameterPath;
-                    if (preservedValue->kind != ValueKind::Aggregate || path.size() != 2 || path[1] == 0 ||
-                        path[1] > preservedValue->children.size())
+                    if (preservedValue->kind != ValueKind::Aggregate || path.size() != 2 || path[1] == 0 || path[1] > preservedValue->children.size())
                     {
                         approved = false;
                     }
@@ -3959,8 +4015,7 @@ private:
                     }
                     const auto target = IndexOf(*m_data, issue.diagnostic.source.targetId);
                     if (!IsAp214SourceProfile(m_data->profile.kind) || m_data->geometryScope != GeometryScope::GeneralBrep ||
-                        !IsA(*m_data, record, "STYLED_ITEM") || target != m_representation ||
-                        !(*presentationUse)[record] || physical[record])
+                        !IsA(*m_data, record, "STYLED_ITEM") || target != m_representation || !(*presentationUse)[record] || physical[record])
                     {
                         State(Phase::Types) = FailureProgress(issue.status);
                         State(Phase::Interoperability) = FailureProgress(issue.status);
@@ -4337,7 +4392,7 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
     // Trust the immutable source owner's actual assumption, never resettable
     // InspectOutcome notices/options. P0 cannot acquire this unverified carrier.
     if ((source.requestedCarrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly ||
-         (source.source && source.source->AppliedCarrierAssumption())) &&
+         (source.source && (source.source->AppliedCarrierAssumption() || source.source->HasAsciiInvariantDataAssumption()))) &&
         (policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
     {
         throw std::invalid_argument("Unverified carrier interpretation requires explicit general interoperability");

@@ -957,3 +957,19 @@ not a guessed encoding or a change to AP214 purpose rules. Strict/P0 behavior,
 orphan/part selection, geometry, units, visit and report budgets remain checked.
 Only the approved selected representation roles qualify; another representation
 cannot become a geometry root through an opaque name. Source bytes are immutable.
+
+
+With the separately explicit source `PreserveAsciiInvariantBytes` interpretation,
+AP214 general interoperability may retain an opaque selected definition/body
+`REPRESENTATION.name` when its source token has the immutable non-ASCII receipt.
+Pinned AP214E3_2010.exp (`71ab140fe7f77432...`) rules
+`restrict_centre_of_mass_representation` and `restrict_treatment_result` compare
+exact ASCII purpose names; this interpretation establishes those comparisons
+false without inventing an empty decoded name. Known ASCII purpose names retain
+the existing refusal. The new proof also checks selected ownership and incoming
+uses: only checked SDR, shape-representation relationship and style uses qualify;
+property/unknown uses do not gain an exception (including potential
+`surface_condition_correlation` obligations). All original diagnostics remain.
+This is scoped source interpretation, not full AP214 conformance, repair, or
+arbitrary encoding recovery. Strict/P0 and ordinary opaque preservation retain
+their previous behavior; non-ASCII name equality remains unestablished.

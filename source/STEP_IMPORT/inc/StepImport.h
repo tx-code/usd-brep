@@ -210,6 +210,7 @@ public:
     WireframeInfo Info() const;
     step_semantics::SchemaInterpretation AppliedSourceInterpretation() const;
     const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Borrows immutable evidence owned by this view.
+    bool HasAsciiInvariantDataAssumption() const; // Snapshot-owned evidence survives releasing the import result.
     Point EvaluateCurve(std::size_t curve, double parameter) const;
     ClosestPoint Closest(const Point& pointMm) const; // Only this source set; neither material classification nor a certified global error bound.
 
@@ -254,6 +255,7 @@ public:
     SupportingGeometryInfo Info() const;
     step_semantics::SchemaInterpretation AppliedSourceInterpretation() const;
     const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Independent of the schema interpretation.
+    bool HasAsciiInvariantDataAssumption() const; // Snapshot-owned evidence survives releasing the import result.
     Point EvaluateCurve(std::size_t curve, double parameter) const;
     Point EvaluatePlane(std::size_t plane, double uMm, double vMm) const;
     ClosestPoint ClosestPlane(std::size_t plane, const Point& pointMm) const;
@@ -292,6 +294,7 @@ public:
     std::string SourceId() const;
     step_semantics::SchemaInterpretation AppliedSourceInterpretation() const; // Immutable schema assumption retained by this owning view.
     const step_source::CarrierAssumption* AppliedCarrierAssumption() const; // Borrow remains valid while this view owns its source.
+    bool HasAsciiInvariantDataAssumption() const; // Snapshot-owned evidence survives releasing the import result.
     Statistics Info() const;
     std::array<double, 4> ParameterDomain() const; // Native evaluator parameters; general charts do not imply source UV or millimetres.
     Point EvaluateSurface(double u, double v) const; // Rejects domain violations before native evaluation.

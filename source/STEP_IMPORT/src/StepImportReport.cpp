@@ -517,6 +517,10 @@ void Serialize(const Outcome& outcome, const Quality& quality, const step_source
                         w.String(step_source::CarrierInterpretationName(carrier->interpretation));
                     }
                 }
+                if (source.source && source.source->HasAsciiInvariantDataAssumption())
+                {
+                    w.Add(",\"data_string_interpretation\":\"PreserveAsciiInvariantBytes\",\"data_encoding_verified\":false");
+                }
                 w.Add(",\"repair\":\"None\",\"quality_id\":");
                 w.String(quality.id);
                 if (report.numericalIntegration)

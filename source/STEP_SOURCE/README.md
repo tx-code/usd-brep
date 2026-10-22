@@ -218,3 +218,22 @@ and its token span. Attribute names/type views are not guessed for arbitrary ent
 
 See the [ticket 02 evidence adapter](../../tools/step_inspect_validation/README.md)
 for actual-reader corpus checks and additional carrier/resource tests.
+
+
+`DataStringPolicy::PreserveAsciiInvariantBytes` / `--assume-ascii-invariant-data`
+is a separate, explicit application interpretation, never selected by detecting
+bytes or by a failed import. It assumes raw high bytes denote non-ASCII
+characters without normalization, transliteration or ignored bytes. It does not
+select a code page or establish decoded text. It retains `OpaqueString`, original
+bytes and the original opaque-string diagnostic. Only captured DATA tokens with
+high bytes and no backslash, control byte or DEL receive an immutable token-span
+receipt. ASCII-only input does not apply the assumption. Other opaque tokens
+remain unavailable and cannot acquire this receipt.
+
+`HasAsciiInvariantDataAssumption()` and `IsAssumedNonAsciiData(value)` expose the
+snapshot-owned receipt; resetting an outcome's policy cannot grant or erase it.
+The latter establishes only inequality with pure ASCII literals under the
+assumption. It does not establish equality between two opaque names, reference
+ownership, valid source STRING semantics, or permission to bypass a typed check.
+This policy is unsuitable for stateful encodings, byte-dropping decoders, or
+transliterating/normalizing interpretations. Reports mark encoding unverified.

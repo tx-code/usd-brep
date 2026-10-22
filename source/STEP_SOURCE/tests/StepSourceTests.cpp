@@ -340,6 +340,26 @@ int main()
             Require(owner->Raw(value.span) == raw, "DATA token survives outcome release");
             const auto bad = InspectBytes(opaqueInput + "/*\x80*/", limits, HeaderNamePolicy::StrictAscii, DataStringPolicy::PreserveOpaqueBytes);
             Require(!bad.source && bad.status == Status::Unsupported, "DATA policy cannot publish high-byte comments");
+            auto assumed = InspectBytes(opaqueInput, limits, HeaderNamePolicy::StrictAscii, DataStringPolicy::PreserveAsciiInvariantBytes);
+            Require(assumed.source && assumed.source->HasAsciiInvariantDataAssumption(), "explicit DATA assumption captured");
+            const auto& assumedValue = assumed.source->Records()[0].components[0].parameters[0];
+            Require(assumed.source->IsAssumedNonAsciiData(assumedValue), "captured token excludes ASCII literals under assumption");
+            Require(!owner->IsAssumedNonAsciiData(value), "ordinary preservation cannot acquire text interpretation");
+            assumed.dataStringPolicy = DataStringPolicy::StrictAscii;
+            Require(
+                InspectJson(assumed, json) && json.find("PreserveAsciiInvariantBytes") != std::string::npos,
+                "immutable assumption survives outcome annotation reset"
+            );
+            for (const auto& payload : { std::string("'ascii'"), std::string("'\x80\\trail'"), std::string("'\x80\x1b' ") })
+            {
+                const auto probe = InspectBytes(
+                    File("#1=A(" + payload + ");\n"),
+                    limits,
+                    HeaderNamePolicy::StrictAscii,
+                    DataStringPolicy::PreserveAsciiInvariantBytes
+                );
+                Require(!probe.source || !probe.source->HasAsciiInvariantDataAssumption(), "unqualified text has no assumption receipt");
+            }
             bool bytesRejected = false, fileRejected = false;
             try
             {

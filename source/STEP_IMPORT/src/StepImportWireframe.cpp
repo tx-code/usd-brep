@@ -144,6 +144,10 @@ step_semantics::SchemaInterpretation WireframeView::AppliedSourceInterpretation(
 {
     return m_data->source->AppliedInterpretation();
 }
+bool WireframeView::HasAsciiInvariantDataAssumption() const
+{
+    return m_data->source->Source().HasAsciiInvariantDataAssumption();
+}
 const step_source::CarrierAssumption* WireframeView::AppliedCarrierAssumption() const
 {
     return m_data->source->Source().AppliedCarrierAssumption();
@@ -245,6 +249,10 @@ SupportingGeometryInfo SupportingGeometryView::Info() const
 step_semantics::SchemaInterpretation SupportingGeometryView::AppliedSourceInterpretation() const
 {
     return m_data->source->AppliedInterpretation();
+}
+bool SupportingGeometryView::HasAsciiInvariantDataAssumption() const
+{
+    return m_data->source->Source().HasAsciiInvariantDataAssumption();
 }
 const step_source::CarrierAssumption* SupportingGeometryView::AppliedCarrierAssumption() const
 {
