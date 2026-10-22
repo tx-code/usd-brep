@@ -46,7 +46,8 @@ remain unchanged; current options and limits belong to the component contracts.
 - Select an explicit root and account for its complete required dependencies.
   An unknown influence or unsupported required entity blocks the selected request;
   partial models, skipped faces, or choosing the largest surviving solid do not
-  satisfy it. Global syntax and entity-ID ambiguity remain global failures.
+  satisfy it. Syntax that leaves record boundaries or dependency influence
+  ambiguous, and ambiguous entity IDs, remain global failures.
 - Preserve defining curves/surfaces, knots, weights, source parameter domains,
   placements, and every orientation layer. Normalize physical coordinates to
   canonical mm/rad through verified unit chains; dimensionless ratios and source
@@ -61,6 +62,53 @@ remain unchanged; current options and limits belong to the component contracts.
 - Keep part definitions separate from occurrences. Resolve transform direction
   and composition, apply unit scaling once, and preserve repeated and nested
   instances, mirrors, and supported scales. Assembly import is not a Boolean union.
+
+## Error influence and isolation
+
+Long-term robustness depends on the influence of an error, not its apparent size.
+Keep the original error fact (stage, stable code, byte span, entity/field and
+source authority) separate from the admission decision and its evidence.
+Preserving an error never turns its source declaration into a valid one.
+
+| Error scope | Admission requirement |
+|---|---|
+| Carrier, uncertain quote/comment boundary, ambiguous or duplicate ID | Reject the selected request when a trustworthy complete index cannot be established |
+| Required geometry, topology, unit, transform or product dependency | Reject the affected selected request; no guessed values or missing faces |
+| Known administrative/presentation metadata | Explicit interoperability may isolate it only with a field/record-specific nonphysical ownership proof |
+| Unselected independent root | A future selection API may exclude it only after proving shared and inverse dependencies do not affect selected roots |
+| Unknown influence, exhausted proof budget | Remain unsupported/indeterminate/resource-limited; never infer independence from missing evidence |
+
+Forward reachability alone is insufficient. Inverse assignments, representation
+relationships, shared units and contexts, and profile/global obligations can
+affect a selected root without a direct outgoing reference from that root.
+Isolation requires both a trustworthy reference footprint and a known semantic
+role. An unknown or malformed record must not be declared harmless merely because
+the current parser found no references in it.
+
+Local syntax recovery is a future capability, not current reader qualification.
+It must use lexically established boundaries outside strings/comments, preserve
+the exact failed record span and any unestablished reference footprint, and bound
+attempts/bytes/diagnostics with monotonic progress. Searching for a semicolon or
+`#id=` inside uncertain text is not a recovery proof. Never renumber duplicates,
+guess missing delimiters/values, or silently repair physical definitions.
+
+Recovered/opaque records must have an explicit state and cannot masquerade as
+ordinary parsed records in the existing complete `SourceSnapshot` contract.
+Required typed consumers must reject unresolved dependencies. Native publication
+still commits all selected roots together, including required diagnostics and
+isolation evidence. A caller may explicitly select independent roots; a failed
+whole-assembly request must not automatically turn into a successful partial one.
+Source preservation/isolation, equivalent target normalization and geometric
+repair remain distinct operations with distinct qualifications.
+
+Implement this incrementally: first unify error facts and ownership proofs for
+existing metadata policies; then add bounded diagnostic-only record recovery;
+only after boundary/reference and inverse-dependency controls pass may an explicit
+recovery mode feed selected-root import. Controls must include malformed geometry,
+metadata-only faults, shared-unit faults, inverse links, duplicate IDs, unterminated
+text, budget/cancellation and mixed-root atomic publication. Current supported
+options remain documented in the component READMEs; this design does not enable
+general syntax recovery or multi-root selection by itself.
 
 ## Quality and bounded repair
 
