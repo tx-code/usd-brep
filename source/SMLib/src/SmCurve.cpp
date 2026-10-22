@@ -10283,8 +10283,11 @@ SmStatus SmCurve::CalculateTightBoundingBox
       SmContinuityType eMinCont;
       SER(CalculateContinuities( eMinCont, sContinuities, 2.0 ));
 
+      // Only breaks inside the requested native interval can bound this subcurve.
+      // Adding an outside knot overstates the box and changes it after reversal.
       for (ULONG i=1; i<sKnots.GetSize(); i++) {
-          if (i==sKnots.GetSize()-1 || sContinuities[i] <= SM_CT_C1 ) 
+          if (crInterval.ContainsValue(sKnots[i]) &&
+              (i==sKnots.GetSize()-1 || sContinuities[i] <= SM_CT_C1))
             {
               EvaluatePoint( sKnots[i], sPt );
               sTightBox.AddPoint3d( sPt );
