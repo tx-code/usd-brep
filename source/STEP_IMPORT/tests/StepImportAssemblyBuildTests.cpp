@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportAssemblyBuild.h"
+#include "StepImportAssemblyEvidence.h"
 #include "StepImportExecution.h"
 #include "StepImportNativeData.h"
 
@@ -27,7 +28,7 @@ int main(int argc, char** argv)
 {
     try
     {
-        Require(argc == 2, "pass synthetic assembly");
+        Require(argc == 2 || argc == 3, "pass synthetic assembly and optional local JSON output");
         std::ifstream file(argv[1], std::ios::binary);
         Require(bool(file), "fixture exists");
         std::string text{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
@@ -75,6 +76,46 @@ int main(int argc, char** argv)
             report.numericalIntegration->completed && !report.definitions[1].checks->numericalIntegration,
             "container has no fake integral and does not invalidate completed body integration"
         );
+        auto evidence = CaptureAssemblyEvidence(*native);
+        std::string json;
+        Require(
+            bool(SerializeAssembly(Status::Accepted, report, options.quality, raw, *evidence, 16 * 1024 * 1024, json)),
+            "complete bounded assembly report"
+        );
+        Require(
+            json.find("step-assembly-development.v1") != std::string::npos && json.find("\"parent_instance\":0") != std::string::npos &&
+                json.find("\"source_usage\":\"910\"") != std::string::npos && json.find("\"source_usage\":\"916\"") != std::string::npos &&
+                json.find("\"length_to_mm\":") != std::string::npos && json.find("\"scope\":\"WithinAssembly\"") != std::string::npos,
+            "required occurrence, unit and definition evidence serialized"
+        );
+        std::string repeated;
+        Require(
+            SerializeAssembly(Status::Accepted, report, options.quality, raw, *evidence, json.size(), repeated) && repeated == json,
+            "exact assembly report budget succeeds deterministically"
+        );
+        auto shortReport = SerializeAssembly(Status::Accepted, report, options.quality, raw, *evidence, json.size() - 1, repeated);
+        Require(
+            !shortReport && repeated.empty() && shortReport.error().key == "ImportReportByteLimit",
+            "short budget cannot publish a truncated assembly report"
+        );
+        if (argc == 3)
+        {
+            std::ofstream(argv[2], std::ios::binary) << json;
+        }
+        auto incomplete = report;
+        incomplete.definitions.pop_back();
+        auto missingDefinition = SerializeAssembly(Status::Accepted, incomplete, options.quality, raw, *evidence, 16 * 1024 * 1024, repeated);
+        Require(
+            !missingDefinition && repeated.empty() && missingDefinition.error().key == "AssemblyReportDefinitionMismatch",
+            "accepted report cannot omit a checked definition"
+        );
+        auto differentRaw = step_source::InspectBytes(text + "\n", step_source::Limits::PlanarFixtures());
+        auto mismatched = SerializeAssembly(Status::Accepted, report, options.quality, differentRaw, *evidence, 16 * 1024 * 1024, repeated);
+        Require(
+            !mismatched && repeated.empty() && mismatched.error().key == "AssemblyReportSourceMismatch",
+            "report cannot borrow another source capture"
+        );
+        std::weak_ptr<ModelData> nativeLifetime = body;
         auto owner = std::move(*native);
         source = {};
         raw = {};
@@ -125,6 +166,11 @@ int main(int argc, char** argv)
                 lateReport.definitions[0].checks->bodies.size() == 2 && lateReport.definitions[0].checks->bodies[0].checksPassed &&
                 lateReport.definitions[0].checks->bodies[0].checks->candidateDiscarded,
             "later body failure discards earlier successful body with truthful observations"
+        );
+        owner = {};
+        Require(
+            nativeLifetime.expired() && evidence->instances.placements.source->SourceFields().Source().Bytes() == text,
+            "report evidence retains source metadata without retaining native candidates"
         );
         std::cout << "Native assembly definition candidate contracts passed; no final publication\n";
         return 0;

@@ -38,6 +38,9 @@ An internal native assembly candidate builder reuses existing definition/body
 construction and report accounting. Repeated instances share a definition;
 placement wrappers create no empty body. No public assembly import/publication
 entry point is exposed yet.
+Assembly report evidence now preserves definition/shape identities, exact units,
+local placement provenance and instance paths through the existing bounded writer.
+It retains no native body ownership; truncated or mismatched reports are refused.
 
 ## Scope
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportReport.h"
 
+#include "StepImportAssemblyEvidence.h"
 #include "StepSemanticReport.h"
 #include "StepSourceReport.h"
 
@@ -544,13 +545,194 @@ void RepairEditJson(Writer& w, const FaceOrientationEdit& edit)
     w.Bool(edit.targetSameSense);
     w.Add("}");
 }
+void AssemblyJson(Writer& w, const AssemblyEvidence& evidence)
+{
+    const auto& tree = evidence.instances;
+    const auto& source = tree.placements.source->SourceFields().Source();
+    const auto id = [&](std::size_t record)
+    {
+        w.String(source.Records().at(record).id);
+    };
+    w.Add(
+        ",\"assembly\":{\"coordinate_system\":\"PerRootMillimetres\",\"matrix_layout\":\"RowMajor\",\"definition_geometry\":\"LocalUnmodified\",\"source_rewritten\":false,\"continuous_transform_error_certificate\":false,\"roots\":["
+    );
+    for (std::size_t i = 0; i < tree.roots.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        id(tree.roots[i]);
+    }
+    w.Add("],\"definitions\":[");
+    for (std::size_t i = 0; i < evidence.definitions.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& d = evidence.definitions[i];
+        w.Add("{\"source_definition_id\":");
+        id(d.definition);
+        w.Add(",\"role\":");
+        w.String(d.role);
+        w.Add(",\"source_shapes\":[");
+        for (std::size_t j = 0; j < d.shapes.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            id(d.shapes[j]);
+        }
+        w.Add("]}");
+    }
+    w.Add("],\"contexts\":[");
+    for (std::size_t i = 0; i < tree.placements.contexts.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& context = tree.placements.contexts[i];
+        w.Add("{\"source_context\":");
+        id(context.context);
+        w.Add(",\"source_length_unit\":");
+        id(tree.placements.source->FindContext(context.context)->units.lengthUnit);
+        w.Add(",\"length_to_mm\":");
+        FractionJson(w, context.length.scaleMm);
+        w.Add(",\"conversion_chain\":[");
+        for (std::size_t j = 0; j < context.length.definitions.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            const auto& d = context.length.definitions[j];
+            w.Add("{\"source_unit\":");
+            id(d.unit);
+            w.Add(",\"source_factor\":");
+            id(d.factor);
+            w.Add(",\"source_base_unit\":");
+            id(d.baseUnit);
+            w.Add(",\"value_type\":");
+            w.String(d.valueType);
+            w.Add(",\"factor_value\":");
+            FractionJson(w, d.factorValue);
+            w.Add(",\"scale_mm\":");
+            FractionJson(w, d.scaleMm);
+            w.Add("}");
+        }
+        w.Add("]}");
+    }
+    w.Add("],\"local_placements\":[");
+    const auto& bindings = tree.placements.source->Bindings().occurrences;
+    for (std::size_t i = 0; i < tree.placements.occurrences.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& p = tree.placements.occurrences[i];
+        const auto& b = bindings.at(i);
+        w.Add("{\"source_usage\":");
+        id(p.usage);
+        w.Add(",\"source_relationship\":");
+        id(b.representationRelationship);
+        w.Add(",\"source_transform\":");
+        id(b.transformation);
+        w.Add(",\"source_context_dependent_shape\":");
+        id(b.dependentShape);
+        w.Add(",\"child_is_first_representation\":");
+        w.Bool(b.childIsFirstRepresentation);
+        w.Add(",\"child_representation\":");
+        id(b.childRepresentation);
+        w.Add(",\"parent_representation\":");
+        id(b.parentRepresentation);
+        w.Add(",\"child_definition\":");
+        id(b.childDefinition);
+        w.Add(",\"parent_definition\":");
+        id(b.parentDefinition);
+        w.Add(",\"child_context\":");
+        id(b.childContext);
+        w.Add(",\"parent_context\":");
+        id(b.parentContext);
+        w.Add(",\"child_item\":");
+        id(b.childItem);
+        w.Add(",\"parent_item\":");
+        id(b.parentItem);
+        w.Add(",\"rotation_child_to_parent\":[");
+        for (std::size_t r = 0; r < 3; ++r)
+        {
+            if (r)
+            {
+                w.Add(",");
+            }
+            PointJson(w, p.rotation[r]);
+        }
+        w.Add("],\"translation_mm\":");
+        PointJson(w, p.translationMm);
+        w.Add(",\"orthonormal_residual\":");
+        Number(w, p.orthonormalResidual);
+        w.Add("}");
+    }
+    w.Add("],\"instances\":[");
+    for (std::size_t i = 0; i < tree.instances.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& node = tree.instances[i];
+        w.Add("{\"index\":");
+        w.Number(i);
+        w.Add(",\"source_definition_id\":");
+        id(node.definition);
+        w.Add(",\"root_index\":");
+        w.Number(node.rootIndex);
+        w.Add(",\"parent_instance\":");
+        if (node.parentIndex)
+        {
+            w.Number(*node.parentIndex);
+        }
+        else
+        {
+            w.Add("null");
+        }
+        w.Add(",\"source_usage\":");
+        if (node.usage)
+        {
+            id(*node.usage);
+        }
+        else
+        {
+            w.Add("null");
+        }
+        w.Add(",\"depth\":");
+        w.Number(node.depth);
+        w.Add(",\"rotation_to_root\":[");
+        for (std::size_t r = 0; r < 3; ++r)
+        {
+            if (r)
+            {
+                w.Add(",");
+            }
+            PointJson(w, node.rotationToRoot[r]);
+        }
+        w.Add("],\"translation_to_root_mm\":");
+        PointJson(w, node.translationToRootMm);
+        w.Add("}");
+    }
+    w.Add("]}");
+}
 void WriteReportJson(
     Writer& w,
     Status status,
     const Report& report,
     const Quality& quality,
     const step_source::InspectOutcome& source,
-    bool nestedBody = false
+    bool nestedBody = false,
+    const AssemblyEvidence* assembly = nullptr
 )
 {
     if (report.generalBrep)
@@ -558,9 +740,13 @@ void WriteReportJson(
         // Separate scope: do not serialize unexecuted planar proofs as
         // qualification for analytic/NURBS models or complete AP214 rules.
         w.Add(
+            assembly ?
+                "{\"format_version\":\"step-assembly-development.v1\",\"scope\":\"AssemblyDevelopment\",\"status\":" :
             nestedBody ?
                 (report.sourceEvidenceScope == "RepairParent" ?
                      "{\"format_version\":\"step-repair-original-attempt.v1\",\"scope\":\"WithinRepairRequest\",\"status\":" :
+                 report.sourceEvidenceScope == "AssemblyDefinitionRoot" || report.sourceEvidenceScope == "AssemblyPlacementWrapper" ?
+                     "{\"format_version\":\"step-assembly-definition-checks.v1\",\"scope\":\"WithinAssembly\",\"status\":" :
                  report.sourceEvidenceScope == "ProductDocumentRoot" ?
                      "{\"format_version\":\"step-product-definition-checks.v1\",\"scope\":\"WithinProductDocument\",\"status\":" :
                      "{\"format_version\":\"step-material-body-checks.v1\",\"scope\":\"WithinMaterialCollection\",\"status\":") :
@@ -573,6 +759,10 @@ void WriteReportJson(
                 "{\"format_version\":\"step-general-native-development.v1\",\"scope\":\"GeneralBrepDevelopment\",\"status\":"
         );
         w.String(StatusName(status));
+        if (assembly)
+        {
+            AssemblyJson(w, *assembly);
+        }
         if (report.cylindricalBandRepairRequest || report.cylindricalBandRepairs)
         {
             w.Add(
@@ -1028,12 +1218,13 @@ void WriteReportJson(
             }
             w.Add("]}");
         }
-        if (report.productDocument)
+        if (report.productDocument || assembly)
         {
             w.Add(",\"product_document\":{\"complete\":");
             w.Bool(IsAcceptedReportStatus(status));
             w.Add(",\"selected_definition_count\":");
             w.Number(
+                assembly                          ? assembly->definitions.size() :
                 report.definitionSelectionRequest ? (report.definitionSelection ? report.definitionSelection->selectedDefinitionIds.size() : 0) :
                 report.generalSource && report.generalSource->document ? report.generalSource->document->PartCount() :
                                                                          0
@@ -1854,6 +2045,65 @@ void WriteReportJson(
         return tl::unexpected(
             Failure{ Status::ResourceLimit, "ImportReportByteLimit", "Mandatory import report cannot be published within the byte allowance", {} }
         );
+    }
+    return {};
+}
+Result<void> SerializeAssembly(
+    Status status,
+    const Report& report,
+    const Quality& quality,
+    const step_source::InspectOutcome& source,
+    const AssemblyEvidence& assembly,
+    std::size_t limit,
+    std::string& output
+)
+{
+    if (!report.generalBrep || !source.source || !report.source || report.sourceSha256 != source.source->Sha256() ||
+        report.source->Sha256() != source.source->Sha256() || !assembly.instances.placements.source ||
+        source.source->Sha256() != assembly.instances.placements.source->SourceFields().Source().Sha256())
+    {
+        output.clear();
+        return tl::unexpected(
+            Failure{ Status::BuildFailure,
+                     "AssemblyReportSourceMismatch",
+                     "Assembly evidence must bind the same captured source",
+                     {},
+                     "AssemblyReport" }
+        );
+    }
+    if (IsAcceptedReportStatus(status))
+    {
+        bool complete = report.definitions.size() == assembly.definitions.size() && !assembly.definitions.empty();
+        if (complete)
+        {
+            for (std::size_t i = 0; i < report.definitions.size(); ++i)
+            {
+                complete = complete && report.definitions[i].checksPassed && report.definitions[i].checks &&
+                           report.definitions[i].sourceDefinitionRecord == assembly.definitions[i].definition;
+            }
+        }
+        if (!complete)
+        {
+            output.clear();
+            return tl::unexpected(
+                Failure{ Status::BuildFailure,
+                         "AssemblyReportDefinitionMismatch",
+                         "Accepted assembly report requires complete matching definition observations",
+                         {},
+                         "AssemblyReport" }
+            );
+        }
+    }
+    if (!Writer::Publish(
+            limit,
+            output,
+            [&](Writer& writer)
+            {
+                WriteReportJson(writer, status, report, quality, source, false, &assembly);
+            }
+        ))
+    {
+        return tl::unexpected(Failure{ Status::ResourceLimit, "ImportReportByteLimit", "Mandatory assembly report exceeds its byte allowance", {} });
     }
     return {};
 }
