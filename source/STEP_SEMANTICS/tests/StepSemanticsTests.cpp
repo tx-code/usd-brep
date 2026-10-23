@@ -59,6 +59,12 @@ void ProductStructureOwnership(std::string text)
         "whole independent source document qualifies all definitions"
     );
     auto first = qualified.document->Part(0), second = qualified.document->Part(1);
+    auto boundSource = first->Bindings();
+    Require(
+        &boundSource.Source() == &first->Source() && &boundSource.Field(Index(*first, "203"), "EDGE", "edge_start").Value() ==
+                                                         &first->Field(Index(*first, "203"), "EDGE", "edge_start").Value(),
+        "qualified snapshots and unqualified typed source access share exact bindings"
+    );
     Require(
         &first->Source() == &second->Source() &&
             std::any_of(

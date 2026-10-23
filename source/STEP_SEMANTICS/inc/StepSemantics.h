@@ -224,6 +224,7 @@ struct Diagnostic
 };
 
 struct SemanticData;
+class SourceBindings;
 struct ProductStructureData;
 struct ProductRepresentationLink
 {
@@ -276,6 +277,7 @@ public:
     explicit ProductStructure(std::shared_ptr<const ProductStructureData> data);
     const step_source::SourceSnapshot& Source() const;
     const ProductStructureBasis& Basis() const;
+    const SourceBindings& Bindings() const; // Typed source access only; no part/unit/native qualification.
     std::span<const ProductDefinitionLink> Definitions() const;
     std::span<const ProductUsageLink> Usages() const;
     std::span<const ContextDependentShapeLink> ContextDependentShapes() const;
@@ -312,10 +314,32 @@ public:
 private:
 
     friend class Snapshot;
+    friend class SourceBindings;
     FieldView(std::shared_ptr<const SemanticData> data, std::size_t record, std::size_t binding);
     std::shared_ptr<const SemanticData> m_data;
     std::size_t m_record;
     std::size_t m_binding;
+};
+
+// Owning access to the immutable source/type/field/reference subset established
+// by binding. It cannot expose a qualified Part, Units or native model. Assembly
+// consumers use the same named-field and reference rules as Snapshot; they must
+// separately establish frame/unit/ownership prerequisites before construction.
+class SourceBindings
+{
+public:
+
+    explicit SourceBindings(std::shared_ptr<const SemanticData> data);
+    const step_source::SourceSnapshot& Source() const;
+    const QualifiedSchemaProfile& SelectedProfile() const;
+    bool IsA(std::size_t record, std::string_view type) const;
+    FieldView Field(std::size_t record, std::string_view name) const;
+    FieldView Field(std::size_t record, std::string_view declaredIn, std::string_view name) const;
+    std::size_t ReferenceTarget(const step_source::Value& value) const;
+
+private:
+
+    std::shared_ptr<const SemanticData> m_data;
 };
 
 struct SelectedSourceRequest
@@ -345,6 +369,7 @@ public:
     explicit Snapshot(std::shared_ptr<const SemanticData> data);
     const step_source::SourceSnapshot& Source() const;
     // Borrowed identity views remain valid while this owning snapshot lives.
+    SourceBindings Bindings() const;
     const QualifiedSchemaProfile& SelectedProfile() const;
     const SchemaIdentifier& SchemaIdentity() const;
     SchemaInterpretation AppliedInterpretation() const;

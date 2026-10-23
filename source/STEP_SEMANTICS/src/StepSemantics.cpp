@@ -56,19 +56,6 @@ std::size_t IndexOf(const SemanticData& data, std::string_view id)
     }
     return static_cast<std::size_t>(record - data.source->Records().data());
 }
-std::size_t ResolveReference(const SemanticData& data, const Value& value)
-{
-    if (value.kind != ValueKind::Reference)
-    {
-        throw std::invalid_argument("Source slot is not an explicit reference");
-    }
-    const auto found = data.referenceTargets.find(&value);
-    if (found == data.referenceTargets.end())
-    {
-        throw std::invalid_argument("Reference value is not owned by this source snapshot");
-    }
-    return found->second;
-}
 
 bool PositiveInteger(std::string_view text)
 {
@@ -172,7 +159,7 @@ public:
                     );
                 }
                 auto structure = InspectProductStructure(
-                    *m_data,
+                    m_data,
                     [this](Span span)
                     {
                         Visit(span);
@@ -293,7 +280,7 @@ public:
             [&]
             {
                 auto structure = InspectProductStructure(
-                    *m_data,
+                    m_data,
                     [this](Span span)
                     {
                         Visit(span);
@@ -1055,7 +1042,7 @@ private:
     }
     std::size_t Target(const Value& value) const
     {
-        return ResolveReference(*m_data, value);
+        return ResolveBoundReference(*m_data, value);
     }
     std::size_t UnboundTarget(const Value& value) const
     {
@@ -5189,15 +5176,15 @@ const std::vector<std::size_t>* Snapshot::Instances(std::string_view type) const
     const auto id = Schema(*m_data).Find(type);
     return id ? &m_data->populations[*id] : nullptr;
 }
+SourceBindings Snapshot::Bindings() const
+{
+    return SourceBindings(m_data);
+}
 bool Snapshot::IsA(std::size_t record, std::string_view type) const
 {
-    const auto id = Schema(*m_data).Find(type);
-    if (!id)
-    {
-        throw std::invalid_argument("Unregistered source type query");
-    }
-    return m_data->types.at(record).test(*id);
+    return IsBoundType(*m_data, record, type);
 }
+
 std::vector<std::string> Snapshot::TypesOf(std::size_t record) const
 {
     std::vector<std::string> names;
@@ -5224,7 +5211,7 @@ FieldView Snapshot::Field(std::size_t record, std::string_view declaredIn, std::
 }
 std::size_t Snapshot::ReferenceTarget(const step_source::Value& value) const
 {
-    return ResolveReference(*m_data, value);
+    return ResolveBoundReference(*m_data, value);
 }
 
 FieldView::FieldView(std::shared_ptr<const SemanticData> data, std::size_t record, std::size_t binding)
@@ -5247,7 +5234,7 @@ AttributeLocation FieldView::Location() const
 }
 std::size_t FieldView::ReferenceTarget() const
 {
-    return ResolveReference(*m_data, Value());
+    return ResolveBoundReference(*m_data, Value());
 }
 std::vector<std::size_t> FieldView::ReferenceTargets() const
 {
@@ -5260,7 +5247,7 @@ std::vector<std::size_t> FieldView::ReferenceTargets() const
     result.reserve(Value().children.size());
     for (const auto& member : Value().children)
     {
-        result.push_back(ResolveReference(*m_data, member));
+        result.push_back(ResolveBoundReference(*m_data, member));
     }
     return result;
 }

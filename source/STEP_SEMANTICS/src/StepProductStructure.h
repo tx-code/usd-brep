@@ -20,7 +20,7 @@ struct ProductStructureResult
 // Requires the shared field/reference bindings. No source reparsing or parallel
 // type interpretation; all observations keep the original source owner.
 ProductStructureResult InspectProductStructure(
-    const SemanticData& data,
+    std::shared_ptr<const SemanticData> data,
     const std::function<void(step_source::Span)>& visit,
     bool includeSingleDefinition = false
 );

@@ -132,6 +132,41 @@ int main(int argc, char** argv)
         result = {};
         graph.reset();
         Require(plan->structure->Source().Bytes() == source && id(plan->occurrences[1].usage) == "916", "binding plan owns immutable source lifetime");
+        auto bindings = plan->structure->Bindings();
+        const auto axis = plan->occurrences[0].childItem;
+        auto location = bindings.Field(axis, "PLACEMENT", "location");
+        Require(
+            bindings.IsA(axis, "AXIS2_PLACEMENT_3D") && location.Declaration().declaredIn == "PLACEMENT",
+            "assembly reuses inherited typed field binding"
+        );
+        Require(bindings.Source().Records()[location.ReferenceTarget()].id == "930", "source frame location identity");
+        Require(&location.Value() == &bindings.Field(axis, "location").Value(), "named access preserves original source value identity");
+        bool copiedRejected = false;
+        const auto copiedReference = location.Value();
+        try
+        {
+            bindings.ReferenceTarget(copiedReference);
+        }
+        catch (const std::invalid_argument&)
+        {
+            copiedRejected = true;
+        }
+        Require(copiedRejected, "copied reference values cannot forge source membership");
+        bool unknownRejected = false;
+        try
+        {
+            bindings.IsA(axis, "UNREGISTERED_FRAME_TYPE");
+        }
+        catch (const std::invalid_argument&)
+        {
+            unknownRejected = true;
+        }
+        Require(unknownRejected, "unregistered types are not silently absent");
+        plan.reset();
+        Require(
+            bindings.Source().Bytes() == source && bindings.Source().Records()[location.ReferenceTarget()].id == "930",
+            "typed source and field views outlive the assembly plan"
+        );
         std::cout << "Assembly occurrence binding contracts passed; numeric/native qualification not run\n";
         return 0;
     }

@@ -333,5 +333,7 @@ struct SemanticData
 const Catalog& Schema(const SemanticData& data);
 
 AttributeView AttributeAt(const SemanticData& data, std::size_t record, std::size_t component, std::size_t parameter);
+bool IsBoundType(const SemanticData& data, std::size_t record, std::string_view type);
+std::size_t ResolveBoundReference(const SemanticData& data, const step_source::Value& value);
 std::size_t FindFieldBinding(const SemanticData& data, std::size_t record, std::string_view name, std::optional<std::string_view> declaredIn = {});
 } // namespace step_semantics

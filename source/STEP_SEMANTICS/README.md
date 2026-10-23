@@ -1166,6 +1166,16 @@ result qualifications retain their meaning.
 
 ## Assembly occurrence binding prerequisite
 
+`ProductStructure::Bindings()` exposes owning `SourceBindings` access to the
+already completed source type/field/reference tables. `Snapshot::Bindings()`
+uses the same tables and lookup implementation. Named inherited fields retain
+their original `Value` objects and locations; copied or foreign reference values
+are refused. A copied binding view or field view retains its source lifetime
+after graph/outcome release. No second entity decoder or copied source graph is
+created. Only the binding subset is exposed: part membership, unit qualification,
+pending metadata approvals and native models are unavailable through this view.
+Traversal algorithms remain responsible for charging their visit budgets.
+
 `StepAssemblyBindings.h` provides `BindAssemblyOccurrences` for an already owned
 `ProductStructure`. The read-only returned plan binds every declared NAUO through
 one CDSR and item-defined transformed relationship to distinct, directly associated

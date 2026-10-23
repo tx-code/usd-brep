@@ -14,6 +14,7 @@ namespace step_semantics
 struct ProductStructureData
 {
     std::shared_ptr<const step_source::SourceSnapshot> source;
+    std::shared_ptr<const SourceBindings> bindings;
     ProductStructureBasis basis;
     std::vector<ProductDefinitionLink> definitions;
     std::vector<ProductUsageLink> usages;
@@ -24,7 +25,7 @@ struct ProductStructureData
 };
 ProductStructure::ProductStructure(std::shared_ptr<const ProductStructureData> data) : m_data(std::move(data))
 {
-    Expects(m_data && m_data->source);
+    Expects(m_data && m_data->source && m_data->bindings);
 }
 const step_source::SourceSnapshot& ProductStructure::Source() const
 {
@@ -33,6 +34,10 @@ const step_source::SourceSnapshot& ProductStructure::Source() const
 const ProductStructureBasis& ProductStructure::Basis() const
 {
     return m_data->basis;
+}
+const SourceBindings& ProductStructure::Bindings() const
+{
+    return *m_data->bindings;
 }
 std::span<const ProductDefinitionLink> ProductStructure::Definitions() const
 {
@@ -65,8 +70,8 @@ class Builder
 {
 public:
 
-    Builder(const SemanticData& data, const std::function<void(step_source::Span)>& visit, bool includeSingleDefinition)
-        : m_data(data), m_visit(visit), m_includeSingleDefinition(includeSingleDefinition)
+    Builder(std::shared_ptr<const SemanticData> data, const std::function<void(step_source::Span)>& visit, bool includeSingleDefinition)
+        : m_bindingOwner(std::move(data)), m_data(*m_bindingOwner), m_visit(visit), m_includeSingleDefinition(includeSingleDefinition)
     {
     }
     ProductStructureResult Run()
@@ -84,6 +89,10 @@ public:
         Expects(m_data.bindingsComplete);
         auto output = std::make_shared<ProductStructureData>();
         output->source = m_data.source;
+        // Binding/type/reference tables are finalized before this pass and are
+        // never changed by later part/unit/closure checks. Retain that owner,
+        // exposing only stable source queries, not mutable qualification state.
+        output->bindings = std::make_shared<const SourceBindings>(m_bindingOwner);
         output->basis = { m_data.profile,
                           m_data.appliedInterpretation,
                           m_data.policy,
@@ -291,6 +300,7 @@ public:
 
 private:
 
+    std::shared_ptr<const SemanticData> m_bindingOwner;
     const SemanticData& m_data;
     const std::function<void(step_source::Span)>& m_visit;
     bool m_includeSingleDefinition = false;
@@ -367,12 +377,12 @@ private:
 };
 } // namespace
 ProductStructureResult InspectProductStructure(
-    const SemanticData& data,
+    std::shared_ptr<const SemanticData> data,
     const std::function<void(step_source::Span)>& visit,
     bool includeSingleDefinition
 )
 {
-    Expects(bool(visit));
+    Expects(bool(visit) && bool(data));
     try
     {
         return Builder(data, visit, includeSingleDefinition).Run();

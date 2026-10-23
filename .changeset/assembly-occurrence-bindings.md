@@ -8,6 +8,8 @@ usages and parent/child source roles, rejecting ambiguous or incomplete bindings
 without a partial plan.
 Transformation items must belong directly to their declared representation
 endpoints; swapped or missing items are rejected without automatic correction.
+Owning `SourceBindings` views expose existing named type/field/reference bindings
+to subsequent assembly checks without fabricating a qualified part snapshot.
 
 ## Scope
 
@@ -25,3 +27,5 @@ unit, frame, closure and native checks separate from binding success.
 Additive C++20 API with an internal struct layout extension; existing admission,
 report fields and native files are unchanged. Assembly declaration inspection
 charges additional visits for indexed representation-item membership.
+Product structure observations retain the shared typed binding owner; source
+and field storage are reused, not duplicated.
