@@ -33,6 +33,7 @@ std::string Read(const std::filesystem::path& path)
 std::string NestedSource(const std::string& base)
 {
     std::ostringstream result;
+    const bool splineRoof = base.find("#514=B_SPLINE_SURFACE_WITH_KNOTS") != std::string::npos;
     std::vector<std::string> geometry;
     std::istringstream input(base);
     std::string line;
@@ -50,6 +51,10 @@ std::string NestedSource(const std::string& base)
         {
             line = "#2=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2010,#1);";
         }
+        if (line.starts_with("#20="))
+        {
+            line = "#20=ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12);";
+        }
         if (line == "END-ISO-10303-21;")
         {
             continue;
@@ -62,6 +67,12 @@ std::string NestedSource(const std::string& base)
         {
             const auto id = std::stoul(line.substr(1, line.find('=') - 1));
             if (id >= 900)
+            {
+                continue;
+            }
+            // The original roof's planar frame is not used by its spline.
+            // This new document contains only the physical solid items.
+            if (splineRoof && id >= 511 && id <= 513)
             {
                 continue;
             }
