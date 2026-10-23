@@ -118,7 +118,8 @@ a focused local pass establishes its stated scope, not a full CI or production q
 - Agent guidance lives in `AGENTS.md` and `.agents/`. Keep this file focused on shared constraints and task pointers;
   place operation details in the matching guide and link new guides from `.agents/operations/INDEX.md`.
   Follow [documentation placement](docs/README.md) for durable docs, frozen test inputs, and local work records.
-  Remove a `KNOWN_ISSUES.md` entry when the change fixes it. For upstream merges or release work, use
+  Remove a `KNOWN_ISSUES.md` entry when the change fixes it. For upstream synchronization, use
+  [the merge skill](.agents/skills/usd-brep-merge-upstream/SKILL.md); fork policy and release routing live in
   [FORK_MAINTENANCE.md](FORK_MAINTENANCE.md).
 - Include a [changeset](.changeset/README.md) with caller-visible fixes, features, or compatibility changes;
   internal refactors and documentation-only edits need none. Use the

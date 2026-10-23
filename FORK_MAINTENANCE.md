@@ -17,6 +17,9 @@ versions. Deployment branches have their own lifecycle.
 Last incorporated upstream commit: `c9c5979f04cea8c38213004d4f04df0dcfb40d05`
 (Release 1.0.0).
 
+For upstream synchronization, use [the merge skill](.agents/skills/usd-brep-merge-upstream/SKILL.md)
+for development boundaries, semantic conflict review, matching-runtime validation, and local fast-forward.
+
 Before an upstream merge, review local behavior changes and run the affected
 regressions in a matching build environment. Record incorporated commits and
 compatibility changes in Git/release records. Per-run receipts, machine details,

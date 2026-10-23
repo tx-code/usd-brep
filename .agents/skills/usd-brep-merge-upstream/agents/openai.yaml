@@ -1,0 +1,3 @@
+interface:
+  display_name: "合并上游"
+  short_description: "在开发收束点审阅并合并上游，验证 SDK 兼容性后快进本地主线"
