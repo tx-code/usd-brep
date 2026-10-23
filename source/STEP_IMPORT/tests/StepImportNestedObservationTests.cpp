@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <iostream>
 #include <iterator>
 #include <regex>
@@ -34,6 +35,9 @@ std::string NestedSource(const std::string& base)
 {
     std::ostringstream result;
     std::vector<std::string> geometry;
+    std::vector<unsigned long> representationItems;
+    const std::regex reference("#([0-9]+)");
+    const std::regex shapeItems("#20=ADVANCED_BREP_SHAPE_REPRESENTATION\\('[^']*',\\((#[0-9]+(?:,#[0-9]+)*)\\),#12\\);");
     std::istringstream input(base);
     std::string line;
     while (std::getline(input, line))
@@ -49,6 +53,16 @@ std::string NestedSource(const std::string& base)
         if (line.starts_with("#2="))
         {
             line = "#2=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2010,#1);";
+        }
+        if (line.starts_with("#20="))
+        {
+            std::smatch items;
+            Require(std::regex_match(line, items, shapeItems), "synthetic source representation item layout");
+            const auto list = items[1].str();
+            for (std::sregex_iterator i(list.begin(), list.end(), reference), end; i != end; ++i)
+            {
+                representationItems.push_back(std::stoul((*i)[1].str()));
+            }
         }
         if (line == "END-ISO-10303-21;")
         {
@@ -72,7 +86,7 @@ std::string NestedSource(const std::string& base)
         }
         result << line << '\n';
     }
-    const std::regex reference("#([0-9]+)");
+    Require(!representationItems.empty() && representationItems.front() == 21, "synthetic representation starts with its material body");
     for (unsigned offset : { 10000u, 20000u, 30000u })
     {
         for (const auto& record : geometry)
@@ -89,18 +103,41 @@ std::string NestedSource(const std::string& base)
             result << record.substr(position) << '\n';
         }
     }
+    const auto copiedItems = [&](std::initializer_list<unsigned> offsets)
+    {
+        std::ostringstream items;
+        bool first = true;
+        for (const auto offset : offsets)
+        {
+            for (const auto id : representationItems)
+            {
+                Require(id >= 21 && id < 900, "synthetic representation items belong to the copied geometry graph");
+                items << (first ? "" : ",") << '#' << id + offset;
+                first = false;
+            }
+        }
+        return items.str();
+    };
+    // The roof has an associated coordinate frame as a representation item.
+    // Copy its membership along with the body: otherwise the copied frame and
+    // directions become orphans and source checking correctly stops before the
+    // cancellation boundary this test is meant to exercise.
     result << "#900=PRODUCT('second','second',$,(#3));\n"
               "#901=PRODUCT_DEFINITION_FORMATION('B',$,#900);\n"
               "#902=PRODUCT_DEFINITION('D2',$,#901,#6);\n"
               "#903=PRODUCT_DEFINITION_SHAPE('',$,#902);\n"
               "#904=SHAPE_DEFINITION_REPRESENTATION(#903,#920);\n"
-              "#920=ADVANCED_BREP_SHAPE_REPRESENTATION('second',(#10021,#20021),#12);\n"
+              "#920=ADVANCED_BREP_SHAPE_REPRESENTATION('second',("
+           << copiedItems({ 10000u, 20000u })
+           << "),#12);\n"
               "#1900=PRODUCT('third','third',$,(#3));\n"
               "#1901=PRODUCT_DEFINITION_FORMATION('C',$,#1900);\n"
               "#1902=PRODUCT_DEFINITION('D3',$,#1901,#6);\n"
               "#1903=PRODUCT_DEFINITION_SHAPE('',$,#1902);\n"
               "#1904=SHAPE_DEFINITION_REPRESENTATION(#1903,#1920);\n"
-              "#1920=ADVANCED_BREP_SHAPE_REPRESENTATION('third',(#30021),#12);\n"
+              "#1920=ADVANCED_BREP_SHAPE_REPRESENTATION('third',("
+           << copiedItems({ 30000u })
+           << "),#12);\n"
               "ENDSEC;\nEND-ISO-10303-21;\n";
     return result.str();
 }
