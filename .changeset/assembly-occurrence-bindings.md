@@ -18,6 +18,13 @@ native candidates.
 
 ## Scope
 
+An explicit `RetainDisconnected` source option retains complete, proved disconnected
+3D placement declarations with their original orphan diagnostic. Default `Reject`
+is unchanged; no target geometry, units or part membership are manufactured. Opaque
+revision labels additionally require a proved singleton chain per product; sibling
+revisions/views remain blocking. Assembly entry signatures extend with this optional
+policy argument, so rebuild SDK and callers together.
+
 [Explicit assembly C++ import](../source/STEP_IMPORT/README.md).
 This is a development subset, not full schema or continuous geometric-error qualification.
 Associated geometry, repairs and source isolation are not combined with this entry yet.

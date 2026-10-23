@@ -1280,6 +1280,30 @@ must not be used as a qualified source snapshot or partial native import.
 
 ## Complete assembly source ownership
 
+`UnreferencedPlacementPolicy::Reject` remains the default. Explicit
+`RetainDisconnected` can retain a source-only closed group of simple
+`AXIS2_PLACEMENT_3D`, `CARTESIAN_POINT` and `DIRECTION` declarations. Every point
+and direction must be reached from a retained placement; all have three
+components, directions are nonzero, and explicit axes must establish a regular
+frame through bounded exact arithmetic. The complete source reference index must
+prove zero incoming/outgoing references across the group's boundary. Unknown
+types, extra orphan items, connections to selected data, exhausted visits or
+unestablished arithmetic deny the retention proof.
+
+No representation, part, physical unit or native geometry is assigned to this
+group. Original bytes, identities and the original orphan diagnostic remain in
+owning `AssemblyDocument::RetainedPlacements()` and the assembly report. These
+geometric declarations never enter the nongeometric metadata exception list.
+This is a selected implementation scope extension for intact declarations,
+not syntax recovery or permission to suppress bad defining geometry.
+
+Opaque PD/PDF identifier labels in a complete assembly use a per-product
+singleton proof: exactly one formation for that product and one definition for
+that formation in the complete source populations. Definition selection uses
+source references, never opaque text. Sibling revisions/views deny this proof;
+physical uses and unmatched source ownership remain blocking. Existing
+single-part/independent entry behavior is unchanged.
+
 `CheckAssemblySource` runs the same complete input/definition prerequisites, then
 aggregates definition roles together with explicitly bound usage/CDSR roots and
 executes the existing whole-document closure and final interoperability approval.

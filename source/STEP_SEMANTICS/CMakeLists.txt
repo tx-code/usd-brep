@@ -9,6 +9,7 @@ add_library(STEP_SEMANTICS STATIC src/StepCatalog.cpp src/StepSemantics.cpp src/
 target_sources(STEP_SEMANTICS PRIVATE src/StepSourceBindings.cpp src/StepProductStructure.cpp src/StepIndependentProducts.cpp
     src/StepDefinitionInspection.cpp src/StepSourceIsolation.cpp src/StepAssemblyBindings.cpp src/StepAssemblyInputs.cpp src/StepAssemblyDefinitions.cpp)
 target_include_directories(STEP_SEMANTICS PUBLIC inc PRIVATE src)
+target_sources(STEP_SEMANTICS PRIVATE src/StepUnreferencedPlacements.cpp)
 target_compile_features(STEP_SEMANTICS PUBLIC cxx_std_20)
 target_link_libraries(STEP_SEMANTICS PUBLIC STEP_SOURCE PRIVATE usd_brep_gsl)
 option(STEP_BUILD_TOOLS "Build STEP inspection CLIs" ON)

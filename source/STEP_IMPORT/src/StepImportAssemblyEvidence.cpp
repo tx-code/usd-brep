@@ -14,6 +14,7 @@ std::shared_ptr<const AssemblyEvidence> CaptureAssemblyEvidence(const AssemblyNa
     }
     auto evidence = std::make_shared<AssemblyEvidence>();
     evidence->instances = candidate.instances;
+    evidence->retainedPlacements = candidate.source->RetainedPlacements();
     for (std::size_t i = 0; i < candidate.definitions.size(); ++i)
     {
         const auto source = candidate.source->Definition(i);

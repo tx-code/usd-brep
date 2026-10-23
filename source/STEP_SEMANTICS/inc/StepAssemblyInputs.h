@@ -5,6 +5,16 @@
 
 namespace step_semantics
 {
+enum class UnreferencedPlacementPolicy
+{
+    Reject,
+    RetainDisconnected
+};
+struct RetainedPlacementDeclarations
+{
+    std::vector<std::size_t> placements, records;
+    Diagnostic originalDiagnostic; // Original unsupported-ownership fact, not a waived geometry error.
+};
 struct AssemblyContextUnits
 {
     std::size_t context;
@@ -61,6 +71,7 @@ public:
     const AssemblyInputs& Inputs() const;
     std::size_t DefinitionCount() const;
     std::shared_ptr<const Snapshot> Definition(std::size_t index) const;
+    const std::optional<RetainedPlacementDeclarations>& RetainedPlacements() const;
 
 private:
 
@@ -77,6 +88,7 @@ AssemblySourceOutcome CheckAssemblySource(
     SourcePolicy policy,
     SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
-    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
+    UnreferencedPlacementPolicy placementPolicy = UnreferencedPlacementPolicy::Reject
 );
 } // namespace step_semantics

@@ -52,6 +52,10 @@ std::size_t AssemblyDocument::DefinitionCount() const
 {
     return m_data->semantic->independentParts.size();
 }
+const std::optional<RetainedPlacementDeclarations>& AssemblyDocument::RetainedPlacements() const
+{
+    return m_data->retainedPlacements;
+}
 std::shared_ptr<const Snapshot> AssemblyDocument::Definition(std::size_t index) const
 {
     return std::shared_ptr<const Snapshot>(new Snapshot(m_data->semantic, index));

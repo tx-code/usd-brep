@@ -18,5 +18,6 @@ struct AssemblyDocumentData
 {
     std::shared_ptr<const SemanticData> semantic;
     std::shared_ptr<const AssemblyInputs> inputs;
+    std::optional<RetainedPlacementDeclarations> retainedPlacements;
 };
 } // namespace step_semantics

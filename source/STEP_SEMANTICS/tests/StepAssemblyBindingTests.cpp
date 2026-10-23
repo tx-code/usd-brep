@@ -309,10 +309,21 @@ void DefinitionChecks(const std::string& source)
 void CompleteSource(const std::string& source)
 {
     using namespace step_semantics;
-    auto check = [](const std::string& text, Limits limits = {}, SourcePolicy policy = SourcePolicy::Strict)
+    auto check = [](const std::string& text,
+                    Limits limits = {},
+                    SourcePolicy policy = SourcePolicy::Strict,
+                    UnreferencedPlacementPolicy retention = UnreferencedPlacementPolicy::Reject)
     {
         auto raw = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
-        return CheckAssemblySource(raw, limits, policy);
+        return CheckAssemblySource(
+            raw,
+            limits,
+            policy,
+            SchemaInterpretation::DeclaredOnly,
+            UnitInterpretation::DeclaredOnly,
+            ComplexMappingInterpretation::DeclaredOnly,
+            retention
+        );
     };
     auto complete = check(source);
     Require(
@@ -321,6 +332,82 @@ void CompleteSource(const std::string& source)
     );
     Require(complete.document->DefinitionCount() == 2, "all source definitions published");
     auto child = complete.document->Definition(0), parent = complete.document->Definition(1);
+    auto opaqueCheck = [](const std::string& text)
+    {
+        auto raw = step_source::InspectBytes(
+            text,
+            step_source::Limits::PlanarFixtures(),
+            step_source::HeaderNamePolicy::StrictAscii,
+            step_source::DataStringPolicy::PreserveOpaqueBytes
+        );
+        return CheckAssemblySource(raw, {}, SourcePolicy::PreserveNonGeometric);
+    };
+    auto opaqueSource = Replace(source, "#5=PRODUCT_DEFINITION_FORMATION('A'", std::string("#5=PRODUCT_DEFINITION_FORMATION('") + "\x80" + "'");
+    auto opaque = opaqueCheck(opaqueSource);
+    Require(opaque.document && !opaque.checks.preservedDiagnostics.empty(), "each independent product's singleton revision label can remain opaque");
+    auto ambiguous = Replace(
+        opaqueSource,
+        "ENDSEC;\nEND-ISO",
+        "#960=PRODUCT_DEFINITION_FORMATION('B',$,#4);\n#961=PRODUCT_DEFINITION('other',$,#960,#6);\n"
+        "#962=PRODUCT_DEFINITION_SHAPE('',$,#961);\n#963=SHAPE_DEFINITION_REPRESENTATION(#962,#964);\n"
+        "#964=ADVANCED_BREP_SHAPE_REPRESENTATION('other',(#21,#931),#12);\nENDSEC;\nEND-ISO"
+    );
+    auto deniedIdentity = opaqueCheck(ambiguous);
+    Require(
+        !deniedIdentity.document && std::any_of(
+                                        deniedIdentity.checks.diagnostics.begin(),
+                                        deniedIdentity.checks.diagnostics.end(),
+                                        [](const auto& d)
+                                        {
+                                            return d.source.key == "OpaqueDataTextUnestablished";
+                                        }
+                                    ),
+        "opaque label cannot choose among same-product revisions"
+    );
+    const auto append = [](std::string text, const std::string& records)
+    {
+        text.insert(text.find("ENDSEC;\nEND-ISO"), records);
+        return text;
+    };
+    const std::string frame =
+        "#950=CARTESIAN_POINT('unused',(1.,2.,3.));\n"
+        "#951=DIRECTION('',(1.,0.,0.));\n#952=DIRECTION('',(0.,0.,1.));\n"
+        "#953=AXIS2_PLACEMENT_3D('unused',#950,#952,#951);\n";
+    auto unused = append(source, frame);
+    Require(!check(unused).document, "default rejects unattached geometry");
+    auto retained = check(unused, {}, SourcePolicy::Strict, UnreferencedPlacementPolicy::RetainDisconnected);
+    Require(
+        retained.document && retained.document->RetainedPlacements() && retained.document->RetainedPlacements()->records.size() == 4 &&
+            retained.document->RetainedPlacements()->placements.size() == 1 && retained.document->DefinitionCount() == 2 &&
+            retained.document->Definition(0)->PartDefinition().shapes.size() == 1 &&
+            retained.document->RetainedPlacements()->originalDiagnostic.source.key == "UnownedOrOrphanProfileContent",
+        "explicit policy retains exact disconnected declarations and original profile refusal without adding geometry"
+    );
+    Require(retained.document->Definition(0)->UnattachedNonGeometricDeclarations().empty(), "geometric residue is not mislabeled nongeometric");
+    for (const auto& bad : { Replace(unused, "#951=DIRECTION('',(1.,0.,0.))", "#951=DIRECTION('',(0.,0.,0.))"),
+                             Replace(unused, "#951=DIRECTION('',(1.,0.,0.))", "#951=DIRECTION('',(0.,0.,2.))"),
+                             Replace(unused, "#950=CARTESIAN_POINT('unused',(1.,2.,3.))", "#950=CARTESIAN_POINT('unused',(1.,2.))"),
+                             append(unused, "#954=DIRECTION('',(0.,1.,0.));\n"),
+                             Replace(unused, "#950,#952,#951)", "#950,#936,#951)") })
+    {
+        Require(
+            !check(bad, {}, SourcePolicy::Strict, UnreferencedPlacementPolicy::RetainDisconnected).document,
+            "invalid, incomplete or externally connected group cannot be retained"
+        );
+    }
+    auto capacity = check(
+        Replace(unused, "#951=DIRECTION('',(1.,0.,0.))", "#951=DIRECTION('',(1.E1000,0.,0.))"),
+        {},
+        SourcePolicy::Strict,
+        UnreferencedPlacementPolicy::RetainDisconnected
+    );
+    Require(!capacity.document && capacity.checks.status == Status::ResourceLimit, "bounded exact proof failure cannot become acceptance");
+    auto retainBudget = Limits{};
+    retainBudget.dependencyVisits = retained.checks.dependencyVisits - 1;
+    Require(
+        !check(unused, retainBudget, SourcePolicy::Strict, UnreferencedPlacementPolicy::RetainDisconnected).document,
+        "full retention proof still obeys shared semantic visit budget"
+    );
     Require(
         child->PartDefinition().shapeRole == "MaterialSolid" && parent->PartDefinition().shapeRole == "AssemblyPlacementWrapper" &&
             parent->PartDefinition().shapes.empty(),

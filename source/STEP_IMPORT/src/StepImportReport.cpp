@@ -553,6 +553,8 @@ void AssemblyJson(Writer& w, const AssemblyEvidence& evidence)
     {
         w.String(source.Records().at(record).id);
     };
+    // A retained disconnected frame remains source-only: no assigned physical
+    // unit, representation membership or target object is manufactured for it.
     w.Add(
         ",\"assembly\":{\"coordinate_system\":\"PerRootMillimetres\",\"matrix_layout\":\"RowMajor\",\"definition_geometry\":\"LocalUnmodified\",\"source_rewritten\":false,\"continuous_transform_error_certificate\":false,\"roots\":["
     );
@@ -564,7 +566,77 @@ void AssemblyJson(Writer& w, const AssemblyEvidence& evidence)
         }
         id(tree.roots[i]);
     }
-    w.Add("],\"definitions\":[");
+    w.Add("],\"retained_unreferenced_placements\":");
+    if (evidence.retainedPlacements)
+    {
+        const auto& retained = *evidence.retainedPlacements;
+        w.Add(
+            "{\"policy\":\"RetainDisconnected\",\"incoming_from_outside\":0,\"outgoing_to_outside\":0,\"target_geometry_created\":false,\"units_assigned\":false,\"placements\":["
+        );
+        for (std::size_t i = 0; i < retained.placements.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            id(retained.placements[i]);
+        }
+        w.Add("],\"records\":[");
+        for (std::size_t i = 0; i < retained.records.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            id(retained.records[i]);
+        }
+        const auto& d = retained.originalDiagnostic;
+        w.Add("],\"original_diagnostic\":{\"key\":");
+        w.String(d.source.key);
+        w.Add(",\"stage\":");
+        w.String(d.source.stage);
+        w.Add(",\"classification\":");
+        w.String(d.classification);
+        w.Add(",\"message\":");
+        w.String(d.source.message);
+        w.Add(",\"span\":");
+        w.Range(d.source.primary);
+        w.Add(",\"record_id\":");
+        w.String(d.source.recordId);
+        w.Add(",\"component\":");
+        w.String(d.source.component);
+        w.Add(",\"parameter_path\":");
+        w.Path(d.source.parameterPath);
+        w.Add(",\"target_id\":");
+        w.String(d.source.targetId);
+        w.Add(",\"field\":");
+        w.String(d.field);
+        w.Add(",\"declared_in\":");
+        w.String(d.declaredIn);
+        w.Add(",\"declared_type\":");
+        w.String(d.declaredType);
+        w.Add(",\"expected\":");
+        w.String(d.expected);
+        w.Add(",\"actual\":");
+        w.String(d.actual);
+        w.Add(",\"responsibility\":");
+        w.String(d.responsibility);
+        w.Add(",\"related_spans\":[");
+        for (std::size_t i = 0; i < d.source.related.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            w.Range(d.source.related[i]);
+        }
+        w.Add("]}}");
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add(",\"definitions\":[");
     for (std::size_t i = 0; i < evidence.definitions.size(); ++i)
     {
         if (i)

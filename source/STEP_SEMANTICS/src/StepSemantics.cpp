@@ -12,6 +12,7 @@
 #include "StepSourceIsolation.h"
 #include "StepSourceNumber.h"
 #include "StepUnitDependencies.h"
+#include "StepUnreferencedPlacements.h"
 
 #include <algorithm>
 #include <iterator>
@@ -431,9 +432,10 @@ public:
         m_outcome.unitInterpretationDiagnostics = m_data->unitInterpretationDiagnostics;
         return std::make_shared<const AssemblyInputs>(std::move(candidate));
     }
-    void FinalizeAssemblySource(const AssemblyInputs& inputs)
+    void FinalizeAssemblySource(const AssemblyInputs& inputs, UnreferencedPlacementPolicy placementPolicy)
     {
         Expects(m_assemblyDefinitionChecks && inputs.DefinitionChecks().size() == m_outcome.productStructure->Definitions().size());
+        m_placementPolicy = placementPolicy;
         Expects(!m_phase && State(Phase::Part) == Progress::Passed);
         m_phase = Phase::Part;
         State(Phase::Part) = Progress::Running;
@@ -521,6 +523,10 @@ public:
             );
         }
         m_outcome.unapprovedDiagnostics.clear();
+    }
+    const std::optional<RetainedPlacementDeclarations>& RetainedPlacements() const
+    {
+        return m_retainedPlacements;
     }
     void InspectDefinitions()
     {
@@ -874,6 +880,8 @@ private:
     std::unordered_set<std::size_t> m_documentBodySet;
     std::unordered_set<std::size_t> m_requestedProducts;
     bool m_assemblyDefinitionChecks = false;
+    UnreferencedPlacementPolicy m_placementPolicy = UnreferencedPlacementPolicy::Reject;
+    std::optional<RetainedPlacementDeclarations> m_retainedPlacements;
     std::unordered_set<std::string> m_selectedSourceDefinitions;
     class PopulationScope
     {
@@ -4565,75 +4573,102 @@ private:
                 {
                     failure.diagnostic.source.related.push_back(Record(orphans[i]).idSpan);
                 }
-                std::vector<unsigned char> bodyUse;
-                const auto styledItem = [&](auto r)
+                bool retained = false;
+                if (m_placementPolicy == UnreferencedPlacementPolicy::RetainDisconnected)
                 {
-                    return IsA(*m_data, r, "STYLED_ITEM");
-                };
-                if (Interoperability() && std::any_of(orphans.begin(), orphans.end(), styledItem))
-                {
-                    auto bodyItems = PhysicalItems(false);
-                    bodyUse = Reach(std::move(bodyItems), true);
+                    auto proof = ProveUnreferencedPlacements(
+                        *m_data,
+                        m_outgoing,
+                        orphans,
+                        failure.diagnostic,
+                        [this](Span span)
+                        {
+                            Visit(span);
+                        }
+                    );
+                    if (proof.failure)
+                    {
+                        throw Failure{ proof.failure->status, std::move(proof.failure->diagnostic) };
+                    }
+                    if (proof.receipt)
+                    {
+                        m_retainedPlacements = std::move(proof.receipt);
+                        State(Phase::Part) = Progress::Running;
+                        retained = true;
+                    }
                 }
-                const auto nondefiningResidue = [&](std::size_t r)
+                if (!retained)
                 {
-                    Visit(Record(r).span);
-                    if (styledItem(r))
+                    std::vector<unsigned char> bodyUse;
+                    const auto styledItem = [&](auto r)
                     {
-                        // An absent presentation owner cannot hide another shape.
-                        // The explicit target must already be used by this body.
-                        const auto& target = FieldValue(r, "item");
-                        Visit(target.span);
-                        return !bodyUse.empty() && bodyUse[Target(target)];
+                        return IsA(*m_data, r, "STYLED_ITEM");
+                    };
+                    if (Interoperability() && std::any_of(orphans.begin(), orphans.end(), styledItem))
+                    {
+                        auto bodyItems = PhysicalItems(false);
+                        bodyUse = Reach(std::move(bodyItems), true);
                     }
-                    // Standalone category dictionaries have no source references,
-                    // shape role or unit effect. Keep them as unattached source
-                    // metadata with the original orphan diagnostic, never fake roots.
-                    if ((m_data->profile.kind == ProfileKind::Ap203e2GeneralSource || IsAp214SourceProfile(m_data->profile.kind)) &&
-                        Record(r).components.size() == 1 && Record(r).components.front().name == "PRODUCT_CATEGORY")
+                    const auto nondefiningResidue = [&](std::size_t r)
                     {
-                        return m_outgoing[r].empty();
-                    }
-                    if (IsAp214SourceProfile(m_data->profile.kind) && Record(r).components.size() == 1 &&
-                        Record(r).components.front().name == "PRODUCT_CATEGORY_RELATIONSHIP")
-                    {
-                        // The checked hierarchy retains dictionary relations
-                        // as unattached source metadata, not invented product
-                        // membership. Its complete outgoing graph contains only
-                        // already typed category entities; cycles failed above.
-                        return std::all_of(
-                            m_outgoing[r].begin(),
-                            m_outgoing[r].end(),
-                            [&](auto reference)
-                            {
-                                Visit(references[reference].span);
-                                return IsA(*m_data, references[reference].targetRecordIndex, "PRODUCT_CATEGORY");
-                            }
-                        );
-                    }
-                    if (!NonGeometricStyle(r))
-                    {
-                        return false;
-                    }
-                    for (auto reference : m_outgoing[r])
-                    {
-                        Visit(references[reference].span);
-                        if (!NonGeometricStyle(references[reference].targetRecordIndex))
+                        Visit(Record(r).span);
+                        if (styledItem(r))
+                        {
+                            // An absent presentation owner cannot hide another shape.
+                            // The explicit target must already be used by this body.
+                            const auto& target = FieldValue(r, "item");
+                            Visit(target.span);
+                            return !bodyUse.empty() && bodyUse[Target(target)];
+                        }
+                        // Standalone category dictionaries have no source references,
+                        // shape role or unit effect. Keep them as unattached source
+                        // metadata with the original orphan diagnostic, never fake roots.
+                        if ((m_data->profile.kind == ProfileKind::Ap203e2GeneralSource || IsAp214SourceProfile(m_data->profile.kind)) &&
+                            Record(r).components.size() == 1 && Record(r).components.front().name == "PRODUCT_CATEGORY")
+                        {
+                            return m_outgoing[r].empty();
+                        }
+                        if (IsAp214SourceProfile(m_data->profile.kind) && Record(r).components.size() == 1 &&
+                            Record(r).components.front().name == "PRODUCT_CATEGORY_RELATIONSHIP")
+                        {
+                            // The checked hierarchy retains dictionary relations
+                            // as unattached source metadata, not invented product
+                            // membership. Its complete outgoing graph contains only
+                            // already typed category entities; cycles failed above.
+                            return std::all_of(
+                                m_outgoing[r].begin(),
+                                m_outgoing[r].end(),
+                                [&](auto reference)
+                                {
+                                    Visit(references[reference].span);
+                                    return IsA(*m_data, references[reference].targetRecordIndex, "PRODUCT_CATEGORY");
+                                }
+                            );
+                        }
+                        if (!NonGeometricStyle(r))
                         {
                             return false;
                         }
+                        for (auto reference : m_outgoing[r])
+                        {
+                            Visit(references[reference].span);
+                            if (!NonGeometricStyle(references[reference].targetRecordIndex))
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    };
+                    const bool nonphysicalResidue = Interoperability() && std::all_of(orphans.begin(), orphans.end(), nondefiningResidue);
+                    if (!nonphysicalResidue)
+                    {
+                        throw;
                     }
-                    return true;
-                };
-                const bool nonphysicalResidue = Interoperability() && std::all_of(orphans.begin(), orphans.end(), nondefiningResidue);
-                if (!nonphysicalResidue)
-                {
-                    throw;
+                    // Preserve source-only residue separately. No part role or fake
+                    // geometry/presentation attachment is manufactured for these IDs.
+                    m_data->unattachedNonGeometric = orphans;
+                    Preserve(std::move(failure));
                 }
-                // Preserve source-only residue separately. No part role or fake
-                // geometry/presentation attachment is manufactured for these IDs.
-                m_data->unattachedNonGeometric = orphans;
-                Preserve(std::move(failure));
             }
         }
         auto items = PhysicalItems(false);
@@ -4685,6 +4720,32 @@ private:
             }
         }
         const auto physical = Reach(std::move(physicalRoots), false);
+        std::unordered_set<std::size_t> assemblyIdentityRecords;
+        if (m_assemblyDefinitionChecks)
+        {
+            // Opaque revision/view labels cannot choose between siblings. Whole
+            // assembly ownership already selected definitions by source refs;
+            // prove a singleton chain PER PRODUCT, not by display text. Extra
+            // formations/definitions in any same-product family deny this proof.
+            std::unordered_map<std::size_t, std::size_t> formationsPerProduct, definitionsPerFormation;
+            for (auto formation : Population("PRODUCT_DEFINITION_FORMATION"))
+            {
+                ++formationsPerProduct[Target(FieldValue(formation, "of_product"))];
+            }
+            for (auto definition : Population("PRODUCT_DEFINITION"))
+            {
+                ++definitionsPerFormation[Target(FieldValue(definition, "formation"))];
+            }
+            for (const auto& definition : m_outcome.productStructure->Definitions())
+            {
+                Visit(Record(definition.definition).span);
+                if (formationsPerProduct[definition.product] == 1 && definitionsPerFormation[definition.formation] == 1)
+                {
+                    assemblyIdentityRecords.insert(definition.definition);
+                    assemblyIdentityRecords.insert(definition.formation);
+                }
+            }
+        }
         std::optional<std::vector<unsigned char>> presentationUse;
         std::optional<std::vector<unsigned char>> propertyUse;
         std::optional<std::vector<unsigned char>> selectedUse;
@@ -4902,9 +4963,11 @@ private:
                     // Pinned N2635/AP214 PD/PDF identifiers label the selected
                     // reference graph. They do not choose a revision/view in
                     // this singleton subset. Keep unknown text unavailable;
-                    // multiple definitions/formations must not gain this proof.
-                    approved = field == "id" && Population("PRODUCT_DEFINITION").size() == 1 &&
-                               Population("PRODUCT_DEFINITION_FORMATION").size() == 1 && !physical[record] &&
+                    // Multiple sibling revisions/views never gain this proof.
+                    const bool singleton = m_assemblyDefinitionChecks ?
+                                               assemblyIdentityRecords.contains(record) :
+                                               Population("PRODUCT_DEFINITION").size() == 1 && Population("PRODUCT_DEFINITION_FORMATION").size() == 1;
+                    approved = field == "id" && singleton && !physical[record] &&
                                ((owner == "PRODUCT_DEFINITION" && selected("definition")) ||
                                 (owner == "PRODUCT_DEFINITION_FORMATION" && selected("formation")));
                 }
@@ -5599,7 +5662,8 @@ static Outcome CheckImpl(
     const SelectedSourceRequest* selection = nullptr,
     std::shared_ptr<const AssemblyInputs>* assemblyInputs = nullptr,
     bool assemblyDefinitionChecks = false,
-    std::shared_ptr<const AssemblyDocument>* assemblyDocument = nullptr
+    std::shared_ptr<const AssemblyDocument>* assemblyDocument = nullptr,
+    UnreferencedPlacementPolicy placementPolicy = UnreferencedPlacementPolicy::Reject
 )
 {
     if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
@@ -5762,7 +5826,7 @@ static Outcome CheckImpl(
         if (assemblyDocument)
         {
             assemblyCandidate = checker.InspectAssemblyContextInputs(true);
-            checker.FinalizeAssemblySource(*assemblyCandidate);
+            checker.FinalizeAssemblySource(*assemblyCandidate, placementPolicy);
         }
         else
         {
@@ -5808,7 +5872,7 @@ static Outcome CheckImpl(
         if (assemblyDocument)
         {
             *assemblyDocument = std::make_shared<const AssemblyDocument>(
-                std::make_shared<const AssemblyDocumentData>(AssemblyDocumentData{ data, std::move(assemblyCandidate) })
+                std::make_shared<const AssemblyDocumentData>(AssemblyDocumentData{ data, std::move(assemblyCandidate), checker.RetainedPlacements() })
             );
         }
         else if (data->independentParts.empty())
@@ -5887,9 +5951,14 @@ AssemblySourceOutcome CheckAssemblySource(
     SourcePolicy policy,
     SchemaInterpretation interpretation,
     UnitInterpretation unitInterpretation,
-    ComplexMappingInterpretation complexMappingInterpretation
+    ComplexMappingInterpretation complexMappingInterpretation,
+    UnreferencedPlacementPolicy placementPolicy
 )
 {
+    if (placementPolicy != UnreferencedPlacementPolicy::Reject && placementPolicy != UnreferencedPlacementPolicy::RetainDisconnected)
+    {
+        throw std::invalid_argument("Unknown unreferenced placement policy");
+    }
     AssemblySourceOutcome result;
     result.checks = CheckImpl(
         source,
@@ -5905,7 +5974,8 @@ AssemblySourceOutcome CheckAssemblySource(
         nullptr,
         nullptr,
         false,
-        &result.document
+        &result.document,
+        placementPolicy
     );
     return result;
 }

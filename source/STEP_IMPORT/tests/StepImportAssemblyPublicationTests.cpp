@@ -118,6 +118,33 @@ int main(int argc, char** argv)
             "source closure failure precedes all native work"
         );
         Require(rejected.report.json.find("step-assembly-development.v1") != std::string::npos, "source failure is an assembly report");
+        std::string unused = text;
+        unused.insert(
+            unused.find("ENDSEC;\nEND-ISO"),
+            "#950=CARTESIAN_POINT('',(1.,2.,3.));\n#951=DIRECTION('',(1.,0.,0.));\n"
+            "#952=DIRECTION('',(0.,0.,1.));\n#953=AXIS2_PLACEMENT_3D('',#950,#952,#951);\n"
+        );
+        Require(!ImportAssemblyBytes(unused, options, limits).assembly, "retaining unused frames requires explicit source policy");
+        auto retained = ImportAssemblyBytes(unused, options, limits, step_semantics::UnreferencedPlacementPolicy::RetainDisconnected);
+        Require(
+            retained.status == Status::Accepted && retained.assembly && retained.assembly->DefinitionCount() == 2 &&
+                retained.assembly->BodyCount(0) == 1 && retained.assembly->InstanceCount() == 3 &&
+                retained.assembly->Source()->RetainedPlacements()->records.size() == 4,
+            "explicit retention preserves declarations without changing model inventory"
+        );
+        Require(
+            retained.report.json.find("\"target_geometry_created\":false") != std::string::npos &&
+                retained.report.json.find("\"units_assigned\":false") != std::string::npos &&
+                retained.report.json.find("UnownedOrOrphanProfileContent") != std::string::npos,
+            "complete report retains proof and original unsupported diagnostic"
+        );
+        auto retainedModel = retained.assembly;
+        retained = {};
+        Require(
+            retainedModel->Source()->RetainedPlacements()->records.size() == 4 &&
+                retainedModel->Body(0, 0)->MaterialVolumeMm3() == body->MaterialVolumeMm3(),
+            "retained source evidence survives report release with identical body geometry"
+        );
         bool invalid = false;
         try
         {

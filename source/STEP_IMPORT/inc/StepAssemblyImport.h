@@ -52,6 +52,16 @@ struct AssemblyOutcome
 // Explicit general development path. All declared definitions/roots participate;
 // no repair/selection isolation. Source closure, native checks and mandatory
 // report must all succeed before the same cancellation/commit gate as ImportBytes.
-AssemblyOutcome ImportAssemblyBytes(std::string bytes, const Options& options, AssemblyLimits limits);
-AssemblyOutcome ImportAssemblyFile(const std::filesystem::path& path, const Options& options, AssemblyLimits limits);
+AssemblyOutcome ImportAssemblyBytes(
+    std::string bytes,
+    const Options& options,
+    AssemblyLimits limits,
+    step_semantics::UnreferencedPlacementPolicy placementPolicy = step_semantics::UnreferencedPlacementPolicy::Reject
+);
+AssemblyOutcome ImportAssemblyFile(
+    const std::filesystem::path& path,
+    const Options& options,
+    AssemblyLimits limits,
+    step_semantics::UnreferencedPlacementPolicy placementPolicy = step_semantics::UnreferencedPlacementPolicy::Reject
+);
 } // namespace step_import

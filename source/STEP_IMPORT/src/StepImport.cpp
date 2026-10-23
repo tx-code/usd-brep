@@ -274,7 +274,12 @@ void Validate(const Options& options)
     }
 }
 template <class Result = Outcome, class Capture>
-Result Import(const Options& options, Capture capture, AssemblyLimits assemblyLimits = {})
+Result Import(
+    const Options& options,
+    Capture capture,
+    AssemblyLimits assemblyLimits = {},
+    step_semantics::UnreferencedPlacementPolicy placementPolicy = step_semantics::UnreferencedPlacementPolicy::Reject
+)
 {
     if constexpr (!std::is_same_v<Result, DocumentOutcome> && !std::is_same_v<Result, FileOutcome>)
     {
@@ -391,7 +396,8 @@ Result Import(const Options& options, Capture capture, AssemblyLimits assemblyLi
                     options.sourcePolicy,
                     options.schemaInterpretation,
                     options.unitInterpretation,
-                    options.complexMappingInterpretation
+                    options.complexMappingInterpretation,
+                    placementPolicy
                 );
                 assemblySource = std::move(checked.document);
                 report.generalSource = std::move(checked.checks);
@@ -657,10 +663,20 @@ void ValidateAssembly(const Options& options, AssemblyLimits limits)
     }
 }
 } // namespace
-AssemblyOutcome ImportAssemblyBytes(std::string bytes, const Options& options, AssemblyLimits limits)
+AssemblyOutcome ImportAssemblyBytes(
+    std::string bytes,
+    const Options& options,
+    AssemblyLimits limits,
+    step_semantics::UnreferencedPlacementPolicy placementPolicy
+)
 {
     const Options frozen = options;
     ValidateAssembly(frozen, limits);
+    if (placementPolicy != step_semantics::UnreferencedPlacementPolicy::Reject &&
+        placementPolicy != step_semantics::UnreferencedPlacementPolicy::RetainDisconnected)
+    {
+        throw std::invalid_argument("Unknown unreferenced placement policy");
+    }
     return Import<AssemblyOutcome>(
         frozen,
         [&]
@@ -673,14 +689,25 @@ AssemblyOutcome ImportAssemblyBytes(std::string bytes, const Options& options, A
                 frozen.carrierInterpretation
             );
         },
-        limits
+        limits,
+        placementPolicy
     );
 }
-AssemblyOutcome ImportAssemblyFile(const std::filesystem::path& path, const Options& options, AssemblyLimits limits)
+AssemblyOutcome ImportAssemblyFile(
+    const std::filesystem::path& path,
+    const Options& options,
+    AssemblyLimits limits,
+    step_semantics::UnreferencedPlacementPolicy placementPolicy
+)
 {
     const Options frozen = options;
     const auto capturedPath = path;
     ValidateAssembly(frozen, limits);
+    if (placementPolicy != step_semantics::UnreferencedPlacementPolicy::Reject &&
+        placementPolicy != step_semantics::UnreferencedPlacementPolicy::RetainDisconnected)
+    {
+        throw std::invalid_argument("Unknown unreferenced placement policy");
+    }
     return Import<AssemblyOutcome>(
         frozen,
         [&]
@@ -693,7 +720,8 @@ AssemblyOutcome ImportAssemblyFile(const std::filesystem::path& path, const Opti
                 frozen.carrierInterpretation
             );
         },
-        limits
+        limits,
+        placementPolicy
     );
 }
 Outcome ImportBytes(std::string bytes, const Options& options)

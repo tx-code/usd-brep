@@ -16,6 +16,7 @@ struct AssemblyEvidence
     // No ModelData/BRep references: a failed report cannot retain native candidates.
     AssemblyInstanceCandidate instances;
     std::vector<AssemblyDefinitionEvidence> definitions;
+    std::optional<step_semantics::RetainedPlacementDeclarations> retainedPlacements;
 };
 std::shared_ptr<const AssemblyEvidence> CaptureAssemblyEvidence(const AssemblyNativeCandidate& candidate);
 Result<void> SerializeAssemblyFailure(

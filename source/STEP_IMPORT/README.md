@@ -23,6 +23,13 @@ general 模式、质量配置和 `AssemblyLimits`：occurrences、instances 必�
 仍明确拒绝。该 development 接口不授予完整 EXPRESS 或连续 UV／变换误差证明。
 现有自动文件导入、CLI 和 GUI 尚未切换到此入口，须显式调用该 C++ API。
 
+两个入口的最后一个参数可显式选择
+`step_semantics::UnreferencedPlacementPolicy::RetainDisconnected`；默认 `Reject`。
+仅当语义层证明整组未引用三维坐标系声明完整、有效且与其他源内容完全断开时，才作为
+原始源声明保留。它们不获得单位或零件角色，不创建目标几何，原拒绝诊断及证明随快照／
+报告保留。任何未知影响、非法方向、额外类型或证明预算耗尽仍失败。
+几何质量、源表示、验收误差及修复策略不因该选项改变。
+
 ## 装配变换的内部数值候选
 
 `StepImportAssemblyPlacement.h` 的 `EvaluateAssemblyPlacements` 消费 owning 的
