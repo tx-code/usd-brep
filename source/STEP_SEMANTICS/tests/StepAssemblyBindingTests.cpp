@@ -148,6 +148,10 @@ void DefinitionScopes(const std::string& source)
         Require(scope.representations.size() == 1 && scope.relationships.empty(), "occurrence links excluded from local adjacency");
         Require(scope.hasOccurrences == (id == "902"), "placement-only parent role retained");
         Require(scope.placementOnly == (id == "902"), "parent wrapper is separate from material geometry");
+        Require(
+            scope.faces.size() == (id == "902" ? 0 : 6) && scope.deferredRegionFaces.empty(),
+            "reachable face population belongs to its definition"
+        );
         bool solid = false;
         for (auto item : scope.directItems)
         {
@@ -184,6 +188,18 @@ void DefinitionScopes(const std::string& source)
     auto stopped = plan(source, limits);
     Require(stopped.status == Status::ResourceLimit && !stopped.plan, "late scope failure withholds entire plan");
     auto owner = observed.plan;
+    auto badRegion = plan(Replace(source, "#507=ADVANCED_FACE('',(#506),", "#507=ADVANCED_FACE('',(#506,#516),"));
+    Require(
+        !badRegion.plan && badRegion.status == Status::Rejected && badRegion.diagnostics[0].source.key == "SourceRuleViolation:FACE.WR2" &&
+            badRegion.diagnostics[0].source.stage == "D3" && badRegion.diagnostics[0].field == "bounds" &&
+            !badRegion.diagnostics[0].source.parameterPath.empty(),
+        "bad assembly face retains source rule and field diagnostic"
+    );
+    auto unmarked = plan(Replace(source, "#506=FACE_OUTER_BOUND", "#506=FACE_BOUND"));
+    Require(
+        unmarked.plan && unmarked.plan->definitions[0].deferredRegionFaces.size() == 1,
+        "legal unmarked region stays deferred, never guessed or rejected as duplicate outer"
+    );
     auto surface = plan(Replace(
         Replace(source, "#21=MANIFOLD_SOLID_BREP('',#22)", "#21=SHELL_BASED_SURFACE_MODEL('',(#22))"),
         "#20=ADVANCED_BREP_SHAPE_REPRESENTATION",

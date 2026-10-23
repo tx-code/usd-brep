@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAssemblyDefinitions.h"
 
+#include "StepFaceRegion.h"
+
 #include <algorithm>
 #include <stdexcept>
 #include <unordered_map>
@@ -27,6 +29,12 @@ public:
     }
     std::vector<AssemblyDefinitionScope> Run()
     {
+        std::unordered_map<std::size_t, std::vector<std::size_t>> references;
+        for (const auto& reference : fields.Source().References())
+        {
+            Visit(reference.recordIndex);
+            references[reference.recordIndex].push_back(reference.targetRecordIndex);
+        }
         std::unordered_map<std::size_t, std::size_t> roots;
         for (const auto& definition : graph.Definitions())
         {
@@ -94,7 +102,7 @@ public:
                 );
             }
             AssemblyDefinitionScope scope{
-                definition.definition, root.representation, root.context, {}, {}, {}, parents.contains(definition.definition), {}, false
+                definition.definition, root.representation, root.context, {}, {}, {}, parents.contains(definition.definition), {}, false, {}, {}, {}
             };
             std::unordered_set<std::size_t> seen, relationships, items;
             std::unordered_map<std::size_t, std::vector<std::size_t>> memberships;
@@ -182,6 +190,57 @@ public:
             {
                 Fail("AssemblyLeafGeometryMissing", scope.definition, "A definition without child occurrences cannot stand in for missing geometry");
             }
+            std::unordered_set<std::size_t> dependencies;
+            stack = scope.directItems;
+            while (!stack.empty())
+            {
+                const auto record = stack.back();
+                stack.pop_back();
+                if (!dependencies.insert(record).second)
+                {
+                    continue;
+                }
+                Visit(record);
+                if (fields.IsA(record, "FACE"))
+                {
+                    scope.faces.push_back(record);
+                }
+                for (const auto target : references[record])
+                {
+                    Visit(record);
+                    stack.push_back(target);
+                }
+            }
+            scope.dependencies.assign(dependencies.begin(), dependencies.end());
+            std::sort(scope.dependencies.begin(), scope.dependencies.end());
+            std::sort(scope.faces.begin(), scope.faces.end());
+            for (const auto face : scope.faces)
+            {
+                Visit(face);
+                for (const auto& bound : fields.Field(face, "bounds").Value().children)
+                {
+                    Visit(fields.ReferenceTarget(bound));
+                }
+                const auto count = SourceOuterBoundCount(fields, face);
+                if (count > 1)
+                {
+                    const auto profile = fields.SelectedProfile().kind;
+                    const bool ap214 = profile == ProfileKind::Ap214e3Source || profile == ProfileKind::Ap214MbxSource;
+                    Fail(
+                        ap214 ? "SourceRuleViolation:FACE.WR2" : "UnsupportedExplicitOuterBoundRequired",
+                        face,
+                        "More than one source outer bound cannot select an assembly face region",
+                        ap214 ? Status::Rejected : Status::Unsupported
+                    );
+                }
+                if (count == 0)
+                {
+                    scope.deferredRegionFaces.push_back(face);
+                }
+            }
+            // Forward dependencies establish the faces to check, NOT whole-file
+            // ownership. Inverse metadata/usage closure and all other geometry
+            // predicates still precede any qualified source/native publication.
             result.push_back(std::move(scope));
         }
         return result;
@@ -211,7 +270,19 @@ private:
         d.source.recordId = source.id;
         d.source.primary = source.span;
         d.source.message = message;
-        d.classification = status == Status::ResourceLimit ? "ResourceLimit" : "ProfileUnsupported";
+        d.classification = status == Status::ResourceLimit ? "ResourceLimit" : status == Status::Rejected ? "SourceInvalid" : "ProfileUnsupported";
+        if (std::string_view(key) == "SourceRuleViolation:FACE.WR2" || std::string_view(key) == "UnsupportedExplicitOuterBoundRequired")
+        {
+            const auto field = fields.Field(record, "bounds");
+            const auto location = field.Location();
+            d.source.primary = location.span;
+            d.source.component = location.component;
+            d.source.parameterPath = location.parameterPath;
+            d.source.stage = status == Status::Rejected ? "D3" : "D2";
+            d.field = "bounds";
+            d.declaredIn = field.Declaration().declaredIn;
+            d.declaredType = field.Declaration().declaredType;
+        }
         d.responsibility = "same-definition representation scope; not full document/geometry qualification";
         throw Failure{ status, std::move(d) };
     }

@@ -24,6 +24,7 @@ struct AssemblyDefinitionScope
     bool hasOccurrences = false;
     std::vector<AssemblyDefinitionItem> items;
     bool placementOnly = false;
+    std::vector<std::size_t> dependencies, faces, deferredRegionFaces;
 };
 struct AssemblyDefinitionPlan
 {

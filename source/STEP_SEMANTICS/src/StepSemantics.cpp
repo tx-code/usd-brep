@@ -4,6 +4,7 @@
 #include "StepAssemblyInputsInternal.h"
 #include "StepCatalog.h"
 #include "StepDefinitionInspection.h"
+#include "StepFaceRegion.h"
 #include "StepGeometryDependencies.h"
 #include "StepIndependentProducts.h"
 #include "StepProductStructure.h"
@@ -3185,11 +3186,10 @@ private:
         }
         for (const auto face : Population("FACE"))
         {
-            std::size_t outer = 0;
-            for (const auto& bound : FieldValue(face, "bounds").children)
-            {
-                outer += IsA(*m_data, Target(bound), "FACE_OUTER_BOUND") ? 1 : 0;
-            }
+            // Preserve the existing field visit and diagnostics/repair policy;
+            // assembly scope checking shares only the nominal source predicate.
+            (void)FieldValue(face, "bounds");
+            const auto outer = SourceOuterBoundCount(SourceBindings(m_data), face);
             if (outer != 1)
             {
                 if (outer > 1 && IsAp214SourceProfile(m_data->profile.kind) && m_data->geometryScope == GeometryScope::GeneralBrep)

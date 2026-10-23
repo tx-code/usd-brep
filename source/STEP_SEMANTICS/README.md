@@ -1248,6 +1248,14 @@ placement-only definition requires child occurrences; missing leaf geometry and
 unhandled direct items are refused rather than omitted. These tags do not prove
 shell/region validity or full representation WHERE rules. Parent-owned geometry
 is retained alongside its child occurrences for subsequent validation.
+Each scope records the complete forward dependency set of its direct items and
+the reachable face population, with indexed, budgeted traversal. It shares the
+existing nominal outer-bound count predicate with single-part checking. AP214
+multiple outer markers return the original `FACE.WR2` key and source `bounds`
+location; general unmarked regions remain deferred. Modified N916 retains the
+existing unsupported explicit-outer-bound guard rather than borrowing AP214's
+rule authority. This is only the existing region prerequisite: forward reach
+does not establish inverse ownership, full face validity or full document closure.
 
 ## Qualified independent definitions
 

@@ -22,6 +22,8 @@ items. Scope success is not whole-document ownership or geometry qualification.
 Nominal solid/surface/placement roles and all direct representation memberships
 are retained. Empty leaf geometry and unsupported extra items are not silently
 discarded; a placement-only parent is not represented as an empty material solid.
+Definition scopes retain reachable faces and apply the shared outer-bound source
+predicate, preserving duplicate-outer diagnostics and unmarked-region deferrals.
 
 ## Scope
 
