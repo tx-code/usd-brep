@@ -86,6 +86,51 @@ void BaseOracle(const AssemblyPlacementCandidate& candidate)
         }
     }
 }
+void ScalarDiagnosticContract(const std::string& text)
+{
+    const auto checkpoint = []() -> Result<void>
+    {
+        return {};
+    };
+    for (const auto& item : std::array<std::pair<const char*, const char*>, 3>{ { { "(1.E309,0.,0.)", "GeneralNumericRangeUnestablished" },
+                                                                                  { "(1.E-400,0.,0.)", "GeneralNumericRangeUnestablished" },
+                                                                                  { "(0.,0.)", "GeneralRequires3DGeometry" } } })
+    {
+        const auto source = Replace(text, "#930=CARTESIAN_POINT('',(0.,0.,0.))", std::string("#930=CARTESIAN_POINT('',") + item.first + ")");
+        const auto inputs = Inputs(source);
+        const auto result = EvaluateAssemblyPlacements(inputs, 2, checkpoint);
+        Require(
+            !result && result.error().status == Status::Indeterminate && result.error().key == item.second &&
+                result.error().message == "Assembly numeric placement prerequisite is unestablished" &&
+                result.error().record == inputs->Bindings().occurrences[0].childItem && result.error().stage == "AssemblyPlacement",
+            "assembly scalar conversion retains its legacy message, owning placement and stage"
+        );
+    }
+    const auto scaled = Replace(
+        Replace(text, "#930=CARTESIAN_POINT('',(0.,0.,0.))", "#930=CARTESIAN_POINT('',(1.E308,0.,0.))"),
+        "SI_UNIT(.MILLI.,.METRE.)",
+        "SI_UNIT($,.METRE.)"
+    );
+    const auto inputs = Inputs(scaled);
+    const auto result = EvaluateAssemblyPlacements(inputs, 2, checkpoint);
+    Require(
+        !result && result.error().status == Status::Indeterminate && result.error().key == "GeneralLengthRangeUnestablished" &&
+            result.error().message == "Assembly numeric placement prerequisite is unestablished" &&
+            result.error().record == inputs->Bindings().occurrences[0].childItem && result.error().stage == "AssemblyPlacement",
+        "assembly coordinate scaling refuses overflow without changing the old diagnostic adapter"
+    );
+    const auto direction = EvaluateAssemblyPlacements(
+        Inputs(Replace(text, "#936=DIRECTION('',(0.,0.,1.))", "#936=DIRECTION('',(0.,1.7E308,1.7E308))")),
+        2,
+        checkpoint
+    );
+    Require(
+        !direction && direction.error().status == Status::Indeterminate && direction.error().key == "GeneralDegenerateFrame" &&
+            direction.error().message == "Native derived evidence is unestablished" && direction.error().stage == "AssemblyPlacement",
+        "assembly frame normalization keeps its distinct pre-existing returned-error message"
+    );
+}
+
 void InstanceExpansion(const std::string& source)
 {
     const auto checkpoint = []() -> Result<void>
@@ -201,6 +246,7 @@ int main(int argc, char** argv)
         std::ifstream stream(argv[1], std::ios::binary);
         Require(bool(stream), "fixture exists");
         const std::string text{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        ScalarDiagnosticContract(text);
         InstanceExpansion(text);
         auto candidate = Evaluate(text);
         BaseOracle(candidate);

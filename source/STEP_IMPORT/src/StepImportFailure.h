@@ -14,7 +14,10 @@ enum class NativeFailureKind
     // An operation refusal formerly left the strict attempt immediately via
     // exception, before its failure evidence was finalized. Keep that private
     // observation boundary when the refusal is returned as a value instead.
-    ConstructionOperation
+    ConstructionOperation,
+    // Shared scalar/triple/coordinate conversion also preserves a distinct
+    // assembly diagnostic adapter in addition to strict-attempt observation.
+    SourceValueConversion
 };
 struct Failure
 {

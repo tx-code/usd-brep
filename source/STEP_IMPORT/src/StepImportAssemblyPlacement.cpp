@@ -74,23 +74,22 @@ Result<AssemblyPlacementCandidate> EvaluateAssemblyPlacements(
         {
             return found->second;
         }
-        try
+        auto evaluated = ReadSourceFrame(fields, item, scales.at(context));
+        if (!evaluated)
         {
-            auto evaluated = ReadSourceFrame(fields, item, scales.at(context));
-            if (!evaluated)
+            auto failure = std::move(evaluated.error());
+            if (failure.nativeKind == NativeFailureKind::SourceValueConversion)
             {
-                auto failure = std::move(evaluated.error());
-                failure.record = item;
-                failure.stage = "AssemblyPlacement";
-                return tl::unexpected(std::move(failure));
+                // Only shared scalar/coordinate domain errors used this legacy
+                // message. Frame normalization already returned its own facts.
+                failure.message = "Assembly numeric placement prerequisite is unestablished";
             }
-            frames.emplace(key, *evaluated);
-            return *evaluated;
+            failure.record = item;
+            failure.stage = "AssemblyPlacement";
+            return tl::unexpected(std::move(failure));
         }
-        catch (const std::domain_error& error)
-        {
-            return refuse(Status::Indeterminate, error.what(), item);
-        }
+        frames.emplace(key, *evaluated);
+        return *evaluated;
     };
     candidate.occurrences.reserve(candidate.source->Bindings().occurrences.size());
     for (const auto& binding : candidate.source->Bindings().occurrences)

@@ -74,16 +74,22 @@ public:
             throw std::logic_error("CurvePointDefinitionsAlreadyFinished");
         }
     }
-    const WireframePointInfo& PointDefinition(Index record)
+    [[nodiscard]] Result<const WireframePointInfo*> PointDefinition(Index record)
     {
         if (const auto found = m_points.find(record); found != m_points.end())
         {
-            return m_owned.m_points.at(found->second.index);
+            return &m_owned.m_points.at(found->second.index);
         }
-        WireframePointInfo point{ Id(record), m_owned.m_points.size(), Position(record) };
+        auto positionResult = Position(record);
+        if (!positionResult)
+        {
+            return tl::unexpected(std::move(positionResult.error()));
+        }
+        const auto& position = *positionResult;
+        WireframePointInfo point{ Id(record), m_owned.m_points.size(), position };
         m_owned.m_points.push_back(point);
         m_points.emplace(record, PointIndex{ point.nativeIndex });
-        return m_owned.m_points.back();
+        return &m_owned.m_points.back();
     }
     [[nodiscard]] Result<const OwnedCurvePointDefinitions::CurveDefinition*> CurveDefinition(Index record, Role role)
     {
@@ -130,7 +136,12 @@ public:
             // ISO 10303-42:2003 4.4.40 trim parameters follow the basis LINE:
             // P(t)=origin+t*magnitude*normalized_direction. t is dimensionless;
             // scale the VECTOR length once, never scale t by the length unit.
-            const auto origin = Position(Ref(basis, "pnt"));
+            auto originResult = Position(Ref(basis, "pnt"));
+            if (!originResult)
+            {
+                return tl::unexpected(std::move(originResult.error()));
+            }
+            const auto& origin = *originResult;
             const auto vector = Ref(basis, "dir");
             auto directionResult = Direction(Ref(vector, "orientation"));
             if (!directionResult)
@@ -138,7 +149,13 @@ public:
                 return tl::unexpected(std::move(directionResult.error()));
             }
             const auto& direction = *directionResult;
-            const auto magnitude = N(vector, "magnitude") * scale;
+            auto sourceMagnitudeResult = N(vector, "magnitude");
+            if (!sourceMagnitudeResult)
+            {
+                return tl::unexpected(std::move(sourceMagnitudeResult.error()));
+            }
+            const auto& sourceMagnitude = *sourceMagnitudeResult;
+            const auto magnitude = sourceMagnitude * scale;
             if (auto businessCheck = Need(std::isfinite(magnitude) && magnitude > 0, "GeneralWireLineMagnitude", record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -156,7 +173,13 @@ public:
                 {
                     if (value.kind == step_source::ValueKind::Reference)
                     {
-                        point = Position(m_source->ReferenceTarget(value));
+                        auto positionResult = Position(m_source->ReferenceTarget(value));
+                        if (!positionResult)
+                        {
+                            return tl::unexpected(std::move(positionResult.error()));
+                        }
+                        const auto& position = *positionResult;
+                        point = position;
                         pointParameter = Dot(Sub(*point, origin), direction) / magnitude;
                         const auto gap = Norm(Sub(evaluate(*pointParameter), *point));
                         sourceConsistency = std::max(sourceConsistency, gap);
@@ -172,7 +195,13 @@ public:
                     }
                     else
                     {
-                        parameter = Number(value.children.at(0));
+                        auto numberResult = Number(value.children.at(0));
+                        if (!numberResult)
+                        {
+                            return tl::unexpected(std::move(numberResult.error()));
+                        }
+                        const auto& number = *numberResult;
+                        parameter = number;
                     }
                 }
                 if (parameter && point)
@@ -254,8 +283,24 @@ public:
             }
             const auto& frame = *frameResult;
             const bool circle = Is(basis, "CIRCLE");
-            const auto rx = N(basis, circle ? "radius" : "semi_axis_1") * scale;
-            const auto ry = circle ? rx : N(basis, "semi_axis_2") * scale;
+            auto firstRadiusResult = N(basis, circle ? "radius" : "semi_axis_1");
+            if (!firstRadiusResult)
+            {
+                return tl::unexpected(std::move(firstRadiusResult.error()));
+            }
+            const auto& firstRadius = *firstRadiusResult;
+            const auto rx = firstRadius * scale;
+            double ry = rx;
+            if (!circle)
+            {
+                auto secondRadiusResult = N(basis, "semi_axis_2");
+                if (!secondRadiusResult)
+                {
+                    return tl::unexpected(std::move(secondRadiusResult.error()));
+                }
+                const auto& secondRadius = *secondRadiusResult;
+                ry = secondRadius * scale;
+            }
             if (auto businessCheck = Need(
                     std::isfinite(rx) && std::isfinite(ry) && rx > SM_EFF_ZERO && ry > SM_EFF_ZERO,
                     "GeneralWireConicRadiusRange",
@@ -391,7 +436,13 @@ public:
         Bounds bounds;
         if (Is(record, "CARTESIAN_POINT"))
         {
-            const auto& point = PointDefinition(record);
+            auto pointDefinitionResult = PointDefinition(record);
+            if (!pointDefinitionResult)
+            {
+                return tl::unexpected(std::move(pointDefinitionResult.error()));
+            }
+            const auto& pointDefinition = *pointDefinitionResult;
+            const auto& point = *pointDefinition;
             group.points.push_back(point);
             bounds = { point.pointMm, point.pointMm };
         }
@@ -446,7 +497,13 @@ public:
         CheckOpen();
         if (Is(source.index, "CARTESIAN_POINT"))
         {
-            group.points.push_back(PointDefinition(source.index));
+            auto pointResult = PointDefinition(source.index);
+            if (!pointResult)
+            {
+                return tl::unexpected(std::move(pointResult.error()));
+            }
+            const auto& point = *pointResult;
+            group.points.push_back(*point);
         }
         else if (Is(source.index, "AXIS2_PLACEMENT_3D") || Is(source.index, "PLANE"))
         {

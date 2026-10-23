@@ -95,6 +95,8 @@ if(STEP_IMPORT_BUILD_TESTS)
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step" --strict-native)
     add_test(NAME step_import_business_failure_frame_contracts COMMAND step_import_business_failure_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step" --frame)
+    add_test(NAME step_import_business_failure_scalar_contracts COMMAND step_import_business_failure_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step" --scalar)
     add_executable(step_import_execution_tests tests/StepImportExecutionTests.cpp)
     target_include_directories(step_import_execution_tests PRIVATE src)
     target_link_libraries(step_import_execution_tests PRIVATE STEP_IMPORT usd_brep_expected)

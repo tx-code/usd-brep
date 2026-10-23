@@ -211,6 +211,152 @@ void FrameBusinessErrors(const std::filesystem::path& fixtures)
     const auto defaulted = ImportBytes(defaults, options);
     Require(defaulted.status == Status::Accepted && defaulted.model, "unset axes retain the established STEP frame defaults");
 }
+void ScalarBusinessErrors(const std::filesystem::path& fixtures)
+{
+    auto options = Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = Quality::GeneralDevelopment();
+    struct ConversionCase
+    {
+        const char* fixture;
+        std::vector<std::pair<std::string, std::string>> edits;
+        const char* key;
+        std::size_t calls;
+    };
+    const ConversionCase cases[]{
+        { "conic_bounds_bulged_box.step",
+          { { "#100=CARTESIAN_POINT('',(2.,-3.,5.));", "#100=CARTESIAN_POINT('',(1.E309,-3.,5.));" } },
+          "GeneralNumericRangeUnestablished",
+          0 },
+        { "conic_bounds_bulged_box.step",
+          { { "#100=CARTESIAN_POINT('',(2.,-3.,5.));", "#100=CARTESIAN_POINT('',(1.E-400,-3.,5.));" } },
+          "GeneralNumericRangeUnestablished",
+          0 },
+        { "conic_bounds_bulged_box.step",
+          { { "#100=CARTESIAN_POINT('',(2.,-3.,5.));", "#100=CARTESIAN_POINT('',(1.E308,-3.,5.));" },
+            { "SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)" } },
+          "GeneralLengthRangeUnestablished",
+          0 },
+        { "conic_bounds_bulged_box.step",
+          { { "#100=CARTESIAN_POINT('',(2.,-3.,5.));", "#100=CARTESIAN_POINT('',(2.,-3.));" } },
+          "GeneralRequires3DGeometry",
+          0 },
+        { "conic_bounds_bulged_box.step",
+          { { "#200=DIRECTION('',(1.,0.,0.));", "#200=DIRECTION('',(1.E309,0.,0.));" } },
+          "GeneralNumericRangeUnestablished",
+          14 },
+        { "conic_bounds_bulged_box.step", { { "#200=DIRECTION('',(1.,0.,0.));", "#200=DIRECTION('',(1.,0.));" } }, "GeneralRequires3DGeometry", 14 },
+        { "conic_bounds_bulged_box.step",
+          { { "#201=VECTOR('',#200,10.);", "#201=VECTOR('',#200,1.E309);" } },
+          "GeneralNumericRangeUnestablished",
+          14 },
+        { "conic_bounds_cylinder.step", { { "#110=CIRCLE('',#106,3.);", "#110=CIRCLE('',#106,1.E309);" } }, "GeneralNumericRangeUnestablished", 2 },
+        { "conic_bounds_bulged_box.step",
+          { { "(3,3),(3,3),(0.,1.),(0.,1.),.UNSPECIFIED.", "(3,3),(3,3),(0.,1.E309),(0.,1.),.UNSPECIFIED." } },
+          "GeneralNumericRangeUnestablished",
+          91 },
+        { "linked_wireframe.step",
+          { { "#911=CARTESIAN_POINT('',(7.,8.,9.));", "#911=CARTESIAN_POINT('',(1.E309,8.,9.));" } },
+          "GeneralNumericRangeUnestablished",
+          236 },
+        { "linked_wireframe.step",
+          { { "#911=CARTESIAN_POINT('',(7.,8.,9.));", "#911=CARTESIAN_POINT('',(7.,8.));" } },
+          "GeneralRequires3DGeometry",
+          236 },
+        { "linked_wireframe.step", { { "PARAMETER_VALUE(1.5707963267948966)", "PARAMETER_VALUE(1.E309)" } }, "GeneralNumericRangeUnestablished", 240 },
+        { "supporting_geometry.step",
+          { { "#911=CARTESIAN_POINT('',(7.,8.,9.));", "#911=CARTESIAN_POINT('',(1.E309,8.,9.));" } },
+          "GeneralNumericRangeUnestablished",
+          239 },
+        { "supporting_geometry.step",
+          { { "#971=CARTESIAN_POINT('',(30.,40.,50.));", "#971=CARTESIAN_POINT('',(1.E309,40.,50.));" } },
+          "GeneralNumericRangeUnestablished",
+          237 },
+        { "conic_bounds_bulged_box.step",
+          { { "#200=DIRECTION('',(1.,0.,0.));\n", "" },
+            { "#201=VECTOR('',#200,10.);\n", "" },
+            { "LINE('',#100,#201)",
+              "(BOUNDED_CURVE() B_SPLINE_CURVE(1,(#100,#101),.POLYLINE_FORM.,.F.,.F.) B_SPLINE_CURVE_WITH_KNOTS((2,2),(0.,1.E309),.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE((2.,5.)) REPRESENTATION_ITEM('weighted line'))" } },
+          "GeneralNumericRangeUnestablished",
+          14 },
+        { "conic_bounds_bulged_box.step",
+          { { "#200=DIRECTION('',(1.,0.,0.));\n", "" },
+            { "#201=VECTOR('',#200,10.);\n", "" },
+            { "LINE('',#100,#201)",
+              "(BOUNDED_CURVE() B_SPLINE_CURVE(1,(#100,#101),.POLYLINE_FORM.,.F.,.F.) B_SPLINE_CURVE_WITH_KNOTS((2,2),(0.,1.),.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE((1.E309,5.)) REPRESENTATION_ITEM('weighted line'))" } },
+          "GeneralNumericRangeUnestablished",
+          14 },
+    };
+    for (const auto& item : cases)
+    {
+        std::ifstream stream(fixtures / item.fixture, std::ios::binary);
+        Require(bool(stream), "synthetic scalar fixture opens");
+        std::string text{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        for (const auto& [before, after] : item.edits)
+        {
+            const auto at = text.find(before);
+            Require(at != std::string::npos, "synthetic scalar conversion target exists");
+            text.replace(at, before.size(), after);
+        }
+        // Exact source values and dimension admission are checked independently
+        // of the native binary64/3D construction range. Do not clamp, fit, change
+        // units or manufacture a third coordinate when that range is unestablished.
+        const auto raw = step_source::InspectBytes(text, options.sourceLimits);
+        const auto qualified = step_semantics::Check(raw, options.semanticLimits, options.sourcePolicy, step_semantics::GeometryScope::GeneralBrep);
+        Require(bool(qualified.snapshot), "synthetic values reach native conversion after source checks");
+        Report report;
+        Execution execution(options, report);
+        const auto result = BuildGeneral(qualified.snapshot, options, report, execution);
+        Require(
+            !result && result.error().status == Status::Indeterminate && result.error().key == item.key &&
+                result.error().message == "Native derived evidence is unestablished" && !result.error().record && result.error().stage == "D5",
+            "native scalar conversion returns the original numerical refusal without throwing"
+        );
+        const auto observed = item.calls >= 236 ? std::optional<std::size_t>(0) : std::nullopt;
+        Require(
+            report.nativeCalls == item.calls && report.candidateDiscarded == (item.calls > 0) && report.pointerReports == observed &&
+                report.deepReports == observed,
+            "scalar refusal preserves billing, existing validation observations and candidate cleanup"
+        );
+        auto publicResult = ImportBytes(text, options);
+        Require(
+            publicResult.status == Status::Indeterminate && !publicResult.model && publicResult.report.nativeCalls == item.calls &&
+                publicResult.report.source && publicResult.report.source->Bytes() == text && publicResult.report.diagnostics.size() == 1 &&
+                publicResult.report.diagnostics[0].source.key == item.key && publicResult.report.diagnostics[0].source.recordId.empty(),
+            "public scalar refusal preserves source bytes and atomic publication"
+        );
+        if (std::string_view(item.fixture) == "conic_bounds_bulged_box.step" && item.calls == 0)
+        {
+            FaceOrientationRepairRequest request;
+            request.sourceSha256 = raw.sha256;
+            request.maximumFaceEdits = 1;
+            request.maximumProofControls = 10000;
+            request.maximumProofProducts = 1000000;
+            request.edits.push_back({ "7", "21", "517", true, false });
+            auto strictOptions = options;
+            strictOptions.faceOrientationRepair = request;
+            Report strictReport;
+            Execution strictExecution(strictOptions, strictReport);
+            const auto strict = BuildGeneral(qualified.snapshot, strictOptions, strictReport, strictExecution);
+            Require(
+                !strict && strict.error().key == item.key && strictReport.originalAttempt && !strictReport.originalAttemptStatus &&
+                    strictReport.originalAttempt->diagnostics.empty() && !strictReport.originalAttempt->candidateDiscarded &&
+                    strictReport.repairStage == "StrictCandidate" && strictReport.repairEditsAttempted == 0,
+                "scalar conversion preserves unfinished strict evidence without attempting a repair"
+            );
+        }
+    }
+    std::ifstream stream(fixtures / "conic_bounds_bulged_box.step", std::ios::binary);
+    std::string text{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+    const std::string point = "#100=CARTESIAN_POINT('',(2.,-3.,5.));";
+    text.replace(text.find(point), point.size(), "#100=CARTESIAN_POINT('',(+2.,-3.E0,5.0));");
+    const auto ordinary = ImportBytes(text, options);
+    Require(
+        ordinary.status == Status::Accepted && ordinary.model && ordinary.report.source->Bytes() == text,
+        "ordinary signed/exponent decimals retain geometry, parameters and source lexemes"
+    );
+}
+
 void NativeStatusBusinessErrors(Plan plan)
 {
     Require(bool(construction::Good(SM_SUCCESS)), "native success remains successful in the general construction boundary");
@@ -420,6 +566,11 @@ int main(int argc, char** argv)
         Require(argc == 2 || argc == 3, "public planar fixture and optional contract mode required");
         std::ifstream input(argv[1], std::ios::binary);
         const std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+        if (argc == 3 && std::string_view(argv[2]) == "--scalar")
+        {
+            ScalarBusinessErrors(std::filesystem::path(argv[1]).parent_path());
+            return 0;
+        }
         if (argc == 3 && std::string_view(argv[2]) == "--frame")
         {
             FrameBusinessErrors(std::filesystem::path(argv[1]).parent_path());

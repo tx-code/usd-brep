@@ -136,5 +136,37 @@ the strict attempt. Runtime mutants should reclassify the numerical refusal, thr
 it again, erase its operation kind, bypass normalization or substitute a default
 basis for unestablished projection. Require successful compilation, intended
 assertion failures and unchanged passing controls in both native configurations.
-Scalar lexeme/coordinate conversion and primitive interval sentinels remain a
-separate exception migration; this batch does not claim an exception-free importer.
+Primitive interval sentinels remain a separate migration. Scalar/coordinate
+conversion has the additional controls below; the importer is not exception-free.
+
+## Scalar and coordinate results
+
+The `scalar` control uses real qualified synthetic source inputs at the existing
+private builder and public import seams. It covers binary64 overflow/underflow,
+coordinate scaling overflow, insufficient coordinate/direction dimensions, line
+magnitude, conic radius, curve/surface knots, rational curve weights, independent
+points, trim parameters and supporting-frame origins. Parsing failure must not
+become zero, clamping, coordinate padding, a quota error or a source-invalid claim.
+Normal signed/exponent lexemes retain their original source bytes and geometry.
+
+Each refusal retains the old `Indeterminate` key/message/empty record/D5 and the
+native work already charged. Early refusals invent no native work or validation;
+late associated-geometry failures retain the completed validators and release
+the unpublished model. Strict attempts retain their unfinished report without
+starting repair or adding completed failure observations. Complete serialized
+reports are compared with a frozen baseline, including first/second-member
+collection/document refusals and strict attempts.
+
+The existing assembly placement evaluator separately fixes its old scalar/triple/
+scaled-coordinate diagnostic message, placement record and stage. Those used to
+pass through its domain-error adapter; normalization errors already returned a
+different message. Private `SourceValueConversion` provenance preserves the
+distinction without parsing diagnostic text or throwing an error value again.
+Existing placement/instance coordinate oracles, context ownership and every
+cancellation boundary remain in that contract.
+
+Runtime mutants should change error classification, throw a returned conversion
+refusal, fabricate a missing coordinate, replace unestablished physical coordinates,
+erase strict-attempt provenance or lose the assembly diagnostic distinction.
+Each must compile and fail the intended assertion, with passing unchanged controls
+in both native configurations. Receipts and mutated copies stay local.
