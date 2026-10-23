@@ -60,6 +60,13 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_nested_observation_tests tests/StepImportNestedObservationTests.cpp)
+    target_link_libraries(step_import_nested_observation_tests PRIVATE STEP_IMPORT)
+    add_test(NAME step_import_nested_observation_contracts COMMAND step_import_nested_observation_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/independent_distinct_parts.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/nested-observation-output")
+    set_tests_properties(step_import_nested_observation_contracts PROPERTIES TIMEOUT 120)
     add_executable(step_import_ring_segmentation_tests tests/StepImportRingSegmentationTests.cpp)
     target_link_libraries(step_import_ring_segmentation_tests PRIVATE STEP_IMPORT)
     target_include_directories(step_import_ring_segmentation_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
