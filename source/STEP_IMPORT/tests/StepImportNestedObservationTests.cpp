@@ -166,6 +166,64 @@ void CheckPrefix(const DocumentOutcome& outcome)
         "definition counters retain inclusive request work on failure"
     );
 }
+void SelectionControls(const std::string& text, const std::filesystem::path& output)
+{
+    auto options = Config();
+    options.definitionSelection = DefinitionSelectionRequest{ step_source::InspectBytes(text, options.sourceLimits).sha256, { "902" } };
+    Events selectedEvents;
+    const auto selected = Run(text, options, selectedEvents);
+    Receipt(output, "selected", selected, selectedEvents);
+    Require(
+        selected.status == Status::Accepted && selected.document && selected.document->PartCount() == 1 && selected.document->BodyCount() == 2 &&
+            selected.document->SourceDefinitionId(0) == "902" && selected.document->SourceShapeId(0) == "10021" &&
+            selected.document->SourceShapeId(1) == "20021",
+        "explicit selection publishes the complete two-body definition in source order"
+    );
+    Require(
+        selected.report.definitionSelection && selected.report.definitionSelection->selectedDefinitionIds == std::vector<std::string>{ "902" } &&
+            selected.report.definitions.size() == 1 && selected.report.definitions[0].checksPassed,
+        "selected publication owns the complete selection receipt"
+    );
+    for (const auto phase : { Phase::BeforeDefinitionSelection, Phase::DefinitionSelectionReady })
+    {
+        auto cancelled = options;
+        cancelled.execution.control = std::make_shared<ImportControl>();
+        cancelled.execution.progress = [&](Progress p)
+        {
+            if (p.phase == phase)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        Events trace;
+        const auto stopped = Run(text, cancelled, trace);
+        Receipt(output, phase == Phase::DefinitionSelectionReady ? "selected-ready-cancel" : "selected-before-cancel", stopped, trace);
+        Require(
+            stopped.status == Status::Cancelled && !stopped.document && stopped.report.nativeCalls == 0 && stopped.report.definitions.empty() &&
+                stopped.report.lastBoundary == phase,
+            "selection cancellation stops before constructing any native definition"
+        );
+        Require(
+            stopped.report.definitionSelection.has_value() == (phase == Phase::DefinitionSelectionReady),
+            "only a completed selection leaves its receipt before cancellation"
+        );
+        Require(
+            stopped.report.diagnostics.back().source.key == "ImportCancelled" && !stopped.report.json.empty(),
+            "selection cancellation retains its diagnostic and mandatory report"
+        );
+    }
+    auto unavailable = options;
+    unavailable.definitionSelection->definitionIds = { "900001" };
+    Events unavailableEvents;
+    const auto refused = Run(text, unavailable, unavailableEvents);
+    Receipt(output, "selected-unavailable", refused, unavailableEvents);
+    Require(
+        refused.status == Status::Unsupported && !refused.document && refused.report.nativeCalls == 0 && !refused.report.definitionSelection &&
+            refused.report.definitions.empty() && refused.report.diagnostics.back().source.key == "SelectedDefinitionUnavailable" &&
+            refused.report.diagnostics.back().source.stage == "Selection",
+        "unavailable definition returns its original selection failure without a partial receipt"
+    );
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -282,6 +340,7 @@ int main(int argc, char** argv)
             failedBody.nativeCalls == 0 && failedBody.originalAttempt && failedBody.originalAttempt->nativeCalls > 0,
             "repair witness counts are overlapping observations, not additive report-tree children"
         );
+        SelectionControls(text, output);
         std::cout << "Nested observation contracts passed; complete report bytes=" << reportBytes << '\n';
         return 0;
     }

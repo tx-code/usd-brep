@@ -14,6 +14,9 @@ native-budget exhaustion and exact report capacity. A repair-specific cancellati
 the original-attempt witness and its non-additive counter relationship. Reports and full
 progress sequences are written to the CTest output directory for same-configuration
 before/after comparison. No memory sampling is enabled in those deterministic controls.
+Explicit selection controls retain the two-body middle definition, reject an unavailable
+definition, and cancel before selection or immediately after its receipt is established.
+They distinguish the completed selection receipt from native construction or publication.
 
 Definition counters include their bodies. Body counters retain the existing leaf-observation
 semantics, including the repair state machine's partial observations; the entire report tree
