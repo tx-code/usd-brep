@@ -7,11 +7,10 @@
 #include <SmTol.h>
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
 #include <vector>
 namespace step_import::detail
 {
-void CheckFinalTrimParameters(const SmCurve& edge, const SmCurve& uv, double begin, double end)
+[[nodiscard]] tl::expected<void, TrimMeasurementError> CheckFinalTrimParameters(const SmCurve& edge, const SmCurve& uv, double begin, double end)
 {
     const auto domain = uv.GetNaturalInterval();
     const auto edgeDomain = edge.GetNaturalInterval();
@@ -26,7 +25,7 @@ void CheckFinalTrimParameters(const SmCurve& edge, const SmCurve& uv, double beg
         !std::isfinite(edgeDomain.GetMin()) || !std::isfinite(edgeDomain.GetMax()) || !(domain.GetMax() > domain.GetMin()) ||
         !(edgeDomain.GetMax() > edgeDomain.GetMin()) || SM_IS_INFINITE(edgeDomain.GetMin()) || SM_IS_INFINITE(edgeDomain.GetMax()))
     {
-        throw std::runtime_error("FinalTrimParameterDomain");
+        return tl::unexpected(TrimMeasurementError::ParameterDomain);
     }
     const double minRoundoff = 100 * SmTol::GetScaledZero(edgeDomain.GetMin());
     const double maxRoundoff = 100 * SmTol::GetScaledZero(edgeDomain.GetMax());
@@ -34,19 +33,29 @@ void CheckFinalTrimParameters(const SmCurve& edge, const SmCurve& uv, double beg
         std::abs(domain.GetMax() - end) > maxRoundoff || domain.GetMin() < edgeDomain.GetMin() - minRoundoff ||
         domain.GetMax() > edgeDomain.GetMax() + maxRoundoff)
     {
-        throw std::runtime_error("FinalTrimParameterDomain");
+        return tl::unexpected(TrimMeasurementError::ParameterDomain);
     }
+    return {};
 }
-TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const SmSurface& surface, double begin, double end)
+[[nodiscard]] tl::expected<TrimMeasurement, TrimMeasurementError> MeasureFinalTrim(
+    const SmCurve& edge,
+    const SmCurve& uv,
+    const SmSurface& surface,
+    double begin,
+    double end
+)
 {
-    CheckFinalTrimParameters(edge, uv, begin, end);
+    if (auto checked = CheckFinalTrimParameters(edge, uv, begin, end); !checked)
+    {
+        return tl::unexpected(checked.error());
+    }
     std::vector<double> breaks{ begin, end };
     for (const auto* curve : { &edge, &uv })
     {
         SmTArray<double> knots;
         if (curve->GetKnots(knots) != SM_SUCCESS)
         {
-            throw std::runtime_error("FinalTrimKnots");
+            return tl::unexpected(TrimMeasurementError::Knots);
         }
         for (ULONG i = 0; i < knots.GetSize(); ++i)
         {
@@ -68,12 +77,12 @@ TrimMeasurement MeasureFinalTrim(const SmCurve& edge, const SmCurve& uv, const S
             if (edge.EvaluatePoint(t, point) != SM_SUCCESS || uv.EvaluatePoint(t, param) != SM_SUCCESS ||
                 surface.EvaluatePoint(SmPoint2d(param.x, param.y), lifted) != SM_SUCCESS)
             {
-                throw std::runtime_error("FinalTrimEvaluation");
+                return tl::unexpected(TrimMeasurementError::Evaluation);
             }
             const auto gap = point.DistanceBetween(lifted);
             if (!std::isfinite(gap))
             {
-                throw std::runtime_error("FinalTrimNonfinite");
+                return tl::unexpected(TrimMeasurementError::Nonfinite);
             }
             result.maximumMm = std::max(result.maximumMm, gap);
             ++result.samples;

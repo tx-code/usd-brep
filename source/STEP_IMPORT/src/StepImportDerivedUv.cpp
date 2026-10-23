@@ -61,10 +61,18 @@ bool FiniteUv(const SmPoint3d& p)
     {
         return result;
     }
+    // Only legacy native exceptions retain the old fallback below. Normal
+    // local refusals are values; execution errors are checked outside it.
     try
     {
-        CheckFinalTrimParameters(edge, *projected, interval.GetMin(), interval.GetMax());
-        CheckFinalTrimParameters(edge, installed, interval.GetMin(), interval.GetMax());
+        if (auto checked = CheckFinalTrimParameters(edge, *projected, interval.GetMin(), interval.GetMax()); !checked)
+        {
+            return result;
+        }
+        if (auto checked = CheckFinalTrimParameters(edge, installed, interval.GetMin(), interval.GetMax()); !checked)
+        {
+            return result;
+        }
     }
     catch (const std::runtime_error&)
     {
@@ -76,7 +84,12 @@ bool FiniteUv(const SmPoint3d& p)
     }
     try
     {
-        result.rawPair = MeasureFinalTrim(edge, *projected, surface, interval.GetMin(), interval.GetMax());
+        auto measured = MeasureFinalTrim(edge, *projected, surface, interval.GetMin(), interval.GetMax());
+        if (!measured)
+        {
+            return result;
+        }
+        result.rawPair = *measured;
     }
     catch (const std::runtime_error&)
     {
@@ -145,7 +158,12 @@ bool FiniteUv(const SmPoint3d& p)
     }
     try
     {
-        result.matchedPair = MeasureFinalTrim(edge, *projected, surface, interval.GetMin(), interval.GetMax());
+        auto measured = MeasureFinalTrim(edge, *projected, surface, interval.GetMin(), interval.GetMax());
+        if (!measured)
+        {
+            return result;
+        }
+        result.matchedPair = *measured;
     }
     catch (const std::runtime_error&)
     {
@@ -272,7 +290,12 @@ bool FiniteUv(const SmPoint3d& p)
     try
     {
         const auto interval = edge->GetInterval();
-        result.rawPair = MeasureFinalTrim(*edge->GetCurve(), *curves[0], *surface, interval.GetMin(), interval.GetMax());
+        auto measured = MeasureFinalTrim(*edge->GetCurve(), *curves[0], *surface, interval.GetMin(), interval.GetMax());
+        if (!measured)
+        {
+            return result;
+        }
+        result.rawPair = *measured;
     }
     catch (const std::runtime_error&)
     {

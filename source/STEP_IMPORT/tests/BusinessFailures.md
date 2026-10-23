@@ -49,3 +49,26 @@ under ignored local directories.
 This does not remove public configuration/query exception contracts or primitive
 numerical uncertainty/capacity sentinels. Those must retain their own classification;
 allocation failures must not become configured budget errors.
+
+## Final trim measurement results
+
+`step_import_trim_result_contracts` fixes the returned local-error protocol for
+parameter-domain refusals and a real straight-edge/offset-UV paired measurement.
+Invalid, reversed, collapsed and nonfinite requested intervals return the original
+`FinalTrimParameterDomain` reason without fabricating samples. Existing general
+controls retain parameter-roundoff allowances and independently detect a physically
+displaced or reparameterized final UV curve.
+
+The local `TrimMeasurementError` vocabulary is separate from execution `Failure`.
+The derived-UV boundary retains an unestablished candidate for local parameter
+refusal before native work, while a real callback refusal returns its unchanged
+cancelled execution error. Neither changes source geometry or quality budgets.
+General construction maps a local error to the same former importer diagnostic,
+including the original empty record and default stage. Remaining runtime-error
+catches preserve only the legacy native-exception fallback contract; returned errors
+are never thrown again.
+
+Isolated runtime mutants bypass parameter-error propagation, reclassify its reason,
+erase the physical displacement, throw a returned error, or downgrade cancellation
+to an unestablished candidate. Require successful compilation, the intended runtime
+failure and passing unchanged controls in matching Release/Debug configurations.

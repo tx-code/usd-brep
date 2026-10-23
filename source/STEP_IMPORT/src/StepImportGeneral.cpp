@@ -3624,7 +3624,13 @@ private:
                     return tl::unexpected(std::move(operation.error()));
                 }
                 auto measured = MeasureFinalTrim(*edge->GetCurve(), *uv, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
-                if (measured.maximumMm > Q(m_options.quality.derivedUvMm))
+                if (!measured)
+                {
+                    return tl::unexpected(
+                        Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", TrimMeasurementErrorName(measured.error()), {} }
+                    );
+                }
+                if (measured->maximumMm > Q(m_options.quality.derivedUvMm))
                 {
                     // This general source subset has no admitted source pcurve;
                     // the failed data is derived UV, not defining 3D geometry.
@@ -3693,6 +3699,12 @@ private:
                             return tl::unexpected(std::move(operation.error()));
                         }
                         measured = MeasureFinalTrim(*edge->GetCurve(), *installed, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
+                        if (!measured)
+                        {
+                            return tl::unexpected(
+                                Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", TrimMeasurementErrorName(measured.error()), {} }
+                            );
+                        }
                         RepresentationNormalization normalization{ "DerivedUvEndpointMatching", Id(f.record), {}, {}, target };
                         for (const auto& loop : f.loops)
                         {
@@ -3702,12 +3714,12 @@ private:
                         m_rebuiltUv = true;
                     }
                 }
-                if (auto businessCheck = Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", f.record);
+                if (auto businessCheck = Need(measured->maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", f.record);
                     !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                finalGap = std::max(finalGap, measured.maximumMm);
+                finalGap = std::max(finalGap, measured->maximumMm);
             }
             uvGap = std::max(uvGap, finalGap);
             m_report.tolerances.push_back({ "FinalInstalledUv", "KnotSpanPairedParameterSampleMaximum", Id(f.record), finalGap });
@@ -3825,12 +3837,18 @@ private:
                     return tl::unexpected(std::move(operation.error()));
                 }
                 const auto measured = MeasureFinalTrim(*edge->GetCurve(), *trim, *native->GetSurface(), interval.GetMin(), interval.GetMax());
-                if (auto businessCheck = Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", face.record);
+                if (!measured)
+                {
+                    return tl::unexpected(
+                        Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", TrimMeasurementErrorName(measured.error()), {} }
+                    );
+                }
+                if (auto businessCheck = Need(measured->maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", face.record);
                     !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                maximum = std::max(maximum, measured.maximumMm);
+                maximum = std::max(maximum, measured->maximumMm);
             }
             m_report.tolerances.push_back({ "FinalCandidateUv", "KnotSpanPairedParameterSampleMaximum", Id(face.record), maximum });
             uvGap = std::max(uvGap, maximum);
