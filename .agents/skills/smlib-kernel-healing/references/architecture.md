@@ -40,8 +40,8 @@ flowchart TD
     I ==> B
 ```
 
-The diagram shows a topology-changing repair. Some stages only update tolerances or cached
-flags, and geometry-only tracking currently has a narrower effect described below.
+The diagram shows a topology-changing repair. Completed topology edits invalidate dependent
+properties. Geometry notifications in `ChgList` remain diagnostic and do not request healing.
 
 | Entry | Behavior to verify |
 |---|---|
@@ -62,7 +62,7 @@ or a transaction with rollback.
 ## Stages and Stop Semantics
 
 The order comes from `SmHealData::HealTgts` and `SmHealerOpType` in `SmHealProbArray.h`.
-Use enum names rather than numeric debug labels: the labels and enum values are not identical.
+Diagnostic stage numbers use the operation enum values, matching completion tracking.
 
 | Order in the sequence | Current work and dependencies |
 |---|---|
@@ -72,9 +72,9 @@ Use enum names rather than numeric debug labels: the labels and enum values are 
 | `Cache_DegenFaces`, `Fix_DegenFaces`, `Fix_DegenEdges` | Classify and remove/squeeze degenerate faces before edges; new topology needs earlier properties rebuilt. |
 | `Cache_CoinEdges`, `Fix_CoinEdges`, `Cache_MissedEdgeXSects`, `Fix_MissedEdgeXSects` | Unfinished stages. Detection is TODO; fix helpers can return error if their problem arrays are populated directly. |
 | `Fix_UncontainedEdges`, `Fix_BadGaps` | The former adjusts a cached edge interval/flag without applying an edge geometry repair; the latter is a no-op. Neither establishes general gap repair. |
-| `Cache_FaceProps_Stage2` (`SM_HO_CACHE_FACEPROPS_2`) | Cache surface, periodicity, poles, and seam classifications for the next repairs. |
+| `Cache_FaceProps_Stage2` (`SM_HO_CACHE_FACEPROPS_2`) | Cache surface, periodicity, poles, and seam classifications. Record an interior boundary/pole crossing per affected face in `m_sBadFaceProps_CrossedPole`. |
 | `Fix_MoveSeam` | Try moving a periodic seam away from face boundaries, or improve its location when it must remain inside the face. |
-| `Fix_SplitEdgesAtSeam` | Split boundary edges crossing seams; prerequisite for later loop analysis. |
+| `Fix_SplitEdgesAtSeam` | Consume cached pole crossings, refreshing properties after each split to find remaining crossings, then split seam crossings. Endpoint rejections are reported and skipped for the rest of this invocation, leaving their problem flags set while other candidates and seams are processed. Other split errors and refresh errors stop the stage. |
 | `Fix_BadSheets` | Repair sheet/region organization. |
 | `Cache_FaceProps_Stage3` (`SM_HO_CACHE_FACEPROPS_3`) | Build loop properties, containment/orientation information, and missing-pole/loop problem lists. |
 | `Fix_SplitFaceAtSeams` | Insert seam boundaries/split faces using classifications. |
@@ -94,10 +94,11 @@ seams are unsettled. Do not require them prematurely in a new early stage.
 2. Calls its cache/fix function.
 3. Assigns that function's enum to `m_eDoneHealOp` after success.
 
-For active stage enums this runs through the requested stage, inclusively. Because the predicate
-checks the previous completed stage, a disabled requested stage can overshoot: requesting
-`SM_HO_FIX_BADLOOPS` reaches `Make_UVTrimCurves`, not the commented-out fix. At the end of
-`SM_HO_ALL`, `m_eDoneHealOp` is `SM_HO_FIX_INFINITE_REGIONS`.
+For active stage enums this runs through the requested stage, inclusively. Explicit skipped-stage
+boundaries honor requests for `SM_HO_FIX_BACKPOINTERS` and `SM_HO_FIX_BADLOOPS` without executing
+the disabled repairs or any later stages. At these boundaries, `m_eDoneHealOp` records the reached
+boundary, not a completed repair. At the end of `SM_HO_ALL`, `m_eDoneHealOp` is
+`SM_HO_FIX_INFINITE_REGIONS`.
 
 ### Refresh catches up to the last completed stage
 
@@ -177,8 +178,9 @@ edge is deleted. `Fix_SplitEdgesAtSeam` explicitly checks for this with
 `HasDeadTopologyPointObject`.
 
 `SmFaceProps::ReSet(stage)` clears that stage and later stages, deleting owned classifications
-or loop trees as appropriate. Even a Stage 3 reset clears attempt-state members. Saved nested
-pointers and attempt bookkeeping can become invalid without replacing the property itself.
+or loop trees as appropriate. The split-edge attempt state survives a Stage 3 reset; its pole/seam
+classifications belong to Stage 2. Other attempt members currently reset unconditionally. Saved
+nested pointers and attempt bookkeeping can become invalid without replacing the property itself.
 Resetting fields alone does not rebuild all `SmHealData` problem/attempt collections.
 
 Record actual gap and tolerance sources when diagnosing classification. `Fix_TolSizes` estimates
@@ -217,11 +219,17 @@ edgeuses. Walk the current owner instead of repeatedly reading the original obje
 A forwarded topology edgeuse `POST_EDIT` is not a geometry-owner event. `REG_PROPAGATION`
 carries opaque region-array payloads and is ignored before object inspection.
 
-**Current limitation:** `UpdateTargetLists(tracker, stage)` consumes only remove/add lists.
-Geometry-only `ChgList` entries record changes but do not trigger property rebuilding. For a
-completed topology mutation requiring new properties, emit the correct topology event in its
-owning mutator. Do not mislabel a geometry payload as topology or manually patch a fix's tracker
-lists. Extending geometry-only invalidation needs an explicit dependency policy and consumer tests.
+`StopTracking` asks the callback to collect dependencies after the atomic edit completes,
+when adjacency is stable. It starts from `AddList`, which includes new topology and completed
+edits. Vertices schedule connected edges and faces for refresh; edges schedule connected faces.
+The callback places those dependencies in both remove/add lists using the normal helpers.
+Removed handles are never traversed. Mutators must still notify affected surviving topology
+when removing an object severs its adjacency.
+
+`ChgList` is diagnostic only. `UpdateTargetLists(tracker, stage)` consumes only remove/add
+lists; a geometry notification alone does not trigger another healing pass. Mutators that need
+property refresh must emit the appropriate completed topology-edit notification rather than
+relying on `ChgList` or patching lists in the healer's fix functions.
 
 `AddUnique`, `Remove`, and callback reset helpers keep debug index arrays aligned with topology
 lists. Direct list mutation bypasses this invariant and can crash debug `StopTracking`/`Dump`.
@@ -265,6 +273,27 @@ uses per-pair tracking and rechecks its snapshot. Its source comments document a
 corrupt voxel storage. Preserve that per-pair boundary. Loop/pole batches defer refresh until
 traversal finishes. Stopping in only the first iteration loses subsequent events. Leaving an outer
 tracker active during recursive refresh conflicts with the context's single system slot.
+
+`Fix_SplitEdgesAtSeam` reports through `m_sRanFaceProps_SplitEdgesAtSeam`, a
+`SmTriedProbArray<SmFaceProps>`. Like `Fix_MoveSeam`, it marks attempted faces, reacquires their
+current properties after refresh, and records one `FIXED` or `NOFIX` outcome per face. Both pole
+and seam crossings contribute to that outcome: repairing a seam cannot hide a remaining pole
+crossing. Stage 3 loop-cache reset retains this result. A topology edit that replaces properties
+still removes the obsolete attempt entry through the ordinary property-lifetime mechanism.
+`Fix_SplitFaceAtSeams` records its own attempts in `m_sRanFaceProps_SplitFaceAtSeam`, keeping
+later face splitting separate from the earlier edge-split results.
+
+The local list of rejected pole crossings serves only as a retry guard, not as repair reporting.
+It stores face, edge, and parameter outside `FaceProps`, so property replacement cannot erase it
+and a rejected parameter cannot suppress another face's valid crossing on a shared edge.
+An endpoint rejection is logged with `SE_MSG`, remains flagged, and does not trigger target
+refresh. Other cached candidates and the seam pass continue. The same candidate is deferred
+for this invocation; a later explicit healing run may retry it. Both refreshes stop at
+`SM_HO_FIX_MOVESEAM`, before this split stage, including direct calls after later healing.
+Merely replacing `SER` with `SE` would repeatedly select the same failure even without refresh.
+
+Other split errors can occur after interval/curve mutation and are propagated immediately;
+`MakeVertexSplitEdge` does not provide rollback. Refresh failures also stop the stage.
 
 `UpdateTargetLists` propagates recursive `HealTgts` failures and restores the outer stage,
 target offsets, and recursion depth on exit. A failed refresh can leave replaced properties and
@@ -331,8 +360,8 @@ old-target offsets, property stage, live owning surface/topology, and linked pro
 - Validate completed topology separately using the BRep model reference. Healing cannot safely
   traverse every arbitrarily damaged pointer graph and does not establish validator completeness.
 
-Existing `smTopoTest.cpp` regressions named in `SKILL.md` cover actual seam movement plus
-refresh, geometry owner chains, detached loops, reset/deletion, and multiple missing-pole faces.
+Existing `smHealTest.cpp` regressions cover seam movement plus refresh and multiple missing-pole faces.
+`smTopoTest.cpp` retains geometry owner chains, detached loops, and reset/deletion coverage.
 `tests/healing_status` covers failed seam movement through the API, native entrypoint and stage
 sequence, failed catch-up after a real surface replacement, and U/V seam-insertion failures.
 It uses public virtual geometry operations to inject failures while retaining real classification

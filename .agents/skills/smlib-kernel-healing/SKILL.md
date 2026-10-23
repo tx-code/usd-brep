@@ -139,15 +139,22 @@ require the healer's stage and invalidation workflow unless evidence localizes a
 
 ## Validation
 
-For kernel changes, use `usd-brep-test-selection`; start with `prog_test` suite `topology`, adding
-`trimmed-surfaces` or `brep-import` when affected. Run debug coverage for notification/index-array
+For kernel changes, use `usd-brep-test-selection`; start with `prog_test` suite `healing`, adding
+`topology` for direct edits, classification, or notification changes, and `trimmed-surfaces` or
+`brep-import` when affected. Run debug coverage for notification/index-array
 changes and relevant release coverage. Compare generated debug logs as well as exit status.
 
-Useful existing regressions in `tests/prog_test/src/smTopoTest.cpp`:
+Useful existing regressions in `tests/prog_test/src/smHealTest.cpp`:
 
-- `my_test_tracks_changed_objects`, `my_test_tracks_nested_geometry_and_resets`
 - `my_test_move_seam_refreshes_face_props`
-- `my_test_missing_poles_refreshes_all_faces`, `my_test_squeeze_edge_tracks_removal`
+- `my_test_missing_poles_refreshes_all_faces`
+- `my_test_healer_splits_boundary_at_pole`, `my_test_healer_continues_after_pole_split_failure`
+- `my_test_heal_vertex_only_closed_surfaces`, `my_test_closed_face_containment_repeated`
+
+Direct notification regressions remain in `smTopoTest.cpp`: `my_test_tracks_changed_objects`,
+`my_test_tracks_nested_geometry_and_resets`, and `my_test_squeeze_edge_tracks_removal`.
+Face classification and derived-UV tests live in `smFaceTest.cpp` and run through `topology`.
+See [prog_test organization](../../../tests/prog_test/README.md) for the suite boundaries.
 
 Check repaired geometry/topology, rebuilt property stage and ownership, remaining problem flags,
 and repeated-operation behavior. Validate the completed graph using the BRep model skill's

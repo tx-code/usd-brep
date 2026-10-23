@@ -10,6 +10,18 @@ should be reported using `SECURITY.md`, not public issues.
 This guide records the development expectations for maintainers and approved
 contributors.
 
+## Reporting Bugs
+
+Check [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and the
+[public issue tracker](https://github.com/NVIDIA-Omniverse/usd-brep/issues) first.
+Verify the API contract using the [operation guides](.agents/operations/INDEX.md)
+or owning STEP component contract. Validate live BRep inputs at the completed
+boundary immediately before the failing operation, retaining pointer and
+`AssertValid` findings. Include the tested revision, command, expected behavior,
+observed diagnostics, and a minimal reproduction using this repository's APIs.
+Use synthetic reproductions for public issues; private models and identifying
+inventories stay local.
+
 ## Getting Started
 
 Install the prerequisites listed in `README.md`, then build and test from the
@@ -95,7 +107,7 @@ the relevant operation guide and any public documentation that describes its
 arguments, defaults, mutation semantics, or safety constraints.
 
 `KNOWN_ISSUES.md` lists known bugs that users can hit. When a change fixes one,
-remove its entry in the same change.
+remove its entry and add a `CHANGELOG.md` entry in the same change.
 
 ## Community Standards
 

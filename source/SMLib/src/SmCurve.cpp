@@ -944,7 +944,8 @@ ULONG SmCurve::FixChainCurvesList            // rtn: nChain = number of chains f
                    && ( ( sMidEndPoint - sMidPoint ).LengthSquared() < dtol2 ) )    // LastLinkMid   == ThisLinkMid
               {
                   // delete this curve
-                  delete pBSp1; pBSp1 = NULL;
+                  delete pBSp1; r3DCurves[j] = NULL; // remove it from the list too
+                  continue;
               }
               else
               {
@@ -966,7 +967,8 @@ ULONG SmCurve::FixChainCurvesList            // rtn: nChain = number of chains f
                    && ( dS1S < dtol2 )
                    && ( ( sMidEndPoint - sMidPoint ).LengthSquared() < dtol2 ) )
               {
-                  delete pBSp1; pBSp1 = NULL;
+                  delete pBSp1; r3DCurves[j] = NULL; // remove it from the list too
+                  continue;
               }
               else
               {
@@ -987,7 +989,8 @@ ULONG SmCurve::FixChainCurvesList            // rtn: nChain = number of chains f
                    && ( dS1E < dtol2 )
                    && ( ( sMidStartPoint - sMidPoint ).LengthSquared() < dtol2 ) )
               {
-                  delete pBSp1; pBSp1 = NULL;
+                  delete pBSp1; r3DCurves[j] = NULL; // remove it from the list too
+                  continue;
               }
               else
               {
@@ -1008,7 +1011,8 @@ ULONG SmCurve::FixChainCurvesList            // rtn: nChain = number of chains f
                    && ( dE1E < dtol2 )
                    && ( ( sMidStartPoint - sMidPoint ).LengthSquared() < dtol2 ) )
               {
-                  delete pBSp1; pBSp1 = NULL;
+                  delete pBSp1; r3DCurves[j] = NULL; // remove it from the list too
+                  continue;
               }
               else
               {

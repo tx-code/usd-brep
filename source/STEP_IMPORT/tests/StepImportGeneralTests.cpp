@@ -586,9 +586,9 @@ double VolumeWithImportPolicy(const SmBrep& brep, const std::array<step_import::
     SmVector3d moments, products;
     if (accuracy < 1e-4)
     {
-        // The SM_API mass wrapper intentionally clamps below 1e-4. These
-        // unedited, attribute-free modeling/archive copies must instead use
-        // the kernel's actual tighter control for an independent observation.
+        // Keep the full legacy moment integrator as an independent observation
+        // of the selected-property importer at tighter requested controls.
+        // The SM_API wrapper now forwards those controls too; no clamp is used.
         SmTArray<SmVector3d> allMoments;
         Require(
             brep.ComputePreciseProperties(

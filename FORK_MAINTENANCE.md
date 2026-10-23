@@ -14,8 +14,9 @@ merged branches. Do not force-push `main`. Create a release branch when a
 shipped version needs independent maintenance; release tags identify published
 versions. Deployment branches have their own lifecycle.
 
-Last incorporated upstream commit: `c9c5979f04cea8c38213004d4f04df0dcfb40d05`
-(Release 1.0.0).
+Last incorporated upstream commit: `3fd5b9548d19aa8c12c29bc9637a96d42a06f8a5`
+(Release 1.0.1). Native consumers must be rebuilt together after this integration;
+see [the compatibility note](.changeset/upstream-native-1-0-1.md).
 
 For upstream synchronization, use [the merge skill](.agents/skills/usd-brep-merge-upstream/SKILL.md)
 for development boundaries, semantic conflict review, matching-runtime validation, and local fast-forward.

@@ -12,13 +12,18 @@ import unittest
 
 from tools.step_catalog_validation.process_measure import measure
 
+# Windows venv redirectors start another process. Use the real interpreter for
+# the fixtures whose independent truth is exactly a root and one child; the
+# CLI argument/receipt test below still exercises the caller's actual launcher.
+WORKER_PYTHON = getattr(sys, "_base_executable", sys.executable)
+
 
 @unittest.skipUnless(os.name == "nt", "Windows Job Object measurement")
 class ProcessMeasurementTests(unittest.TestCase):
     def test_committed_memory_and_short_lived_child_are_accounted(self):
-        baseline = measure([sys.executable, "-c", "pass"])
-        allocated = measure([sys.executable, "-c", "buffer = bytearray(64 * 1024 * 1024)"])
-        child = measure([sys.executable, "-c", (
+        baseline = measure([WORKER_PYTHON, "-c", "pass"])
+        allocated = measure([WORKER_PYTHON, "-c", "buffer = bytearray(64 * 1024 * 1024)"])
+        child = measure([WORKER_PYTHON, "-c", (
             "import subprocess, sys; "
             "subprocess.run([sys.executable, '-c', 'buffer = bytearray(96 * 1024 * 1024)'], check=True)"
         )])
@@ -30,8 +35,8 @@ class ProcessMeasurementTests(unittest.TestCase):
         self.assertGreaterEqual(child["peak_job_commit_bytes"], child["peak_process_commit_bytes"])
 
     def test_failure_and_timeout_are_not_successful_measurements(self):
-        failed = measure([sys.executable, "-c", "raise SystemExit(7)"])
-        timeout = measure([sys.executable, "-c", "import time; time.sleep(30)"], timeout=0.1)
+        failed = measure([WORKER_PYTHON, "-c", "raise SystemExit(7)"])
+        timeout = measure([WORKER_PYTHON, "-c", "import time; time.sleep(30)"], timeout=0.1)
         self.assertEqual(7, failed["exit_code"])
         self.assertFalse(failed["timed_out"])
         self.assertEqual(124, timeout["exit_code"])
@@ -39,7 +44,7 @@ class ProcessMeasurementTests(unittest.TestCase):
         self.assertLess(timeout["wall_seconds"], 10)
 
     def test_child_outliving_root_remains_bounded_and_accounted(self):
-        row = measure([sys.executable, "-c", (
+        row = measure([WORKER_PYTHON, "-c", (
             "import subprocess, sys; "
             "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])"
         )], timeout=0.3)

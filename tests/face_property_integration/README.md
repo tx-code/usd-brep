@@ -8,7 +8,9 @@ UV B-spline knots and returns an inaccurate area. Translation and rigid rotation
 also check the area and its physical centroid.
 
 The private partition checks use actual polynomial C0 knots, clipped and shifted
-native intervals, and a short positive span. A positive rational C0 curve with a
+native intervals, and a short positive span. A large-offset narrow interval
+also checks exact knot preservation on copy and disk area against analytic truth.
+A positive rational C0 curve with a
 repeated knot also exercises reversal in its actual parameter domain. They verify the current span's
 one-sided derivative at each endpoint, the unit-interval Jacobian, exact knot
 deduplication, conservative allocation of the existing numerical control

@@ -8,6 +8,8 @@
 #include <SmApiQueries.h>
 #include <SmBrep.h>
 #include <SmContext.h>
+#include <SmEdge.h>
+#include <SmEdgeuse.h>
 #include <SmFace.h>
 #include <array>
 #include <cmath>
@@ -199,6 +201,130 @@ void CheckOtherSurfaces()
         }
     }
 }
+void CheckTightSphere()
+{
+    // Public analytic controls for the inner integration's coarse-step abort.
+    // Repeating about translated frames also exercises zero-valued moments
+    // after nonzero RK stages; no importer or native-output oracle is involved.
+    const double volumeTruth = 500. * std::numbers::pi / 3.;
+    const double areaTruth = 100. * std::numbers::pi;
+    for (const auto origin : { SmPoint3d(0, 0, 0), SmPoint3d(1, 2, 3) })
+    {
+        SmBrep* raw = nullptr;
+        Good(SmApiCreateSphere(origin, 5, raw));
+        std::unique_ptr<SmBrep> brep(raw);
+        for (int repeat = 0; repeat < 2; ++repeat)
+        {
+            double area = 0, volume = 0, mass = 0;
+            SmPoint3d centroid;
+            SmVector3d moments, products;
+            Good(SmApiBrepComputeMassProperties(brep.get(), 1e-8, 1., origin, area, volume, mass, centroid, moments, products));
+            Require(
+                std::abs(area - areaTruth) < 1e-5 && std::abs(volume - volumeTruth) < 1e-5 && std::abs(mass - volumeTruth) < 1e-5 &&
+                    centroid.DistanceBetween(origin) < 1e-6,
+                "tight sphere measures match independent analytic truth"
+            );
+            for (ULONG axis = 0; axis < 3; ++axis)
+            {
+                Require(
+                    std::abs(moments[axis] - 10. * volumeTruth) < 1e-4 && std::abs(products[axis]) < 1e-5,
+                    "tight centered sphere inertia and products"
+                );
+            }
+            const SmPoint3d farOrigin = origin + SmVector3d(1e9, -2e9, 3e9);
+            Good(SmApiBrepComputeMassProperties(brep.get(), 1e-8, 1., farOrigin, area, volume, mass, centroid, moments, products));
+            Require(
+                std::abs(volume - volumeTruth) < 1e-5 && centroid.DistanceBetween(origin) < 1e-6,
+                "public Brep query retains analytic volume and centroid at a distant inertia origin"
+            );
+            const auto delta = origin - farOrigin;
+            for (ULONG axis = 0; axis < 3; ++axis)
+            {
+                const auto a = (axis + 1) % 3, b = (axis + 2) % 3;
+                const double expectedMoment = volumeTruth * (10. + delta[a] * delta[a] + delta[b] * delta[b]);
+                const double expectedProduct = volumeTruth * delta[a] * delta[b];
+                Require(
+                    std::abs(moments[axis] - expectedMoment) < 1e-8 * std::abs(expectedMoment) &&
+                        std::abs(products[axis] - expectedProduct) < 1e-8 * std::abs(expectedProduct),
+                    "distant-origin inertia matches the independent parallel-axis formula"
+                );
+            }
+        }
+    }
+}
+void CheckNarrowNativeParameters()
+{
+    SmBrep* raw = nullptr;
+    Good(SmApiCreatePlanarCircle(SmPoint3d(0, 0, 0), 5, raw));
+    std::unique_ptr<SmBrep> brep(raw);
+    SmTArray<SmFace*> faces;
+    brep->GetFaces(faces);
+    Require(faces.GetSize() == 1, "public disk has one face");
+    SmTArray<SmEdge*> edges;
+    SmTArray<SmEdgeuse*> uses;
+    faces[0]->GetEdges(edges);
+    Require(edges.GetSize() == 1, "disk has one boundary");
+    Good(edges[0]->GetEdgeuses(uses));
+    SmBSplineCurve* uv = nullptr;
+    Good(uses[0]->GetOrCreateUVTrimCurve(uv));
+    auto* curve = dynamic_cast<SmBSplineCurve*>(edges[0]->GetCurve());
+    Require(uv && curve, "disk has a paired rational boundary");
+    SmTArray<double> knots;
+    const auto original = uv->GetNaturalInterval();
+    for (ULONG i = 0; i < 100; ++i)
+    {
+        knots.Add(original.Evaluate((i + 0.5) / 100.));
+    }
+    Good(uv->RefineCurve(knots));
+    const SmExtent1d narrow(1000., 1000. + 1e-7);
+    Good(uv->ScaleKnotVector(narrow.GetMin(), narrow.GetMax()));
+    Good(curve->ScaleKnotVector(narrow.GetMin(), narrow.GetMax()));
+    edges[0]->SetInterval(narrow);
+    SmCurve* copied = nullptr;
+    Good(uv->Copy(*brep->GetContext(),copied));
+    std::unique_ptr<SmCurve> ownedCopy(copied);
+    auto* copiedSpline = dynamic_cast<SmBSplineCurve*>(copied);
+    Require(copiedSpline,"narrow UV curve copy stays a B-spline");
+    SmTArray<double> sourceKnots, copyKnots;
+    Good(uv->GetKnotsAll(sourceKnots));
+    Good(copiedSpline->GetKnotsAll(copyKnots));
+    Require(sourceKnots.GetSize()==copyKnots.GetSize(),"copy retains all native knots");
+    for (ULONG k=0;k<sourceKnots.GetSize();++k)
+    {
+        Require(sourceKnots[k]==copyKnots[k],"copy preserves narrow native knot values without implicit tuning");
+    }
+    for (const ULONG flags :
+         { ULONG(SM_PPF_ALL), ULONG(SM_PPF_AREA), ULONG(SM_PPF_VOLUME), ULONG(SM_PPF_AREA_FIRST_MOMENTS), ULONG(SM_PPF_VOLUME_SECOND_MOMENTS) })
+    {
+        double area = -37, volume = -41;
+        SmTArray<SmVector3d> moments;
+        // Integrate from the unchanged knot/control data in local span
+        // coordinates. A large native offset must not erase the quadrature
+        // nodes or change this independently specified radius-5 disk's area.
+        Require(
+            faces[0]->ComputePreciseProperties(SM_OT_SAME, 1e-4, SmPoint3d(0, 0, 0), 1., 0., area, volume, moments, flags) == SM_SUCCESS,
+            "narrow native spans remain integrable without changing parameters"
+        );
+        if (std::abs(area - (flags & SM_PPF_AREA ? 25. * std::numbers::pi : 0.)) >= 0.001 || volume != 0.)
+        {
+            std::fprintf(stderr,"Narrow numeric flags=%lu area=%.17g volume=%.17g original UV type=%lu\n",flags,area,volume,static_cast<unsigned long>(uv->GetType()));
+            SmTArray<ULONG> loops;
+            SmTArray<SmBSplineCurve*> boundaries;
+            SmObjsDelete<SmBSplineCurve*> cleanup(&boundaries);
+            Good(faces[0]->CreateOrientedTrimBoundary(*brep->GetContext(),TRUE,TRUE,loops,boundaries));
+            for (ULONG n=0;n<boundaries.GetSize();++n)
+            {
+                sm_face_integrals::Partition plan;
+                Good(sm_face_integrals::MakePartition(*boundaries[n],boundaries[n]->GetNaturalInterval(),plan));
+                std::fprintf(stderr,"Boundary type=%lu normalized=%d degree=%lu\n",static_cast<unsigned long>(boundaries[n]->GetType()),int(plan.IsSplit()),boundaries[n]->GetDegree());
+            }
+        }
+        Require(
+            std::abs(area - (flags & SM_PPF_AREA ? 25. * std::numbers::pi : 0.)) < 0.001 && volume == 0.,
+            "narrow native parameterization retains analytic area and unselected totals"
+        );
+    }
+}
 void CheckRationalReversal()
 {
     SmContext context;
@@ -226,6 +352,8 @@ void CheckRationalReversal()
     sm_face_integrals::Partition plan;
     Good(sm_face_integrals::MakePartition(*curve, curve->GetNaturalInterval(), plan));
     Require(plan.Size() == 2 && plan[0].max == 3., "Repeated rational knot retained once");
+    sm_face_integrals::LocalCurve local;
+    Good(local.Prepare(*curve));
     for (ULONG i = 0; i < 2; ++i)
     {
         const auto span = plan[i];
@@ -234,11 +362,15 @@ void CheckRationalReversal()
         Good(curve->Evaluate(parameter, 1, span.FromLeft(parameter), values, FALSE));
         const auto exact = i == 0 ? SmVector3d(0, 1, 0) : SmVector3d(1.5, 0, 0);
         Require((values[1] * span.Length() - exact).Length() <= 1e-12, "Rational C0 one-sided derivative");
+        SmPoint3d locally[2];
+        Good(local.Evaluate(span, i == 0 ? 1. : 0., locally));
+        Require((locally[1] - exact).Length() <= 1e-12, "Local rational C0 derivative and Jacobian");
     }
     SmExtent1d reversedInterval;
     Good(curve->ReverseParameterization(curve->GetNaturalInterval(), reversedInterval));
     Good(sm_face_integrals::MakePartition(*curve, reversedInterval, plan));
     Require(plan.Size() == 2 && plan[0].min == 2. && plan[0].max == 4. && plan[1].max == 5., "Reversed actual knot domain");
+    Good(local.Prepare(*curve));
     for (ULONG i = 0; i < 2; ++i)
     {
         const auto span = plan[i];
@@ -247,6 +379,9 @@ void CheckRationalReversal()
         Good(curve->Evaluate(parameter, 1, span.FromLeft(parameter), values, FALSE));
         const auto exact = i == 0 ? SmVector3d(-1.5, 0, 0) : SmVector3d(0, -1, 0);
         Require((values[1] * span.Length() - exact).Length() <= 1e-12, "Reversed rational derivative and Jacobian");
+        SmPoint3d locally[2];
+        Good(local.Evaluate(span, i == 0 ? 1. : 0., locally));
+        Require((locally[1] - exact).Length() <= 1e-12, "Reversed local rational derivative and Jacobian");
     }
 }
 } // namespace
@@ -259,6 +394,8 @@ int main()
         CheckRationalReversal();
         CheckAnnuli();
         CheckOtherSurfaces();
+        CheckTightSphere();
+        CheckNarrowNativeParameters();
         return 0;
     }
     catch (const std::exception& error)
