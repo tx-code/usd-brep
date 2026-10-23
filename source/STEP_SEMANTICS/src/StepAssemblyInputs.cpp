@@ -31,4 +31,8 @@ const AssemblyContextUnits* AssemblyInputs::FindContext(std::size_t context) con
     const auto found = m_data->contextIndices.find(context);
     return found == m_data->contextIndices.end() ? nullptr : &m_data->contexts.at(found->second);
 }
+std::span<const Part> AssemblyInputs::DefinitionChecks() const
+{
+    return m_data->definitionChecks;
+}
 } // namespace step_semantics

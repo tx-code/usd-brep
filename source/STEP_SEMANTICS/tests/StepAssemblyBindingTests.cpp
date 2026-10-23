@@ -230,6 +230,82 @@ void DefinitionScopes(const std::string& source)
     observed = {};
     Require(owner->inputs->SourceFields().Source().Bytes() == source, "definition plan owns original source");
 }
+void DefinitionChecks(const std::string& source)
+{
+    using namespace step_semantics;
+    const auto inspect = [](const std::string& text, Limits limits = {})
+    {
+        auto raw = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
+        return InspectAssemblyDefinitions(raw, limits, SourcePolicy::Strict);
+    };
+    auto result = inspect(source);
+    Require(
+        result.inputs && result.inputs->DefinitionChecks().size() == 2 && result.checks.status == Status::Deferred && !result.checks.snapshot &&
+            !result.checks.document,
+        "all definition prerequisites observed without whole-document qualification"
+    );
+    const auto parts = result.inputs->DefinitionChecks();
+    Require(
+        parts[0].shapeRole == "MaterialSolid" && parts[0].shapes.size() == 1 && parts[1].shapeRole == "AssemblyPlacementWrapper" &&
+            parts[1].shapes.empty(),
+        "source material and parent wrapper remain distinct"
+    );
+    auto badParent = Replace(source, "#902=PRODUCT_DEFINITION('parent',$,#901,#6)", "#902=PRODUCT_DEFINITION('parent',$,#901,#945)");
+    badParent = Replace(badParent, "ENDSEC;\nEND-ISO", "#945=PRODUCT_DEFINITION_CONTEXT('part definition',#1,'manufacturing');\nENDSEC;\nEND-ISO");
+    auto rejected = inspect(badParent);
+    Require(
+        !rejected.inputs && rejected.checks.part == "Unsupported" &&
+            rejected.checks.diagnostics.back().source.key == "UnsupportedDefinitionLifecycleStage",
+        "late parent product failure discards prior child checks"
+    );
+    auto missingOuter = inspect(Replace(source, "#506=FACE_OUTER_BOUND", "#506=FACE_BOUND"));
+    Require(
+        missingOuter.inputs && missingOuter.inputs->DefinitionChecks()[0].deferredRegionFaces.size() == 1,
+        "existing native region obligation retained on checked child definition"
+    );
+    auto surface = inspect(Replace(
+        Replace(source, "#21=MANIFOLD_SOLID_BREP('',#22)", "#21=SHELL_BASED_SURFACE_MODEL('',(#22))"),
+        "#20=ADVANCED_BREP_SHAPE_REPRESENTATION",
+        "#20=MANIFOLD_SURFACE_SHAPE_REPRESENTATION"
+    ));
+    Require(
+        surface.inputs && surface.inputs->DefinitionChecks()[0].shapeRole == "ClosedSurfaceModel",
+        "actual part check preserves closed surface role"
+    );
+    Limits limits;
+    limits.dependencyVisits = result.checks.dependencyVisits;
+    Require(bool(inspect(source, limits).inputs), "definition inspection shares exact total visit budget");
+    --limits.dependencyVisits;
+    auto stopped = inspect(source, limits);
+    Require(!stopped.inputs && stopped.checks.status == Status::ResourceLimit, "late definition budget exhaustion publishes nothing");
+    auto owner = result.inputs;
+    auto linked = Replace(
+        Replace(source, "#20=ADVANCED_BREP_SHAPE_REPRESENTATION", "#20=SHAPE_REPRESENTATION"),
+        "'body',(#21,#931),#12",
+        "'body',(#931),#12"
+    );
+    linked = Replace(
+        linked,
+        "ENDSEC;\nEND-ISO",
+        "#950=ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12);\n"
+        "#951=SHAPE_REPRESENTATION_RELATIONSHIP('',$,#20,#950);\nENDSEC;\nEND-ISO"
+    );
+    auto linkedCheck = inspect(linked);
+    Require(
+        linkedCheck.inputs && linkedCheck.inputs->DefinitionChecks()[0].shapes.size() == 1,
+        "existing representation selection follows ordinary child wrapper to its body"
+    );
+    auto sharedCategory = inspect(Replace(source, "ENDSEC;\nEND-ISO", "#950=PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#4,#900));\nENDSEC;\nEND-ISO"));
+    Require(
+        sharedCategory.inputs && sharedCategory.inputs->DefinitionChecks().size() == 2,
+        "category membership uses the complete assembly definition set, not a single arbitrary product"
+    );
+    result = {};
+    Require(
+        owner->DefinitionChecks()[0].shapes.size() == 1 && owner->SourceFields().Source().Bytes() == source,
+        "owning checks survive outcome release"
+    );
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -241,6 +317,7 @@ int main(int argc, char** argv)
         const std::string source{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
         ContextInputs(source);
         DefinitionScopes(source);
+        DefinitionChecks(source);
         auto graph = Graph(source);
         auto result = step_semantics::BindAssemblyOccurrences(graph, {});
         Require(

@@ -274,7 +274,7 @@ public:
             }
         }
     }
-    std::shared_ptr<const AssemblyInputs> InspectAssemblyContextInputs()
+    std::shared_ptr<const AssemblyInputs> InspectAssemblyContextInputs(bool checkDefinitions = false)
     {
         RunPrerequisites();
         auto candidate = std::make_shared<AssemblyInputData>();
@@ -359,6 +359,61 @@ public:
                 }
             }
         );
+        if (checkDefinitions)
+        {
+            try
+            {
+                m_assemblyDefinitionChecks = true;
+                auto remaining = m_outcome.limits;
+                remaining.dependencyVisits -= m_outcome.dependencyVisits;
+                auto definitions = PlanAssemblyDefinitions(std::make_shared<const AssemblyInputs>(candidate), remaining);
+                m_outcome.dependencyVisits += definitions.dependencyVisits;
+                if (!definitions.plan)
+                {
+                    Expects(!definitions.diagnostics.empty());
+                    throw Failure{ definitions.status, std::move(definitions.diagnostics.front()) };
+                }
+                auto scopes = PlanAssemblyProductChecks(
+                    *m_data,
+                    *definitions.plan,
+                    [this](Span span)
+                    {
+                        Visit(span);
+                    }
+                );
+                if (scopes.failure)
+                {
+                    throw Failure{ scopes.failure->status, std::move(scopes.failure->diagnostic) };
+                }
+                for (const auto& definition : m_outcome.productStructure->Definitions())
+                {
+                    m_requestedProducts.insert(definition.product);
+                }
+                for (const auto& scope : scopes.parts)
+                {
+                    PopulationScope selected(m_scopedPopulations, scope.populations);
+                    m_data->part = {};
+                    m_wireframeRepresentation.reset();
+                    m_constructionRepresentation.reset();
+                    try
+                    {
+                        Product(scope.placementOnly);
+                    }
+                    catch (Failure& failure)
+                    {
+                        failure.diagnostic.source.related.push_back(Record(scope.definition).idSpan);
+                        throw;
+                    }
+                    candidate->definitionChecks.push_back(std::move(m_data->part));
+                }
+                m_data->part = {};
+            }
+            catch (Failure& failure)
+            {
+                State(Phase::Part) = FailureProgress(failure.status);
+                throw;
+            }
+        }
         // Whole-document closure and final metadata approval have not run.
         // Keep pending source facts visible instead of promoting exceptions.
         for (const auto& issue : m_data->pendingIssues)
@@ -719,6 +774,7 @@ private:
     std::vector<std::size_t> m_documentPhysical, m_documentBodies;
     std::unordered_set<std::size_t> m_documentBodySet;
     std::unordered_set<std::size_t> m_requestedProducts;
+    bool m_assemblyDefinitionChecks = false;
     std::unordered_set<std::string> m_selectedSourceDefinitions;
     class PopulationScope
     {
@@ -2688,7 +2744,7 @@ private:
     {
         return Record(record).components.size() == 1 && Record(record).components.front().name == "REPRESENTATION";
     }
-    void Product()
+    void Product(bool placementOnly = false)
     {
         std::optional<std::size_t> singleApplication;
         std::optional<Failure> distinctApplications;
@@ -2793,7 +2849,28 @@ private:
         std::optional<std::size_t> shapeRelationship;
         std::optional<std::size_t> wireframeRelationship;
         std::optional<std::size_t> constructionRelationship;
-        if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
+        if (placementOnly)
+        {
+            // Only the explicit assembly scope planner can establish this role.
+            // Still run all product-chain/administrative checks below. A wrapper
+            // is not an empty material solid and cannot hide arbitrary items.
+            Expects(m_assemblyDefinitionChecks);
+            m_representation = Target(FieldValue(sdr, "used_representation"));
+            definitionRepresentation = m_representation;
+            m_context = Target(FieldValue(m_representation, "context_of_items"));
+            if (Population("REPRESENTATION").size() != 1 || !Population("SHAPE_REPRESENTATION_RELATIONSHIP").empty())
+            {
+                Fail(
+                    "AssemblyWrapperRepresentationUnsupported",
+                    "D2",
+                    "Placement-only wrapper requires one direct representation",
+                    Record(m_representation).span,
+                    Status::Unsupported,
+                    m_representation
+                );
+            }
+        }
+        else if (m_data->profile.kind != ProfileKind::Ap203e2Planar)
         {
             // Source SDR selects the root; presentation order and representation counts
             // cannot select the body's geometry or override its unit context.
@@ -3046,7 +3123,7 @@ private:
         {
             const auto category = categories[0];
             const auto& products = FieldValue(category, "products");
-            const bool membership = m_scopedPopulations && m_independentRequest ?
+            const bool membership = m_scopedPopulations && (m_independentRequest || m_assemblyDefinitionChecks) ?
                                         !products.children.empty() &&
                                             std::all_of(
                                                 products.children.begin(),
@@ -3095,6 +3172,25 @@ private:
                 }
             }
             m_data->part.roles.push_back({ "category", category });
+        }
+        if (placementOnly)
+        {
+            for (const auto& item : FieldValue(m_representation, "items").children)
+            {
+                if (!IsA(*m_data, Target(item), "AXIS2_PLACEMENT_3D"))
+                {
+                    Fail(
+                        "AssemblyWrapperItemUnsupported",
+                        "D2",
+                        "Wrapper items must retain explicit placement roles",
+                        item.span,
+                        Status::Unsupported,
+                        m_representation
+                    );
+                }
+            }
+            m_data->part.shapeRole = "AssemblyPlacementWrapper";
+            return;
         }
         std::vector<std::size_t> shapes;
         for (const auto& item : FieldValue(m_representation, "items").children)
@@ -5398,7 +5494,8 @@ static Outcome CheckImpl(
     bool independentRequest,
     bool inspectDefinitions = false,
     const SelectedSourceRequest* selection = nullptr,
-    std::shared_ptr<const AssemblyInputs>* assemblyInputs = nullptr
+    std::shared_ptr<const AssemblyInputs>* assemblyInputs = nullptr,
+    bool assemblyDefinitionChecks = false
 )
 {
     if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
@@ -5530,7 +5627,7 @@ static Outcome CheckImpl(
     {
         if (assemblyInputs)
         {
-            auto candidate = checker.InspectAssemblyContextInputs();
+            auto candidate = checker.InspectAssemblyContextInputs(assemblyDefinitionChecks);
             result.status = Status::Deferred;
             checker.PublishProgress();
             result.part = "NotQualifiedAssemblyInputs";
@@ -5635,6 +5732,33 @@ AssemblyInputOutcome InspectAssemblyInputs(
         false,
         nullptr,
         &result.inputs
+    );
+    return result;
+}
+AssemblyInputOutcome InspectAssemblyDefinitions(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
+)
+{
+    AssemblyInputOutcome result;
+    result.checks = CheckImpl(
+        source,
+        limits,
+        policy,
+        GeometryScope::GeneralBrep,
+        interpretation,
+        unitInterpretation,
+        complexMappingInterpretation,
+        {},
+        false,
+        false,
+        nullptr,
+        &result.inputs,
+        true
     );
     return result;
 }

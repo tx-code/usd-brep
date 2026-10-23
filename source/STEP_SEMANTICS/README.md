@@ -1257,6 +1257,27 @@ existing unsupported explicit-outer-bound guard rather than borrowing AP214's
 rule authority. This is only the existing region prerequisite: forward reach
 does not establish inverse ownership, full face validity or full document closure.
 
+## Assembly definition prerequisite inspection
+
+`InspectAssemblyDefinitions` extends explicit assembly input inspection by
+applying the existing `Product()` checks once per definition-local scope. Shared
+product/context/protocol/category population binding is reused from independent
+definition planning; occurrence relationships never enter local shape adjacency.
+The ordinary independent-products entry point continues to refuse assemblies.
+
+Placement-only parent scopes still run product-chain and administrative guards,
+then retain `AssemblyPlacementWrapper` with no invented solid. Geometry definitions
+run the existing representation/item/shell-role and face-region checks. Successful
+observations are available through `AssemblyInputs::DefinitionChecks()` and retain
+source identities and deferred geometric-region obligations. Ordinary
+`InspectAssemblyInputs` leaves this collection empty.
+
+Any definition failure or shared visit-budget exhaustion withholds all assembly
+inputs. Successful observation remains `Deferred`, without `snapshot`/`document`:
+whole-source inverse ownership, metadata exception approval, full geometry/native
+validation and final publication have not run. An all-green definition observation
+must not be used as a qualified source snapshot or partial native import.
+
 ## Qualified independent definitions
 
 `CheckIndependentProducts` / CLI `--independent-products` explicitly requests all

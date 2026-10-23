@@ -15,14 +15,19 @@ class Planner
 {
 public:
 
-    Planner(const SemanticData& data, const ProductStructure& graph, const std::function<void(step_source::Span)>& visit)
-        : d(data), g(graph), charge(visit)
+    Planner(
+        const SemanticData& data,
+        const ProductStructure& graph,
+        const std::function<void(step_source::Span)>& visit,
+        const AssemblyDefinitionPlan* assembly = nullptr
+    )
+        : d(data), g(graph), charge(visit), assembly(assembly)
     {
     }
     IndependentProductPlan Run()
     {
         Expects(d.bindingsComplete);
-        if (!g.Usages().empty() || !g.Transforms().empty() || !g.ContextDependentShapes().empty())
+        if (!assembly && (!g.Usages().empty() || !g.Transforms().empty() || !g.ContextDependentShapes().empty()))
         {
             Fail(
                 "IndependentProductsContainAssembly",
@@ -31,17 +36,31 @@ public:
             );
         }
         const auto count = d.source->Records().size();
-        std::vector<std::vector<std::size_t>> references(count);
-        for (const auto& ref : d.source->References())
+        std::unordered_map<std::size_t, const AssemblyDefinitionScope*> assemblyScopes;
+        if (assembly)
         {
-            references[ref.recordIndex].push_back(ref.targetRecordIndex);
+            Expects(&assembly->inputs->SourceFields().Source() == d.source.get());
+            for (const auto& scope : assembly->definitions)
+            {
+                assemblyScopes.emplace(scope.definition, &scope);
+            }
         }
-        std::vector<std::vector<std::pair<std::size_t, std::size_t>>> adjacency(count);
-        for (const auto& rel : g.RepresentationRelationships())
+        // Assembly scopes already contain budgeted sparse dependency walks;
+        // do not allocate another whole-source adjacency for every request.
+        std::vector<std::vector<std::size_t>> references(assembly ? 0 : count);
+        std::vector<std::vector<std::pair<std::size_t, std::size_t>>> adjacency(assembly ? 0 : count);
+        if (!assembly)
         {
-            Visit(rel.relationship);
-            adjacency[rel.firstRepresentation].push_back({ rel.secondRepresentation, rel.relationship });
-            adjacency[rel.secondRepresentation].push_back({ rel.firstRepresentation, rel.relationship });
+            for (const auto& ref : d.source->References())
+            {
+                references[ref.recordIndex].push_back(ref.targetRecordIndex);
+            }
+            for (const auto& rel : g.RepresentationRelationships())
+            {
+                Visit(rel.relationship);
+                adjacency[rel.firstRepresentation].push_back({ rel.secondRepresentation, rel.relationship });
+                adjacency[rel.secondRepresentation].push_back({ rel.firstRepresentation, rel.relationship });
+            }
         }
         std::unordered_set<std::size_t> definitionRoots;
         for (const auto& definition : g.Definitions())
@@ -78,6 +97,10 @@ public:
             const auto& link = def.representations.front();
             IndependentProductScope scope;
             scope.definition = def.definition;
+            if (assembly)
+            {
+                scope.placementOnly = assemblyScopes.at(def.definition)->placementOnly;
+            }
             const auto set = [&](std::string_view type, std::vector<std::size_t> values)
             {
                 scope.populations.emplace(Schema(d).RequireType(type), std::move(values));
@@ -115,6 +138,26 @@ public:
 
             std::unordered_set<std::size_t> component, relations, geometry;
             std::vector<std::size_t> stack{ link.representation };
+            if (assembly)
+            {
+                const auto& bound = *assemblyScopes.at(def.definition);
+                for (auto r : bound.representations)
+                {
+                    Visit(r);
+                    component.insert(r);
+                }
+                for (auto r : bound.relationships)
+                {
+                    Visit(r);
+                    relations.insert(r);
+                }
+                for (auto r : bound.dependencies)
+                {
+                    Visit(r);
+                    geometry.insert(r);
+                }
+                stack.clear();
+            }
             while (!stack.empty())
             {
                 auto r = stack.back();
@@ -145,6 +188,10 @@ public:
                 }
             }
             stack = { link.representation };
+            if (assembly)
+            {
+                stack.clear();
+            }
             while (!stack.empty())
             {
                 auto r = stack.back();
@@ -225,6 +272,7 @@ private:
     const SemanticData& d;
     const ProductStructure& g;
     const std::function<void(step_source::Span)>& charge;
+    const AssemblyDefinitionPlan* assembly;
     void Visit(std::size_t r) const
     {
         charge(d.source->Records().at(r).span);
@@ -281,6 +329,22 @@ IndependentProductPlan PlanIndependentProducts(
     try
     {
         return Planner(data, graph, visit).Run();
+    }
+    catch (ProductStructureFailure& failure)
+    {
+        return { {}, std::move(failure) };
+    }
+}
+IndependentProductPlan PlanAssemblyProductChecks(
+    const SemanticData& data,
+    const AssemblyDefinitionPlan& plan,
+    const std::function<void(step_source::Span)>& visit
+)
+{
+    Expects(bool(visit) && bool(plan.inputs));
+    try
+    {
+        return Planner(data, *plan.inputs->Bindings().structure, visit, &plan).Run();
     }
     catch (ProductStructureFailure& failure)
     {

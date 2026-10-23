@@ -23,6 +23,7 @@ public:
     const SourceBindings& SourceFields() const;
     std::span<const AssemblyContextUnits> Contexts() const;
     const AssemblyContextUnits* FindContext(std::size_t context) const; // Null for an unrelated source context.
+    std::span<const Part> DefinitionChecks() const; // Empty unless explicit definition inspection completed; not qualified Part snapshots.
 
 private:
 
@@ -34,6 +35,14 @@ struct AssemblyInputOutcome
     std::shared_ptr<const AssemblyInputs> inputs; // Null if any prerequisite fails.
 };
 AssemblyInputOutcome InspectAssemblyInputs(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+);
+AssemblyInputOutcome InspectAssemblyDefinitions(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,

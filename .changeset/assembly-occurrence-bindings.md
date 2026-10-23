@@ -27,6 +27,9 @@ predicate, preserving duplicate-outer diagnostics and unmarked-region deferrals.
 Internal numeric instance expansion retains nested/repeated occurrence paths
 under explicit declared roots, with independent node/depth limits and complete
 cancellation failure. It still does not publish a native assembly model.
+`InspectAssemblyDefinitions` reuses existing per-product checks, keeping
+placement-only wrappers separate from material and surface definitions. All
+definition observations remain unqualified until whole-document closure succeeds.
 
 ## Scope
 
