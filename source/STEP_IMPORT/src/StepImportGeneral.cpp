@@ -199,7 +199,10 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.EndVertex());
+            if (auto nativeStatusCheck = Good(c.EndVertex()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         for (auto& cut : m_ringVertices)
         {
@@ -217,7 +220,10 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.EndVertex());
+            if (auto nativeStatusCheck = Good(c.EndVertex()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         if (auto operation = Step(shape); !operation)
         {
@@ -234,7 +240,10 @@ public:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.StartShell(m_model->outside, m_model->inside));
+        if (auto nativeStatusCheck = Good(c.StartShell(m_model->outside, m_model->inside)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         m_model->edges.resize(curves.size());
         for (auto& f : faces)
         {
@@ -247,17 +256,26 @@ public:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndShell(FALSE)); // No implicit stitching or source repair.
+        if (auto nativeStatusCheck = Good(c.EndShell(FALSE)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        } // No implicit stitching or source repair.
         if (auto operation = Step(shape); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndRegion());
+        if (auto nativeStatusCheck = Good(c.EndRegion()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto operation = Step(shape); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndBrep());
+        if (auto nativeStatusCheck = Good(c.EndBrep()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto businessCheck = PrepareRingInventory(); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
@@ -907,7 +925,12 @@ private:
             {
                 const bool plane = Is(geometry, "PLANE");
                 const auto position = plane ? Ref(geometry, "position") : geometry;
-                const auto frame = Placement(position);
+                auto frameResult = Placement(position);
+                if (!frameResult)
+                {
+                    return tl::unexpected(std::move(frameResult.error()));
+                }
+                const auto& frame = *frameResult;
                 // STEP PLANE is unbounded. CreateCanonical retains its analytic
                 // axes and native sentinel domain, without a finite source trim.
                 // For a direct placement this same native storage is explicitly
@@ -919,7 +942,10 @@ private:
                 }
                 const auto status = SmPlane::CreateCanonical(*m_model->context, frame.Native(), raw);
                 std::unique_ptr<SmPlane> owned(raw);
-                Good(status);
+                if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 if (auto businessCheck = Need(bool(owned), "GeneralSupportingPlaneAllocation", geometry); !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
@@ -994,7 +1020,12 @@ private:
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            const auto d = Direction(Ref(vector, "orientation"));
+            auto dResult = Direction(Ref(vector, "orientation"));
+            if (!dResult)
+            {
+                return tl::unexpected(std::move(dResult.error()));
+            }
+            const auto& d = *dResult;
             const auto t0 = Dot(Sub(a, origin), d), t1 = Dot(Sub(b, origin), d);
             if (auto businessCheck = Need(t1 > t0, "GeneralLineParameterOrder", c.record); !businessCheck)
             {
@@ -1010,12 +1041,21 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmLine::CreateLineSegment(*m_model->context, 3, P(Add(origin, Mul(d, t0))), P(Add(origin, Mul(d, t1))), line));
+            const auto createdStatus = SmLine::CreateLineSegment(*m_model->context, 3, P(Add(origin, Mul(d, t0))), P(Add(origin, Mul(d, t1))), line);
             c.native.reset(line);
+            if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         else if (Is(g, "CIRCLE") || Is(g, "ELLIPSE"))
         {
-            const auto frame = Placement(Ref(g, "position"));
+            auto frameResult = Placement(Ref(g, "position"));
+            if (!frameResult)
+            {
+                return tl::unexpected(std::move(frameResult.error()));
+            }
+            const auto& frame = *frameResult;
             const bool circle = Is(g, "CIRCLE");
             const auto rx = N(g, circle ? "radius" : "semi_axis_1") * scale;
             const auto ry = circle ? rx : N(g, "semi_axis_2") * scale;
@@ -1210,7 +1250,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.native->EvaluatePoint(endpoint.first, actual));
+            if (auto nativeStatusCheck = Good(c.native->EvaluatePoint(endpoint.first, actual)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (endpoint.first == c.t0)
             {
                 c.p0 = P(actual);
@@ -1232,7 +1275,10 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.native->CalculateBoundingBox(SmExtent1d(c.t0, c.t1), &box));
+        if (auto nativeStatusCheck = Good(c.native->CalculateBoundingBox(SmExtent1d(c.t0, c.t1), &box)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         c.bounds = { P(box.GetMin()), P(box.GetMax()) };
         return {};
     }
@@ -1243,7 +1289,10 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(curve.EvaluatePoint(endpoint, actual));
+        if (auto nativeStatusCheck = Good(curve.EvaluatePoint(endpoint, actual)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (Norm(Sub(P(actual), point)) <= Q(m_options.quality.consistencyMm))
         {
             return endpoint;
@@ -1254,7 +1303,13 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(curve.DropPoint(curve.GetNaturalInterval(), P(point), nullptr, m_model->queryTolerance, nullptr, success, t, distance));
+        if (auto nativeStatusCheck = Good(
+                curve.DropPoint(curve.GetNaturalInterval(), P(point), nullptr, m_model->queryTolerance, nullptr, success, t, distance)
+            );
+            !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto businessCheck = Need(success && distance <= Q(m_options.quality.consistencyMm), "GeneralSplineEndpointInversion", record);
             !businessCheck)
         {
@@ -1362,7 +1417,12 @@ private:
             }
         }
         const auto a = curves[f.loops[0].uses[0].edge].v0, b = curves[f.loops[1].uses[0].edge].v0;
-        const auto frame = Placement(Ref(f.surface, "position"));
+        auto frameResult = Placement(Ref(f.surface, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
         const auto radius = N(f.surface, "radius") * scale;
         const auto da = Sub(points[a], frame.o), db = Sub(points[b], frame.o);
         const auto z0 = Dot(da, frame.z), z1 = Dot(db, frame.z);
@@ -1389,7 +1449,12 @@ private:
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
-        const auto radial = Unit(Sub(da, Mul(frame.z, z0)));
+        auto radialResult = Unit(Sub(da, Mul(frame.z, z0)));
+        if (!radialResult)
+        {
+            return tl::unexpected(std::move(radialResult.error()));
+        }
+        const auto& radial = *radialResult;
         const auto pa = Add(Add(frame.o, Mul(frame.z, z0)), Mul(radial, radius0));
         const auto pb = Add(Add(frame.o, Mul(frame.z, z1)), Mul(radial, radius1));
         if (auto businessCheck = Need(std::abs(z1 - z0) > Tol(), "GeneralImplicitSeamHeight", f.record); !businessCheck)
@@ -1535,7 +1600,12 @@ private:
         }
         for (const auto& face : faces)
         {
-            if (MissingSpherePole(face))
+            auto pole = MissingSpherePole(face);
+            if (!pole)
+            {
+                return tl::unexpected(std::move(pole.error()));
+            }
+            if (*pole)
             {
                 return tl::unexpected(Fail("RingSubdivisionPoleCompositionUnestablished", face.record, Status::Unsupported));
             }
@@ -1947,7 +2017,12 @@ private:
                 const auto& c = curves[use.edge];
                 if (Is(c.geometry, "CIRCLE"))
                 {
-                    const auto cr = Placement(Ref(c.geometry, "position"));
+                    auto crResult = Placement(Ref(c.geometry, "position"));
+                    if (!crResult)
+                    {
+                        return tl::unexpected(std::move(crResult.error()));
+                    }
+                    const auto& cr = *crResult;
                     const auto dc = Sub(cr.o, frame.o);
                     const double parallel = Dot(cr.z, frame.z);
                     // Closed-form angular coverage applies only to coaxial circular
@@ -2032,7 +2107,10 @@ private:
                         {
                             return tl::unexpected(std::move(operation.error()));
                         }
-                        Good(bsp->GetPolygon(SmExtent1d(a, b), polygon));
+                        if (auto nativeStatusCheck = Good(bsp->GetPolygon(SmExtent1d(a, b), polygon)); !nativeStatusCheck)
+                        {
+                            return tl::unexpected(std::move(nativeStatusCheck.error()));
+                        }
                         std::vector<double> angles;
                         for (ULONG n = 0; n < polygon.GetSize(); ++n)
                         {
@@ -2169,7 +2247,10 @@ private:
             }
             SmTArray<SmPoint3d> cp;
             SmTArray<double> weights;
-            Good(bsp->GetControlPolygon(cp, weights));
+            if (auto nativeStatusCheck = Good(bsp->GetControlPolygon(cp, weights)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (cp.GetSize() < 2)
             {
                 continue;
@@ -2210,7 +2291,10 @@ private:
         const auto guideCurve = dynamic_cast<const SmBSplineCurve*>(guide.native ? guide.native.get() : m_model->edges[longEdge]->GetCurve());
         SmTArray<SmPoint3d> guideCp;
         SmTArray<double> guideWeights;
-        Good(guideCurve->GetControlPolygon(guideCp, guideWeights));
+        if (auto nativeStatusCheck = Good(guideCurve->GetControlPolygon(guideCp, guideWeights)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         const auto guideAngles = unwrapped(guideCp);
         reference = 0.5 * (Dot(Sub(P(guideCp[0]), frame.o), frame.z) + Dot(Sub(P(guideCp[guideCp.GetSize() - 1]), frame.o), frame.z) -
                            pitch * (toU(guideAngles.front()) + toU(guideAngles.back())));
@@ -2228,8 +2312,14 @@ private:
             }
             SmTArray<SmPoint3d> cp;
             SmTArray<double> weights, knots;
-            Good(curve->GetControlPolygon(cp, weights));
-            Good(curve->GetKnotsAll(knots));
+            if (auto nativeStatusCheck = Good(curve->GetControlPolygon(cp, weights)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
+            if (auto nativeStatusCheck = Good(curve->GetKnotsAll(knots)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (cp.GetSize() == 0)
             {
                 return {};
@@ -2282,8 +2372,12 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(curve->Copy(*m_model->context, rawCopy));
+                const auto createdStatus = curve->Copy(*m_model->context, rawCopy);
                 std::unique_ptr<SmCurve> copy(rawCopy);
+                if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 if (auto businessCheck = Need(bool(copy), "GeneralCurveCopyAllocation", c.geometry); !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
@@ -2293,7 +2387,10 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(copy->Trim(interval));
+                if (auto nativeStatusCheck = Good(copy->Trim(interval)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 const auto bezier = dynamic_cast<const SmBSplineCurve*>(copy.get());
                 if (!bezier)
                 {
@@ -2301,7 +2398,10 @@ private:
                 }
                 SmTArray<SmPoint3d> hull;
                 SmTArray<double> hullWeights;
-                Good(bezier->GetControlPolygon(hull, hullWeights));
+                if (auto nativeStatusCheck = Good(bezier->GetControlPolygon(hull, hullWeights)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 auto hullAngles = unwrapped(hull);
                 if (hullAngles.empty())
                 {
@@ -2407,10 +2507,13 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(
-            SmBSplineSurface::
-                CreateCanonical(*m_model->context, 3, 1, control, SM_SF_UNSPECIFIED, um, vm, uk, vk, SM_KT_UNSPECIFIED, &weights, nullptr, raw)
-        );
+        const auto createdStatus = SmBSplineSurface::
+            CreateCanonical(*m_model->context, 3, 1, control, SM_SF_UNSPECIFIED, um, vm, uk, vk, SM_KT_UNSPECIFIED, &weights, nullptr, raw);
+        std::unique_ptr<SmSurface> owned(raw);
+        if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         // Persist enough data to reconstruct the exact gauge and associate it
         // with its source support and target face. No hidden study parameters.
         ParameterMapping mapping;
@@ -2439,9 +2542,9 @@ private:
             normalization.sourceBoundIds.push_back(Id(loop.bound));
         }
         m_report.normalizations.push_back(std::move(normalization));
-        return std::unique_ptr<SmSurface>(raw);
+        return owned;
     }
-    std::optional<SpherePolePlan> MissingSpherePole(const Face& face) const
+    [[nodiscard]] Result<std::optional<SpherePolePlan>> MissingSpherePole(const Face& face) const
     {
         if (!Is(face.surface, "SPHERICAL_SURFACE") || face.loops.size() != 1 || !face.loops[0].outer || face.loops[0].uses.size() != 1)
         {
@@ -2453,8 +2556,18 @@ private:
         {
             return {};
         }
-        const auto frame = Placement(Ref(face.surface, "position"));
-        const auto circle = Placement(Ref(edge.geometry, "position"));
+        auto frameResult = Placement(Ref(face.surface, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
+        auto circleResult = Placement(Ref(edge.geometry, "position"));
+        if (!circleResult)
+        {
+            return tl::unexpected(std::move(circleResult.error()));
+        }
+        const auto& circle = *circleResult;
         const double radius = N(face.surface, "radius") * scale, ring = N(edge.geometry, "radius") * scale;
         // Round the rational allowance inward, as for support restriction:
         // conversion to binary64 must not enlarge a normalization allowance.
@@ -2490,7 +2603,12 @@ private:
         // sphere longitude leaves the north cap on the left; reversing the
         // circle axis reverses that longitude direction, not the material side.
         const int sign = use.forward == (parallel > 0) ? 1 : -1;
-        const auto radial = Unit(radialPart);
+        auto radialResult = Unit(radialPart);
+        if (!radialResult)
+        {
+            return tl::unexpected(std::move(radialResult.error()));
+        }
+        const auto& radial = *radialResult;
         return SpherePolePlan{ edge.v0,
                                frame,
                                Add(frame.o, Mul(frame.z, sign * radius)),
@@ -2647,21 +2765,21 @@ private:
                     cp.Add(P(Position(m_source->ReferenceTarget(ref))));
                 }
             }
-            SmTArray<ULONG> um;
-            if (auto checked = Multiplicities(g, "u_multiplicities", um); !checked)
+            auto um = Multiplicities(g, "u_multiplicities");
+            if (!um)
             {
-                return tl::unexpected(std::move(checked.error()));
+                return tl::unexpected(std::move(um.error()));
             }
-            SmTArray<ULONG> vm;
-            if (auto checked = Multiplicities(g, "v_multiplicities", vm); !checked)
+            auto vm = Multiplicities(g, "v_multiplicities");
+            if (!vm)
             {
-                return tl::unexpected(std::move(checked.error()));
+                return tl::unexpected(std::move(vm.error()));
             }
             auto uk = Numbers(g, "u_knots"), vk = Numbers(g, "v_knots");
-            SmTArray<double> weights;
-            if (auto checked = SplineWeights(g, true, cp, weights); !checked)
+            auto weights = SplineWeights(g, true, cp);
+            if (!weights)
             {
-                return tl::unexpected(std::move(checked.error()));
+                return tl::unexpected(std::move(weights.error()));
             }
             SmBSplineSurface* surface = nullptr;
             if (auto operation = Step(g); !operation)
@@ -2678,25 +2796,27 @@ private:
             {
                 return tl::unexpected(std::move(uDegree.error()));
             }
-            Good(
-                SmBSplineSurface::CreateCanonical(
-                    *m_model->context,
-                    *uDegree,
-                    *vDegree,
-                    cp,
-                    SM_SF_UNSPECIFIED,
-                    um,
-                    vm,
-                    uk,
-                    vk,
-                    SM_KT_UNSPECIFIED,
-                    weights.GetSize() ? &weights : nullptr,
-                    nullptr,
-                    surface
-                )
+            const auto createdStatus = SmBSplineSurface::CreateCanonical(
+                *m_model->context,
+                *uDegree,
+                *vDegree,
+                cp,
+                SM_SF_UNSPECIFIED,
+                *um,
+                *vm,
+                uk,
+                vk,
+                SM_KT_UNSPECIFIED,
+                weights->GetSize() ? &*weights : nullptr,
+                nullptr,
+                surface
             );
             std::unique_ptr<SmSurface> owned(surface);
-            if (weights.GetSize())
+            if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
+            if (weights->GetSize())
             {
                 if (auto businessCheck = Need(bool(surface), "GeneralSurfaceAllocation", g); !businessCheck)
                 {
@@ -2704,7 +2824,10 @@ private:
                 }
                 ULONG u = 0, v = 0;
                 double* net = nullptr;
-                Good(surface->GetControlPointsPointer(u, v, net));
+                if (auto nativeStatusCheck = Good(surface->GetControlPointsPointer(u, v, net)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 if (auto businessCheck = Need(
                         u == F(g, "control_points_list").children.size() && v == F(g, "control_points_list").children[0].children.size(),
                         "GeneralRationalNetShapeChanged",
@@ -2714,14 +2837,19 @@ private:
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                if (auto businessCheck = VerifyRationalNet(g, f.record, cp, weights, net, u * v, surface->IsRational()); !businessCheck)
+                if (auto businessCheck = VerifyRationalNet(g, f.record, cp, *weights, net, u * v, surface->IsRational()); !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
             }
             return owned;
         }
-        const auto frame = Placement(Ref(g, "position"));
+        auto frameResult = Placement(Ref(g, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
         // Finite computational windows must cover the entire defining boundary,
         // not just vertices (closed circles may have only one source vertex).
         // Project conservative curve boxes; this changes no trim or geometry.
@@ -2840,17 +2968,19 @@ private:
             }
             const auto angles = std::move(*anglesResult);
             SmCone* raw = nullptr;
-            Good(
-                SmCone::CreateCanonical(
-                    *m_model->context,
-                    shifted.Native(),
-                    std::max(0., radius + slope * local[0][2]),
-                    std::max(0., radius + slope * local[1][2]),
-                    local[1][2] - local[0][2],
-                    raw
-                )
+            const auto createdStatus = SmCone::CreateCanonical(
+                *m_model->context,
+                shifted.Native(),
+                std::max(0., radius + slope * local[0][2]),
+                std::max(0., radius + slope * local[1][2]),
+                local[1][2] - local[0][2],
+                raw
             );
             std::unique_ptr<SmCone> cone(raw);
+            if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(bool(cone), "GeneralConeAllocation", g); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -2860,7 +2990,11 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(cone->AdjustSTEPUVDomain(SmExtent2d(angles[0], domain.GetMin().y, angles[1], domain.GetMax().y)));
+            if (auto nativeStatusCheck = Good(cone->AdjustSTEPUVDomain(SmExtent2d(angles[0], domain.GetMin().y, angles[1], domain.GetMax().y)));
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             return cone;
         }
         if (Is(g, "SPHERICAL_SURFACE"))
@@ -2880,19 +3014,30 @@ private:
             }
             const auto status = SmSphere::CreateCanonical(*m_model->context, frame.Native(), radius, raw);
             std::unique_ptr<SmSphere> sphere(raw);
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(sphere && sphere->GetRadius() == radius, "GeneralSphericalDefinitionChanged", g); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            if (const auto pole = MissingSpherePole(f))
+            auto poleResult = MissingSpherePole(f);
+            if (!poleResult)
+            {
+                return tl::unexpected(std::move(poleResult.error()));
+            }
+            if (const auto& pole = *poleResult)
             {
                 const auto angles = FullPeriodDegrees(pole->longitude > 0 ? pole->longitude - 2 * std::numbers::pi : pole->longitude);
                 if (auto operation = Step(g); !operation)
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(sphere->AdjustSTEPUVDomain(SmExtent2d(angles[0], -90, angles[1], 90)));
+                if (auto nativeStatusCheck = Good(sphere->AdjustSTEPUVDomain(SmExtent2d(angles[0], -90, angles[1], 90))); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 ParameterMapping mapping;
                 mapping.kind = "ImplicitSphericalPoleChart";
                 mapping.sourceGeometryId = Id(g);
@@ -2944,7 +3089,10 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(sphere->AdjustSTEPUVDomain(SmExtent2d(angles[0], -90, angles[1], 90)));
+                if (auto nativeStatusCheck = Good(sphere->AdjustSTEPUVDomain(SmExtent2d(angles[0], -90, angles[1], 90))); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 ParameterMapping mapping;
                 mapping.kind = "SphericalLongitudeChart";
                 mapping.sourceGeometryId = Id(g);
@@ -3012,7 +3160,10 @@ private:
             }
             const auto status = SmTorus::CreateCanonical(*m_model->context, frame.Native(), major, minor, raw, FALSE, FALSE, nullptr, &domain);
             std::unique_ptr<SmTorus> torus(raw);
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto operation = Need(
                     torus && torus->GetMajorRadius() == major && torus->GetMinorRadius() == minor,
                     "GeneralToroidalDefinitionChanged",
@@ -3107,7 +3258,10 @@ private:
                     {
                         segment.curve.release();
                     }
-                    Good(adopted);
+                    if (auto nativeStatusCheck = Good(adopted); !nativeStatusCheck)
+                    {
+                        return tl::unexpected(std::move(nativeStatusCheck.error()));
+                    }
                     if (auto businessCheck = Need(owned, "RingSubdivisionCurveOwnership", edge.record); !businessCheck)
                     {
                         return tl::unexpected(std::move(businessCheck.error()));
@@ -3116,7 +3270,11 @@ private:
                     {
                         return tl::unexpected(std::move(operation.error()));
                     }
-                    Good(c.SetLimits(SmVertexNode(segment.interval[0]), SmVertexNode(segment.interval[1])));
+                    if (auto nativeStatusCheck = Good(c.SetLimits(SmVertexNode(segment.interval[0]), SmVertexNode(segment.interval[1])));
+                        !nativeStatusCheck)
+                    {
+                        return tl::unexpected(std::move(nativeStatusCheck.error()));
+                    }
                     segment.edge = native;
                     if (ordinal == 0)
                     {
@@ -3147,7 +3305,10 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(c.EndEdge());
+                if (auto nativeStatusCheck = Good(c.EndEdge()); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
             return {};
         }
@@ -3176,7 +3337,10 @@ private:
             {
                 edge.native.release();
             }
-            Good(adoptedCurve);
+            if (auto nativeStatusCheck = Good(adoptedCurve); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(curveOwned, "GeneralCurveOwnership", edge.record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -3185,7 +3349,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.SetLimits(SmVertexNode(edge.t0), SmVertexNode(edge.t1)));
+            if (auto nativeStatusCheck = Good(c.SetLimits(SmVertexNode(edge.t0), SmVertexNode(edge.t1))); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         mapping.uses.push_back(
             { Id(u.source),
@@ -3201,7 +3368,10 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndEdge());
+        if (auto nativeStatusCheck = Good(c.EndEdge()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         return {};
     }
     [[nodiscard]] Result<SmEdge*> AppendSeamUse(SmBrepConstructor& c, const SeamPlan& seam, Index face, SmEdge* existing, bool forward)
@@ -3223,8 +3393,12 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmLine::CreateLineSegment(*m_model->context, 3, P(seam.a), P(seam.b), raw));
+            const auto createdStatus = SmLine::CreateLineSegment(*m_model->context, 3, P(seam.a), P(seam.b), raw);
             std::unique_ptr<SmLine> curve(raw);
+            if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto operation = Step(face); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
@@ -3235,7 +3409,10 @@ private:
             {
                 curve.release();
             }
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(adopted, "GeneralTargetSeamOwnership", face); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -3244,7 +3421,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.SetLimits(SmVertexNode(0.), SmVertexNode(1.)));
+            if (auto nativeStatusCheck = Good(c.SetLimits(SmVertexNode(0.), SmVertexNode(1.))); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             m_model->edges.push_back(edge);
             derivedEdgeFaces.push_back(face);
         }
@@ -3252,7 +3432,10 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndEdge());
+        if (auto nativeStatusCheck = Good(c.EndEdge()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         return edge;
     }
     [[nodiscard]] Result<SmEdge*> AppendPoleSeam(
@@ -3285,7 +3468,10 @@ private:
             }
             const auto status = SmCircle::CreateCanonical(*m_model->context, meridian.Native(), pole.radius, raw, &angular);
             std::unique_ptr<SmCircle> curve(raw);
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(bool(curve), "SphericalPoleSeamAllocation", face); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -3301,7 +3487,10 @@ private:
             {
                 curve.release();
             }
-            Good(attached);
+            if (auto nativeStatusCheck = Good(attached); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(owned, "SphericalPoleSeamOwnership", face); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -3310,7 +3499,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.SetLimits(SmVertexNode(interval.GetMin()), SmVertexNode(interval.GetMax())));
+            if (auto nativeStatusCheck = Good(c.SetLimits(SmVertexNode(interval.GetMin()), SmVertexNode(interval.GetMax()))); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             m_model->edges.push_back(edge);
             derivedEdgeFaces.push_back(face);
         }
@@ -3318,7 +3510,10 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndEdge());
+        if (auto nativeStatusCheck = Good(c.EndEdge()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         return edge;
     }
     [[nodiscard]] Result<void> BuildFace(SmBrepConstructor& c, Face& f)
@@ -3391,12 +3586,20 @@ private:
         {
             surface.release();
         }
-        Good(adoptedSurface);
+        if (auto nativeStatusCheck = Good(adoptedSurface); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto businessCheck = Need(surfaceOwned, "GeneralSurfaceOwnership", f.record); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
-        const auto polePlan = MissingSpherePole(f);
+        auto poleResult = MissingSpherePole(f);
+        if (!poleResult)
+        {
+            return tl::unexpected(std::move(poleResult.error()));
+        }
+        const auto& polePlan = *poleResult;
         std::optional<SeamPlan> seamPlan;
         if (!polePlan)
         {
@@ -3423,7 +3626,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.EndVertex());
+            if (auto nativeStatusCheck = Good(c.EndVertex()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             derivedPoles.push_back({ vertex, m_model->faces.size(), pole->sign, pole->pole });
             if (auto operation = Step(f.record); !operation)
             {
@@ -3456,7 +3662,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.EndLoop());
+            if (auto nativeStatusCheck = Good(c.EndLoop()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             m_report.loops.push_back(std::move(mapping));
             m_report.normalizations.push_back({ "ImplicitSphericalPoleCut", Id(f.record), { Id(sourceLoop.bound) }, {}, seamIndex });
         }
@@ -3527,7 +3736,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(c.EndLoop());
+            if (auto nativeStatusCheck = Good(c.EndLoop()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             m_report.normalizations.push_back(
                 { "PeriodicCutFromTwoSourceRings",
                   Id(f.record),
@@ -3563,14 +3775,20 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(c.EndLoop());
+                if (auto nativeStatusCheck = Good(c.EndLoop()); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
         }
         if (auto operation = Step(f.record); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(c.EndFace());
+        if (auto nativeStatusCheck = Good(c.EndFace()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         m_model->faces.push_back(std::move(nf));
         return {};
     }
@@ -3679,7 +3897,13 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam));
+            if (auto nativeStatusCheck = Good(
+                    native.face->CreateUVTrimCurves(FALSE, nullptr, nullptr, mean, max, meanVertex, maxVertex, meanParam, maxParam)
+                );
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             // Cached preinstalled trims do not contribute to the face builder's
             // new-projection statistic. Include their observed normal gap while
             // preserving invalid native observations as failures.
@@ -3733,7 +3957,11 @@ private:
                     return tl::unexpected(std::move(operation.error()));
                 }
                 auto measured = MeasureFinalTrim(*edge->GetCurve(), *uv, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
-                if (measured.maximumMm > Q(m_options.quality.derivedUvMm))
+                if (!measured)
+                {
+                    return tl::unexpected(NativeConstructionFailure(TrimMeasurementErrorName(measured.error())));
+                }
+                if (measured->maximumMm > Q(m_options.quality.derivedUvMm))
                 {
                     // This general source subset has no admitted source pcurve;
                     // the failed data is derived UV, not defining 3D geometry.
@@ -3802,6 +4030,10 @@ private:
                             return tl::unexpected(std::move(operation.error()));
                         }
                         measured = MeasureFinalTrim(*edge->GetCurve(), *installed, *native.face->GetSurface(), interval.GetMin(), interval.GetMax());
+                        if (!measured)
+                        {
+                            return tl::unexpected(NativeConstructionFailure(TrimMeasurementErrorName(measured.error())));
+                        }
                         RepresentationNormalization normalization{ "DerivedUvEndpointMatching", Id(f.record), {}, {}, target };
                         for (const auto& loop : f.loops)
                         {
@@ -3811,12 +4043,12 @@ private:
                         m_rebuiltUv = true;
                     }
                 }
-                if (auto businessCheck = Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", f.record);
+                if (auto businessCheck = Need(measured->maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", f.record);
                     !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                finalGap = std::max(finalGap, measured.maximumMm);
+                finalGap = std::max(finalGap, measured->maximumMm);
             }
             uvGap = std::max(uvGap, finalGap);
             m_report.tolerances.push_back({ "FinalInstalledUv", "KnotSpanPairedParameterSampleMaximum", Id(f.record), finalGap });
@@ -3979,12 +4211,16 @@ private:
                     return tl::unexpected(std::move(operation.error()));
                 }
                 const auto measured = MeasureFinalTrim(*edge->GetCurve(), *trim, *native->GetSurface(), interval.GetMin(), interval.GetMax());
-                if (auto businessCheck = Need(measured.maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", face.record);
+                if (!measured)
+                {
+                    return tl::unexpected(NativeConstructionFailure(TrimMeasurementErrorName(measured.error())));
+                }
+                if (auto businessCheck = Need(measured->maximumMm <= Q(m_options.quality.derivedUvMm), "GeneralFinalTrimGap", face.record);
                     !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                maximum = std::max(maximum, measured.maximumMm);
+                maximum = std::max(maximum, measured->maximumMm);
             }
             m_report.tolerances.push_back({ "FinalCandidateUv", "KnotSpanPairedParameterSampleMaximum", Id(face.record), maximum });
             uvGap = std::max(uvGap, maximum);
@@ -4018,7 +4254,10 @@ private:
         // The property collector uses a healer-stage enum as a readiness gate.
         // Tolerances and UV/seam prerequisites were established directly above;
         // no healer or geometry mutation is invoked.
-        Good(properties.SetProps(SM_PROPSTAGE_3, native.face, 0, SM_HO_FIX_SPLITEDGE_ATSEAM));
+        if (auto nativeStatusCheck = Good(properties.SetProps(SM_PROPSTAGE_3, native.face, 0, SM_HO_FIX_SPLITEDGE_ATSEAM)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (periodicSupport)
         {
             if (auto businessCheck = Need(
@@ -4096,7 +4335,10 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(native.face->RemoveLoop(loop));
+                if (auto nativeStatusCheck = Good(native.face->RemoveLoop(loop)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
             for (auto loop : native.loops)
             {
@@ -4104,7 +4346,10 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(native.face->InsertLoop(loop));
+                if (auto nativeStatusCheck = Good(native.face->InsertLoop(loop)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
         }
         return {};
@@ -4148,7 +4393,10 @@ private:
         for (Index i = 0; i < (m_model->topologyNormalization ? TargetEdges().size() : curves.size()); ++i)
         {
             SmTArray<SmEdgeuse*> uses;
-            Good(TargetEdges()[i]->GetEdgeuses(uses));
+            if (auto nativeStatusCheck = Good(TargetEdges()[i]->GetEdgeuses(uses)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(uses.GetSize() == 4, "GeneralNativeEdgeIncidence", EdgeOwner(i)); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -4323,7 +4571,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmApiFaceBoundingBox(f.face, TRUE, faceMin, faceMax));
+            if (auto nativeStatusCheck = Good(SmApiFaceBoundingBox(f.face, TRUE, faceMin, faceMax)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             f.info.boundsMm = { P(faceMin), P(faceMax) };
             for (Index a = 0; a < 3; ++a)
             {
@@ -4396,7 +4647,10 @@ private:
         {
             return tl::unexpected(std::move(nativeStatus0.error()));
         }
-        Good(*nativeStatus0);
+        if (auto nativeStatusCheck = Good(*nativeStatus0); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         // The face API honors this control directly. SmApiBrepComputeMassProperties
         // clamps tighter requests to 1e-4 and must not substitute for this path.
         // Completion records a numerical observation, never a certified volume
@@ -4433,7 +4687,10 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmApiEdgeComputeLength(TargetEdges()[i], m_model->queryTolerance, length));
+            if (auto nativeStatusCheck = Good(SmApiEdgeComputeLength(TargetEdges()[i], m_model->queryTolerance, length)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(std::isfinite(length) && length > 0, "GeneralEdgeLength", EdgeOwner(i)); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -4448,7 +4705,10 @@ private:
             // The face's charged/cancellable query ran in the fused traversal.
             // Finish its cached result here, retaining the original report order.
             const auto& integral = integrals.faces[i];
-            Good(std::abs(integral.areaMm2) >= SM_EFF_ZERO ? SM_SUCCESS : SM_ERR_INVALID_INPUT);
+            if (auto nativeStatusCheck = Good(std::abs(integral.areaMm2) >= SM_EFF_ZERO ? SM_SUCCESS : SM_ERR_INVALID_INPUT); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             f.info.areaMm2 = std::abs(integral.areaMm2);
             for (Index axis = 0; axis < 3; ++axis)
             {

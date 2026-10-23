@@ -132,7 +132,12 @@ public:
             // scale the VECTOR length once, never scale t by the length unit.
             const auto origin = Position(Ref(basis, "pnt"));
             const auto vector = Ref(basis, "dir");
-            const auto direction = Direction(Ref(vector, "orientation"));
+            auto directionResult = Direction(Ref(vector, "orientation"));
+            if (!directionResult)
+            {
+                return tl::unexpected(std::move(directionResult.error()));
+            }
+            const auto& direction = *directionResult;
             const auto magnitude = N(vector, "magnitude") * scale;
             if (auto businessCheck = Need(std::isfinite(magnitude) && magnitude > 0, "GeneralWireLineMagnitude", record); !businessCheck)
             {
@@ -230,7 +235,10 @@ public:
             }
             const auto status = SmLine::CreateLineSegment(*m_context, 3, P((*expectedEnds)[0]), P((*expectedEnds)[1]), raw);
             curve.reset(raw);
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             mapping.kind = role == Role::Supporting ? "SupportingTrimmedLine" : "WireframeTrimmedLine";
             mapping.equation = "basis_t=lerp(basis_range,(native_t-native_begin)/(native_end-native_begin)); source_s=sign*(basis_t-trim_1)";
             mapping.parameters = { { "basis_trim_parameters", { first, last } },
@@ -239,7 +247,12 @@ public:
         }
         else if (Is(basis, "CIRCLE") || Is(basis, "ELLIPSE"))
         {
-            const auto frame = Placement(Ref(basis, "position"));
+            auto frameResult = Placement(Ref(basis, "position"));
+            if (!frameResult)
+            {
+                return tl::unexpected(std::move(frameResult.error()));
+            }
+            const auto& frame = *frameResult;
             const bool circle = Is(basis, "CIRCLE");
             const auto rx = N(basis, circle ? "radius" : "semi_axis_1") * scale;
             const auto ry = circle ? rx : N(basis, "semi_axis_2") * scale;
@@ -337,7 +350,10 @@ public:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(curve->EvaluatePoint(info.parameterDomain[i], actual));
+                if (auto nativeStatusCheck = Good(curve->EvaluatePoint(info.parameterDomain[i], actual)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 const auto gap = Norm(Sub(P(actual), (*expectedEnds)[i]));
                 definitionEndpoints = std::max(definitionEndpoints, gap);
                 if (auto businessCheck = Need(
@@ -397,9 +413,14 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(
-                definition.native->CalculateTightBoundingBox(SmExtent1d(definition.info.parameterDomain[0], definition.info.parameterDomain[1]), &box)
-            );
+            if (auto nativeStatusCheck = Good(definition.native->CalculateTightBoundingBox(
+                    SmExtent1d(definition.info.parameterDomain[0], definition.info.parameterDomain[1]),
+                    &box
+                ));
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             bounds = { P(box.GetMin()), P(box.GetMax()) };
         }
         for (Index axis = 0; axis < 3; ++axis)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImport.h"
+#include "StepImportResult.h"
 
 #include <cmath>
 #include <stdexcept>
@@ -46,12 +47,22 @@ inline double Norm(V a)
 {
     return std::hypot(a[0], a[1], a[2]);
 }
-inline V Unit(V a)
+[[nodiscard]] inline Result<V> Unit(V a)
 {
     const double n = Norm(a);
     if (!(n > 0) || !std::isfinite(n))
     {
-        throw std::domain_error("GeneralDegenerateFrame");
+        // Keep the former domain-error outcome and unfinished strict-attempt
+        // observation. Do not rescale the input or silently widen its admitted
+        // numeric range; the established normalization formula stays unchanged.
+        return tl::unexpected(
+            Failure{ Status::Indeterminate,
+                     "GeneralDegenerateFrame",
+                     "Native derived evidence is unestablished",
+                     {},
+                     "D5",
+                     NativeFailureKind::ConstructionOperation }
+        );
     }
     return Mul(a, 1 / n);
 }

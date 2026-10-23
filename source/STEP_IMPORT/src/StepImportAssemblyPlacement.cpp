@@ -76,9 +76,16 @@ Result<AssemblyPlacementCandidate> EvaluateAssemblyPlacements(
         }
         try
         {
-            const auto evaluated = ReadSourceFrame(fields, item, scales.at(context));
-            frames.emplace(key, evaluated);
-            return evaluated;
+            auto evaluated = ReadSourceFrame(fields, item, scales.at(context));
+            if (!evaluated)
+            {
+                auto failure = std::move(evaluated.error());
+                failure.record = item;
+                failure.stage = "AssemblyPlacement";
+                return tl::unexpected(std::move(failure));
+            }
+            frames.emplace(key, *evaluated);
+            return *evaluated;
         }
         catch (const std::domain_error& error)
         {

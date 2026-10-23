@@ -4,6 +4,7 @@
 #include "StepImportInterval.h"
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
+#include "StepImportNativeStatus.h"
 #include "StepImportPlan.h"
 #include "StepImportPointClassification.h"
 
@@ -86,19 +87,19 @@ double DotPoint(Point a, Point b)
 {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
-std::string LoadedKernel()
+[[nodiscard]] Result<std::string> LoadedKernel()
 {
 #ifdef _WIN32
     std::array<wchar_t, 32768> path{};
     const auto size = GetModuleFileNameW(GetModuleHandleW(L"SMLib.dll"), path.data(), static_cast<DWORD>(path.size()));
     if (!size || size >= path.size())
     {
-        throw std::runtime_error("NativeLibraryIdentityUnavailable");
+        return tl::unexpected(NativeConstructionFailure("NativeLibraryIdentityUnavailable"));
     }
     const auto utf8 = std::filesystem::path(path.data()).generic_u8string();
-    return { utf8.begin(), utf8.end() };
+    return std::string{ utf8.begin(), utf8.end() };
 #else
-    return "Unmeasured";
+    return std::string{ "Unmeasured" };
 #endif
 }
 [[nodiscard]] Result<void> Need(bool value, const char* key, std::size_t record)
@@ -109,12 +110,22 @@ std::string LoadedKernel()
     }
     return {};
 }
-void Good(SmStatus status)
+// Public query/archive methods keep their existing throwing API. This checks
+// the raw native status directly; no returned error is converted to an exception.
+void RequirePublicNativeStatus(SmStatus status)
 {
     if (status != SM_SUCCESS)
     {
         throw std::runtime_error("NativeReturnFailure:" + std::to_string(status));
     }
+}
+[[nodiscard]] Result<void> Good(SmStatus status)
+{
+    return CheckNativeStatus(status, NativeStatusOrigin::PlanarConstruction);
+}
+[[nodiscard]] Failure NativeEvidenceRefusal(const char* key)
+{
+    return Failure{ Status::Indeterminate, key, "Native derived evidence is unestablished", {}, "D5", NativeFailureKind::ConstructionOperation };
 }
 [[nodiscard]] Result<void> Certify(double upper, Fraction budget, const char* key, std::size_t record)
 {
@@ -128,53 +139,59 @@ struct Affine
 {
     IntervalPoint origin, delta;
 };
-Affine LineCoefficients(const SmLine& line, bool polygon)
+[[nodiscard]] Result<Affine> LineCoefficients(const SmLine& line, bool polygon)
 {
     if (line.GetDegree() != 1 || line.GetInsideOut() || line.GetNaturalInterval().GetMin() != 0 || line.GetNaturalInterval().GetMax() != 1 ||
         line.GetSTEPInterval().GetMin() != 0 || line.GetSTEPInterval().GetMax() != 1)
     {
-        throw std::domain_error("UnestablishedNativeLineParameterization");
+        return tl::unexpected(NativeEvidenceRefusal("UnestablishedNativeLineParameterization"));
     }
     if (polygon)
     {
         SmTArray<double> knots;
-        Good(line.GetKnotsAll(knots));
+        if (auto nativeStatusCheck = Good(line.GetKnotsAll(knots)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (knots.GetSize() != 4 || knots[0] != 0 || knots[1] != 0 || knots[2] != 1 || knots[3] != 1)
         {
-            throw std::domain_error("UnestablishedNativeAffineKnots");
+            return tl::unexpected(NativeEvidenceRefusal("UnestablishedNativeAffineKnots"));
         }
         SmTArray<SmPoint3d> points;
         SmTArray<double> weights;
-        Good(line.GetControlPolygon(points, weights));
+        if (auto nativeStatusCheck = Good(line.GetControlPolygon(points, weights)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (points.GetSize() != 2 || (weights.GetSize() != 0 && (weights.GetSize() != 2 || weights[0] != 1 || weights[1] != 1)))
         {
-            throw std::domain_error("UnestablishedNativeAffineCurve");
+            return tl::unexpected(NativeEvidenceRefusal("UnestablishedNativeAffineCurve"));
         }
         const auto a = Exact(PointOf(points[0])), b = Exact(PointOf(points[1]));
-        return { a, Subtract(b, a) };
+        return Affine{ a, Subtract(b, a) };
     }
-    return { Exact(PointOf(line.GetLinePoint())), Times(Exact(PointOf(line.GetLineVector())), Exact(line.GetLineScale())) };
+    return Affine{ Exact(PointOf(line.GetLinePoint())), Times(Exact(PointOf(line.GetLineVector())), Exact(line.GetLineScale())) };
 }
 struct SurfaceCoefficients
 {
     IntervalPoint origin, u, v, uv;
 };
-SurfaceCoefficients PlaneCoefficients(const SmPlane& plane, bool polygon)
+[[nodiscard]] Result<SurfaceCoefficients> PlaneCoefficients(const SmPlane& plane, bool polygon)
 {
     if (!polygon)
     {
         const auto& position = plane.GetPosition();
         const auto scale = plane.GetUVScale();
-        return { Exact(PointOf(position.GetOriginRef())),
-                 Times(Exact(PointOf(position.GetXAxisRef())), Exact(scale.x)),
-                 Times(Exact(PointOf(position.GetYAxisRef())), Exact(scale.y)),
-                 Exact(Point{}) };
+        return SurfaceCoefficients{ Exact(PointOf(position.GetOriginRef())),
+                                    Times(Exact(PointOf(position.GetXAxisRef())), Exact(scale.x)),
+                                    Times(Exact(PointOf(position.GetYAxisRef())), Exact(scale.y)),
+                                    Exact(Point{}) };
     }
     const auto& surface = static_cast<const SmBSplineSurface&>(plane);
     if (surface.IsRational() || surface.GetDegree(SM_SP_U) != 1 || surface.GetDegree(SM_SP_V) != 1 || surface.GetNumberControlPoints(SM_SP_U) != 2 ||
         surface.GetNumberControlPoints(SM_SP_V) != 2)
     {
-        throw std::domain_error("UnestablishedNativeBilinearPlane");
+        return tl::unexpected(NativeEvidenceRefusal("UnestablishedNativeBilinearPlane"));
     }
     IntervalPoint cp[2][2];
     for (ULONG u = 0; u < 2; ++u)
@@ -183,7 +200,10 @@ SurfaceCoefficients PlaneCoefficients(const SmPlane& plane, bool polygon)
         {
             SmPoint3d point;
             double weight = 0;
-            Good(surface.GetControlPoint(SM_CP_NON_RATIONAL, u, v, point, weight));
+            if (auto nativeStatusCheck = Good(surface.GetControlPoint(SM_CP_NON_RATIONAL, u, v, point, weight)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             cp[u][v] = Exact(PointOf(point));
         }
     }
@@ -192,13 +212,16 @@ SurfaceCoefficients PlaneCoefficients(const SmPlane& plane, bool polygon)
     {
         SmTArray<double> knots;
         SmTArray<ULONG> multiplicities;
-        Good(surface.GetKnots(parameter, knots, &multiplicities));
+        if (auto nativeStatusCheck = Good(surface.GetKnots(parameter, knots, &multiplicities)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         const auto minimum = parameter == SM_SP_U ? domain.GetMin().x : domain.GetMin().y;
         const auto maximum = parameter == SM_SP_U ? domain.GetMax().x : domain.GetMax().y;
         if (knots.GetSize() != 2 || multiplicities.GetSize() != 2 || multiplicities[0] != 2 || multiplicities[1] != 2 || knots[0] != minimum ||
             knots[1] != maximum)
         {
-            throw std::domain_error("UnestablishedNativeBilinearKnots");
+            return tl::unexpected(NativeEvidenceRefusal("UnestablishedNativeBilinearKnots"));
         }
     }
     const auto u0 = Exact(domain.GetMin().x), v0 = Exact(domain.GetMin().y);
@@ -207,7 +230,7 @@ SurfaceCoefficients PlaneCoefficients(const SmPlane& plane, bool polygon)
     const auto u = Subtract(Times(Subtract(cp[1][0], cp[0][0]), Exact(1) / du), Times(mixed, v0));
     const auto v = Subtract(Times(Subtract(cp[0][1], cp[0][0]), Exact(1) / dv), Times(mixed, u0));
     const auto origin = Subtract(Subtract(Subtract(cp[0][0], Times(u, u0)), Times(v, v0)), Times(mixed, u0 * v0));
-    return { origin, u, v, mixed };
+    return SurfaceCoefficients{ origin, u, v, mixed };
 }
 IntervalPoint Evaluate(const SurfaceCoefficients& surface, Interval u, Interval v)
 {
@@ -225,6 +248,22 @@ double LiftBound(const SurfaceCoefficients& surface, const Affine& uv, const Aff
     );
     const auto a2 = Times(surface.uv, uv.delta[0] * uv.delta[1]);
     return std::max({ NormUpper(a0), NormUpper(Add(a0, Times(a1, Exact(.5)))), NormUpper(Add(Add(a0, a1), a2)) });
+}
+[[nodiscard]] Result<double> LiftBound(const SurfaceCoefficients& surface, const SmLine& uv, const SmLine& curve, bool polygon)
+{
+    // Preserve the established defining-curve-before-UV native read order.
+    // These reads introduce no execution charges or parameter conversion.
+    auto curveCoefficients = LineCoefficients(curve, polygon);
+    if (!curveCoefficients)
+    {
+        return tl::unexpected(std::move(curveCoefficients.error()));
+    }
+    auto uvCoefficients = LineCoefficients(uv, polygon);
+    if (!uvCoefficients)
+    {
+        return tl::unexpected(std::move(uvCoefficients.error()));
+    }
+    return LiftBound(surface, *uvCoefficients, *curveCoefficients);
 }
 class Builder
 {
@@ -270,7 +309,12 @@ public:
         {
             m_report.sourceShape = m_plan.sourceShape;
             m_report.units = m_plan.units;
-            m_report.kernelPath = LoadedKernel();
+            auto kernelPath = LoadedKernel();
+            if (!kernelPath)
+            {
+                return tl::unexpected(std::move(kernelPath.error()));
+            }
+            m_report.kernelPath = std::move(*kernelPath);
             if (auto operation = Step(m_plan.record); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
@@ -305,7 +349,10 @@ public:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(ctor.EndVertex());
+                if (auto nativeStatusCheck = Good(ctor.EndVertex()); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
             if (m_plan.closedBoundary)
             {
@@ -332,7 +379,10 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(ctor.StartShell(outer, inner));
+            if (auto nativeStatusCheck = Good(ctor.StartShell(outer, inner)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(outer && bool(inner) == m_plan.closedBoundary, "NativeShellRoleMismatch", m_plan.record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -353,20 +403,29 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(ctor.EndShell(FALSE));
+            if (auto nativeStatusCheck = Good(ctor.EndShell(FALSE)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (m_plan.closedBoundary)
             {
                 if (auto operation = Step(m_plan.record); !operation)
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(ctor.EndRegion());
+                if (auto nativeStatusCheck = Good(ctor.EndRegion()); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
             if (auto operation = Step(m_plan.record); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(ctor.EndBrep());
+            if (auto nativeStatusCheck = Good(ctor.EndBrep()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Observe("Constructed"); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -516,7 +575,10 @@ private:
         {
             native.plane = plane.release();
         }
-        Good(surfaceStatus);
+        if (auto nativeStatusCheck = Good(surfaceStatus); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto businessCheck = Need(native.plane != nullptr, "NativeSurfaceOwnershipMismatch", facePlan.face); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
@@ -563,7 +625,10 @@ private:
                     const auto
                         created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
                     std::unique_ptr<SmLine> curve(raw);
-                    Good(created);
+                    if (auto nativeStatusCheck = Good(created); !nativeStatusCheck)
+                    {
+                        return tl::unexpected(std::move(nativeStatusCheck.error()));
+                    }
                     if (auto businessCheck = Need(bool(curve), "NativeCurveAllocationFailed", edge.record); !businessCheck)
                     {
                         return tl::unexpected(std::move(businessCheck.error()));
@@ -577,7 +642,10 @@ private:
                     {
                         m_model->curves[use.edge] = curve.release();
                     }
-                    Good(adopted);
+                    if (auto nativeStatusCheck = Good(adopted); !nativeStatusCheck)
+                    {
+                        return tl::unexpected(std::move(nativeStatusCheck.error()));
+                    }
                     if (auto businessCheck = Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record); !businessCheck)
                     {
                         return tl::unexpected(std::move(businessCheck.error()));
@@ -586,7 +654,10 @@ private:
                     {
                         return tl::unexpected(std::move(operation.error()));
                     }
-                    Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0)));
+                    if (auto nativeStatusCheck = Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0))); !nativeStatusCheck)
+                    {
+                        return tl::unexpected(std::move(nativeStatusCheck.error()));
+                    }
                 }
                 else
                 {
@@ -599,19 +670,28 @@ private:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(ctor.EndEdge());
+                if (auto nativeStatusCheck = Good(ctor.EndEdge()); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
             }
             if (auto operation = Step(loop.bound); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(ctor.EndLoop());
+            if (auto nativeStatusCheck = Good(ctor.EndLoop()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         if (auto operation = Step(facePlan.face); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(ctor.EndFace());
+        if (auto nativeStatusCheck = Good(ctor.EndFace()); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         return {};
     }
     [[nodiscard]] Result<void> Step(std::size_t record)
@@ -695,7 +775,10 @@ private:
     [[nodiscard]] Result<SmEdgeuse*> SameUse(std::size_t edge, const NativeFaceData& native) const
     {
         SmTArray<SmEdgeuse*> uses;
-        Good(m_model->edges[edge]->GetEdgeuses(uses));
+        if (auto nativeStatusCheck = Good(m_model->edges[edge]->GetEdgeuses(uses)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         SmEdgeuse* result = nullptr;
         for (ULONG i = 0; i < uses.GetSize(); ++i)
         {
@@ -727,7 +810,10 @@ private:
             const auto same = *sameResult;
             SmTArray<SmPoint3d> points;
             SmTArray<double> weights;
-            Good(m_model->curves[i]->GetControlPolygon(points, weights));
+            if (auto nativeStatusCheck = Good(m_model->curves[i]->GetControlPolygon(points, weights)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(points.GetSize() == 2, "NativeCurveControlShape", m_plan.edges[i].record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -745,16 +831,33 @@ private:
                 raw
             );
             std::unique_ptr<SmLine> uv(raw);
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(bool(uv), "NativeUvAllocationFailed", m_plan.edges[i].record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            const auto plane = PlaneCoefficients(*native.plane, false);
-            const double bound = std::max(
-                LiftBound(plane, LineCoefficients(*uv, false), LineCoefficients(*m_model->curves[i], false)),
-                LiftBound(plane, LineCoefficients(*uv, true), LineCoefficients(*m_model->curves[i], true))
-            );
+            auto planeResult = PlaneCoefficients(*native.plane, false);
+            if (!planeResult)
+            {
+                return tl::unexpected(std::move(planeResult.error()));
+            }
+            const auto& plane = *planeResult;
+            // Keep the existing MSVC polygon-before-analytic evaluation order
+            // while propagating native read refusals instead of throwing them.
+            auto polygonBound = LiftBound(plane, *uv, *m_model->curves[i], true);
+            if (!polygonBound)
+            {
+                return tl::unexpected(std::move(polygonBound.error()));
+            }
+            auto analyticBound = LiftBound(plane, *uv, *m_model->curves[i], false);
+            if (!analyticBound)
+            {
+                return tl::unexpected(std::move(analyticBound.error()));
+            }
+            const double bound = std::max(*analyticBound, *polygonBound);
             if (auto businessCheck = Certify(bound, m_options.quality.derivedUvMm, "NativeUvErrorBudget", m_plan.edges[i].record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -842,7 +945,10 @@ private:
             }
             SmTArray<SmPoint3d> points;
             SmTArray<double> weights;
-            Good(uv->GetControlPolygon(points, weights));
+            if (auto nativeStatusCheck = Good(uv->GetControlPolygon(points, weights)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = Need(points.GetSize() == 2, "NativeUseUvControlShape", wanted.orientedEdge); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -1038,7 +1144,12 @@ private:
         }
         for (bool polygon : { false, true })
         {
-            const auto nativePlane = PlaneCoefficients(*native.plane, polygon);
+            auto nativePlaneResult = PlaneCoefficients(*native.plane, polygon);
+            if (!nativePlaneResult)
+            {
+                return tl::unexpected(std::move(nativePlaneResult.error()));
+            }
+            const auto& nativePlane = *nativePlaneResult;
             for (const auto vertexIndex : facePlan.vertices)
             {
                 const auto point = PointOf(m_model->vertices[vertexIndex]->GetPoint());
@@ -1095,7 +1206,12 @@ private:
                 }
                 for (bool curvePolygon : { false, true })
                 {
-                    const auto curve = LineCoefficients(*m_model->curves[i], curvePolygon);
+                    auto curveResult = LineCoefficients(*m_model->curves[i], curvePolygon);
+                    if (!curveResult)
+                    {
+                        return tl::unexpected(std::move(curveResult.error()));
+                    }
+                    const auto& curve = *curveResult;
                     // Source consistency and definition conversion budgets do not compose into a native consistency proof.
                     // Compare the actual native endpoint/vertex pairs independently, for both stored curve representations.
                     consistency = std::max(
@@ -1112,7 +1228,12 @@ private:
                     );
                     for (bool uvPolygon : { false, true })
                     {
-                        const auto trim = LineCoefficients(*line, uvPolygon);
+                        auto trimResult = LineCoefficients(*line, uvPolygon);
+                        if (!trimResult)
+                        {
+                            return tl::unexpected(std::move(trimResult.error()));
+                        }
+                        const auto& trim = *trimResult;
                         uvError = std::max(uvError, LiftBound(nativePlane, trim, curve));
                         for (const auto& endpoint : { trim.origin, Add(trim.origin, trim.delta) })
                         {
@@ -1170,7 +1291,10 @@ private:
             return tl::unexpected(std::move(operation.error()));
         }
         SmPoint3d centroid;
-        Good(SmApiFaceComputeCentroid(native.face, 1e-4, info.areaMm2, centroid));
+        if (auto nativeStatusCheck = Good(SmApiFaceComputeCentroid(native.face, 1e-4, info.areaMm2, centroid)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         info.centroidMm = PointOf(centroid);
         for (const auto i : facePlan.edges)
         {
@@ -1179,7 +1303,11 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmApiEdgeComputeLength(m_model->edges[i], Value(m_options.quality.queryMm), length));
+            if (auto nativeStatusCheck = Good(SmApiEdgeComputeLength(m_model->edges[i], Value(m_options.quality.queryMm), length));
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             info.boundaryMm += length;
         }
         SmPoint3d minimum, maximum;
@@ -1187,7 +1315,10 @@ private:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(SmApiFaceBoundingBox(native.face, TRUE, minimum, maximum));
+        if (auto nativeStatusCheck = Good(SmApiFaceBoundingBox(native.face, TRUE, minimum, maximum)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
         info.normal = PointOf(native.plane->GetPosition().GetZAxis());
         if (!facePlan.faceSameSense)
@@ -1302,15 +1433,33 @@ struct OwnedBoundary
         }
     }
 };
-Affine CurveEnvelope(const SmLine& line)
+[[nodiscard]] Result<Affine> CurveEnvelope(const SmLine& line)
 {
-    const auto analytic = LineCoefficients(line, false), polygon = LineCoefficients(line, true);
-    return { Hull(analytic.origin, polygon.origin), Hull(analytic.delta, polygon.delta) };
+    auto analytic = LineCoefficients(line, false);
+    if (!analytic)
+    {
+        return tl::unexpected(std::move(analytic.error()));
+    }
+    auto polygon = LineCoefficients(line, true);
+    if (!polygon)
+    {
+        return tl::unexpected(std::move(polygon.error()));
+    }
+    return Affine{ Hull(analytic->origin, polygon->origin), Hull(analytic->delta, polygon->delta) };
 }
-SurfaceCoefficients SurfaceEnvelope(const SmPlane& plane)
+[[nodiscard]] Result<SurfaceCoefficients> SurfaceEnvelope(const SmPlane& plane)
 {
-    const auto a = PlaneCoefficients(plane, false), b = PlaneCoefficients(plane, true);
-    return { Hull(a.origin, b.origin), Hull(a.u, b.u), Hull(a.v, b.v), Hull(a.uv, b.uv) };
+    auto a = PlaneCoefficients(plane, false);
+    if (!a)
+    {
+        return tl::unexpected(std::move(a.error()));
+    }
+    auto b = PlaneCoefficients(plane, true);
+    if (!b)
+    {
+        return tl::unexpected(std::move(b.error()));
+    }
+    return SurfaceCoefficients{ Hull(a->origin, b->origin), Hull(a->u, b->u), Hull(a->v, b->v), Hull(a->uv, b->uv) };
 }
 using FluxCoefficients = std::array<std::array<Interval, 3>, 3>;
 FluxCoefficients ZFlux(const SurfaceCoefficients& surface, const IntervalPoint& reference)
@@ -1383,7 +1532,12 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            originals.push_back({ line, CurveEnvelope(*line) });
+            auto envelope = CurveEnvelope(*line);
+            if (!envelope)
+            {
+                return tl::unexpected(std::move(envelope.error()));
+            }
+            originals.push_back({ line, std::move(*envelope) });
         }
         OwnedBoundary boundary;
         SmTArray<ULONG> counts;
@@ -1391,7 +1545,11 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(native.face->CreateOrientedTrimBoundary(*m_model->context, TRUE, TRUE, counts, boundary.curves));
+        if (auto nativeStatusCheck = Good(native.face->CreateOrientedTrimBoundary(*m_model->context, TRUE, TRUE, counts, boundary.curves));
+            !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto businessCheck = Need(counts.GetSize() == plan.loops.size(), "NativeMassBoundaryLoopMismatch", plan.face); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
@@ -1408,7 +1566,12 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            const auto now = CurveEnvelope(*line);
+            auto nowResult = CurveEnvelope(*line);
+            if (!nowResult)
+            {
+                return tl::unexpected(std::move(nowResult.error()));
+            }
+            const auto& now = *nowResult;
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
                 if (auto businessCheck = Need(
@@ -1425,7 +1588,12 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
                 }
             }
         }
-        const auto surface = SurfaceEnvelope(*native.plane);
+        auto surfaceResult = SurfaceEnvelope(*native.plane);
+        if (!surfaceResult)
+        {
+            return tl::unexpected(std::move(surfaceResult.error()));
+        }
+        const auto& surface = *surfaceResult;
         const auto flux = ZFlux(surface, Exact(Value(m_plan.box->center)));
         const auto domain = native.plane->GetNaturalUVDomain();
         const auto sign = Exact(plan.faceSameSense ? 1.0 : -1.0);
@@ -1449,7 +1617,12 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                segments.push_back(CurveEnvelope(*line));
+                auto envelope = CurveEnvelope(*line);
+                if (!envelope)
+                {
+                    return tl::unexpected(std::move(envelope.error()));
+                }
+                segments.push_back(std::move(*envelope));
             }
             for (std::size_t i = 0; i < segments.size(); ++i)
             {
@@ -1607,7 +1780,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(SmApiBrepMaterialCensus(m_model->brep.get(), solids, voids));
+        if (auto nativeStatusCheck = Good(SmApiBrepMaterialCensus(m_model->brep.get(), solids, voids)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (auto businessCheck = Need(solids == 1 && voids == 0, "NativeMaterialCensusMismatch", m_plan.record); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
@@ -1651,7 +1827,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             row.faceIds.push_back(Id(m_plan.faces[f].face));
         }
         SmTArray<SmEdgeuse*> uses;
-        Good(m_model->edges[e]->GetEdgeuses(uses));
+        if (auto nativeStatusCheck = Good(m_model->edges[e]->GetEdgeuses(uses)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         const bool shared = m_plan.closedBoundary || (m_plan.openSheet && m_plan.openSheet->sharedEdge == e);
         if (auto businessCheck = Need(bool(m_model->edges[e]->IsLamina()) == !shared, "NativeSourceFreeEdgeMismatch", m_plan.edges[e].record);
             !businessCheck)
@@ -1732,18 +1911,22 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmApiBrepComputeMassProperties(
-                m_model->brep.get(),
-                1e-4,
-                1.0,
-                Native(Value(m_plan.box->center)),
-                info.areaMm2,
-                volume,
-                mass,
-                centroid,
-                moments,
-                products
-            ));
+            if (auto nativeStatusCheck = Good(SmApiBrepComputeMassProperties(
+                    m_model->brep.get(),
+                    1e-4,
+                    1.0,
+                    Native(Value(m_plan.box->center)),
+                    info.areaMm2,
+                    volume,
+                    mass,
+                    centroid,
+                    moments,
+                    products
+                ));
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             info.materialVolumeMm3 = volume;
             info.centroidMm = PointOf(centroid);
             const auto directVolumeError = Exact(volume) - Enclose(m_plan.box->volume);
@@ -1860,7 +2043,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, minimum, maximum));
+        if (auto nativeStatusCheck = Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, minimum, maximum)); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
         const auto& minimumExpected = m_plan.closedBoundary ? m_plan.box->minimum : m_plan.openSheet->minimum;
         const auto& maximumExpected = m_plan.closedBoundary ? m_plan.box->maximum : m_plan.openSheet->maximum;
@@ -1913,7 +2099,11 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(SmApiEdgeComputeLength(m_model->edges[e], Value(m_options.quality.queryMm), length));
+            if (auto nativeStatusCheck = Good(SmApiEdgeComputeLength(m_model->edges[e], Value(m_options.quality.queryMm), length));
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             info.boundaryMm += length;
             expectedLength = expectedLength + SqrtNonnegative(Enclose(m_plan.edges[e].sourceLengthSquared));
         }
@@ -2123,7 +2313,7 @@ void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
     }
     breps.Add(archive.get());
     // Retain defining analytic/NURBS classes; optional fitting is disabled.
-    detail::Good(SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, SM_BINARY, TRUE, FALSE));
+    detail::RequirePublicNativeStatus(SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, SM_BINARY, TRUE, FALSE));
 }
 FaceView::FaceView(std::shared_ptr<detail::ModelData> data, std::size_t face) : m_data(std::move(data)), m_face(face)
 {
@@ -2188,7 +2378,7 @@ Point FaceView::EvaluateSurface(double u, double v) const
         throw std::out_of_range("Surface query lies outside the verified window");
     }
     SmPoint3d point;
-    detail::Good(plane->EvaluatePoint(SmPoint2d(u, v), point));
+    detail::RequirePublicNativeStatus(plane->EvaluatePoint(SmPoint2d(u, v), point));
     return detail::PointOf(point);
 }
 ClosestPoint FaceView::Closest(const Point& point) const
@@ -2208,7 +2398,7 @@ ClosestPoint FaceView::Closest(const Point& point) const
     std::lock_guard lock(m_data->mutex);
     SmPoint3d closest;
     double distance = 0;
-    detail::Good(SmApiFaceClosestPoint(m_data->faces[m_face].face, detail::Native(point), closest, distance));
+    detail::RequirePublicNativeStatus(SmApiFaceClosestPoint(m_data->faces[m_face].face, detail::Native(point), closest, distance));
     return { detail::PointOf(closest), distance };
 }
 ClosestPoint ModelSnapshot::Closest(const Point& point) const
@@ -2232,7 +2422,7 @@ ClosestPoint ModelSnapshot::Closest(const Point& point) const
     std::lock_guard lock(m_data->mutex);
     SmPoint3d closest;
     double distance = 0;
-    detail::Good(SmApiBrepClosestPoint(m_data->brep.get(), detail::Native(point), closest, distance));
+    detail::RequirePublicNativeStatus(SmApiBrepClosestPoint(m_data->brep.get(), detail::Native(point), closest, distance));
     return { detail::PointOf(closest), distance };
 }
 PointClass FaceView::ClassifyUV(double u, double v) const
@@ -2244,7 +2434,7 @@ PointClass FaceView::ClassifyUV(double u, double v) const
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     int classification = 0;
-    detail::Good(SmApiFaceClassifyUV(m_data->faces[m_face].face, SmPoint2d(u, v), classification));
+    detail::RequirePublicNativeStatus(SmApiFaceClassifyUV(m_data->faces[m_face].face, SmPoint2d(u, v), classification));
     switch (classification)
     {
         case SM_PC_FACE:
@@ -2277,7 +2467,7 @@ std::optional<MaterialPointClass> ModelSnapshot::ClassifyMaterial(const Point& p
     std::lock_guard nativeLock(detail::NativeMutex());
     std::lock_guard lock(m_data->mutex);
     SmPointClassification classification(m_data->queryTolerance, m_data->context.get());
-    detail::Good(detail::ClassifySnapshotPoint(*m_data->brep, detail::Native(point), m_data->queryTolerance, classification));
+    detail::RequirePublicNativeStatus(detail::ClassifySnapshotPoint(*m_data->brep, detail::Native(point), m_data->queryTolerance, classification));
     const auto kind = classification.GetPointClass();
     if (kind == SM_PC_REGION)
     {
@@ -2295,12 +2485,12 @@ std::optional<MaterialPointClass> ModelSnapshot::ClassifyMaterial(const Point& p
     double distance = 0;
     if (kind == SM_PC_FACE)
     {
-        detail::Good(SmApiFaceClosestPoint(classification.GetFaceObject(), detail::Native(point), closest, distance));
+        detail::RequirePublicNativeStatus(SmApiFaceClosestPoint(classification.GetFaceObject(), detail::Native(point), closest, distance));
     }
     else if (kind == SM_PC_EDGE)
     {
         double parameter = 0;
-        detail::Good(SmApiEdgeClosestPoint(classification.GetEdgeObject(), detail::Native(point), closest, parameter, distance));
+        detail::RequirePublicNativeStatus(SmApiEdgeClosestPoint(classification.GetEdgeObject(), detail::Native(point), closest, parameter, distance));
     }
     else if (kind == SM_PC_VERTEX)
     {

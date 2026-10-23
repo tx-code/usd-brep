@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImport.h"
+#include "StepImportResult.h"
 
 namespace step_import::detail
 {
@@ -16,6 +17,6 @@ struct SourceFrame
 double ReadSourceNumber(const step_source::Value& value);
 Point ReadSourceTriple(const step_source::Value& value);
 Point ReadSourcePoint(const step_semantics::SourceBindings& source, std::size_t point, double lengthToMm);
-Point ReadSourceDirection(const step_semantics::SourceBindings& source, std::size_t direction);
-SourceFrame ReadSourceFrame(const step_semantics::SourceBindings& source, std::size_t placement, double lengthToMm);
+Result<Point> ReadSourceDirection(const step_semantics::SourceBindings& source, std::size_t direction);
+Result<SourceFrame> ReadSourceFrame(const step_semantics::SourceBindings& source, std::size_t placement, double lengthToMm);
 } // namespace step_import::detail

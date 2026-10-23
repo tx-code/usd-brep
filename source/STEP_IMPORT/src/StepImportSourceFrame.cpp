@@ -45,21 +45,38 @@ Point ReadSourcePoint(const step_semantics::SourceBindings& source, std::size_t 
     }
     return result;
 }
-Point ReadSourceDirection(const step_semantics::SourceBindings& source, std::size_t direction)
+Result<Point> ReadSourceDirection(const step_semantics::SourceBindings& source, std::size_t direction)
 {
     return construction::Unit(ReadSourceTriple(source.Field(direction, "direction_ratios").Value()));
 }
-SourceFrame ReadSourceFrame(const step_semantics::SourceBindings& source, std::size_t placement, double lengthToMm)
+Result<SourceFrame> ReadSourceFrame(const step_semantics::SourceBindings& source, std::size_t placement, double lengthToMm)
 {
     using namespace construction;
     SourceFrame frame;
     frame.origin = ReadSourcePoint(source, source.Field(placement, "location").ReferenceTarget(), lengthToMm);
     const auto axis = source.Field(placement, "axis"), reference = source.Field(placement, "ref_direction");
-    frame.axes[2] = axis.Value().kind == step_source::ValueKind::Unset ? Point{ 0, 0, 1 } : ReadSourceDirection(source, axis.ReferenceTarget());
+    if (axis.Value().kind == step_source::ValueKind::Unset)
+    {
+        frame.axes[2] = { 0, 0, 1 };
+    }
+    else
+    {
+        auto direction = ReadSourceDirection(source, axis.ReferenceTarget());
+        if (!direction)
+        {
+            return tl::unexpected(std::move(direction.error()));
+        }
+        frame.axes[2] = *direction;
+    }
     Point x;
     if (reference.Value().kind != step_source::ValueKind::Unset)
     {
-        x = ReadSourceDirection(source, reference.ReferenceTarget());
+        auto direction = ReadSourceDirection(source, reference.ReferenceTarget());
+        if (!direction)
+        {
+            return tl::unexpected(std::move(direction.error()));
+        }
+        x = *direction;
     }
     else
     {
@@ -70,8 +87,18 @@ SourceFrame ReadSourceFrame(const step_semantics::SourceBindings& source, std::s
     // exactly parallel to Z, project onto its normal plane, then Y=Z cross X.
     // Dimensionless direction magnitudes never encode a physical scale. This
     // double cross and its range failures are shared with native construction.
-    frame.axes[0] = Unit(Cross(frame.axes[2], Cross(x, frame.axes[2])));
-    frame.axes[1] = Unit(Cross(frame.axes[2], frame.axes[0]));
+    auto projected = Unit(Cross(frame.axes[2], Cross(x, frame.axes[2])));
+    if (!projected)
+    {
+        return tl::unexpected(std::move(projected.error()));
+    }
+    frame.axes[0] = *projected;
+    auto perpendicular = Unit(Cross(frame.axes[2], frame.axes[0]));
+    if (!perpendicular)
+    {
+        return tl::unexpected(std::move(perpendicular.error()));
+    }
+    frame.axes[1] = *perpendicular;
     return frame;
 }
 } // namespace step_import::detail

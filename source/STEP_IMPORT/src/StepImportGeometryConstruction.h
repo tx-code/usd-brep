@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImportExecution.h"
+#include "StepImportNativeStatus.h"
 #include "StepImportSourceFrame.h"
 #include "StepImportVectorMath.h"
 
@@ -42,12 +43,9 @@ inline std::array<double, 2> FullPeriodDegrees(double startRadians)
     const double startDegrees = startRadians * 180 / std::numbers::pi;
     return { startDegrees, startDegrees + 360.0 };
 }
-inline void Good(SmStatus a)
+[[nodiscard]] inline Result<void> Good(SmStatus a)
 {
-    if (a != SM_SUCCESS)
-    {
-        throw std::runtime_error("GeneralNativeReturn:" + std::to_string(a));
-    }
+    return CheckNativeStatus(a, NativeStatusOrigin::GeneralConstruction);
 }
 struct Frame
 {
@@ -139,14 +137,18 @@ protected:
     {
         return ReadSourcePoint(m_fields, a, scale);
     }
-    V Direction(Index a) const
+    [[nodiscard]] Result<V> Direction(Index a) const
     {
         return ReadSourceDirection(m_fields, a);
     }
-    Frame Placement(Index a) const
+    [[nodiscard]] Result<Frame> Placement(Index a) const
     {
-        const auto frame = ReadSourceFrame(m_fields, a, scale);
-        return { frame.origin, frame.axes[0], frame.axes[1], frame.axes[2] };
+        auto frame = ReadSourceFrame(m_fields, a, scale);
+        if (!frame)
+        {
+            return tl::unexpected(std::move(frame.error()));
+        }
+        return Frame{ frame->origin, frame->axes[0], frame->axes[1], frame->axes[2] };
     }
     struct ConicTrim
     {
@@ -299,7 +301,11 @@ protected:
                 status = SmEllipse::CreateCanonical(*m_context, frame.Native(), rx, ry, curve, &domain);
                 result.reset(curve);
             }
-            Good(status); // Own even a nonnull failure result before propagating.
+            // Own even a nonnull failure result before propagating.
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         else if (circle)
         {
@@ -318,16 +324,16 @@ protected:
         {
             cp.Add(P(Position(control)));
         }
-        SmTArray<ULONG> mult;
-        if (auto checked = Multiplicities(geometry, "knot_multiplicities", mult); !checked)
+        auto mult = Multiplicities(geometry, "knot_multiplicities");
+        if (!mult)
         {
-            return tl::unexpected(std::move(checked.error()));
+            return tl::unexpected(std::move(mult.error()));
         }
         auto knots = Numbers(geometry, "knots");
-        SmTArray<double> weights;
-        if (auto checked = SplineWeights(geometry, false, cp, weights); !checked)
+        auto weights = SplineWeights(geometry, false, cp);
+        if (!weights)
         {
-            return tl::unexpected(std::move(checked.error()));
+            return tl::unexpected(std::move(weights.error()));
         }
         SmBSplineCurve* raw = nullptr;
         if (auto operation = Step(geometry); !operation)
@@ -345,16 +351,19 @@ protected:
             *degree,
             cp,
             SM_CF_UNSPECIFIED,
-            mult,
+            *mult,
             knots,
             SM_KT_UNSPECIFIED,
-            weights.GetSize() ? &weights : nullptr,
+            weights->GetSize() ? &*weights : nullptr,
             nullptr,
             raw
         );
         std::unique_ptr<SmCurve> result(raw);
-        Good(status);
-        if (weights.GetSize())
+        if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
+        if (weights->GetSize())
         {
             if (auto businessCheck = Need(bool(raw), "GeneralCurveAllocation", geometry); !businessCheck)
             {
@@ -362,8 +371,11 @@ protected:
             }
             ULONG count = 0;
             double* net = nullptr;
-            Good(raw->GetControlPointsPointer(count, net));
-            if (auto businessCheck = VerifyRationalNet(geometry, use, cp, weights, net, count, raw->IsRational()); !businessCheck)
+            if (auto nativeStatusCheck = Good(raw->GetControlPointsPointer(count, net)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
+            if (auto businessCheck = VerifyRationalNet(geometry, use, cp, *weights, net, count, raw->IsRational()); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
@@ -379,8 +391,11 @@ protected:
         }
         return static_cast<ULONG>(n);
     }
-    [[nodiscard]] Result<void> Multiplicities(Index a, std::string_view name, SmTArray<ULONG>& result) const
+    // These helpers build owned arrays. Returning their result values moves
+    // the data blocks into expected without copying, including empty weights.
+    [[nodiscard]] Result<SmTArray<ULONG>> Multiplicities(Index a, std::string_view name) const
     {
+        SmTArray<ULONG> result;
         for (const auto& value : F(a, name).children)
         {
             const auto n = Number(value);
@@ -390,7 +405,7 @@ protected:
             }
             result.Add(static_cast<ULONG>(n));
         }
-        return {};
+        return result;
     }
     SmTArray<double> Numbers(Index a, std::string_view name) const
     {
@@ -401,11 +416,12 @@ protected:
         }
         return result;
     }
-    [[nodiscard]] Result<void> SplineWeights(Index geometry, bool surface, const SmTArray<SmPoint3d>& control, SmTArray<double>& result) const
+    [[nodiscard]] Result<SmTArray<double>> SplineWeights(Index geometry, bool surface, const SmTArray<SmPoint3d>& control) const
     {
+        SmTArray<double> result;
         if (!Is(geometry, surface ? "RATIONAL_B_SPLINE_SURFACE" : "RATIONAL_B_SPLINE_CURVE"))
         {
-            return {};
+            return result;
         }
         const auto& values = F(geometry, "weights_data");
         const auto append = [&](const step_source::Value& value) -> Result<void>
@@ -461,7 +477,7 @@ protected:
                 }
             }
         }
-        return {};
+        return result;
     }
     [[nodiscard]] Result<void> VerifyRationalNet(
         Index geometry,

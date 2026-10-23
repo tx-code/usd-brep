@@ -356,7 +356,10 @@ Result<bool> GeneratorRadius(
         const auto interval = edge->GetInterval();
         try
         {
-            CheckFinalTrimParameters(*edge->GetCurve(), *uv, interval.GetMin(), interval.GetMax());
+            if (auto checked = CheckFinalTrimParameters(*edge->GetCurve(), *uv, interval.GetMin(), interval.GetMax()); !checked)
+            {
+                return result;
+            }
         }
         catch (const std::runtime_error&)
         {

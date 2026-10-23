@@ -161,8 +161,9 @@ void FinalTrimContract()
     Require(SmLine::CreateLineSegment(context, 2, SmPoint3d(0, .02, 0), SmPoint3d(1, .02, 0), uvRaw) == SM_SUCCESS, "displaced final UV");
     std::unique_ptr<SmLine> uv(uvRaw);
     const auto observed = step_import::detail::MeasureFinalTrim(*edge, *uv, plane, 0, 1);
-    Near(observed.maximumMm, .02, 1e-12, "remeasure final UV after endpoint movement");
-    Require(observed.samples == 9 && observed.maximumMm > .001, "final trim exceeds independent budget");
+    Require(bool(observed), "valid final trim returns its measurement");
+    Near(observed->maximumMm, .02, 1e-12, "remeasure final UV after endpoint movement");
+    Require(observed->samples == 9 && observed->maximumMm > .001, "final trim exceeds independent budget");
 
     // A projection may leave parameter endpoints a few representable values
     // apart. The kernel accepts this roundoff; paired evaluation must still
@@ -198,22 +199,17 @@ void FinalTrimContract()
     std::unique_ptr<SmBSplineCurve> nearUv(nearRaw);
     Require(nearUv->GetNaturalInterval().GetMin() != 0, "fixture retains actual parameter roundoff");
     const auto roundoffMeasurement = step_import::detail::MeasureFinalTrim(*edge, *nearUv, plane, 0, 1);
-    Require(roundoffMeasurement.samples == 9 && roundoffMeasurement.maximumMm < 1e-12, "parameter roundoff preserves analytic straight-edge lift");
+    Require(bool(roundoffMeasurement), "valid final trim returns its measurement");
+    Require(roundoffMeasurement->samples == 9 && roundoffMeasurement->maximumMm < 1e-12, "parameter roundoff preserves analytic straight-edge lift");
     const auto displaced = step_import::detail::MeasureFinalTrim(*edge, *uv, plane, roundoff, 1 - roundoff);
-    Near(displaced.maximumMm, .02, 1e-12, "parameter comparison cannot hide physical UV displacement");
-    Require(displaced.maximumMm > .001, "physical trim budget remains separate from parameter roundoff");
+    Require(bool(displaced), "valid final trim returns its measurement");
+    Near(displaced->maximumMm, .02, 1e-12, "parameter comparison cannot hide physical UV displacement");
+    Require(displaced->maximumMm > .001, "physical trim budget remains separate from parameter roundoff");
 
     const auto domainRejected = [&](const SmCurve& trim, double begin, double end)
     {
-        try
-        {
-            step_import::detail::MeasureFinalTrim(*edge, trim, plane, begin, end);
-        }
-        catch (const std::runtime_error& error)
-        {
-            return std::string_view(error.what()) == "FinalTrimParameterDomain";
-        }
-        return false;
+        const auto result = step_import::detail::MeasureFinalTrim(*edge, trim, plane, begin, end);
+        return !result && result.error() == step_import::detail::TrimMeasurementError::ParameterDomain;
     };
     Require(domainRejected(*nearUv, .25, .75), "a covering UV interval is not an equivalent parameter domain");
     Require(domainRejected(*nearUv, 1, 0), "reversed final edge interval");
@@ -299,7 +295,8 @@ void DerivedUvEndpointContract()
     Require(fixed->EditParameterization(interval) == SM_SUCCESS, "legacy UV range restore");
     Require(fixed->EditEndPoint(target, TRUE, nullptr, SM_EE_PROJECT_UVTRIMCURVE_VERTEX_TO_SURFACE, FALSE) == SM_SUCCESS, "legacy fixed UV endpoint");
     const auto warped = step_import::detail::MeasureFinalTrim(*edge, *fixed, plane, 0, 1);
-    Require(warped.maximumMm > .01, "restoring UV range does not restore paired parameters");
+    Require(bool(warped), "valid final trim returns its measurement");
+    Require(warped->maximumMm > .01, "restoring UV range does not restore paired parameters");
     unsigned charges = 0;
     auto rebuilt = Value(
         step_import::detail::MatchProjectedUvEndpoints(
