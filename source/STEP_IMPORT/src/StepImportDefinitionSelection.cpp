@@ -3,6 +3,7 @@
 #include "StepImportDefinitionSelection.h"
 
 #include "StepImportExecution.h"
+#include "StepImportLegacyFailure.h"
 
 #include <algorithm>
 #include <numeric>
@@ -10,7 +11,7 @@
 
 namespace step_import::detail
 {
-std::vector<std::size_t> SelectNativeDefinitions(
+Result<std::vector<std::size_t>> SelectNativeDefinitions(
     const step_semantics::ProductDocument& source,
     const Options& options,
     Report& report,
@@ -18,9 +19,23 @@ std::vector<std::size_t> SelectNativeDefinitions(
 )
 {
     std::vector<std::size_t> indices;
+    // Execution still owns the request ledger and observer protocol. Bridge
+    // only its legacy Failure here, at the unchanged selection checkpoints.
+    const auto checkpoint = [&](Phase phase)
+    {
+        return LegacyFailureAdapter(
+            [&]
+            {
+                execution.Check(phase);
+            }
+        );
+    };
     if (const auto& owned = source.SourceSelection())
     {
-        execution.Check(Phase::BeforeDefinitionSelection);
+        if (auto checked = checkpoint(Phase::BeforeDefinitionSelection); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
         if (!options.definitionSelection || !options.sourceErrorIsolation || !owned->localityEstablished ||
             owned->request.sourceSha256 != report.sourceSha256 || owned->request.sourceSha256 != options.definitionSelection->sourceSha256 ||
             owned->request.definitionIds != options.definitionSelection->definitionIds ||
@@ -28,11 +43,13 @@ std::vector<std::size_t> SelectNativeDefinitions(
             owned->request.maximumInfluenceVisits != options.sourceErrorIsolation->maximumInfluenceVisits ||
             owned->selectedDefinitionIds.size() != source.PartCount())
         {
-            throw Failure{ Status::Unsupported,
-                           "SourceSelectionReceiptMismatch",
-                           "Native selection requires the owning checked source request",
-                           {},
-                           "Selection" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "SourceSelectionReceiptMismatch",
+                         "Native selection requires the owning checked source request",
+                         {},
+                         "Selection" }
+            );
         }
         DefinitionSelectionReceipt receipt;
         receipt.sourceSha256 = owned->request.sourceSha256;
@@ -57,24 +74,31 @@ std::vector<std::size_t> SelectNativeDefinitions(
             );
             if (owner == roles.end() || source.Source().Records().at(owner->recordIndex).id != receipt.selectedDefinitionIds[i])
             {
-                throw Failure{ Status::Unsupported,
-                               "SourceSelectionReceiptMismatch",
-                               "Qualified source views must match selected declaration identities",
-                               {},
-                               "Selection" };
+                return tl::unexpected(
+                    Failure{ Status::Unsupported,
+                             "SourceSelectionReceiptMismatch",
+                             "Qualified source views must match selected declaration identities",
+                             {},
+                             "Selection" }
+                );
             }
         }
         report.definitionSelection = std::move(receipt);
-        execution.Check(Phase::DefinitionSelectionReady);
+        if (auto checked = checkpoint(Phase::DefinitionSelectionReady); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
         return indices;
     }
     if (options.sourceErrorIsolation)
     {
-        throw Failure{ Status::Unsupported,
-                       "SourceSelectionReceiptRequired",
-                       "Source clause isolation requires owning source locality evidence",
-                       {},
-                       "Selection" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "SourceSelectionReceiptRequired",
+                     "Source clause isolation requires owning source locality evidence",
+                     {},
+                     "Selection" }
+        );
     }
     if (!options.definitionSelection)
     {
@@ -82,29 +106,39 @@ std::vector<std::size_t> SelectNativeDefinitions(
         std::iota(indices.begin(), indices.end(), 0);
         return indices;
     }
-    execution.Check(Phase::BeforeDefinitionSelection);
+    if (auto checked = checkpoint(Phase::BeforeDefinitionSelection); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
     const auto& request = *options.definitionSelection;
     if (request.sourceSha256 != report.sourceSha256)
     {
-        throw Failure{ Status::Unsupported,
-                       "DefinitionSelectionInputMismatch",
-                       "Selection requires the captured original source identity",
-                       {},
-                       "Selection" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "DefinitionSelectionInputMismatch",
+                     "Selection requires the captured original source identity",
+                     {},
+                     "Selection" }
+        );
     }
     std::unordered_set<std::string> remaining;
     for (const auto& id : request.definitionIds)
     {
         if (!remaining.insert(id).second)
         {
-            throw Failure{ Status::Unsupported, "DuplicateSelectedDefinition", "A definition may be requested only once", {}, "Selection" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported, "DuplicateSelectedDefinition", "A definition may be requested only once", {}, "Selection" }
+            );
         }
     }
     DefinitionSelectionReceipt receipt;
     receipt.sourceSha256 = report.sourceSha256;
     for (std::size_t i = 0; i < source.PartCount(); ++i)
     {
-        execution.Check(Phase::BeforeDefinitionSelection);
+        if (auto checked = checkpoint(Phase::BeforeDefinitionSelection); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
         const auto part = source.Part(i);
         const auto& roles = part->PartDefinition().roles;
         const auto definition = std::find_if(
@@ -117,7 +151,7 @@ std::vector<std::size_t> SelectNativeDefinitions(
         );
         if (definition == roles.end())
         {
-            throw std::logic_error("QualifiedDefinitionIdentityRequired");
+            return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "QualifiedDefinitionIdentityRequired", {} });
         }
         const auto& id = source.Source().Records().at(definition->recordIndex).id;
         receipt.sourceDefinitionIds.push_back(id);
@@ -133,11 +167,13 @@ std::vector<std::size_t> SelectNativeDefinitions(
     }
     if (!remaining.empty() || indices.empty())
     {
-        throw Failure{ Status::Unsupported,
-                       "SelectedDefinitionUnavailable",
-                       "Every requested ID must name a qualified independent product definition",
-                       {},
-                       "Selection" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "SelectedDefinitionUnavailable",
+                     "Every requested ID must name a qualified independent product definition",
+                     {},
+                     "Selection" }
+        );
     }
     if (options.faceOrientationRepair)
     {
@@ -146,11 +182,9 @@ std::vector<std::size_t> SelectNativeDefinitions(
             if (std::find(receipt.selectedDefinitionIds.begin(), receipt.selectedDefinitionIds.end(), edit.definitionId) ==
                 receipt.selectedDefinitionIds.end())
             {
-                throw Failure{ Status::Unsupported,
-                               "RepairOutsideDefinitionSelection",
-                               "Repair cannot change an unselected definition",
-                               {},
-                               "Selection" };
+                return tl::unexpected(
+                    Failure{ Status::Unsupported, "RepairOutsideDefinitionSelection", "Repair cannot change an unselected definition", {}, "Selection" }
+                );
             }
         }
     }
@@ -159,7 +193,10 @@ std::vector<std::size_t> SelectNativeDefinitions(
     // qualified definition view and publishes only after ALL selected checks.
     // Excluded definitions are NotRequested natively, never accepted or healed.
     report.definitionSelection = std::move(receipt);
-    execution.Check(Phase::DefinitionSelectionReady);
+    if (auto checked = checkpoint(Phase::DefinitionSelectionReady); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
     return indices;
 }
 } // namespace step_import::detail

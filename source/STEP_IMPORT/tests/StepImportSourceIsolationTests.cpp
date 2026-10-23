@@ -94,17 +94,13 @@ int main(int argc, char** argv)
         staleSelection.definitionSelection->definitionIds = { "902" };
         Report separateReport;
         separateReport.sourceSha256 = doc->Source()->Source().Sha256();
-        bool mismatchRefused = false;
-        try
-        {
-            detail::Execution execution(staleSelection, separateReport);
-            (void)detail::SelectNativeDefinitions(*doc->Source(), staleSelection, separateReport, execution);
-        }
-        catch (const detail::Failure& failure)
-        {
-            mismatchRefused = failure.key == "SourceSelectionReceiptMismatch";
-        }
-        Require(mismatchRefused && separateReport.nativeCalls == 0, "owning source receipt cannot authorize a different native request");
+        detail::Execution selectionExecution(staleSelection, separateReport);
+        const auto mismatched = detail::SelectNativeDefinitions(*doc->Source(), staleSelection, separateReport, selectionExecution);
+        Require(
+            !mismatched && mismatched.error().status == Status::Unsupported && mismatched.error().key == "SourceSelectionReceiptMismatch" &&
+                mismatched.error().stage == "Selection" && separateReport.nativeCalls == 0,
+            "owning source receipt returns an error value for a different native request"
+        );
         auto model = doc->Body(0);
         step_import_test::Near(*model->MaterialVolumeMm3(), 6000, 1e-6, "independent exact box volume");
         step_import_test::Near(model->Info().areaMm2, 2200, 1e-6, "independent exact box area");

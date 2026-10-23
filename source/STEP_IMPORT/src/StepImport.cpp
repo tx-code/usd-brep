@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
+#include "StepImportGroupedBuild.h"
 #include "StepImportNativeData.h"
 #include "StepImportOrientationRepair.h"
 #include "StepImportPlan.h"
@@ -306,6 +307,16 @@ Result Import(const Options& options, Capture capture)
     raw.requestedCarrierInterpretation = options.carrierInterpretation;
     detail::Execution execution(options, report);
     detail::Publication publication(options, result, raw, execution);
+    // Translate the private result only at the existing public Outcome owner.
+    // Successful publication has already committed and needs no further work.
+    const auto publish = [&](detail::Result<void> accepted)
+    {
+        if (!accepted)
+        {
+            publication.Fail(accepted.error());
+            publication.FinishFailure();
+        }
+    };
     try
     {
         execution.Check(Phase::BeforeCapture);
@@ -419,7 +430,7 @@ Result Import(const Options& options, Capture capture)
                 {
                     throw std::logic_error("QualifiedProductDocumentRequired");
                 }
-                publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution));
+                publish(publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution)));
             }
             else if constexpr (std::is_same_v<Result, FileOutcome>)
             {
@@ -430,7 +441,7 @@ Result Import(const Options& options, Capture capture)
                 if (checked.document->PartCount() > 1 || options.definitionSelection)
                 {
                     report.productDocument = true;
-                    publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution));
+                    publish(publication.AcceptDocument(detail::BuildDocument(checked.document, options, report, execution)));
                 }
                 else
                 {
@@ -441,33 +452,35 @@ Result Import(const Options& options, Capture capture)
                     if (single->PartDefinition().shapes.size() > 1)
                     {
                         report.materialCollection = true;
-                        publication.AcceptCollection(single, detail::BuildMaterialCollection(single, options, report, execution));
+                        publish(publication.AcceptCollection(single, detail::BuildMaterialCollection(single, options, report, execution)));
                     }
                     else
                     {
-                        publication.Accept(detail::BuildGeneral(single, options, report, execution));
+                        publish(publication.Accept(detail::BuildGeneral(single, options, report, execution)));
                     }
                 }
             }
             else if constexpr (std::is_same_v<Result, CollectionOutcome>)
             {
-                publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution));
+                publish(publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution)));
             }
             else if constexpr (std::is_same_v<Result, PartOutcome>)
             {
                 if (checked.snapshot->PartDefinition().shapes.size() > 1)
                 {
                     report.materialCollection = true;
-                    publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution));
+                    publish(
+                        publication.AcceptCollection(checked.snapshot, detail::BuildMaterialCollection(checked.snapshot, options, report, execution))
+                    );
                 }
                 else
                 {
-                    publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
+                    publish(publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution)));
                 }
             }
             else
             {
-                publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution));
+                publish(publication.Accept(detail::BuildGeneral(checked.snapshot, options, report, execution)));
             }
             return result;
         }
@@ -519,7 +532,7 @@ Result Import(const Options& options, Capture capture)
             execution.Check(Phase::PlanarChecked);
             report.declarations = detail::DescribeSource(planar, options.quality);
             const auto plan = detail::MakePlan(planar);
-            publication.Accept(detail::Build(plan, options, report, execution));
+            publish(publication.Accept(detail::Build(plan, options, report, execution)));
             return result;
         }
     }

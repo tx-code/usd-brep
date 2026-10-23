@@ -123,20 +123,25 @@ void Execution::SpendCylindricalBandProof()
         Check(Phase::BeforeRepairProof);
     }
 }
-void Execution::CheckRepairCompletion()
+Result<void> Execution::CheckRepairCompletion()
 {
     if (std::find(m_repairEditsClaimed.begin(), m_repairEditsClaimed.end(), false) != m_repairEditsClaimed.end())
     {
-        throw Failure{ Status::Unsupported, "RepairEditNotApplied", "The complete selected request did not apply every explicit edit", {}, "Repair" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported, "RepairEditNotApplied", "The complete selected request did not apply every explicit edit", {}, "Repair" }
+        );
     }
     if (std::find(m_cylindricalBandRepairsClaimed.begin(), m_cylindricalBandRepairsClaimed.end(), false) != m_cylindricalBandRepairsClaimed.end())
     {
-        throw Failure{ Status::Unsupported,
-                       "CylindricalBandRepairNotApplied",
-                       "Every planned face must complete repair before publication",
-                       {},
-                       "Repair" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "CylindricalBandRepairNotApplied",
+                     "Every planned face must complete repair before publication",
+                     {},
+                     "Repair" }
+        );
     }
+    return {};
 }
 std::size_t Execution::RepairProofRemaining() const
 {
@@ -253,13 +258,13 @@ void Execution::Check(Phase phase)
 #endif
     }
 }
-void Execution::Commit()
+Result<void> Execution::Commit()
 {
     // Final serialization is bounded but can take time/allocate. Recheck declared limits before arbitration.
     // Accepted report observations remain explicitly scoped to the pre-serialization checkpoint.
     if (m_options.execution.deadline && std::chrono::steady_clock::now() >= *m_options.execution.deadline)
     {
-        throw Failure{ Status::ResourceLimit, "DeadlineExceeded", "Deadline reached before publication", {}, "Execution" };
+        return tl::unexpected(Failure{ Status::ResourceLimit, "DeadlineExceeded", "Deadline reached before publication", {}, "Execution" });
     }
 #ifdef _WIN32
     if (m_options.nativeLimits.processPrivateBytes)
@@ -267,7 +272,7 @@ void Execution::Commit()
         PROCESS_MEMORY_COUNTERS_EX memory{};
         if (!GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory), sizeof(memory)))
         {
-            throw Failure{ Status::BuildFailure, "ProcessMemoryMeasurementFailed", "Final memory guard failed", {}, "Execution" };
+            return tl::unexpected(Failure{ Status::BuildFailure, "ProcessMemoryMeasurementFailed", "Final memory guard failed", {}, "Execution" });
         }
         if (memory.PrivateUsage > *m_options.nativeLimits.processPrivateBytes)
         {
@@ -276,16 +281,23 @@ void Execution::Commit()
                 static_cast<std::size_t>(memory.PrivateUsage)
             );
             m_report.processPeakCommitBytes = static_cast<std::size_t>(memory.PeakPagefileUsage);
-            throw Failure{ Status::ResourceLimit, "ProcessMemoryLimit", "Process memory limit reached before publication", {}, "Execution" };
+            return tl::unexpected(
+                Failure{ Status::ResourceLimit, "ProcessMemoryLimit", "Process memory limit reached before publication", {}, "Execution" }
+            );
         }
     }
 #endif
     auto expected = ImportControl::State::Ready;
     if (!m_control->m_state.compare_exchange_strong(expected, ImportControl::State::Accepted))
     {
-        Cancel();
+        auto requested = ImportControl::State::Requested;
+        m_control->m_state.compare_exchange_strong(requested, ImportControl::State::Cancelled);
+        return tl::unexpected(
+            Failure{ Status::Cancelled, "ImportCancelled", "Cooperative cancellation observed at a safe boundary", {}, "Execution" }
+        );
     }
     m_committed = true;
+    return {};
 }
 } // namespace detail
 } // namespace step_import

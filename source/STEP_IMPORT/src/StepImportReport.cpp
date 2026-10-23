@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepImportPlan.h"
+#include "StepImportReport.h"
+
 #include "StepSemanticReport.h"
 #include "StepSourceReport.h"
 
@@ -1831,7 +1832,7 @@ void WriteReportJson(
     w.Add("]}\n");
 }
 } // namespace
-void Serialize(
+Result<void> Serialize(
     Status status,
     const Report& report,
     const Quality& quality,
@@ -1850,7 +1851,10 @@ void Serialize(
     );
     if (!complete)
     {
-        throw Failure{ Status::ResourceLimit, "ImportReportByteLimit", "Mandatory import report cannot be published within the byte allowance", {} };
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "ImportReportByteLimit", "Mandatory import report cannot be published within the byte allowance", {} }
+        );
     }
+    return {};
 }
 } // namespace step_import::detail

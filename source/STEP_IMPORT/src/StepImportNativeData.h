@@ -95,18 +95,6 @@ struct DocumentData
     std::vector<PartModel> parts;
     std::vector<Body> bodies;
 };
-std::shared_ptr<const DocumentSnapshot> BuildDocument(
-    std::shared_ptr<const step_semantics::ProductDocument> source,
-    const Options& options,
-    Report& report,
-    Execution& execution
-);
-std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
-    std::shared_ptr<const step_semantics::Snapshot> source,
-    const Options& options,
-    Report& report,
-    Execution& execution
-);
 void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path);
 std::shared_ptr<ModelData> BuildGeneralBody(
     std::shared_ptr<const step_semantics::Snapshot> source,
