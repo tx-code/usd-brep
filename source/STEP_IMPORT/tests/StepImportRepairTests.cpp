@@ -135,6 +135,44 @@ int main(int argc, char** argv)
         );
         model.reset();
         Require(face.OrientationRepair().has_value(), "face alone keeps repair provenance");
+        for (const auto stopAt : { std::size_t(0), std::size_t(1), std::size_t(7), firstCalls - 1 })
+        {
+            for (const bool cancel : { false, true })
+            {
+                auto stop = Repair(source);
+                stop.execution.control = std::make_shared<ImportControl>();
+                if (cancel)
+                {
+                    stop.execution.progress = [&](Progress p)
+                    {
+                        if (p.phase == Phase::BeforeNativeCall && p.nativeCalls == stopAt)
+                        {
+                            stop.execution.control->RequestCancel();
+                        }
+                    };
+                }
+                else
+                {
+                    stop.nativeLimits.nativeCalls = stopAt;
+                }
+                const auto failed = ImportBytes(source, stop);
+                const auto expected = cancel ? Status::Cancelled : Status::ResourceLimit;
+                const auto key = cancel ? "ImportCancelled" : "NativeCallLimit";
+                Require(
+                    failed.status == expected && !failed.model && failed.report.originalAttempt && failed.report.originalAttemptStatus == expected &&
+                        failed.report.repairStage == "StrictCandidate",
+                    "execution refusal during the original attempt cannot become RepairNotRequired or start a repair"
+                );
+                const auto& originalAttempt = *failed.report.originalAttempt;
+                Require(
+                    failed.report.nativeCalls == stopAt && originalAttempt.nativeCalls == stopAt &&
+                        originalAttempt.candidateDiscarded == (stopAt > 0) && failed.report.repairProofProducts == 0 &&
+                        originalAttempt.diagnostics.back().source.key == key && failed.report.diagnostics.back().source.key == key &&
+                        !failed.report.json.empty(),
+                    "strict-attempt refusal retains overlapping work, original diagnostics and complete failure report"
+                );
+            }
+        }
         for (auto phase : { Phase::BeforeRepairProof, Phase::BeforeRepair, Phase::RepairReady, Phase::BeforeCommit })
         {
             auto stop = Repair(source);

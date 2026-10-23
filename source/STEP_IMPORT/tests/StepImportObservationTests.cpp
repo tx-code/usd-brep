@@ -57,7 +57,10 @@ void BodyError(const step_semantics::Snapshot& source, Status errorStatus)
             {
                 return tl::unexpected(Failure{ errorStatus, "TestBodyStop", "observed error", shape.shape, "Execution" });
             }
-            execution.ChargeNative(checks, shape.shape);
+            if (auto charged = execution.ChargeNative(checks, shape.shape); !charged)
+            {
+                return tl::unexpected(std::move(charged.error()));
+            }
             checks.numericalIntegration->completed = true;
             return {};
         },
@@ -101,7 +104,10 @@ void FinalizerError(const step_semantics::Snapshot& source, bool exceptional)
             execution,
             [&](const step_semantics::Part::Shape& shape, Report& checks) -> Result<void>
             {
-                execution.ChargeNative(checks, shape.shape);
+                if (auto charged = execution.ChargeNative(checks, shape.shape); !charged)
+                {
+                    return tl::unexpected(std::move(charged.error()));
+                }
                 checks.numericalIntegration->completed = true;
                 checks.numericalIntegration->appliedRelativeAccuracy = 1e-4;
                 return {};
@@ -157,7 +163,10 @@ void UnexpectedMember(const step_semantics::Snapshot& source)
                 {
                     throw std::bad_alloc();
                 }
-                execution.ChargeNative(checks, shape.shape);
+                if (auto charged = execution.ChargeNative(checks, shape.shape); !charged)
+                {
+                    return tl::unexpected(std::move(charged.error()));
+                }
                 return {};
             },
             []() -> Result<int>
@@ -291,7 +300,10 @@ void DefinitionError(const step_semantics::ProductDocument& source)
             Require(checks.sourceEvidenceScope == "ProductDocumentRoot", "definition binds its root evidence scope");
             if (member.ordinal == 0)
             {
-                execution.ChargeNative(checks, member.sourceDefinitionRecord);
+                if (auto charged = execution.ChargeNative(checks, member.sourceDefinitionRecord); !charged)
+                {
+                    return tl::unexpected(std::move(charged.error()));
+                }
                 checks.numericalIntegration->completed = true;
                 return {};
             }
@@ -301,7 +313,10 @@ void DefinitionError(const step_semantics::ProductDocument& source)
                 execution,
                 [&](const step_semantics::Part::Shape& shape, Report& leaf) -> Result<void>
                 {
-                    execution.ChargeNative(leaf, shape.shape);
+                    if (auto charged = execution.ChargeNative(leaf, shape.shape); !charged)
+                    {
+                        return tl::unexpected(std::move(charged.error()));
+                    }
                     return tl::unexpected(Failure{ Status::ResourceLimit, "TestNestedStop", "returned leaf error", shape.shape });
                 },
                 []() -> Result<int>
@@ -348,7 +363,10 @@ void DefinitionFinalizerError(const step_semantics::ProductDocument& source, boo
             execution,
             [&](const DefinitionMember& member, Report& checks) -> Result<void>
             {
-                execution.ChargeNative(checks, member.sourceDefinitionRecord);
+                if (auto charged = execution.ChargeNative(checks, member.sourceDefinitionRecord); !charged)
+                {
+                    return tl::unexpected(std::move(charged.error()));
+                }
                 checks.numericalIntegration->completed = true;
                 checks.numericalIntegration->appliedRelativeAccuracy = 1e-4;
                 return {};

@@ -44,6 +44,15 @@
 
 namespace
 {
+template <class T>
+T Value(step_import::detail::Result<T> result)
+{
+    if (!result)
+    {
+        throw std::runtime_error(result.error().key);
+    }
+    return std::move(*result);
+}
 void Require(bool value, const char* message)
 {
     if (!value)
@@ -292,17 +301,20 @@ void DerivedUvEndpointContract()
     const auto warped = step_import::detail::MeasureFinalTrim(*edge, *fixed, plane, 0, 1);
     Require(warped.maximumMm > .01, "restoring UV range does not restore paired parameters");
     unsigned charges = 0;
-    auto rebuilt = step_import::detail::MatchProjectedUvEndpoints(
-        std::move(raw),
-        *edge,
-        *fixed,
-        plane,
-        interval,
-        .01,
-        [&]
-        {
-            ++charges;
-        }
+    auto rebuilt = Value(
+        step_import::detail::MatchProjectedUvEndpoints(
+            std::move(raw),
+            *edge,
+            *fixed,
+            plane,
+            interval,
+            .01,
+            [&]() -> step_import::detail::Result<void>
+            {
+                ++charges;
+                return {};
+            }
+        )
     );
     Require(rebuilt.status == step_import::detail::DerivedUvStatus::Ready && rebuilt.curve, "paired UV candidate preserves source parameters");
     Require(rebuilt.rawPair && rebuilt.rawPair->maximumMm < 1e-12 && rebuilt.matchedPair, "raw and endpoint-matched evidence are distinct");
@@ -322,31 +334,37 @@ void DerivedUvEndpointContract()
         Near(original.x, .03 * t + 7.97 * t * t * t, 1e-12, "defining curve is immutable");
         Near(actual.x - original.x, displacement * (1 - t) * (1 - t) * (1 - t), 1e-12, "matched UV retains original interior parameters");
     }
-    auto strict = step_import::detail::MatchProjectedUvEndpoints(
-        make(2),
-        *edge,
-        *fixed,
-        plane,
-        interval,
-        displacement / 2,
-        []
-        {
-        }
+    auto strict = Value(
+        step_import::detail::MatchProjectedUvEndpoints(
+            make(2),
+            *edge,
+            *fixed,
+            plane,
+            interval,
+            displacement / 2,
+            []() -> step_import::detail::Result<void>
+            {
+                return {};
+            }
+        )
     );
     Require(
         !strict.curve && strict.status == step_import::detail::DerivedUvStatus::MatchedGapExceeded,
         "endpoint closure cannot enlarge the physical budget"
     );
-    auto badProjection = step_import::detail::MatchProjectedUvEndpoints(
-        make(2, false, .02),
-        *edge,
-        *fixed,
-        plane,
-        interval,
-        .01,
-        []
-        {
-        }
+    auto badProjection = Value(
+        step_import::detail::MatchProjectedUvEndpoints(
+            make(2, false, .02),
+            *edge,
+            *fixed,
+            plane,
+            interval,
+            .01,
+            []() -> step_import::detail::Result<void>
+            {
+                return {};
+            }
+        )
     );
     Require(
         !badProjection.curve && badProjection.status == step_import::detail::DerivedUvStatus::RawGapExceeded,
@@ -355,30 +373,26 @@ void DerivedUvEndpointContract()
     for (unsigned stop = 1; stop <= 6; ++stop)
     {
         unsigned calls = 0;
-        bool cancelled = false;
-        try
-        {
-            step_import::detail::MatchProjectedUvEndpoints(
-                make(2),
-                *edge,
-                *fixed,
-                plane,
-                interval,
-                .01,
-                [&]
+        const auto cancelled = step_import::detail::MatchProjectedUvEndpoints(
+            make(2),
+            *edge,
+            *fixed,
+            plane,
+            interval,
+            .01,
+            [&]() -> step_import::detail::Result<void>
+            {
+                if (++calls == stop)
                 {
-                    if (++calls == stop)
-                    {
-                        throw std::runtime_error("uv-operation-cancel");
-                    }
+                    return tl::unexpected(step_import::detail::Failure{ step_import::Status::Cancelled, "UvStop", "stop", 19, "Execution" });
                 }
-            );
-        }
-        catch (const std::runtime_error& error)
-        {
-            cancelled = std::string_view(error.what()) == "uv-operation-cancel";
-        }
-        Require(cancelled, "cancellation propagates from every charged matching operation");
+                return {};
+            }
+        );
+        Require(
+            !cancelled && cancelled.error().key == "UvStop" && calls == stop,
+            "returned cancellation propagates from every charged matching operation"
+        );
     }
     auto rationalEdge = make(3, true), rationalFixed = make(2, true);
     Require(rationalEdge->EvaluatePoint(cut, target) == SM_SUCCESS, "rational endpoint target");
@@ -387,16 +401,19 @@ void DerivedUvEndpointContract()
         rationalFixed->Trim(shortened) == SM_SUCCESS && rationalFixed->EditParameterization(interval) == SM_SUCCESS,
         "rational legacy parameter warp"
     );
-    auto rational = step_import::detail::MatchProjectedUvEndpoints(
-        make(2, true),
-        *rationalEdge,
-        *rationalFixed,
-        plane,
-        interval,
-        .01,
-        []
-        {
-        }
+    auto rational = Value(
+        step_import::detail::MatchProjectedUvEndpoints(
+            make(2, true),
+            *rationalEdge,
+            *rationalFixed,
+            plane,
+            interval,
+            .01,
+            []() -> step_import::detail::Result<void>
+            {
+                return {};
+            }
+        )
     );
     Require(rational.curve && rational.status == step_import::detail::DerivedUvStatus::Ready, "rational endpoint matching");
     SmPoint3d rationalFirst, rationalLast;
@@ -821,13 +838,15 @@ void OpaqueHeaderContract(const std::filesystem::path& source)
             bool cancelled = false;
             try
             {
-                step_import::detail::RebuildDerivedUv(
-                    *uses[0],
-                    .001,
-                    []
-                    {
-                        throw std::runtime_error("projection-cancel");
-                    }
+                Value(
+                    step_import::detail::RebuildDerivedUv(
+                        *uses[0],
+                        .001,
+                        []() -> step_import::detail::Result<void>
+                        {
+                            throw std::runtime_error("projection-cancel");
+                        }
+                    )
                 );
             }
             catch (const std::runtime_error& error)
@@ -836,12 +855,15 @@ void OpaqueHeaderContract(const std::filesystem::path& source)
             }
             Require(cancelled && face->GetSurface()->GetOwner() == oldOwner, "cancelled projection restores surface association");
             Require(uses[0]->GetUVTrimCurve() == oldCurve, "cancelled projection leaves installed trim untouched");
-            auto candidate = step_import::detail::RebuildDerivedUv(
-                *uses[0],
-                .001,
-                []
-                {
-                }
+            auto candidate = Value(
+                step_import::detail::RebuildDerivedUv(
+                    *uses[0],
+                    .001,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(candidate.status == step_import::detail::DerivedUvStatus::Ready && candidate.curve, "complete unpublished projection candidate");
             Require(
@@ -951,15 +973,16 @@ void MeasurementContract(ReloadedNative native)
     std::vector<std::size_t> queried;
     GeneralSolidIntegrals integrals;
     Require(
-        IntegrateGeneralSolid(
+        Value(IntegrateGeneralSolid(
             model,
             { 7, 7, 20 },
-            [&](std::size_t index)
+            [&](std::size_t index) -> step_import::detail::Result<void>
             {
                 queried.push_back(index);
+                return {};
             },
             integrals
-        ) == SM_SUCCESS,
+        )) == SM_SUCCESS,
         "fused analytic box integration"
     );
     Near(integrals.areaMm2, 2200, 1e-6, "independent fused box area");
@@ -988,39 +1011,29 @@ void MeasurementContract(ReloadedNative native)
             );
         }
     }
-    // Interrupt every fused face boundary: no partially accumulated output may
-    // escape, and no later face may run after the caller throws cancellation.
+    // Each refused face must leave the caller's output untouched, regardless
+    // of any already accumulated local integrals.
     for (std::size_t stop = 0; stop < model.faces.size(); ++stop)
     {
         GeneralSolidIntegrals untouched;
         untouched.areaMm2 = -37;
         std::size_t visited = 0;
-        bool stopped = false;
-        struct Stop
-        {
-        };
-        try
-        {
-            IntegrateGeneralSolid(
-                model,
-                { 7, 7, 20 },
-                [&](std::size_t)
+        const auto stopped = IntegrateGeneralSolid(
+            model,
+            { 7, 7, 20 },
+            [&](std::size_t) -> Result<void>
+            {
+                if (visited++ == stop)
                 {
-                    if (visited++ == stop)
-                    {
-                        throw Stop{};
-                    }
-                },
-                untouched
-            );
-        }
-        catch (const Stop&)
-        {
-            stopped = true;
-        }
+                    return tl::unexpected(Failure{ step_import::Status::Cancelled, "IntegralStop", "stop", 31, "Execution" });
+                }
+                return {};
+            },
+            untouched
+        );
         Require(
-            stopped && visited == stop + 1 && untouched.areaMm2 == -37 && untouched.faces.empty(),
-            "cancelled fused traversal does not assign partial output"
+            !stopped && stopped.error().key == "IntegralStop" && visited == stop + 1 && untouched.areaMm2 == -37 && untouched.faces.empty(),
+            "returned cancellation prevents later face queries and partial integral output"
         );
     }
 }

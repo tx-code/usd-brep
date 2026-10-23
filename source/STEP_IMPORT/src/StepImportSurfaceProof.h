@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include "StepImportExecutionCallbacks.h"
+
 #include <array>
 #include <cstddef>
 #include <functional>
@@ -20,14 +22,15 @@ struct SurfaceRestrictionProof
 // Positive rational weights and clamped, compatible degrees are prerequisites.
 // Outward interval common-knot refinement and Bernstein coefficient bounds are
 // continuous evidence, not sampling. Uncertain arithmetic returns unestablished.
-// Limits bound temporary controls and product terms; callbacks may cancel/throw.
-SurfaceRestrictionProof ProveSurfaceRestriction(
+// Limits bound temporary controls and product terms. Callback errors propagate
+// without becoming unestablished evidence; unexpected exceptions still unwind.
+[[nodiscard]] Result<SurfaceRestrictionProof> ProveSurfaceRestriction(
     const SmBSplineSurface& original,
     const SmBSplineSurface& restricted,
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 );
 struct SurfaceInjectivityProof
 {
@@ -43,11 +46,11 @@ struct SurfaceInjectivityProof
 // analytic subclass exposing a differently parameterized NURBS cache.
 // Strong monotonicity implies injectivity; failure to prove
 // it does not establish a folded surface. No sampling or geometry mutation.
-SurfaceInjectivityProof ProveSurfaceInjectivity(
+[[nodiscard]] Result<SurfaceInjectivityProof> ProveSurfaceInjectivity(
     const SmBSplineSurface& surface,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 );
 struct CurveLiftProof
 {
@@ -59,7 +62,7 @@ struct CurveLiftProof
 // Whole-interval native binary64 curve -> UV -> polynomial surface difference.
 // Only identity-parameter B-spline/line evaluators are admitted. Subdivision and
 // outward interval de Boor hulls bound every t, not just selected samples.
-CurveLiftProof ProveCurveLift(
+[[nodiscard]] Result<CurveLiftProof> ProveCurveLift(
     const SmCurve& edge,
     const SmCurve& uv,
     const SmBSplineSurface& surface,
@@ -68,6 +71,6 @@ CurveLiftProof ProveCurveLift(
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 );
 } // namespace step_import::detail

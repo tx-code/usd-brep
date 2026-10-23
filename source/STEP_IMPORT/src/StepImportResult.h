@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include "StepImportPlan.h"
+#include "StepImportFailure.h"
 
 #include <tl/expected.hpp>
 #include <type_traits>

@@ -747,7 +747,7 @@ part分类、旧MECHANICAL_CONTEXT/DESIGN_CONTEXT、指定SOURCE枚举及rad/sr�
 Requested/AlreadyRequested/TooLate/AlreadyCompleted；取消请求自身不访问native。
 `execution.progress`在捕获、源检查、逐native调用间、报告及提交前同步通知。
 不可中断调用先安全返回，候选撤销完成后返回Cancelled；旧快照和捕获源不变。
-observer异常是ExecutionFailure；意外`bad_alloc`向调用者传播，不能伪称已配置限额耗尽。
+observer的非分配异常返回`ExecutionCallbackFailure`（BuildFailure）；意外`bad_alloc`向调用者传播，不能伪称已配置限额耗尽。
 
 模型owner和必需报告在发布前完整准备，取消/成功由一次原子提交裁决。
 成功之后迟到取消返回TooLate，模型寿命由快照/view持有者决定。
@@ -1030,8 +1030,8 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 
 上述两个批次入口、集合／文档构建及对应发布入口使用私有
 `Result<T> = tl::expected<T, Failure>`，错误类别和诊断直接向上传递。
-`LegacyFailureAdapter` 仅在尚未迁移的下层调用外把 `Failure` 转为错误值；
-它位于方向修复状态机之外，不拦截分配异常、参数异常或携带候选的修复 witness。
+原生构建、计划证明、单位／分段／规范化及修复中的业务 `Failure` 均通过结果返回，
+入口按错误值完成诊断和失败收尾，不再捕获这一类型的异常，也不把错误值重新抛出。
 这不是全库禁用异常或全链路 `noexcept`。公开 Outcome、快照及报告格式不暴露
 `tl`。Execution 继续仲裁最终执行结果，Publication 保留两次报告生成和原子发布协议。
 
@@ -1041,14 +1041,28 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 
 定义选择也直接返回 `Result`，保留源顺序、owning 选择收据以及选择前／完成后的检查点。
 Publication 的接纳、报告容量和最终提交检查结果直接传播至入口，由公开 Outcome 的
-拥有者记录诊断及完成失败收尾；不把错误值再抛回异常。Execution 的 Commit 与修复登记
-完成检查也直接返回结果；其余尚未迁移的调用通过明确的 legacy adapter 保留原检查顺序、
-计费及 observer 异常分类。[执行协议回归](tests/Execution.md) 独立固定最终 guard 与 CAS 的顺序。
+拥有者记录诊断及完成失败收尾。Execution 的检查点、原生调用计费、修复登记／证明预算和
+提交仲裁均返回结果。原生构建、精确单位算术、UV、周期处理和连续证明的必要回调链直接
+传播错误，既不丢弃错误值，也不把执行拒绝转成数值证据未建立。内部结果函数标记
+`[[nodiscard]]`；拥有候选的构建边界同时处理错误返回与异常退出的清理。
+[执行协议回归](tests/Execution.md) 固定检查／计费顺序、拒绝诊断、最终 guard 与 CAS，
+公开生命周期和修复回归核对完整报告及原始尝试的重叠计数。
+
+平面原生构建的源对应、所有权、拓扑后验检查和保守数值证明拒绝也直接返回业务错误，
+保留原诊断、证明观测及失败候选清理。公开查询异常与底层数值算术的既有分类保持独立；
+验收边界和变异要求见 [业务失败回归](tests/BusinessFailures.md)。
+
+严格方向修复尝试的私有 `ConstructionResult` 区分普通 `Failure` 和携带原生候选的
+`OrientationFailureCandidate`。修复协调者显式消费 witness；普通构建边界先释放其
+候选所有权，再返回普通错误供报告交付。原始尝试的重叠计数、诊断和后验比较保持原合同。
+节点多重度及权重数组采用错误结果加新建局部输出数组，避免给没有移动构造的 `SmTArray`
+增加包装／提取复制。
 
 迁移目标是消除项目主动创建的异常，以显式结果表达业务、配置及内部失败，
 而非按异常类型名筛选：
 项目显式抛出的 `std::invalid_argument`／数值错误同样属于待迁移范围。
-当前公开配置异常合同、底层数值与修复控制流、共享 JSON writer 内部超限终止仍未迁移；
-其中方向修复须保留候选及 witness，不可简化成无上下文错误码。
+当前公开配置／查询异常合同、原生状态异常、底层数值不确定性／容量哨兵和共享 JSON writer
+内部超限终止仍未迁移；数学证据未建立与工作空间不足继续保留各自的证明结论，
+不能与请求取消或业务失败混同。
 STL／运行时实际产生的异常及外部回调异常另有传播或边界转换合同；
 不能用全局 `noexcept` 或禁用异常编译选项代替逐层迁移和验收。

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-
 #include "StepImport.h"
+#include "StepImportExecutionCallbacks.h"
 
 #include <SmTypes.h>
 
@@ -29,11 +29,11 @@ struct GeneralSolidIntegrals
 // This is not a production quality default or an error bound.
 // The caller owns/serializes the unpublished, qualified single-material model.
 // beforeFace must charge/check cancellation before each fused native face query;
-// its exceptions propagate. No output is assigned until every integral succeeds.
-SmStatus IntegrateGeneralSolid(
+// its errors and exceptions propagate. No output is assigned until every integral succeeds.
+[[nodiscard]] Result<SmStatus> IntegrateGeneralSolid(
     const ModelData& model,
     const Point& volumeOriginMm,
-    const std::function<void(std::size_t)>& beforeFace,
+    const NativeStep& beforeFace,
     GeneralSolidIntegrals& output,
     double relativeAccuracy = 1e-4
 );

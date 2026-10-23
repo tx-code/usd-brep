@@ -70,6 +70,10 @@ void CancellationBoundaries(const std::string& bytes)
             "Cancellation occurs at the requested boundary"
         );
         Require(
+            result.report.candidateDiscarded == (trace[stop].nativeCalls > 1),
+            "planar cancellation after context allocation alone has no BRep candidate to discard"
+        );
+        Require(
             result.report.diagnostics.back().source.key == "ImportCancelled" && result.report.diagnostics.back().source.stage == "Execution",
             "Cancellation is not a STEP defect"
         );

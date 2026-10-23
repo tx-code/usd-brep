@@ -17,12 +17,13 @@ namespace step_import::detail
 {
 namespace
 {
-void Need(bool condition, const char* key)
+[[nodiscard]] Result<void> Need(bool condition, const char* key)
 {
     if (!condition)
     {
-        throw Failure{ Status::Indeterminate, key, "Exact oriented cylindrical-band repair evidence is unestablished", {}, "Repair" };
+        return tl::unexpected(Failure{ Status::Indeterminate, key, "Exact oriented cylindrical-band repair evidence is unestablished", {}, "Repair" });
     }
+    return {};
 }
 using Integer = boost::multiprecision::number<
     boost::multiprecision::cpp_int_backend<4096, 4096, boost::multiprecision::signed_magnitude, boost::multiprecision::checked, void>>;
@@ -38,10 +39,16 @@ public:
     explicit Exact(Execution& execution) : e(execution)
     {
     }
-    Ratio Normalize(Ratio a)
+    [[nodiscard]] Result<Ratio> Normalize(Ratio a)
     {
-        e.SpendCylindricalBandProof();
-        Need(a.d != 0, "CylindricalBandExactDivision");
+        if (auto spent = e.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
+        if (auto businessCheck = Need(a.d != 0, "CylindricalBandExactDivision"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         if (a.d < 0)
         {
             a.n = -a.n;
@@ -50,7 +57,10 @@ public:
         Integer x = a.n < 0 ? -a.n : a.n, y = a.d;
         while (y != 0)
         {
-            e.SpendCylindricalBandProof();
+            if (auto spent = e.SpendCylindricalBandProof(); !spent)
+            {
+                return tl::unexpected(std::move(spent.error()));
+            }
             Integer r = x % y;
             x = y;
             y = r;
@@ -62,7 +72,7 @@ public:
         }
         return a;
     }
-    Ratio Parse(std::string_view text)
+    [[nodiscard]] Result<Ratio> Parse(std::string_view text)
     {
         Ratio a;
         bool negative = false;
@@ -76,7 +86,10 @@ public:
         }
         for (; i < text.size() && text[i] != 'E' && text[i] != 'e'; ++i)
         {
-            e.SpendCylindricalBandProof();
+            if (auto spent = e.SpendCylindricalBandProof(); !spent)
+            {
+                return tl::unexpected(std::move(spent.error()));
+            }
             if (text[i] == '.')
             {
                 fractional = true;
@@ -99,8 +112,14 @@ public:
             }
             for (; i < text.size(); ++i)
             {
-                e.SpendCylindricalBandProof();
-                Need(exponent < 1234, "CylindricalBandExactCapacity");
+                if (auto spent = e.SpendCylindricalBandProof(); !spent)
+                {
+                    return tl::unexpected(std::move(spent.error()));
+                }
+                if (auto businessCheck = Need(exponent < 1234, "CylindricalBandExactCapacity"); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 exponent = exponent * 10 + text[i] - '0';
             }
             if (minus)
@@ -108,12 +127,21 @@ public:
                 exponent = -exponent;
             }
         }
-        Need(decimals <= 1233 && exponent >= -1233 && exponent <= 1233, "CylindricalBandExactCapacity");
+        if (auto businessCheck = Need(decimals <= 1233 && exponent >= -1233 && exponent <= 1233, "CylindricalBandExactCapacity"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const int power = exponent - decimals;
-        Need(power >= -1233 && power <= 1233, "CylindricalBandExactCapacity");
+        if (auto businessCheck = Need(power >= -1233 && power <= 1233, "CylindricalBandExactCapacity"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (int p = 0; p < std::abs(power); ++p)
         {
-            e.SpendCylindricalBandProof();
+            if (auto spent = e.SpendCylindricalBandProof(); !spent)
+            {
+                return tl::unexpected(std::move(spent.error()));
+            }
             if (power > 0)
             {
                 a.n *= 10;
@@ -129,55 +157,93 @@ public:
         }
         return Normalize(std::move(a));
     }
-    Ratio Add(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<Ratio> Add(const Ratio& a, const Ratio& b)
     {
         return Normalize({ a.n * b.d + b.n * a.d, a.d * b.d });
     }
-    Ratio Sub(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<Ratio> Sub(const Ratio& a, const Ratio& b)
     {
         return Normalize({ a.n * b.d - b.n * a.d, a.d * b.d });
     }
-    Ratio Mul(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<Ratio> Mul(const Ratio& a, const Ratio& b)
     {
         return Normalize({ a.n * b.n, a.d * b.d });
     }
-    Ratio Dot(const Vector& a, const Vector& b)
+    [[nodiscard]] Result<Ratio> Dot(const Vector& a, const Vector& b)
     {
         Ratio r;
         for (std::size_t i = 0; i < 3; ++i)
         {
-            r = Add(r, Mul(a[i], b[i]));
+            auto product = Mul(a[i], b[i]);
+            if (!product)
+            {
+                return tl::unexpected(std::move(product.error()));
+            }
+            auto sum = Add(r, *product);
+            if (!sum)
+            {
+                return tl::unexpected(std::move(sum.error()));
+            }
+            r = std::move(*sum);
         }
         return r;
     }
-    Vector Difference(const Vector& a, const Vector& b)
+    [[nodiscard]] Result<Vector> Difference(const Vector& a, const Vector& b)
     {
         Vector v;
         for (std::size_t i = 0; i < 3; ++i)
         {
-            v[i] = Sub(a[i], b[i]);
+            auto difference = Sub(a[i], b[i]);
+            if (!difference)
+            {
+                return tl::unexpected(std::move(difference.error()));
+            }
+            v[i] = std::move(*difference);
         }
         return v;
     }
-    bool Parallel(const Vector& a, const Vector& b)
+    [[nodiscard]] Result<bool> Parallel(const Vector& a, const Vector& b)
     {
         for (std::size_t i = 0; i < 3; ++i)
         {
-            if (Sub(Mul(a[(i + 1) % 3], b[(i + 2) % 3]), Mul(a[(i + 2) % 3], b[(i + 1) % 3])).n != 0)
+            // Keep the MSVC baseline's argument order for the two fallible
+            // products. Exact rational operations and proof charges are unchanged.
+            auto right = Mul(a[(i + 2) % 3], b[(i + 1) % 3]);
+            if (!right)
+            {
+                return tl::unexpected(std::move(right.error()));
+            }
+            auto left = Mul(a[(i + 1) % 3], b[(i + 2) % 3]);
+            if (!left)
+            {
+                return tl::unexpected(std::move(left.error()));
+            }
+            auto cross = Sub(*left, *right);
+            if (!cross)
+            {
+                return tl::unexpected(std::move(cross.error()));
+            }
+            if (cross->n != 0)
             {
                 return false;
             }
         }
         return true;
     }
-    bool Less(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<bool> Less(const Ratio& a, const Ratio& b)
     {
-        e.SpendCylindricalBandProof();
+        if (auto spent = e.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         return a.n * b.d < b.n * a.d;
     }
-    bool Equal(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<bool> Equal(const Ratio& a, const Ratio& b)
     {
-        e.SpendCylindricalBandProof();
+        if (auto spent = e.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         return a.n == b.n && a.d == b.d;
     }
 
@@ -204,38 +270,85 @@ public:
     {
         return s.Field(r, name).Value().text == "T";
     }
-    Vector Coordinates(std::size_t r, std::string_view name)
+    [[nodiscard]] Result<Vector> Coordinates(std::size_t r, std::string_view name)
     {
         const auto& values = s.Field(r, name).Value().children;
-        Need(values.size() == 3, "CylindricalBandDimension");
+        if (auto businessCheck = Need(values.size() == 3, "CylindricalBandDimension"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         Vector v;
         for (std::size_t i = 0; i < 3; ++i)
         {
-            v[i] = q.Parse(values[i].text);
+            auto coordinate = q.Parse(values[i].text);
+            if (!coordinate)
+            {
+                return tl::unexpected(std::move(coordinate.error()));
+            }
+            v[i] = std::move(*coordinate);
         }
         return v;
     }
-    std::pair<Vector, Vector> Frame(std::size_t r)
+    [[nodiscard]] Result<std::pair<Vector, Vector>> Frame(std::size_t r)
     {
-        Need(s.IsA(r, "AXIS2_PLACEMENT_3D"), "CylindricalBandPlacement");
+        if (auto businessCheck = Need(s.IsA(r, "AXIS2_PLACEMENT_3D"), "CylindricalBandPlacement"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto origin = Coordinates(Ref(r, "location"), "coordinates");
+        if (!origin)
+        {
+            return tl::unexpected(std::move(origin.error()));
+        }
         Vector axis{ { { 0, 1 }, { 0, 1 }, { 1, 1 } } };
         if (s.Field(r, "axis").Value().kind != step_source::ValueKind::Unset)
         {
-            axis = Coordinates(Ref(r, "axis"), "direction_ratios");
+            auto direction = Coordinates(Ref(r, "axis"), "direction_ratios");
+            if (!direction)
+            {
+                return tl::unexpected(std::move(direction.error()));
+            }
+            axis = std::move(*direction);
         }
-        Need(q.Dot(axis, axis).n > 0, "CylindricalBandAxis");
-        return { origin, axis };
+        auto norm = q.Dot(axis, axis);
+        if (!norm)
+        {
+            return tl::unexpected(std::move(norm.error()));
+        }
+        if (auto businessCheck = Need(norm->n > 0, "CylindricalBandAxis"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        return std::pair<Vector, Vector>{ std::move(*origin), std::move(axis) };
     }
-    CylindricalBandRepairAction Prove(std::size_t face, const step_semantics::CylindricalBandRepairDeferral& edit)
+    [[nodiscard]] Result<CylindricalBandRepairAction> Prove(std::size_t face, const step_semantics::CylindricalBandRepairDeferral& edit)
     {
         const auto surface = Ref(face, "face_geometry");
-        Need(s.IsA(surface, "CYLINDRICAL_SURFACE"), "CylindricalBandSurface");
-        const auto [origin, axis] = Frame(Ref(surface, "position"));
-        const auto radius = q.Parse(s.Field(surface, "radius").Value().text);
-        Need(radius.n > 0, "CylindricalBandRadius");
+        if (auto businessCheck = Need(s.IsA(surface, "CYLINDRICAL_SURFACE"), "CylindricalBandSurface"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        auto frame = Frame(Ref(surface, "position"));
+        if (!frame)
+        {
+            return tl::unexpected(std::move(frame.error()));
+        }
+        const auto& [origin, axis] = *frame;
+        auto radiusResult = q.Parse(s.Field(surface, "radius").Value().text);
+        if (!radiusResult)
+        {
+            return tl::unexpected(std::move(radiusResult.error()));
+        }
+        const auto& radius = *radiusResult;
+        if (auto businessCheck = Need(radius.n > 0, "CylindricalBandRadius"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto bounds = Refs(face, "bounds");
-        Need(bounds.size() == 2, "CylindricalBandBoundaryCount");
+        if (auto businessCheck = Need(bounds.size() == 2, "CylindricalBandBoundaryCount"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         struct Ring
         {
             Ratio height;
@@ -246,26 +359,97 @@ public:
         for (std::size_t i = 0; i < 2; ++i)
         {
             const auto b = bounds[i];
-            Need(s.IsA(b, "FACE_OUTER_BOUND"), "CylindricalBandOriginalMarkers");
+            if (auto businessCheck = Need(s.IsA(b, "FACE_OUTER_BOUND"), "CylindricalBandOriginalMarkers"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto loop = Ref(b, "bound");
-            Need(s.IsA(loop, "EDGE_LOOP"), "CylindricalBandWholeCircleRequired");
+            if (auto businessCheck = Need(s.IsA(loop, "EDGE_LOOP"), "CylindricalBandWholeCircleRequired"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto uses = Refs(loop, "edge_list");
-            Need(uses.size() == 1, "CylindricalBandWholeCircleRequired");
+            if (auto businessCheck = Need(uses.size() == 1, "CylindricalBandWholeCircleRequired"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto use = uses[0];
-            Need(s.IsA(use, "ORIENTED_EDGE"), "CylindricalBandWholeCircleRequired");
+            if (auto businessCheck = Need(s.IsA(use, "ORIENTED_EDGE"), "CylindricalBandWholeCircleRequired"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto edge = Ref(use, "edge_element");
+
+
             // EDGE admits structures beyond this profile. Establish EDGE_CURVE
             // before reading its fields so unsupported source uses stay within
             // the structured repair outcome, rather than throwing from Field().
-            Need(s.IsA(edge, "EDGE_CURVE"), "CylindricalBandWholeCircleRequired");
+            if (auto businessCheck = Need(s.IsA(edge, "EDGE_CURVE"), "CylindricalBandWholeCircleRequired"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto circle = Ref(edge, "edge_geometry");
-            Need(s.IsA(circle, "CIRCLE") && Ref(edge, "edge_start") == Ref(edge, "edge_end"), "CylindricalBandWholeCircleRequired");
-            const auto [center, normal] = Frame(Ref(circle, "position"));
-            const auto delta = q.Difference(center, origin);
-            Need(q.Parallel(delta, axis) && q.Parallel(normal, axis), "CylindricalBandCoaxialityUnestablished");
-            Need(q.Equal(radius, q.Parse(s.Field(circle, "radius").Value().text)), "CylindricalBandRadiusMismatch");
-            const auto normalSense = q.Dot(normal, axis).n;
-            Need(normalSense != 0, "CylindricalBandCircleAxis");
+            if (auto businessCheck = Need(
+                    s.IsA(circle, "CIRCLE") && Ref(edge, "edge_start") == Ref(edge, "edge_end"),
+                    "CylindricalBandWholeCircleRequired"
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            auto placement = Frame(Ref(circle, "position"));
+            if (!placement)
+            {
+                return tl::unexpected(std::move(placement.error()));
+            }
+            const auto& [center, normal] = *placement;
+            auto delta = q.Difference(center, origin);
+            if (!delta)
+            {
+                return tl::unexpected(std::move(delta.error()));
+            }
+            auto coaxial = q.Parallel(*delta, axis);
+            if (!coaxial)
+            {
+                return tl::unexpected(std::move(coaxial.error()));
+            }
+            if (auto businessCheck = Need(*coaxial, "CylindricalBandCoaxialityUnestablished"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            auto aligned = q.Parallel(normal, axis);
+            if (!aligned)
+            {
+                return tl::unexpected(std::move(aligned.error()));
+            }
+            if (auto businessCheck = Need(*aligned, "CylindricalBandCoaxialityUnestablished"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            auto circleRadius = q.Parse(s.Field(circle, "radius").Value().text);
+            if (!circleRadius)
+            {
+                return tl::unexpected(std::move(circleRadius.error()));
+            }
+            auto sameRadius = q.Equal(radius, *circleRadius);
+            if (!sameRadius)
+            {
+                return tl::unexpected(std::move(sameRadius.error()));
+            }
+            if (auto businessCheck = Need(*sameRadius, "CylindricalBandRadiusMismatch"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            auto normalDot = q.Dot(normal, axis);
+            if (!normalDot)
+            {
+                return tl::unexpected(std::move(normalDot.error()));
+            }
+            const auto& normalSense = normalDot->n;
+            if (auto businessCheck = Need(normalSense != 0, "CylindricalBandCircleAxis"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             int direction = normalSense > 0 ? 1 : -1;
             for (const bool same : { Bool(b, "orientation"), Bool(face, "same_sense"), Bool(use, "orientation"), Bool(edge, "same_sense") })
             {
@@ -274,9 +458,19 @@ public:
                     direction = -direction;
                 }
             }
-            rings[i] = { q.Dot(delta, axis), direction, b, circle };
+            auto height = q.Dot(*delta, axis);
+            if (!height)
+            {
+                return tl::unexpected(std::move(height.error()));
+            }
+            rings[i] = { std::move(*height), direction, b, circle };
         }
-        if (q.Less(rings[1].height, rings[0].height))
+        auto descending = q.Less(rings[1].height, rings[0].height);
+        if (!descending)
+        {
+            return tl::unexpected(std::move(descending.error()));
+        }
+        if (*descending)
         {
             std::swap(rings[0], rings[1]);
         }
@@ -284,12 +478,24 @@ public:
         // FINITE band: lower ring increases theta, upper ring decreases it.
         // The complement has opposite boundary orientation. Neither serialized
         // SET order nor an arbitrary distinguished outer loop is used here.
-        Need(
-            q.Less(rings[0].height, rings[1].height) && rings[0].orientation == 1 && rings[1].orientation == -1,
-            "CylindricalBandFiniteOrientedRegionUnestablished"
-        );
+        auto increasing = q.Less(rings[0].height, rings[1].height);
+        if (!increasing)
+        {
+            return tl::unexpected(std::move(increasing.error()));
+        }
+        if (auto businessCheck = Need(
+                *increasing && rings[0].orientation == 1 && rings[1].orientation == -1,
+                "CylindricalBandFiniteOrientedRegionUnestablished"
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto& id = s.Source().Records();
-        return { edit, id[surface].id, { id[rings[0].circle].id, id[rings[1].circle].id }, { id[rings[0].bound].id, id[rings[1].bound].id } };
+        return CylindricalBandRepairAction{ edit,
+                                            id[surface].id,
+                                            { id[rings[0].circle].id, id[rings[1].circle].id },
+                                            { id[rings[0].bound].id, id[rings[1].bound].id } };
     }
 
 private:
@@ -316,9 +522,13 @@ struct FaceDefinition
     std::unique_ptr<SmSurface> surface;
     double tolerance;
 };
-void Same(double a, double b)
+[[nodiscard]] Result<void> Same(double a, double b)
 {
-    Need(std::isfinite(a) && std::isfinite(b) && a == b, "CylindricalBandChangedDefinitionOrTolerance");
+    if (auto businessCheck = Need(std::isfinite(a) && std::isfinite(b) && a == b, "CylindricalBandChangedDefinitionOrTolerance"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    return {};
 }
 } // namespace
 struct CylindricalBandRepairTrial
@@ -330,7 +540,7 @@ struct CylindricalBandRepairTrial
     std::vector<std::size_t> sourceFaces;
     CylindricalBandRepairHistory history;
 };
-std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
+[[nodiscard]] Result<std::shared_ptr<CylindricalBandRepairTrial>> PrepareCylindricalBandRepair(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const std::optional<step_semantics::Part::Shape>& binding,
     const Options& options,
@@ -351,7 +561,10 @@ std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
             return r.name == "definition";
         }
     );
-    Need(definition != roles.end(), "CylindricalBandDefinitionIdentity");
+    if (auto businessCheck = Need(definition != roles.end(), "CylindricalBandDefinitionIdentity"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto shape = binding ? *binding : source->PartDefinition().shapes.at(0);
     const auto& records = source->Source().Records();
     auto trial = std::make_shared<CylindricalBandRepairTrial>();
@@ -367,23 +580,39 @@ std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
                 continue;
             }
             const auto face = source->Source().Find(edit.faceId);
-            Need(face != nullptr, "CylindricalBandFaceIdentity");
+            if (auto businessCheck = Need(face != nullptr, "CylindricalBandFaceIdentity"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto index = static_cast<std::size_t>(face - records.data());
-            trial->history.actions.push_back(proof.Prove(index, edit));
+            auto action = proof.Prove(index, edit);
+            if (!action)
+            {
+                return tl::unexpected(std::move(action.error()));
+            }
+            trial->history.actions.push_back(std::move(*action));
             trial->sourceFaces.push_back(index);
             claimed.push_back(i);
         }
     }
     catch (const std::overflow_error&)
     {
-        throw Failure{ Status::Indeterminate, "CylindricalBandExactCapacity", "4096-bit exact relation capacity exceeded", {}, "Repair" };
+        return tl::unexpected(
+            Failure{ Status::Indeterminate, "CylindricalBandExactCapacity", "4096-bit exact relation capacity exceeded", {}, "Repair" }
+        );
     }
     if (claimed.empty())
     {
         return {};
     }
-    execution.ClaimCylindricalBandRepairs(claimed);
-    execution.Check(Phase::BeforeRepair);
+    if (auto operation = execution.ClaimCylindricalBandRepairs(claimed); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    if (auto operation = execution.Check(Phase::BeforeRepair); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     trial->history.sourceSha256 = options.cylindricalBandRepair->sourceSha256;
     trial->history.sourceInterpretationApplied = HasAppliedSourceInterpretation(*source);
     for (const auto& action : trial->history.actions)
@@ -397,7 +626,10 @@ std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
                 return action.edit.faceId == d.source.recordId && d.source.key == "SourceRuleViolation:FACE.WR2";
             }
         );
-        Need(found != diagnostics.end(), "CylindricalBandOriginalFailureEvidence");
+        if (auto businessCheck = Need(found != diagnostics.end(), "CylindricalBandOriginalFailureEvidence"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         // One source entity may be checked in several independent definitions.
         // Its failed clause is an entity fact, repeated by those traversals.
         // Keep one original fact per already-qualified definition/shape action;
@@ -411,7 +643,7 @@ bool NeutralizesCylindricalBandBounds(const std::shared_ptr<CylindricalBandRepai
 {
     return t && std::find(t->sourceFaces.begin(), t->sourceFaces.end(), face) != t->sourceFaces.end();
 }
-void CaptureCylindricalBandDefinitions(
+[[nodiscard]] Result<void> CaptureCylindricalBandDefinitions(
     const std::shared_ptr<CylindricalBandRepairTrial>& t,
     std::shared_ptr<ModelData> model,
     Report& report,
@@ -420,7 +652,7 @@ void CaptureCylindricalBandDefinitions(
 {
     if (!t)
     {
-        return;
+        return {};
     }
     t->owner = std::move(model);
     auto& m = *t->owner;
@@ -436,34 +668,60 @@ void CaptureCylindricalBandDefinitions(
     }
     for (ULONG i = 0; i < edges.GetSize(); ++i)
     {
-        execution.ChargeNative(report, 0);
+        if (auto operation = execution.ChargeNative(report, 0); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto source = edges[i]->GetCurve();
         SmCurve* raw = nullptr;
         const auto status = source->Copy(*m.context, raw);
-        Need(raw != source, "CylindricalBandBorrowedCopy");
+        if (auto businessCheck = Need(raw != source, "CylindricalBandBorrowedCopy"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::unique_ptr<SmCurve> copy(raw);
-        Need(status == SM_SUCCESS && copy && copy->GetContext() == m.context.get(), "CylindricalBandCurveCopy");
+        if (auto businessCheck = Need(status == SM_SUCCESS && copy && copy->GetContext() == m.context.get(), "CylindricalBandCurveCopy");
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         copy->SetOwner(nullptr);
         t->edges.push_back({ edges[i], edges[i]->GetInterval(), std::move(copy), SmTol::GetZoneTol3d(edges[i]) });
     }
     for (ULONG i = 0; i < faces.GetSize(); ++i)
     {
-        execution.ChargeNative(report, 0);
+        if (auto operation = execution.ChargeNative(report, 0); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto source = faces[i]->GetSurface();
         SmSurface* raw = nullptr;
         const auto status = source->Copy(*m.context, raw);
-        Need(raw != source, "CylindricalBandBorrowedCopy");
+        if (auto businessCheck = Need(raw != source, "CylindricalBandBorrowedCopy"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::unique_ptr<SmSurface> copy(raw);
-        Need(status == SM_SUCCESS && copy && copy->GetContext() == m.context.get(), "CylindricalBandSurfaceCopy");
+        if (auto businessCheck = Need(status == SM_SUCCESS && copy && copy->GetContext() == m.context.get(), "CylindricalBandSurfaceCopy");
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         copy->SetOwner(nullptr);
         t->faces.push_back({ faces[i], std::move(copy), SmTol::GetZoneTol3d(faces[i]) });
     }
+    return {};
 }
-void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTrial>& t, ModelData& m, Report& report, Execution& execution)
+[[nodiscard]] Result<void> CompleteCylindricalBandRepair(
+    const std::shared_ptr<CylindricalBandRepairTrial>& t,
+    ModelData& m,
+    Report& report,
+    Execution& execution
+)
 {
     if (!t)
     {
-        return;
+        return {};
     }
     SmTArray<SmVertex*> vertices;
     SmTArray<SmEdge*> edges;
@@ -471,10 +729,14 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     m.brep->GetVertices(vertices);
     m.brep->GetEdges(edges);
     m.brep->GetFaces(faces);
-    Need(
-        vertices.GetSize() == t->vertices.size() && edges.GetSize() == t->edges.size() && faces.GetSize() == t->faces.size(),
-        "CylindricalBandChangedNativeInventory"
-    );
+    if (auto businessCheck = Need(
+            vertices.GetSize() == t->vertices.size() && edges.GetSize() == t->edges.size() && faces.GetSize() == t->faces.size(),
+            "CylindricalBandChangedNativeInventory"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto present = [](const auto& list, const auto* key)
     {
         for (ULONG i = 0; i < list.GetSize(); ++i)
@@ -488,29 +750,77 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     };
     for (const auto& v : t->vertices)
     {
-        execution.SpendCylindricalBandProof();
-        Need(present(vertices, v.key), "CylindricalBandReplacedVertex");
+        if (auto spent = execution.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
+        if (auto businessCheck = Need(present(vertices, v.key), "CylindricalBandReplacedVertex"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto p = v.key->GetPoint();
-        Same(p.x, v.point.x);
-        Same(p.y, v.point.y);
-        Same(p.z, v.point.z);
-        Same(v.tolerance, SmTol::GetZoneTol3d(v.key));
+        if (auto businessCheck = Same(p.x, v.point.x); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(p.y, v.point.y); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(p.z, v.point.z); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(v.tolerance, SmTol::GetZoneTol3d(v.key)); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     for (const auto& e : t->edges)
     {
-        execution.SpendCylindricalBandProof();
-        Need(present(edges, e.key), "CylindricalBandReplacedEdge");
-        Same(e.interval.GetMin(), e.key->GetInterval().GetMin());
-        Same(e.interval.GetMax(), e.key->GetInterval().GetMax());
-        RequireSameNativeCurveDefinition(*e.curve, *e.key->GetCurve());
-        Same(e.tolerance, SmTol::GetZoneTol3d(e.key));
+        if (auto spent = execution.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
+        if (auto businessCheck = Need(present(edges, e.key), "CylindricalBandReplacedEdge"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(e.interval.GetMin(), e.key->GetInterval().GetMin()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(e.interval.GetMax(), e.key->GetInterval().GetMax()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = RequireSameNativeCurveDefinition(*e.curve, *e.key->GetCurve()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(e.tolerance, SmTol::GetZoneTol3d(e.key)); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     for (const auto& f : t->faces)
     {
-        execution.SpendCylindricalBandProof();
-        Need(present(faces, f.key), "CylindricalBandReplacedFace");
-        RequireSameNativeSurfaceDefinition(*f.surface, *f.key->GetSurface());
-        Same(f.tolerance, SmTol::GetZoneTol3d(f.key));
+        if (auto spent = execution.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
+        if (auto businessCheck = Need(present(faces, f.key), "CylindricalBandReplacedFace"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = RequireSameNativeSurfaceDefinition(*f.surface, *f.key->GetSurface()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(f.tolerance, SmTol::GetZoneTol3d(f.key)); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     t->history.verticesCompared = vertices.GetSize();
     t->history.edgesCompared = edges.GetSize();
@@ -518,6 +828,10 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     t->history.definitionsIdentical = t->history.workingTolerancesIdentical = true;
     m.cylindricalBandRepairs = t->history;
     report.cylindricalBandRepairs = t->history;
-    execution.Check(Phase::RepairReady);
+    if (auto operation = execution.Check(Phase::RepairReady); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    return {};
 }
 } // namespace step_import::detail

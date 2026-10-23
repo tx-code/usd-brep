@@ -319,7 +319,11 @@ Result Import(const Options& options, Capture capture)
     };
     try
     {
-        execution.Check(Phase::BeforeCapture);
+        if (auto boundaryResult = execution.Check(Phase::BeforeCapture); !boundaryResult)
+        {
+            publish(std::move(boundaryResult));
+            return result;
+        }
         raw = capture();
         report.source = raw.source;
         report.captured = raw.captured;
@@ -331,30 +335,49 @@ Result Import(const Options& options, Capture capture)
         report.sourceStatus = step_source::StatusName(raw.status);
         if (raw.status == step_source::Status::Inspected)
         {
-            execution.Check(Phase::Captured);
+            if (auto boundaryResult = execution.Check(Phase::Captured); !boundaryResult)
+            {
+                publish(std::move(boundaryResult));
+                return result;
+            }
             if (options.cylindricalBandRepair && options.cylindricalBandRepair->sourceSha256 != raw.sha256)
             {
-                throw detail::Failure{ Status::Unsupported,
-                                       "CylindricalBandRepairInputMismatch",
-                                       "Source repair does not bind the captured original bytes",
-                                       {},
-                                       "Repair" };
+                publish(
+                    tl::unexpected(
+                        detail::Failure{ Status::Unsupported,
+                                         "CylindricalBandRepairInputMismatch",
+                                         "Source repair does not bind the captured original bytes",
+                                         {},
+                                         "Repair" }
+                    )
+                );
+                return result;
             }
             if (options.definitionSelection && options.definitionSelection->sourceSha256 != raw.sha256)
             {
-                throw detail::Failure{ Status::Unsupported,
-                                       "DefinitionSelectionInputMismatch",
-                                       "Selection does not bind these captured original source bytes",
-                                       {},
-                                       "Selection" };
+                publish(
+                    tl::unexpected(
+                        detail::Failure{ Status::Unsupported,
+                                         "DefinitionSelectionInputMismatch",
+                                         "Selection does not bind these captured original source bytes",
+                                         {},
+                                         "Selection" }
+                    )
+                );
+                return result;
             }
             if (options.faceOrientationRepair && options.faceOrientationRepair->sourceSha256 != raw.sha256)
             {
-                throw detail::Failure{ Status::Unsupported,
-                                       "RepairPlanInputMismatch",
-                                       "The repair plan does not bind these captured source bytes",
-                                       {},
-                                       "Repair" };
+                publish(
+                    tl::unexpected(
+                        detail::Failure{ Status::Unsupported,
+                                         "RepairPlanInputMismatch",
+                                         "The repair plan does not bind these captured source bytes",
+                                         {},
+                                         "Repair" }
+                    )
+                );
+                return result;
             }
         }
         if (options.generalBrep)
@@ -420,10 +443,21 @@ Result Import(const Options& options, Capture capture)
                                     (raw.status == step_source::Status::Unsupported || checked.status == step_semantics::Status::Unsupported) ?
                                                                                    Status::Unsupported :
                                                                                    Status::Rejected;
-                throw detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" };
+                publish(
+                    tl::unexpected(detail::Failure{ status, "GeneralSourceUnavailable", "Required typed source was not published", {}, "GeneralBrep" })
+                );
+                return result;
             }
-            execution.Check(Phase::SemanticsChecked);
-            detail::ValidateRepairTargets(checked, options, execution);
+            if (auto boundaryResult = execution.Check(Phase::SemanticsChecked); !boundaryResult)
+            {
+                publish(std::move(boundaryResult));
+                return result;
+            }
+            if (auto targets = detail::ValidateRepairTargets(checked, options, execution); !targets)
+            {
+                publish(std::move(targets));
+                return result;
+            }
             if constexpr (std::is_same_v<Result, DocumentOutcome>)
             {
                 if (!checked.document)
@@ -489,7 +523,11 @@ Result Import(const Options& options, Capture capture)
         report.semanticStatus = step_semantics::StatusName(semantics.status);
         if (semantics.status == step_semantics::Status::Checked || semantics.status == step_semantics::Status::Deferred)
         {
-            execution.Check(Phase::SemanticsChecked);
+            if (auto boundaryResult = execution.Check(Phase::SemanticsChecked); !boundaryResult)
+            {
+                publish(std::move(boundaryResult));
+                return result;
+            }
         }
         auto planar = step_planar::Check(semantics, { options.quality.id, options.quality.consistencyMm }, options.planarLimits);
         report.planarStatus = step_planar::StatusName(planar.status);
@@ -529,16 +567,21 @@ Result Import(const Options& options, Capture capture)
         }
         else
         {
-            execution.Check(Phase::PlanarChecked);
+            if (auto boundaryResult = execution.Check(Phase::PlanarChecked); !boundaryResult)
+            {
+                publish(std::move(boundaryResult));
+                return result;
+            }
             report.declarations = detail::DescribeSource(planar, options.quality);
-            const auto plan = detail::MakePlan(planar);
-            publish(publication.Accept(detail::Build(plan, options, report, execution)));
+            auto plan = detail::MakePlan(planar);
+            if (!plan)
+            {
+                publish(tl::unexpected(std::move(plan.error())));
+                return result;
+            }
+            publish(publication.Accept(detail::Build(*plan, options, report, execution)));
             return result;
         }
-    }
-    catch (const detail::Failure& failure)
-    {
-        publication.Fail(failure);
     }
     catch (const std::bad_alloc&)
     {

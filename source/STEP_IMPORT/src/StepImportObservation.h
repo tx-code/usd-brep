@@ -57,14 +57,14 @@ struct CandidateOperation
     void* state;
     Result<void> (*invoke)(void*);
 };
-Result<void> Bodies(
+[[nodiscard]] Result<void> Bodies(
     const step_semantics::Snapshot& source,
     Report& parent,
     Execution& execution,
     MemberOperation<step_semantics::Part::Shape> member,
     CandidateOperation candidate
 );
-Result<void> Definitions(
+[[nodiscard]] Result<void> Definitions(
     const step_semantics::ProductDocument& source,
     std::span<const std::size_t> selected,
     Report& parent,

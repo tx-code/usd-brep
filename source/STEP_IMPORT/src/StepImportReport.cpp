@@ -1832,7 +1832,7 @@ void WriteReportJson(
     w.Add("]}\n");
 }
 } // namespace
-Result<void> Serialize(
+[[nodiscard]] Result<void> Serialize(
     Status status,
     const Report& report,
     const Quality& quality,

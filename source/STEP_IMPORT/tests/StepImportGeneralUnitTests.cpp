@@ -55,6 +55,37 @@ void ConversionUnitContract(const std::filesystem::path& source)
     copy.generalDefinitions.clear();
     Require(model->LengthUnits().generalDefinitions.size() == 1, "length normalization is an independent returned value");
     const auto sourceOwner = model->Source();
+    std::size_t checkpoints = 0;
+    const auto resolved = step_import::detail::ResolveLengthScale(
+        *sourceOwner,
+        sourceOwner->UnitContext().lengthUnit,
+        [&]() -> step_import::detail::Result<void>
+        {
+            ++checkpoints;
+            return {};
+        }
+    );
+    Require(resolved && checkpoints > 4, "conversion control reaches exact-arithmetic checkpoints");
+    for (std::size_t stop = 1; stop <= checkpoints; ++stop)
+    {
+        std::size_t visits = 0;
+        const auto stopped = step_import::detail::ResolveLengthScale(
+            *sourceOwner,
+            sourceOwner->UnitContext().lengthUnit,
+            [&]() -> step_import::detail::Result<void>
+            {
+                if (++visits == stop)
+                {
+                    return tl::unexpected(step_import::detail::Failure{ step_import::Status::Cancelled, "UnitStop", "stop", 23, "Execution" });
+                }
+                return {};
+            }
+        );
+        Require(
+            !stopped && visits == stop && stopped.error().key == "UnitStop" && stopped.error().record == 23,
+            "exact conversion arithmetic returns cancellation without completing or visiting a later checkpoint"
+        );
+    }
     const auto& definition = units.generalDefinitions.front();
     Require(
         sourceOwner->Source().Records()[definition.factor].id == "1000" &&
@@ -66,22 +97,20 @@ void ConversionUnitContract(const std::filesystem::path& source)
         model->ClassifyMaterial({ 7 * 25.4, 7 * 25.4, 20 * 25.4 }) == step_import::MaterialPointClass::Inside,
         "material query uses canonical millimetres"
     );
-    bool wrongQuantity = false;
-    try
-    {
-        step_import::detail::ResolveLengthScale(
-            *sourceOwner,
-            sourceOwner->UnitContext().planeAngleUnit,
-            []
-            {
-            }
-        );
-    }
-    catch (const step_import::detail::Failure& failure)
-    {
-        wrongQuantity = failure.status == step_import::Status::Unsupported && failure.key == "GeneralConversionQuantityUnsupported";
-    }
-    Require(wrongQuantity, "angle units cannot substitute for a nominal length root");
+    const auto wrongQuantity = step_import::detail::ResolveLengthScale(
+        *sourceOwner,
+        sourceOwner->UnitContext().planeAngleUnit,
+        []() -> step_import::detail::Result<void>
+        {
+            return {};
+        }
+    );
+    Require(
+        !wrongQuantity && wrongQuantity.error().status == step_import::Status::Unsupported &&
+            wrongQuantity.error().key == "GeneralConversionQuantityUnsupported" &&
+            wrongQuantity.error().record == sourceOwner->UnitContext().planeAngleUnit,
+        "angle units cannot substitute for a nominal length root; the refusal is a result"
+    );
     auto wideText = text;
     const std::string factor = "LENGTH_MEASURE(0.0254)";
     const auto factorAt = wideText.find(factor);

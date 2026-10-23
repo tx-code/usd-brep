@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImport.h"
+#include "StepImportExecutionCallbacks.h"
 
 #include <SmTypes.h>
 #include <span>
@@ -18,14 +19,14 @@ struct ModelData;
 // native parameters. Output must be empty; failure leaves it empty. The caller
 // still proves whole-domain equivalence and validates the final BRep/UV.
 // Supports ordinary B-splines, cylinders and cones; other classes are refused.
-// Every allocation/native work boundary invokes checkpoint; its exceptions
+// Every allocation/native work boundary invokes checkpoint; its errors and exceptions
 // unwind the private candidate before its context. No tolerance is enlarged.
-SmStatus RestrictPeriodicSupport(
+[[nodiscard]] Result<SmStatus> RestrictPeriodicSupport(
     const SmBSplineSurface& source,
     const SmContext& context,
     SmExtent2d& domain,
     std::unique_ptr<SmSurface>& output,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 );
 // All indices refer to the immutable model.source snapshot; source arrays in
 // ModelData retain original vertices/edges. Native handles never leave this
@@ -36,7 +37,7 @@ SmStatus RestrictPeriodicSupport(
 // A pending face-preserving pole inventory may be composed: prior pole handles,
 // positions and surface origins must survive. Completed/reordered inventories
 // are refused before candidate detection. A no-op retains prior evidence.
-void NormalizePeriodicTopology(
+[[nodiscard]] Result<void> NormalizePeriodicTopology(
     ModelData& model,
     std::span<const std::size_t> faceRecords,
     std::span<const std::size_t> edgeRecords,
@@ -44,6 +45,6 @@ void NormalizePeriodicTopology(
     std::span<const std::size_t> derivedEdgeFaces,
     const Options& options,
     Report& report,
-    const std::function<void(std::size_t)>& step
+    const NativeStep& step
 );
 } // namespace step_import::detail

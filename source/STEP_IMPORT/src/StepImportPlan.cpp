@@ -51,27 +51,38 @@ ExactPoint Cross(ExactPoint a, ExactPoint b)
 {
     return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
 }
-BoxProof ProveBox(const Plan& plan)
+[[nodiscard]] Result<BoxProof> ProveBox(const Plan& plan)
 {
-    const auto need = [&](bool condition)
+    const auto need = [&](bool condition) -> Result<void>
     {
         if (!condition)
         {
-            throw Failure{
-                Status::Unsupported,
-                plan.materialSolid ? "UnsupportedNativeMaterialBoxScope" : "UnsupportedNativeClosedSurfaceBoxScope",
-                "Closed boundary qualification requires eight exact corners, twelve orthogonal box edges and six complete outward rectangles",
-                plan.record
-            };
+            return tl::unexpected(
+                Failure{
+                    Status::Unsupported,
+                    plan.materialSolid ? "UnsupportedNativeMaterialBoxScope" : "UnsupportedNativeClosedSurfaceBoxScope",
+                    "Closed boundary qualification requires eight exact corners, twelve orthogonal box edges and six complete outward rectangles",
+                    plan.record }
+            );
         }
+        return {};
     };
-    need(plan.vertices.size() == 8 && plan.edges.size() == 12 && plan.faces.size() == 6);
+    if (auto businessCheck = need(plan.vertices.size() == 8 && plan.edges.size() == 12 && plan.faces.size() == 6); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     BoxProof proof{};
     proof.origin = plan.vertices[0].pointMm;
     std::vector<ExactPoint> directions;
     for (const auto& edge : plan.edges)
     {
-        need(edge.minimumMm == plan.vertices[edge.minimumVertex].pointMm && edge.maximumMm == plan.vertices[edge.maximumVertex].pointMm);
+        if (auto businessCheck = need(
+                edge.minimumMm == plan.vertices[edge.minimumVertex].pointMm && edge.maximumMm == plan.vertices[edge.maximumVertex].pointMm
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         if (edge.minimumVertex == 0)
         {
             directions.push_back(Subtract(edge.maximumMm, proof.origin));
@@ -81,22 +92,35 @@ BoxProof ProveBox(const Plan& plan)
             directions.push_back(Subtract(edge.minimumMm, proof.origin));
         }
     }
-    need(directions.size() == 3);
+    if (auto businessCheck = need(directions.size() == 3); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     for (std::size_t i = 0; i < 3; ++i)
     {
         proof.axes[i] = directions[i];
-        need(Dot(directions[i], directions[i]) > Fraction());
+        if (auto businessCheck = need(Dot(directions[i], directions[i]) > Fraction()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
-    need(
-        Dot(directions[0], directions[1]) == Fraction() && Dot(directions[0], directions[2]) == Fraction() &&
-        Dot(directions[1], directions[2]) == Fraction()
-    );
+    if (auto businessCheck = need(
+            Dot(directions[0], directions[1]) == Fraction() && Dot(directions[0], directions[2]) == Fraction() &&
+            Dot(directions[1], directions[2]) == Fraction()
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     proof.volume = Dot(directions[0], Cross(directions[1], directions[2]));
     if (proof.volume < Fraction())
     {
         proof.volume = -proof.volume;
     }
-    need(proof.volume > Fraction());
+    if (auto businessCheck = need(proof.volume > Fraction()); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     std::set<std::size_t> covered;
     for (std::size_t mask = 0; mask < 8; ++mask)
     {
@@ -116,9 +140,15 @@ BoxProof ProveBox(const Plan& plan)
                 return vertex.pointMm == expected;
             }
         );
-        need(found != plan.vertices.end());
+        if (auto businessCheck = need(found != plan.vertices.end()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto index = static_cast<std::size_t>(found - plan.vertices.begin());
-        need(covered.insert(index).second);
+        if (auto businessCheck = need(covered.insert(index).second); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         proof.corners[mask] = index;
     }
     std::set<std::pair<std::size_t, std::size_t>> pairs;
@@ -127,8 +157,14 @@ BoxProof ProveBox(const Plan& plan)
         const auto a = static_cast<std::size_t>(std::find(proof.corners.begin(), proof.corners.end(), edge.minimumVertex) - proof.corners.begin());
         const auto b = static_cast<std::size_t>(std::find(proof.corners.begin(), proof.corners.end(), edge.maximumVertex) - proof.corners.begin());
         const auto difference = a ^ b;
-        need(difference == 1 || difference == 2 || difference == 4);
-        need(pairs.emplace(std::min(a, b), std::max(a, b)).second);
+        if (auto businessCheck = need(difference == 1 || difference == 2 || difference == 4); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = need(pairs.emplace(std::min(a, b), std::max(a, b)).second); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     proof.center = proof.origin;
     for (const auto& axis : proof.axes)
@@ -147,12 +183,20 @@ BoxProof ProveBox(const Plan& plan)
     std::set<std::pair<std::size_t, bool>> sides;
     for (const auto& face : plan.faces)
     {
-        need(face.loops.size() == 1 && face.loops[0].outer && face.vertices.size() == 4 && face.edges.size() == 4);
+        if (auto businessCheck = need(face.loops.size() == 1 && face.loops[0].outer && face.vertices.size() == 4 && face.edges.size() == 4);
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::vector<std::size_t> masks;
         for (const auto vertex : face.vertices)
         {
             masks.push_back(static_cast<std::size_t>(std::find(proof.corners.begin(), proof.corners.end(), vertex) - proof.corners.begin()));
-            need(Dot(Cross(face.x, face.y), Subtract(plan.vertices[vertex].pointMm, face.originMm)) == Fraction());
+            if (auto businessCheck = need(Dot(Cross(face.x, face.y), Subtract(plan.vertices[vertex].pointMm, face.originMm)) == Fraction());
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         bool found = false;
         for (std::size_t axis = 0; axis < 3; ++axis)
@@ -167,30 +211,48 @@ BoxProof ProveBox(const Plan& plan)
                     }
                 ))
             {
-                need(sides.emplace(axis, bit).second);
+                if (auto businessCheck = need(sides.emplace(axis, bit).second); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 found = true;
             }
         }
-        need(found);
+        if (auto businessCheck = need(found); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto outward = Times(Cross(face.x, face.y), face.faceSameSense ? Fraction(1) : Fraction(-1));
-        need(Dot(outward, Subtract(face.sourceCentroid, proof.center)) > Fraction());
+        if (auto businessCheck = need(Dot(outward, Subtract(face.sourceCentroid, proof.center)) > Fraction()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
-    need(sides.size() == 6);
+    if (auto businessCheck = need(sides.size() == 6); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     return proof;
 }
-OpenSheetProof ProveOpenSheet(const Plan& plan)
+[[nodiscard]] Result<OpenSheetProof> ProveOpenSheet(const Plan& plan)
 {
-    const auto need = [&](bool condition)
+    const auto need = [&](bool condition) -> Result<void>
     {
         if (!condition)
         {
-            throw Failure{ Status::Unsupported,
-                           "UnsupportedNativeOpenSheetScope",
-                           "Shared open-sheet qualification requires two exact simple polygons meeting only on one complete shared supporting edge",
-                           plan.record };
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "UnsupportedNativeOpenSheetScope",
+                         "Shared open-sheet qualification requires two exact simple polygons meeting only on one complete shared supporting edge",
+                         plan.record }
+            );
         }
+        return {};
     };
-    need(plan.faces.size() == 2 && plan.vertices.size() >= 4 && plan.edges.size() >= 5);
+    if (auto businessCheck = need(plan.faces.size() == 2 && plan.vertices.size() >= 4 && plan.edges.size() >= 5); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     OpenSheetProof proof{};
     std::vector<std::size_t> edgeFaces(plan.edges.size()), vertexFaces(plan.vertices.size());
     for (const auto& face : plan.faces)
@@ -208,41 +270,69 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
     for (std::size_t e = 0; e < plan.edges.size(); ++e)
     {
         const auto& edge = plan.edges[e];
-        need(edge.minimumMm == plan.vertices[edge.minimumVertex].pointMm && edge.maximumMm == plan.vertices[edge.maximumVertex].pointMm);
+        if (auto businessCheck = need(
+                edge.minimumMm == plan.vertices[edge.minimumVertex].pointMm && edge.maximumMm == plan.vertices[edge.maximumVertex].pointMm
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto count = edgeFaces[e];
-        need(count == 1 || count == 2);
+        if (auto businessCheck = need(count == 1 || count == 2); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         if (count == 2)
         {
             proof.sharedEdge = e;
             ++shared;
         }
     }
-    need(shared == 1);
+    if (auto businessCheck = need(shared == 1); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto& common = plan.edges[proof.sharedEdge];
     std::array<ExactPoint, 2> normals;
     for (std::size_t f = 0; f < plan.faces.size(); ++f)
     {
         const auto& face = plan.faces[f];
-        need(!face.loops.empty() && face.loops[0].outer && face.vertices.size() >= 3 && face.edges.size() == face.vertices.size());
+        if (auto businessCheck = need(
+                !face.loops.empty() && face.loops[0].outer && face.vertices.size() >= 3 && face.edges.size() == face.vertices.size()
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto& uses = face.loops[0].selectedUses;
-        need(uses.size() >= 3);
-        need(
-            std::any_of(
-                uses.begin(),
-                uses.end(),
-                [&](const auto& use)
-                {
-                    return use.edge == proof.sharedEdge;
-                }
-            )
-        );
+        if (auto businessCheck = need(uses.size() >= 3); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = need(
+                std::any_of(
+                    uses.begin(),
+                    uses.end(),
+                    [&](const auto& use)
+                    {
+                        return use.edge == proof.sharedEdge;
+                    }
+                )
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::vector<ExactPoint> points(uses.size());
         normals[f] = Cross(face.x, face.y);
         for (std::size_t i = 0; i < uses.size(); ++i)
         {
             const auto& edge = plan.edges[uses[i].edge];
             points[i] = plan.vertices[uses[i].forward ? edge.minimumVertex : edge.maximumVertex].pointMm;
-            need(Dot(normals[f], Subtract(points[i], face.originMm)) == Fraction());
+            if (auto businessCheck = need(Dot(normals[f], Subtract(points[i], face.originMm)) == Fraction()); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         if (face.loops.size() > 1)
         {
@@ -252,18 +342,31 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
             // Still require exact support for every inner vertex, not just Q.
             for (const auto vertex : face.vertices)
             {
-                need(Dot(normals[f], Subtract(plan.vertices[vertex].pointMm, face.originMm)) == Fraction());
+                if (auto businessCheck = need(Dot(normals[f], Subtract(plan.vertices[vertex].pointMm, face.originMm)) == Fraction()); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
         const auto a = Subtract(points[1], points[0]), b = Subtract(points.back(), points[0]);
         if (points.size() == 4 && Dot(a, b) == Fraction() && points[2] == Add(Add(points[0], a), b))
         {
+
             // Retain the established rectangle arithmetic and capacity path.
-            need(Dot(a, a) > Fraction() && Dot(b, b) > Fraction());
+            if (auto businessCheck = need(Dot(a, a) > Fraction() && Dot(b, b) > Fraction()); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (face.loops.size() == 1)
             {
-                need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b));
-                need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2))));
+                if (auto businessCheck = need(face.sourceAreaSquared == Dot(a, a) * Dot(b, b)); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = need(face.sourceCentroid == Add(points[0], Times(Add(a, b), Fraction(1, 2)))); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
         else
@@ -303,39 +406,69 @@ OpenSheetProof ProveOpenSheet(const Plan& plan)
                         continue;
                     }
                     const auto side = Dot(normals[f], Cross(direction, Subtract(plan.vertices[vertex].pointMm, common.minimumMm)));
-                    need(side != Fraction());
+                    if (auto businessCheck = need(side != Fraction()); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     const bool current = side > Fraction();
-                    need(!sidePositive || current == *sidePositive);
+                    if (auto businessCheck = need(!sidePositive || current == *sidePositive); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     sidePositive = current;
                 }
-                need(sidePositive.has_value());
+                if (auto businessCheck = need(sidePositive.has_value()); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
     }
-    need(plan.vertices.size() == plan.faces[0].vertices.size() + plan.faces[1].vertices.size() - 2);
-    need(plan.edges.size() == plan.faces[0].edges.size() + plan.faces[1].edges.size() - 1);
+    if (auto businessCheck = need(plan.vertices.size() == plan.faces[0].vertices.size() + plan.faces[1].vertices.size() - 2); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = need(plan.edges.size() == plan.faces[0].edges.size() + plan.faces[1].edges.size() - 1); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     std::size_t commonVertices = 0;
     for (std::size_t v = 0; v < vertexFaces.size(); ++v)
     {
-        need(vertexFaces[v] == 1 || vertexFaces[v] == 2);
+        if (auto businessCheck = need(vertexFaces[v] == 1 || vertexFaces[v] == 2); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         if (vertexFaces[v] == 2)
         {
-            need(v == common.minimumVertex || v == common.maximumVertex);
+            if (auto businessCheck = need(v == common.minimumVertex || v == common.maximumVertex); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             ++commonVertices;
         }
     }
-    need(commonVertices == 2);
+    if (auto businessCheck = need(commonVertices == 2); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto axis = Cross(normals[0], normals[1]);
     if (Dot(axis, axis) == Fraction())
     {
-        need(Dot(normals[0], Subtract(plan.faces[1].originMm, plan.faces[0].originMm)) == Fraction());
+        if (auto businessCheck = need(Dot(normals[0], Subtract(plan.faces[1].originMm, plan.faces[0].originMm)) == Fraction()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto direction = Subtract(common.maximumMm, common.minimumMm);
         const auto side = [&](const FacePlan& face)
         {
             return Dot(normals[0], Cross(direction, Subtract(face.sourceCentroid, common.minimumMm)));
         };
         const auto a = side(plan.faces[0]), b = side(plan.faces[1]);
-        need((a > Fraction() && b < Fraction()) || (a < Fraction() && b > Fraction()));
+        if (auto businessCheck = need((a > Fraction() && b < Fraction()) || (a < Fraction() && b > Fraction())); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         // The proofs above put each filled polygon strictly on one side away
         // from the shared edge, so its area centroid selects that half-plane
         // even for a concave polygon. Opposite signs exclude area overlap.
@@ -464,7 +597,7 @@ SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Qua
     }
     return result;
 }
-Plan MakePlan(const step_planar::Outcome& checked)
+[[nodiscard]] Result<Plan> MakePlan(const step_planar::Outcome& checked)
 {
     const auto& evidence = checked.evidence;
     if (checked.status != step_planar::Status::Checked || !evidence.source)
@@ -476,10 +609,12 @@ Plan MakePlan(const step_planar::Outcome& checked)
     if (role != "MaterialSolid" && role != "ClosedSurfaceModel" &&
         (role != "OpenSurfaceModel" || (evidence.faces.size() != 1 && evidence.faces.size() != 2)))
     {
-        throw Failure{ Status::Unsupported,
-                       "UnsupportedNativeShapeScope",
-                       "Native scope is one open planar face, two polygons with a shared supporting edge, or a qualified rectangular box boundary",
-                       {} };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "UnsupportedNativeShapeScope",
+                     "Native scope is one open planar face, two polygons with a shared supporting edge, or a qualified rectangular box boundary",
+                     {} }
+        );
     }
     Plan plan{};
     plan.source = evidence.source;
@@ -594,10 +729,9 @@ Plan MakePlan(const step_planar::Outcome& checked)
                 const auto index = edgeIndices.at(record);
                 if (!faceEdges.insert(index).second)
                 {
-                    throw Failure{ Status::Unsupported,
-                                   "UnsupportedRepeatedNativeEdgeUse",
-                                   "Repeated same-face uses require a seam contract",
-                                   record };
+                    return tl::unexpected(
+                        Failure{ Status::Unsupported, "UnsupportedRepeatedNativeEdgeUse", "Repeated same-face uses require a seam contract", record }
+                    );
                 }
                 target.edges.push_back(index);
                 mappedEdges.insert(index);
@@ -636,15 +770,25 @@ Plan MakePlan(const step_planar::Outcome& checked)
     }
     if (mappedEdges.size() != plan.edges.size())
     {
-        throw Failure{ Status::Unsupported, "UnmappedNativeRequiredEdge", "Required source edges cannot be omitted", plan.record };
+        return tl::unexpected(Failure{ Status::Unsupported, "UnmappedNativeRequiredEdge", "Required source edges cannot be omitted", plan.record });
     }
     if (plan.closedBoundary)
     {
-        plan.box = ProveBox(plan);
+        auto proof = ProveBox(plan);
+        if (!proof)
+        {
+            return tl::unexpected(std::move(proof.error()));
+        }
+        plan.box = std::move(*proof);
     }
     else if (plan.faces.size() == 2)
     {
-        plan.openSheet = ProveOpenSheet(plan);
+        auto proof = ProveOpenSheet(plan);
+        if (!proof)
+        {
+            return tl::unexpected(std::move(proof.error()));
+        }
+        plan.openSheet = std::move(*proof);
     }
     return plan;
 }

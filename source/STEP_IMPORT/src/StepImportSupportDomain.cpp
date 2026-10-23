@@ -126,7 +126,7 @@ Interval Dot(const Vector& a, const Vector& b)
 {
     return Add(Add(Multiply(a[0], b[0]), Multiply(a[1], b[1])), Multiply(a[2], b[2]));
 }
-bool ClosedPlanarChart(SmFace& face, const SmTArray<SmEdgeuse*>& uses, const std::function<void()>& checkpoint)
+Result<bool> ClosedPlanarChart(SmFace& face, const SmTArray<SmEdgeuse*>& uses, const ExecutionCheckpoint& checkpoint)
 {
     // Periodic equality alone is insufficient for a bounded planar control
     // hull: a jump by one period can select the other surface region. Require
@@ -142,7 +142,10 @@ bool ClosedPlanarChart(SmFace& face, const SmTArray<SmEdgeuse*>& uses, const std
         }
         const auto a = current->GetUVTrimCurve(), b = next->GetUVTrimCurve();
         SmPoint3d end, start;
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (!a || !b || a->EvaluatePoint(current->GetEdgeParam(1), end) != SM_SUCCESS ||
             b->EvaluatePoint(next->GetEdgeParam(0), start) != SM_SUCCESS || !Finite(end.x) || !Finite(end.y) || !Finite(start.x) ||
             !Finite(start.y) || std::abs(end.x - start.x) > SM_EFF_ZERO_PARAM || std::abs(end.y - start.y) > SM_EFF_ZERO_PARAM)
@@ -152,25 +155,31 @@ bool ClosedPlanarChart(SmFace& face, const SmTArray<SmEdgeuse*>& uses, const std
     }
     return true;
 }
-bool GeneratorRadius(
+Result<bool> GeneratorRadius(
     const SmTorus& torus,
     const SmExtent2d& actualDomain,
     SupportDomainEvidence& result,
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 )
 {
     const auto generator = torus.GetGenCurve();
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     if (!generator || torus.GetSwapUV() || torus.GetInsideOut() || !torus.HasSameParameterization(SM_SP_V, SM_SP_V, generator))
     {
         return false;
     }
     // Extract the original generator's NURBS basis, rather than invoking the
     // analytic circle Trim override, which may rebuild/reparameterize it.
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     auto restricted = std::unique_ptr<SmBSplineCurve>(new (*torus.GetContext()) SmBSplineCurve(*generator));
     restricted->SetOwner(nullptr);
     auto interval = actualDomain.GetVInterval();
@@ -179,7 +188,10 @@ bool GeneratorRadius(
     {
         return false;
     }
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     if (restricted->Trim(interval) != SM_SUCCESS)
     {
         return false;
@@ -211,7 +223,10 @@ bool GeneratorRadius(
         double lower = INFINITY, upper = -INFINITY;
         for (ULONG i = 0; i < count; ++i)
         {
-            checkpoint();
+            if (auto operation = checkpoint(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const double w = restricted->IsRational() ? net[4 * i + 3] : 1.;
             if (!Finite(w) || !(w > 0))
             {
@@ -243,13 +258,13 @@ bool GeneratorRadius(
     }
 }
 } // namespace
-SupportDomainEvidence RestrictUnusedSupportDomain(
+[[nodiscard]] Result<SupportDomainEvidence> RestrictUnusedSupportDomain(
     SmFace& face,
     bool uniqueExplicitOuter,
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& beforeNativeCall,
+    const ExecutionCheckpoint& beforeNativeCall,
     const SmTorus* originalTorus
 )
 {
@@ -262,13 +277,17 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
         result.reason = "NumericEnvironmentUnestablished";
         return result;
     }
-    const std::function<void()> checkedCall = [&]
+    const ExecutionCheckpoint checkedCall = [&]() -> Result<void>
     {
-        beforeNativeCall();
+        if (auto operation = beforeNativeCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (!SurfaceProofNumericEnvironment())
         {
             throw std::runtime_error("SupportDomainNumericEnvironmentChanged");
         }
+        return {};
     };
     auto surface = dynamic_cast<SmBSplineSurface*>(face.GetSurface());
     const bool spindle = originalTorus && originalTorus->GetMajorRadius() <= originalTorus->GetMinorRadius();
@@ -289,7 +308,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     {
         return result;
     }
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     if (!spindle && (surface->IsClosed(natural, SM_SP_U) || surface->IsClosed(natural, SM_SP_V) || surface->IsPeriodic(natural, SM_SP_U) ||
                      surface->IsPeriodic(natural, SM_SP_V)))
     {
@@ -305,7 +327,12 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     // including ordinary B-spline supports. A spatially acceptable endpoint
     // gap or a collapsed surface boundary cannot supply a missing UV join.
     // Refuse unestablished coverage before copying or replacing any geometry.
-    if (!ClosedPlanarChart(face, uses, checkedCall))
+    auto chart = ClosedPlanarChart(face, uses, checkedCall);
+    if (!chart)
+    {
+        return tl::unexpected(std::move(chart.error()));
+    }
+    if (!*chart)
     {
         result.status = SupportDomainStatus::Unestablished;
         result.reason = "PlanarChartClosureUnestablished";
@@ -373,7 +400,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     result.status = SupportDomainStatus::Unestablished;
     result.reason = "OriginalBasisExtractionUnestablished";
     SmSurface* copy = nullptr;
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto copied = surface->Copy(*face.GetContext(), copy);
     if (copy == surface)
     {
@@ -396,7 +426,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
         restricted->SetBSplineSurfaceForm(SM_SF_UNSPECIFIED);
     }
     SmExtent2d requested(bounds[0], bounds[1], bounds[2], bounds[3]);
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     if (restricted->TrimWithDomain(requested) != SM_SUCCESS)
     {
         return result;
@@ -409,14 +442,27 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
         return result;
     }
     result.reason = "GeneratorRegularityUnestablished";
-    if (spindle &&
-        !GeneratorRadius(*originalTorus, restricted->GetNaturalUVDomain(), result, maximumMm, maximumControls, maximumProducts, checkedCall))
+    if (spindle)
     {
-        return result;
+        auto regular =
+            GeneratorRadius(*originalTorus, restricted->GetNaturalUVDomain(), result, maximumMm, maximumControls, maximumProducts, checkedCall);
+        if (!regular)
+        {
+            return tl::unexpected(std::move(regular.error()));
+        }
+        if (!*regular)
+        {
+            return result;
+        }
     }
     result.reason = "ContinuousRestrictionUnestablished";
     const auto& originalDefinition = spindle ? static_cast<const SmBSplineSurface&>(*originalTorus) : *surface;
-    result.numeric = ProveSurfaceRestriction(originalDefinition, *restricted, maximumMm, maximumControls, maximumProducts, checkedCall);
+    auto proof = ProveSurfaceRestriction(originalDefinition, *restricted, maximumMm, maximumControls, maximumProducts, checkedCall);
+    if (!proof)
+    {
+        return tl::unexpected(std::move(proof.error()));
+    }
+    result.numeric = std::move(*proof);
     if (!result.numeric.established)
     {
         if (result.numeric.workLimit)
@@ -446,7 +492,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
             continue;
         }
         SmCurve* raw = nullptr;
-        checkedCall();
+        if (auto operation = checkedCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto copiedUv = old->Copy(*face.GetContext(), raw);
         if (raw == old)
         {
@@ -467,7 +516,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     }
     // From here on, an exception aborts the entire unpublished model. Never
     // return an unestablished result after committing a partial native change.
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     face.SetSurface(candidate.get(), TRUE);
     const bool adopted = candidate->GetOwner() == &face;
     if (adopted)
@@ -480,7 +532,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     }
     for (auto& trim : saved)
     {
-        checkedCall();
+        if (auto operation = checkedCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto raw = trim.curve.get();
         trim.owner->SetUVTrimCurve(raw, 0., TRUE); // No native tolerance growth.
         const bool uvOwned = raw->GetOwner() == trim.owner || raw->GetOwner() == trim.owner->GetMate();

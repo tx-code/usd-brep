@@ -5,15 +5,26 @@
 
 namespace step_import::detail
 {
+enum class NativeCallAccounting
+{
+    General,
+    Planar
+};
 class Execution
 {
 public:
 
     Execution(const Options& options, Report& report);
     ~Execution();
-    void Check(Phase phase);
-    void ChargeNative(Report& bodyReport, std::size_t sourceRecord); // Shared request budget; local body observations are separate.
-    Result<void> Commit(); // Sole success/cancellation arbitration. No allocation or native operation after success.
+    [[nodiscard]] Result<void> Check(Phase phase);
+    // Shared request budget; keep the established planar/general diagnostic
+    // vocabulary while charging the root and current leaf only once.
+    [[nodiscard]] Result<void> ChargeNative(
+        Report& bodyReport,
+        std::size_t sourceRecord,
+        NativeCallAccounting accounting = NativeCallAccounting::General
+    );
+    [[nodiscard]] Result<void> Commit(); // Sole success/cancellation arbitration. No allocation or native operation after success.
     std::size_t NativeCalls() const
     {
         return m_report.nativeCalls;
@@ -22,12 +33,12 @@ public:
     {
         return &report == &m_report;
     }
-    void ClaimRepairEdits(const std::vector<std::size_t>& indices);
-    Result<void> CheckRepairCompletion();
+    [[nodiscard]] Result<void> ClaimRepairEdits(const std::vector<std::size_t>& indices);
+    [[nodiscard]] Result<void> CheckRepairCompletion();
     std::size_t RepairProofRemaining() const;
-    void SpendRepairProof(std::size_t products);
-    void ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices);
-    void SpendCylindricalBandProof();
+    [[nodiscard]] Result<void> SpendRepairProof(std::size_t products);
+    [[nodiscard]] Result<void> ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices);
+    [[nodiscard]] Result<void> SpendCylindricalBandProof();
 
 private:
 
@@ -37,6 +48,6 @@ private:
     bool m_committed = false;
     std::vector<bool> m_repairEditsClaimed;
     std::vector<bool> m_cylindricalBandRepairsClaimed;
-    void Cancel();
+    [[nodiscard]] Result<void> Cancel();
 };
 } // namespace step_import::detail

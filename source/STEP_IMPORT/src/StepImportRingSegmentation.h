@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImport.h"
+#include "StepImportExecutionCallbacks.h"
 
 #include <SmCurve.h>
 #include <functional>
@@ -36,12 +37,23 @@ struct RingSubdivision
 // parameter without trimming, snapping endpoints or altering any source vertex.
 // The numerical point residual uses the definition allowance in millimetres;
 // the near-end guard instead uses the kernel's parameter comparison convention.
-double LocateRingCut(const SmCurve& circle, std::array<double, 2> interval, Point point, double maximumMm, const std::function<void()>& checkpoint);
+[[nodiscard]] Result<double> LocateRingCut(
+    const SmCurve& circle,
+    std::array<double, 2> interval,
+    Point point,
+    double maximumMm,
+    const ExecutionCheckpoint& checkpoint
+);
 // Freeze a global, sorted subdivision before constructing ANY incident face.
 // Every child owns a copy of the full original analytic/NURBS basis. Only edge
 // intervals differ, so their exact binary64 endpoint union covers the source.
-void PrepareRingSegments(RingSubdivision& plan, const SmCurve& circle, const SmContext& context, const std::function<void()>& checkpoint);
+[[nodiscard]] Result<void> PrepareRingSegments(
+    RingSubdivision& plan,
+    const SmCurve& circle,
+    const SmContext& context,
+    const ExecutionCheckpoint& checkpoint
+);
 // Run again after UV, validators and queries, while all candidates are private.
 // Requires original bases, exact interval cover and reciprocal shared endpoints.
-void VerifyRingSegments(const RingSubdivision& plan, const std::function<void()>& checkpoint);
+[[nodiscard]] Result<void> VerifyRingSegments(const RingSubdivision& plan, const ExecutionCheckpoint& checkpoint);
 } // namespace step_import::detail

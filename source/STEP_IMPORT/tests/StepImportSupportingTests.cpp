@@ -254,8 +254,36 @@ void Basic(const std::string& source, const std::filesystem::path& directory)
 void Execution(const std::string& source, const std::filesystem::path& bodyFixture)
 {
     const auto body = ImportFile(bodyFixture, General());
-    const auto complete = ImportBytes(source, General());
+    std::vector<Progress> trace;
+    auto observing = General();
+    observing.execution.progress = [&](Progress progress)
+    {
+        trace.push_back(progress);
+    };
+    const auto complete = ImportBytes(source, observing);
     Require(body.model && complete.model && complete.report.nativeCalls > body.report.nativeCalls, "extra native supporting calls");
+    for (std::size_t stop = 0; stop < trace.size(); ++stop)
+    {
+        if (trace[stop].phase != Phase::BeforeNativeCall || trace[stop].nativeCalls < body.report.nativeCalls)
+        {
+            continue;
+        }
+        auto options = General();
+        std::size_t visits = 0;
+        options.execution.progress = [&](Progress)
+        {
+            if (visits++ == stop)
+            {
+                throw std::runtime_error("supporting observer refusal");
+            }
+        };
+        const auto failed = ImportBytes(source, options);
+        Require(
+            failed.status == Status::BuildFailure && !failed.model && visits == stop + 1 && failed.report.nativeCalls == trace[stop].nativeCalls &&
+                failed.report.diagnostics.back().source.key == "ExecutionCallbackFailure",
+            "supporting Append propagates a single observer refusal without later checkpoints or native work"
+        );
+    }
     for (auto limit = body.report.nativeCalls; limit < complete.report.nativeCalls; ++limit)
     {
         auto options = General();
