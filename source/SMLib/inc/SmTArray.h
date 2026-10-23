@@ -14,6 +14,7 @@
 #include <SmExtent2d.h>
 #include <SmExtent3d.h>
 #include <SmPeriodicExtent1d.h>
+#include <new>
 #include <random>
 
 #ifndef __SMCORE_TYPES_H__
@@ -170,6 +171,14 @@ template<class TYPE> class SM_EXPORT SmTArray : public SmObject
 
     // copy constructor - allocates new memory and copies values from crSource
     inline SmTArray(const SmTArray<TYPE> & crSource);
+
+    // Move owned storage without copying elements. Borrowed storage is copied
+    // into an owned block so external (including stack) storage cannot escape.
+    // A successful move leaves rSource empty and reusable, with its context
+    // association intact. SmObject's copy policy preserves a placement-new
+    // destination context; otherwise it copies the source association.
+    // Borrowed copying can fail allocation, so this is not noexcept.
+    inline SmTArray(SmTArray<TYPE>&& rSource);
 
     // destructor
     virtual ~SmTArray();
@@ -363,6 +372,42 @@ inline SmTArray<TYPE>::SmTArray(const SmTArray<TYPE> & crSrc)
 
 } // end SmTArray<TYPE>::SmTArray constructor
 
+/*******************************************************************//**
+PURPOSE: Move constructor with an owned-buffer fast path.
+
+NOTES: The array owns storage, not pointed-to objects. Do not transfer a
+       borrowed pointer: its external lifetime may end with the source scope.
+       Copy borrowed values before detaching the source; on allocation failure
+       the source remains unchanged. No object layout or copy contract changes.
+***********************************************************************/
+template <class TYPE>
+inline SmTArray<TYPE>::SmTArray(SmTArray<TYPE>&& rSource) : SmObject(rSource), m_lSize(0), m_lMaxSize(0), m_pData(NULL), m_bIsBorrowed(FALSE)
+{
+    if (rSource.m_bIsBorrowed)
+    {
+        if (Append(rSource) >= SM_BIG_ULONG)
+        {
+            // Append reports failed storage allocation without an exception.
+            // A constructor cannot return that status; preserve the source and
+            // report the actual allocation failure through the standard channel.
+            if (m_pData)
+            {
+                smos_Free(m_pData);
+            }
+            throw std::bad_alloc();
+        }
+    }
+    else
+    {
+        m_lSize = rSource.m_lSize;
+        m_lMaxSize = rSource.m_lMaxSize;
+        m_pData = rSource.m_pData;
+    }
+    rSource.m_lSize = 0;
+    rSource.m_lMaxSize = 0;
+    rSource.m_pData = NULL;
+    rSource.m_bIsBorrowed = FALSE;
+}
 /*******************************************************************//**
 PURPOSE: Equal operator
 

@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+cmake_minimum_required(VERSION 3.24)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    project(KernelContainerContracts LANGUAGES CXX)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    get_filename_component(SMLIB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+    set(SMLIB_LIBRARY_DIR "" CACHE PATH "Matching SMLib library directory")
+    set(SMLIB_RUNTIME_DIR "${SMLIB_LIBRARY_DIR}" CACHE PATH "Matching SMLib runtime directory")
+    find_library(SMLib_LIBRARY NAMES SMLib PATHS "${SMLIB_LIBRARY_DIR}" NO_DEFAULT_PATH REQUIRED)
+    add_library(SMLib UNKNOWN IMPORTED)
+    set_target_properties(SMLib PROPERTIES IMPORTED_LOCATION "${SMLib_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${SMLIB_ROOT}/source/SMLib/inc")
+    enable_testing()
+endif()
+include(../../cmake/TlExpected.cmake)
+add_executable(kernel_containers move.cpp)
+add_executable(kernel_array_allocations allocations.cpp)
+target_link_libraries(kernel_containers PRIVATE usd_brep_expected)
+foreach(target kernel_containers kernel_array_allocations)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_link_libraries(${target} PRIVATE SMLib)
+    target_compile_definitions(${target} PRIVATE NOMINMAX SM_GRAPHICS_CALLBACKS=1
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>
+        $<$<PLATFORM_ID:Windows>:UNICODE;_UNICODE;NL_DEBUG_CODE>)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /WX /permissive- /utf-8)
+    endif()
+endforeach()
+add_test(NAME kernel_array_move_contracts COMMAND kernel_containers)
+add_test(NAME kernel_array_allocation_contracts COMMAND kernel_array_allocations)
+set_tests_properties(kernel_array_move_contracts kernel_array_allocation_contracts PROPERTIES TIMEOUT 60)
+if(WIN32 AND SMLIB_RUNTIME_DIR)
+    set_tests_properties(kernel_array_move_contracts kernel_array_allocation_contracts PROPERTIES
+        ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${SMLIB_RUNTIME_DIR}")
+endif()
