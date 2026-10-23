@@ -35,7 +35,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportCylindricalBandRepair.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportRingSegmentation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportObservation.cpp)
-target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp src/StepImportAssemblyInstances.cpp)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
 target_link_libraries(STEP_IMPORT PUBLIC STEP_PLANAR PRIVATE SM_API SMLib usd_brep_gsl usd_brep_multiprecision usd_brep_expected)

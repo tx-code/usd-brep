@@ -24,6 +24,9 @@ are retained. Empty leaf geometry and unsupported extra items are not silently
 discarded; a placement-only parent is not represented as an empty material solid.
 Definition scopes retain reachable faces and apply the shared outer-bound source
 predicate, preserving duplicate-outer diagnostics and unmarked-region deferrals.
+Internal numeric instance expansion retains nested/repeated occurrence paths
+under explicit declared roots, with independent node/depth limits and complete
+cancellation failure. It still does not publish a native assembly model.
 
 ## Scope
 

@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportAssemblyInstances.h"
 #include "StepImportAssemblyPlacement.h"
 
 #include <cmath>
@@ -85,6 +86,112 @@ void BaseOracle(const AssemblyPlacementCandidate& candidate)
         }
     }
 }
+void InstanceExpansion(const std::string& source)
+{
+    const auto checkpoint = []() -> Result<void>
+    {
+        return {};
+    };
+    auto inputs = Inputs(source);
+    const auto roots = inputs->Bindings().structure->Roots();
+    auto flat = ExpandAssemblyInstances(inputs, roots, 2, 3, 1, checkpoint);
+    Require(flat && flat->instances.size() == 3, "root and both repeated instance paths retained");
+    Require(
+        !flat->instances[0].parentIndex && flat->instances[1].parentIndex == 0 && flat->instances[2].parentIndex == 0,
+        "explicit root and occurrence parent identities"
+    );
+    const auto point = [](const AssemblyInstance& instance)
+    {
+        AssemblyOccurrencePlacement transform{};
+        transform.rotation = instance.rotationToRoot;
+        transform.translationMm = instance.translationToRootMm;
+        return Apply(transform, { 2, -3, 5 });
+    };
+    Near(point(flat->instances[1]), { 103, 202, 305 });
+    Near(point(flat->instances[2]), { -38, -3, 5 });
+    auto count = ExpandAssemblyInstances(inputs, roots, 2, 2, 1, checkpoint);
+    Require(!count && count.error().key == "AssemblyInstanceLimit", "expanded count includes root and all repeated instances");
+    auto depth = ExpandAssemblyInstances(inputs, roots, 2, 3, 0, checkpoint);
+    Require(!depth && depth.error().key == "AssemblyInstanceDepthLimit", "depth failure discards expansion");
+    const std::array duplicate{ roots[0], roots[0] };
+    Require(!ExpandAssemblyInstances(inputs, duplicate, 2, 6, 2, checkpoint), "duplicate root selection refused");
+    const std::array nonroot{ inputs->Bindings().occurrences[0].childDefinition };
+    Require(!ExpandAssemblyInstances(inputs, nonroot, 2, 6, 2, checkpoint), "nonroot cannot silently change assembly scope");
+    auto nested = Replace(source, "'parent',(#933,#935),#921", "'parent',(#933,#935,#931),#921");
+    nested = Replace(
+        nested,
+        "ENDSEC;\nEND-ISO",
+        "#950=PRODUCT('grand','synthetic',$,(#3));\n"
+        "#951=PRODUCT_DEFINITION_FORMATION('A',$,#950);\n"
+        "#952=PRODUCT_DEFINITION('grand',$,#951,#6);\n"
+        "#953=PRODUCT_DEFINITION_SHAPE('',$,#952);\n"
+        "#954=SHAPE_DEFINITION_REPRESENTATION(#953,#960);\n"
+        "#960=SHAPE_REPRESENTATION('grand',(#964,#966),#961);\n"
+        "#961=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('grand','3D'));\n"
+        "#962=CARTESIAN_POINT('',(10.,20.,30.));\n#963=DIRECTION('',(-1.,0.,0.));\n"
+        "#964=AXIS2_PLACEMENT_3D('',#962,#936,#963);\n"
+        "#965=CARTESIAN_POINT('',(-10.,0.,0.));\n#966=AXIS2_PLACEMENT_3D('',#965,#936,#937);\n"
+        "#970=NEXT_ASSEMBLY_USAGE_OCCURRENCE('grand-a','same',$,#952,#902,$);\n"
+        "#971=PRODUCT_DEFINITION_SHAPE('',$,#970);\n#972=CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#974,#971);\n"
+        "#974=(REPRESENTATION_RELATIONSHIP('',$,#920,#960) REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#975) SHAPE_REPRESENTATION_RELATIONSHIP());\n"
+        "#975=ITEM_DEFINED_TRANSFORMATION('',$,#931,#964);\n"
+        "#976=NEXT_ASSEMBLY_USAGE_OCCURRENCE('grand-b','same',$,#952,#902,$);\n"
+        "#977=PRODUCT_DEFINITION_SHAPE('',$,#976);\n#978=CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#984,#977);\n"
+        "#984=(REPRESENTATION_RELATIONSHIP('',$,#920,#960) REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#985) SHAPE_REPRESENTATION_RELATIONSHIP());\n"
+        "#985=ITEM_DEFINED_TRANSFORMATION('',$,#931,#966);\nENDSEC;\nEND-ISO"
+    );
+    auto tree = Inputs(nested);
+    auto expanded = ExpandAssemblyInstances(tree, tree->Bindings().structure->Roots(), 4, 7, 2, checkpoint);
+    Require(expanded && expanded->instances.size() == 7, "three definitions expand to seven path-specific nodes");
+    auto lateCount = ExpandAssemblyInstances(tree, tree->Bindings().structure->Roots(), 4, 6, 2, checkpoint);
+    Require(!lateCount && lateCount.error().key == "AssemblyInstanceLimit", "last repeated path exceeding budget cannot be omitted");
+    auto lateDepth = ExpandAssemblyInstances(tree, tree->Bindings().structure->Roots(), 4, 7, 1, checkpoint);
+    Require(!lateDepth && lateDepth.error().key == "AssemblyInstanceDepthLimit", "nested depth is bounded independently of node count");
+    Near(point(expanded->instances[3]), { -93, -182, 335 });
+    Near(point(expanded->instances[4]), { 48, 23, 35 });
+    Near(point(expanded->instances[5]), { 93, 202, 305 });
+    Near(point(expanded->instances[6]), { -48, -3, 5 });
+    Require(
+        expanded->instances[3].usage == expanded->instances[5].usage && expanded->instances[3].parentIndex != expanded->instances[5].parentIndex,
+        "same usage under repeated parent has distinct path identity"
+    );
+    std::size_t calls = 0;
+    auto measured = ExpandAssemblyInstances(
+        tree,
+        tree->Bindings().structure->Roots(),
+        4,
+        7,
+        2,
+        [&]() -> Result<void>
+        {
+            ++calls;
+            return {};
+        }
+    );
+    Require(bool(measured), "measure all expansion checkpoints");
+    for (std::size_t stop = 1; stop <= calls; ++stop)
+    {
+        std::size_t n = 0;
+        auto cancelled = ExpandAssemblyInstances(
+            tree,
+            tree->Bindings().structure->Roots(),
+            4,
+            7,
+            2,
+            [&]() -> Result<void>
+            {
+                if (++n == stop)
+                {
+                    return tl::unexpected(Failure{ Status::Cancelled, "InstanceCancel", "cancelled", {} });
+                }
+                return {};
+            }
+        );
+        Require(!cancelled && cancelled.error().key == "InstanceCancel", "cancellation never returns partial instance tree");
+    }
+    tree.reset();
+    Require(expanded->placements.source->SourceFields().Source().Bytes() == nested, "expanded candidate owns original input");
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -94,6 +201,7 @@ int main(int argc, char** argv)
         std::ifstream stream(argv[1], std::ios::binary);
         Require(bool(stream), "fixture exists");
         const std::string text{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        InstanceExpansion(text);
         auto candidate = Evaluate(text);
         BaseOracle(candidate);
         auto reversed = Replace(
