@@ -586,7 +586,7 @@ private:
         }
         throw std::domain_error("GeneralRequiredSourceRoleMissing");
     }
-    Index Vertex(Index a)
+    [[nodiscard]] Result<Index> Vertex(Index a)
     {
         if (auto it = vi.find(a); it != vi.end())
         {
@@ -595,10 +595,16 @@ private:
         const auto i = vertices.size();
         vi.emplace(a, i);
         vertices.push_back(a);
-        points.push_back(Position(Ref(a, "vertex_geometry")));
+        auto pointResult = Position(Ref(a, "vertex_geometry"));
+        if (!pointResult)
+        {
+            return tl::unexpected(std::move(pointResult.error()));
+        }
+        const auto& point = *pointResult;
+        points.push_back(point);
         return i;
     }
-    Index Edge(Index a)
+    [[nodiscard]] Result<Index> Edge(Index a)
     {
         if (auto it = ei.find(a); it != ei.end())
         {
@@ -616,7 +622,19 @@ private:
         // with EC and subsequently OE; never change the immutable source flags.
         const bool same = Is(geometry, "TRIMMED_CURVE") ? B(a, "same_sense") == B(geometry, "sense_agreement") : B(a, "same_sense");
         const auto start = Ref(a, "edge_start"), end = Ref(a, "edge_end");
-        curves.push_back({ a, geometry, Vertex(same ? start : end), Vertex(same ? end : start), same, {}, 0, 0, {} });
+        auto firstResult = Vertex(same ? start : end);
+        if (!firstResult)
+        {
+            return tl::unexpected(std::move(firstResult.error()));
+        }
+        const auto& first = *firstResult;
+        auto lastResult = Vertex(same ? end : start);
+        if (!lastResult)
+        {
+            return tl::unexpected(std::move(lastResult.error()));
+        }
+        const auto& last = *lastResult;
+        curves.push_back({ a, geometry, first, last, same, {}, 0, 0, {} });
         return i;
     }
     bool DetachedCurveSupported(Index geometry) const
@@ -746,7 +764,12 @@ private:
                 for (Index k = 0; k < oriented.size(); ++k)
                 {
                     const auto use = oriented[forward ? k : oriented.size() - 1 - k];
-                    const auto edge = Edge(Ref(use, "edge_element"));
+                    auto edgeResult = Edge(Ref(use, "edge_element"));
+                    if (!edgeResult)
+                    {
+                        return tl::unexpected(std::move(edgeResult.error()));
+                    }
+                    const auto& edge = *edgeResult;
                     const bool along = B(use, "orientation") == curves[edge].same;
                     l.uses.push_back({ edge, use, forward ? along : !along, a, bound, loop });
                 }
@@ -1014,9 +1037,20 @@ private:
         mapping.targetEdgeIndex = ei.at(c.record);
         if (Is(g, "LINE"))
         {
-            const auto origin = Position(Ref(g, "pnt"));
+            auto originResult = Position(Ref(g, "pnt"));
+            if (!originResult)
+            {
+                return tl::unexpected(std::move(originResult.error()));
+            }
+            const auto& origin = *originResult;
             const auto vector = Ref(g, "dir");
-            if (auto businessCheck = Need(N(vector, "magnitude") > 0, "GeneralDegenerateLine", g); !businessCheck)
+            auto magnitudeResult = N(vector, "magnitude");
+            if (!magnitudeResult)
+            {
+                return tl::unexpected(std::move(magnitudeResult.error()));
+            }
+            const auto& magnitude = *magnitudeResult;
+            if (auto businessCheck = Need(magnitude > 0, "GeneralDegenerateLine", g); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
@@ -1033,9 +1067,7 @@ private:
             }
             mapping.kind = "LineAffineParameter";
             mapping.equation = "source_t=lerp(source_parameter_at_native_ends,(native_t-native_begin)/(native_end-native_begin))";
-            mapping.parameters.push_back(
-                { "source_parameter_at_native_ends", { t0 / (N(vector, "magnitude") * scale), t1 / (N(vector, "magnitude") * scale) } }
-            );
+            mapping.parameters.push_back({ "source_parameter_at_native_ends", { t0 / (magnitude * scale), t1 / (magnitude * scale) } });
             SmLine* line = nullptr;
             if (auto operation = Step(g); !operation)
             {
@@ -1057,8 +1089,24 @@ private:
             }
             const auto& frame = *frameResult;
             const bool circle = Is(g, "CIRCLE");
-            const auto rx = N(g, circle ? "radius" : "semi_axis_1") * scale;
-            const auto ry = circle ? rx : N(g, "semi_axis_2") * scale;
+            auto firstRadiusResult = N(g, circle ? "radius" : "semi_axis_1");
+            if (!firstRadiusResult)
+            {
+                return tl::unexpected(std::move(firstRadiusResult.error()));
+            }
+            const auto& firstRadius = *firstRadiusResult;
+            const auto rx = firstRadius * scale;
+            double ry = rx;
+            if (!circle)
+            {
+                auto secondRadiusResult = N(g, "semi_axis_2");
+                if (!secondRadiusResult)
+                {
+                    return tl::unexpected(std::move(secondRadiusResult.error()));
+                }
+                const auto& secondRadius = *secondRadiusResult;
+                ry = secondRadius * scale;
+            }
             if (trimmed && (!(rx > SM_EFF_ZERO) || !(ry > SM_EFF_ZERO) || !std::isfinite(rx) || !std::isfinite(ry)))
             {
                 return tl::unexpected(Fail("GeneralTrimmedConicRadiusRange", g, Status::Unsupported));
@@ -1326,7 +1374,13 @@ private:
         {
             if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
             {
-                return N(surface, "semi_angle") * std::pow(10., unit.canonicalPower10);
+                auto angleResult = N(surface, "semi_angle");
+                if (!angleResult)
+                {
+                    return tl::unexpected(std::move(angleResult.error()));
+                }
+                const auto& angle = *angleResult;
+                return angle * std::pow(10., unit.canonicalPower10);
             }
         }
         return tl::unexpected(Fail("GeneralConeAngleUnitUnestablished", surface));
@@ -1423,7 +1477,13 @@ private:
             return tl::unexpected(std::move(frameResult.error()));
         }
         const auto& frame = *frameResult;
-        const auto radius = N(f.surface, "radius") * scale;
+        auto sourceRadiusResult = N(f.surface, "radius");
+        if (!sourceRadiusResult)
+        {
+            return tl::unexpected(std::move(sourceRadiusResult.error()));
+        }
+        const auto& sourceRadius = *sourceRadiusResult;
+        const auto radius = sourceRadius * scale;
         const auto da = Sub(points[a], frame.o), db = Sub(points[b], frame.o);
         const auto z0 = Dot(da, frame.z), z1 = Dot(db, frame.z);
         // CONICAL_SURFACE uses a physical radian semi-angle in the checked SI
@@ -2089,7 +2149,12 @@ private:
                     {
                         return tl::unexpected(std::move(businessCheck.error()));
                     }
-                    const auto knots = Numbers(c.geometry, "knots");
+                    auto knotsResult = Numbers(c.geometry, "knots");
+                    if (!knotsResult)
+                    {
+                        return tl::unexpected(std::move(knotsResult.error()));
+                    }
+                    const auto& knots = *knotsResult;
                     for (ULONG k = 1; k < knots.GetSize(); ++k)
                     {
                         const double lo = knots[k - 1], hi = knots[k];
@@ -2478,9 +2543,13 @@ private:
                 return {};
             }
         }
-        const auto net = MakeCylinderGaugeNet(
-            { frame.o, frame.x, frame.y, frame.z, N(f.surface, "radius") * scale, originAngle, pitch, lower, heights }
-        );
+        auto sourceRadiusResult = N(f.surface, "radius");
+        if (!sourceRadiusResult)
+        {
+            return tl::unexpected(std::move(sourceRadiusResult.error()));
+        }
+        const auto& sourceRadius = *sourceRadiusResult;
+        const auto net = MakeCylinderGaugeNet({ frame.o, frame.x, frame.y, frame.z, sourceRadius * scale, originAngle, pitch, lower, heights });
         SmTArray<SmPoint3d> control;
         SmTArray<double> weights;
         for (const auto& point : net.pointsMm)
@@ -2531,7 +2600,7 @@ private:
                                { "x", { frame.x.begin(), frame.x.end() } },
                                { "y", { frame.y.begin(), frame.y.end() } },
                                { "z", { frame.z.begin(), frame.z.end() } },
-                               { "radius_mm", { N(f.surface, "radius") * scale } },
+                               { "radius_mm", { sourceRadius * scale } },
                                { "native_domain", { 0, 0, 1.25, 1 } } };
         m_report.parameterMappings.push_back(std::move(mapping));
         RepresentationNormalization normalization;
@@ -2568,7 +2637,20 @@ private:
             return tl::unexpected(std::move(circleResult.error()));
         }
         const auto& circle = *circleResult;
-        const double radius = N(face.surface, "radius") * scale, ring = N(edge.geometry, "radius") * scale;
+        auto sourceRadiusResult = N(face.surface, "radius");
+        if (!sourceRadiusResult)
+        {
+            return tl::unexpected(std::move(sourceRadiusResult.error()));
+        }
+        const auto& sourceRadius = *sourceRadiusResult;
+        const double radius = sourceRadius * scale;
+        auto sourceRingResult = N(edge.geometry, "radius");
+        if (!sourceRingResult)
+        {
+            return tl::unexpected(std::move(sourceRingResult.error()));
+        }
+        const auto& sourceRing = *sourceRingResult;
+        const double ring = sourceRing * scale;
         // Round the rational allowance inward, as for support restriction:
         // conversion to binary64 must not enlarge a normalization allowance.
         const auto allowance = m_options.quality.definitionMm;
@@ -2762,7 +2844,13 @@ private:
             {
                 for (const auto& ref : row.children)
                 {
-                    cp.Add(P(Position(m_source->ReferenceTarget(ref))));
+                    auto pointResult = Position(m_source->ReferenceTarget(ref));
+                    if (!pointResult)
+                    {
+                        return tl::unexpected(std::move(pointResult.error()));
+                    }
+                    const auto& point = *pointResult;
+                    cp.Add(P(point));
                 }
             }
             auto um = Multiplicities(g, "u_multiplicities");
@@ -2775,7 +2863,16 @@ private:
             {
                 return tl::unexpected(std::move(vm.error()));
             }
-            auto uk = Numbers(g, "u_knots"), vk = Numbers(g, "v_knots");
+            auto ukResult = Numbers(g, "u_knots");
+            if (!ukResult)
+            {
+                return tl::unexpected(std::move(ukResult.error()));
+            }
+            auto vkResult = Numbers(g, "v_knots");
+            if (!vkResult)
+            {
+                return tl::unexpected(std::move(vkResult.error()));
+            }
             auto weights = SplineWeights(g, true, cp);
             if (!weights)
             {
@@ -2804,8 +2901,8 @@ private:
                 SM_SF_UNSPECIFIED,
                 *um,
                 *vm,
-                uk,
-                vk,
+                *ukResult,
+                *vkResult,
                 SM_KT_UNSPECIFIED,
                 weights->GetSize() ? &*weights : nullptr,
                 nullptr,
@@ -2921,11 +3018,17 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
+            auto radiusResult = N(g, "radius");
+            if (!radiusResult)
+            {
+                return tl::unexpected(std::move(radiusResult.error()));
+            }
+            const auto& radius = *radiusResult;
             return std::unique_ptr<SmSurface>(new (*m_model->context) SmCylinder(
                 P(Add(frame.o, Mul(frame.z, local[0][2]))),
                 D(frame.x),
                 D(frame.y),
-                N(g, "radius") * scale,
+                radius * scale,
                 angles[0],
                 angles[1],
                 local[1][2] - local[0][2],
@@ -2950,7 +3053,13 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            const double radius = N(g, "radius") * scale, slope = std::tan(angle);
+            auto sourceRadiusResult = N(g, "radius");
+            if (!sourceRadiusResult)
+            {
+                return tl::unexpected(std::move(sourceRadiusResult.error()));
+            }
+            const auto& sourceRadius = *sourceRadiusResult;
+            const double radius = sourceRadius * scale, slope = std::tan(angle);
             if (slope > 0)
             {
                 local[0][2] = std::max(local[0][2], -radius / slope);
@@ -2999,7 +3108,13 @@ private:
         }
         if (Is(g, "SPHERICAL_SURFACE"))
         {
-            const double radius = N(g, "radius") * scale;
+            auto sourceRadiusResult = N(g, "radius");
+            if (!sourceRadiusResult)
+            {
+                return tl::unexpected(std::move(sourceRadiusResult.error()));
+            }
+            const auto& sourceRadius = *sourceRadiusResult;
+            const double radius = sourceRadius * scale;
             // Source positive-length validation does not establish the kernel's
             // finite nondegenerate range. Never use its negative-radius inside-
             // out convention to encode source face orientation.
@@ -3116,7 +3231,20 @@ private:
         }
         if (Is(g, "TOROIDAL_SURFACE"))
         {
-            const double major = N(g, "major_radius") * scale, minor = N(g, "minor_radius") * scale;
+            auto sourceMajorResult = N(g, "major_radius");
+            if (!sourceMajorResult)
+            {
+                return tl::unexpected(std::move(sourceMajorResult.error()));
+            }
+            const auto& sourceMajor = *sourceMajorResult;
+            const double major = sourceMajor * scale;
+            auto sourceMinorResult = N(g, "minor_radius");
+            if (!sourceMinorResult)
+            {
+                return tl::unexpected(std::move(sourceMinorResult.error()));
+            }
+            const auto& sourceMinor = *sourceMinorResult;
+            const double minor = sourceMinor * scale;
             // Defaults handle nonsingular ring tori. An explicit restriction
             // request may construct a private full horn/spindle candidate, but
             // every used region must later prove regularity and original-basis

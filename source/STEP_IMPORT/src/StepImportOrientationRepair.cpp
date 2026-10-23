@@ -804,7 +804,7 @@ namespace
     else
     {
         auto failure = std::get<Failure>(std::move(strict.error()));
-        if (failure.nativeKind == NativeFailureKind::ConstructionOperation)
+        if (failure.nativeKind == NativeFailureKind::ConstructionOperation || failure.nativeKind == NativeFailureKind::SourceValueConversion)
         {
             // These operation refusals used to leave through an exception.
             // Retain the partial observation as it stands: no completed strict

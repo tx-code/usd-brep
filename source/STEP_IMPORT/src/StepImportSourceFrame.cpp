@@ -6,11 +6,20 @@
 
 #include <charconv>
 #include <cmath>
-#include <stdexcept>
 
 namespace step_import::detail
 {
-double ReadSourceNumber(const step_source::Value& value)
+namespace
+{
+Failure SourceValueFailure(const char* key)
+{
+    // Preserve the former domain-error outcome and unfinished strict attempt.
+    // This is neither a source-invalid claim nor a configured quota failure.
+    // The assembly boundary retains its distinct legacy diagnostic message.
+    return Failure{ Status::Indeterminate, key, "Native derived evidence is unestablished", {}, "D5", NativeFailureKind::SourceValueConversion };
+}
+} // namespace
+Result<double> ReadSourceNumber(const step_source::Value& value)
 {
     std::string_view text = value.text;
     if (text.starts_with('+'))
@@ -21,39 +30,67 @@ double ReadSourceNumber(const step_source::Value& value)
     const auto parsed = std::from_chars(text.data(), text.data() + text.size(), result, std::chars_format::general);
     if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || !std::isfinite(result))
     {
-        throw std::domain_error("GeneralNumericRangeUnestablished");
+        return tl::unexpected(SourceValueFailure("GeneralNumericRangeUnestablished"));
     }
     return result;
 }
-Point ReadSourceTriple(const step_source::Value& value)
+Result<Point> ReadSourceTriple(const step_source::Value& value)
 {
     if (value.children.size() != 3)
     {
-        throw std::domain_error("GeneralRequires3DGeometry");
+        return tl::unexpected(SourceValueFailure("GeneralRequires3DGeometry"));
     }
-    return { ReadSourceNumber(value.children[0]), ReadSourceNumber(value.children[1]), ReadSourceNumber(value.children[2]) };
+    Point point;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        auto coordinate = ReadSourceNumber(value.children[axis]);
+        if (!coordinate)
+        {
+            return tl::unexpected(std::move(coordinate.error()));
+        }
+        point[axis] = *coordinate;
+    }
+    return point;
 }
-Point ReadSourcePoint(const step_semantics::SourceBindings& source, std::size_t point, double lengthToMm)
+Result<Point> ReadSourcePoint(const step_semantics::SourceBindings& source, std::size_t point, double lengthToMm)
 {
-    const auto result = construction::Mul(ReadSourceTriple(source.Field(point, "coordinates").Value()), lengthToMm);
+    auto coordinatesResult = ReadSourceTriple(source.Field(point, "coordinates").Value());
+    if (!coordinatesResult)
+    {
+        return tl::unexpected(std::move(coordinatesResult.error()));
+    }
+    const auto& coordinates = *coordinatesResult;
+    const auto result = construction::Mul(coordinates, lengthToMm);
     for (const auto value : result)
     {
         if (!std::isfinite(value))
         {
-            throw std::domain_error("GeneralLengthRangeUnestablished");
+            return tl::unexpected(SourceValueFailure("GeneralLengthRangeUnestablished"));
         }
     }
     return result;
 }
 Result<Point> ReadSourceDirection(const step_semantics::SourceBindings& source, std::size_t direction)
 {
-    return construction::Unit(ReadSourceTriple(source.Field(direction, "direction_ratios").Value()));
+    auto ratiosResult = ReadSourceTriple(source.Field(direction, "direction_ratios").Value());
+    if (!ratiosResult)
+    {
+        return tl::unexpected(std::move(ratiosResult.error()));
+    }
+    const auto& ratios = *ratiosResult;
+    return construction::Unit(ratios);
 }
 Result<SourceFrame> ReadSourceFrame(const step_semantics::SourceBindings& source, std::size_t placement, double lengthToMm)
 {
     using namespace construction;
     SourceFrame frame;
-    frame.origin = ReadSourcePoint(source, source.Field(placement, "location").ReferenceTarget(), lengthToMm);
+    auto originResult = ReadSourcePoint(source, source.Field(placement, "location").ReferenceTarget(), lengthToMm);
+    if (!originResult)
+    {
+        return tl::unexpected(std::move(originResult.error()));
+    }
+    const auto& origin = *originResult;
+    frame.origin = origin;
     const auto axis = source.Field(placement, "axis"), reference = source.Field(placement, "ref_direction");
     if (axis.Value().kind == step_source::ValueKind::Unset)
     {

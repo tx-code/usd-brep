@@ -121,19 +121,19 @@ protected:
     {
         return F(a, name).text == "T";
     }
-    double Number(const step_source::Value& value) const
+    [[nodiscard]] Result<double> Number(const step_source::Value& value) const
     {
         return ReadSourceNumber(value);
     }
-    double N(Index a, std::string_view name) const
+    [[nodiscard]] Result<double> N(Index a, std::string_view name) const
     {
         return Number(F(a, name));
     }
-    V Triple(const step_source::Value& value) const
+    [[nodiscard]] Result<V> Triple(const step_source::Value& value) const
     {
         return ReadSourceTriple(value);
     }
-    V Position(Index a) const
+    [[nodiscard]] Result<V> Position(Index a) const
     {
         return ReadSourcePoint(m_fields, a, scale);
     }
@@ -178,7 +178,13 @@ protected:
             {
                 if (value.kind == step_source::ValueKind::Reference)
                 {
-                    point = Position(m_source->ReferenceTarget(value));
+                    auto positionResult = Position(m_source->ReferenceTarget(value));
+                    if (!positionResult)
+                    {
+                        return tl::unexpected(std::move(positionResult.error()));
+                    }
+                    const auto& position = *positionResult;
+                    point = position;
                     pointAngle = angle(*point);
                     const auto gap = Norm(Sub(evaluate(*pointAngle), *point));
                     measuredConsistency = std::max(measuredConsistency, gap);
@@ -208,7 +214,13 @@ protected:
                             return tl::unexpected(Fail("GeneralTrimmedAngleUnitUnestablished", wrapper, Status::Unsupported));
                         }
                     }
-                    parameter = Number(value.children.at(0)) * *angleScale;
+                    auto numberResult = Number(value.children.at(0));
+                    if (!numberResult)
+                    {
+                        return tl::unexpected(std::move(numberResult.error()));
+                    }
+                    const auto& number = *numberResult;
+                    parameter = number * *angleScale;
                     // Limit argument reduction to a small, explicit native
                     // development range. This is not an EXPRESS restriction.
                     if (!std::isfinite(*parameter) || std::abs(*parameter) > 2 * tau)
@@ -322,14 +334,24 @@ protected:
         SmTArray<SmPoint3d> cp;
         for (const auto control : Refs(geometry, "control_points_list"))
         {
-            cp.Add(P(Position(control)));
+            auto pointResult = Position(control);
+            if (!pointResult)
+            {
+                return tl::unexpected(std::move(pointResult.error()));
+            }
+            const auto& point = *pointResult;
+            cp.Add(P(point));
         }
         auto mult = Multiplicities(geometry, "knot_multiplicities");
         if (!mult)
         {
             return tl::unexpected(std::move(mult.error()));
         }
-        auto knots = Numbers(geometry, "knots");
+        auto knotsResult = Numbers(geometry, "knots");
+        if (!knotsResult)
+        {
+            return tl::unexpected(std::move(knotsResult.error()));
+        }
         auto weights = SplineWeights(geometry, false, cp);
         if (!weights)
         {
@@ -352,7 +374,7 @@ protected:
             cp,
             SM_CF_UNSPECIFIED,
             *mult,
-            knots,
+            *knotsResult,
             SM_KT_UNSPECIFIED,
             weights->GetSize() ? &*weights : nullptr,
             nullptr,
@@ -384,7 +406,12 @@ protected:
     }
     [[nodiscard]] Result<ULONG> Degree(Index a, std::string_view name) const
     {
-        const double n = N(a, name);
+        auto nResult = N(a, name);
+        if (!nResult)
+        {
+            return tl::unexpected(std::move(nResult.error()));
+        }
+        const auto& n = *nResult;
         if (auto businessCheck = Need(n >= 1 && n <= 32 && std::floor(n) == n, "GeneralSplineDegree", a); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
@@ -398,7 +425,12 @@ protected:
         SmTArray<ULONG> result;
         for (const auto& value : F(a, name).children)
         {
-            const auto n = Number(value);
+            auto nResult = Number(value);
+            if (!nResult)
+            {
+                return tl::unexpected(std::move(nResult.error()));
+            }
+            const auto& n = *nResult;
             if (auto businessCheck = Need(n >= 1 && n <= 33 && std::floor(n) == n, "GeneralKnotMultiplicity", a); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -407,12 +439,18 @@ protected:
         }
         return result;
     }
-    SmTArray<double> Numbers(Index a, std::string_view name) const
+    [[nodiscard]] Result<SmTArray<double>> Numbers(Index a, std::string_view name) const
     {
         SmTArray<double> result;
         for (const auto& value : F(a, name).children)
         {
-            result.Add(Number(value));
+            auto numberResult = Number(value);
+            if (!numberResult)
+            {
+                return tl::unexpected(std::move(numberResult.error()));
+            }
+            const auto& number = *numberResult;
+            result.Add(number);
         }
         return result;
     }
@@ -426,7 +464,12 @@ protected:
         const auto& values = F(geometry, "weights_data");
         const auto append = [&](const step_source::Value& value) -> Result<void>
         {
-            const double weight = Number(value);
+            auto weightResult = Number(value);
+            if (!weightResult)
+            {
+                return tl::unexpected(std::move(weightResult.error()));
+            }
+            const auto& weight = *weightResult;
             if (auto businessCheck = Need(weight > 0, "GeneralWeightRangeUnestablished", geometry); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
