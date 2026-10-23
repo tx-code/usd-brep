@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include "StepImportFailure.h"
+#include "StepImportResult.h"
 
 namespace step_import::detail
 {
@@ -64,7 +64,7 @@ struct Plan
     std::optional<BoxProof> box;
     std::optional<OpenSheetProof> openSheet;
 };
-Plan MakePlan(const step_planar::Outcome& checked);
+[[nodiscard]] Result<Plan> MakePlan(const step_planar::Outcome& checked);
 SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality);
 class Execution;
 struct Access

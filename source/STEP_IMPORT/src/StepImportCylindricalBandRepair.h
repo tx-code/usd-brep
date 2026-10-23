@@ -29,6 +29,6 @@ bool NeutralizesCylindricalBandBounds(const std::shared_ptr<CylindricalBandRepai
     Report& report,
     Execution& execution
 );
-void RequireSameNativeCurveDefinition(const SmCurve& before, const SmCurve& after);
-void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface& after);
+[[nodiscard]] Result<void> RequireSameNativeCurveDefinition(const SmCurve& before, const SmCurve& after);
+[[nodiscard]] Result<void> RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface& after);
 } // namespace step_import::detail

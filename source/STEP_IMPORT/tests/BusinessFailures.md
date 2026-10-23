@@ -17,6 +17,22 @@ correspondence rather than publish it. Errors retain status, key, message, recor
 and stage; late refusal retains computed observations and discards the candidate.
 Numerical formulas, parameter domains and production quality defaults are unchanged.
 
+General construction refuses a surface-model source at its material-solid boundary,
+and exact length scaling refuses a nominal angle root. The errors identify the
+source shape/unit and retain their original category. Exact curve/surface definition
+comparisons include both identical operands and different defining coefficients;
+a returned mismatch cannot become equality or suppress the remaining repair checks.
+Duplicated disposable planar evidence must not establish a two-polygon shared-sheet
+certificate: planning returns its original scope refusal without changing source.
+
+The strict orientation attempt returns a private error variant holding either the
+ordinary failure or its owning native witness. Repair consumes that evidence without
+throwing it. A separate control uses a real qualified candidate and a weak observer
+to establish release before an ordinary failure can reach report delivery; this tests
+ownership, not eligibility for geometric repair. Public repair controls independently
+exercise the actual native witness, proof exhaustion, exact post-repair definition
+comparison, original-attempt diagnostics, cancellation and complete publication.
+
 Public lifecycle controls independently cover cancellation, complete mandatory
 reports and atomic publication. Compare complete reports against a frozen baseline
 for planar solids/sheets, source units, native-call boundaries and general imports;

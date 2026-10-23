@@ -14,12 +14,15 @@ namespace step_import::detail
 {
 namespace
 {
-void Need(bool okay, const char* key)
+[[nodiscard]] Result<void> Need(bool okay, const char* key)
 {
     if (!okay)
     {
-        throw Failure{ Status::Indeterminate, key, "Original-basis circular ring subdivision is unestablished", {}, "RingSubdivision" };
+        return tl::unexpected(
+            Failure{ Status::Indeterminate, key, "Original-basis circular ring subdivision is unestablished", {}, "RingSubdivision" }
+        );
     }
+    return {};
 }
 double ParameterGuard(std::array<double, 2> interval)
 {
@@ -36,11 +39,20 @@ double ParameterGuard(std::array<double, 2> interval)
         return tl::unexpected(std::move(operation.error()));
     }
     const auto status = source.Copy(context, raw);
-    Need(raw != &source, "RingSubdivisionBorrowedBasis");
+    if (auto businessCheck = Need(raw != &source, "RingSubdivisionBorrowedBasis"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     std::unique_ptr<SmCurve> result(raw);
-    Need(status == SM_SUCCESS && result && result->GetContext() == &context, "RingSubdivisionBasisCopy");
+    if (auto businessCheck = Need(status == SM_SUCCESS && result && result->GetContext() == &context, "RingSubdivisionBasisCopy"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     result->SetOwner(nullptr);
-    RequireSameNativeCurveDefinition(source, *result);
+    if (auto businessCheck = RequireSameNativeCurveDefinition(source, *result); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     return result;
 }
 } // namespace
@@ -52,10 +64,24 @@ double ParameterGuard(std::array<double, 2> interval)
     const ExecutionCheckpoint& checkpoint
 )
 {
-    Need(bool(checkpoint) && circle.GetType() == SmCircle_TYPE && std::isfinite(maximumMm) && maximumMm > 0, "RingSubdivisionCircleScope");
+    if (auto businessCheck = Need(
+            bool(checkpoint) && circle.GetType() == SmCircle_TYPE && std::isfinite(maximumMm) && maximumMm > 0,
+            "RingSubdivisionCircleScope"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const SmExtent1d domain(interval[0], interval[1]);
     const auto natural = circle.GetNaturalInterval();
-    Need(domain.GetMin() == natural.GetMin() && domain.GetMax() == natural.GetMax() && domain.GetLength() > 0, "RingSubdivisionWholeBasisRequired");
+    if (auto businessCheck = Need(
+            domain.GetMin() == natural.GetMin() && domain.GetMax() == natural.GetMax() && domain.GetLength() > 0,
+            "RingSubdivisionWholeBasisRequired"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     SmBoolean found = FALSE;
     double parameter = 0, distance = 0;
     if (auto operation = checkpoint(); !operation)
@@ -63,21 +89,34 @@ double ParameterGuard(std::array<double, 2> interval)
         return tl::unexpected(std::move(operation.error()));
     }
     const auto status = circle.DropPoint(domain, SmPoint3d(point[0], point[1], point[2]), nullptr, maximumMm, nullptr, found, parameter, distance);
-    Need(
-        status == SM_SUCCESS && found && std::isfinite(parameter) && std::isfinite(distance) && distance <= maximumMm,
-        "RingSubdivisionParameterUnestablished"
-    );
+    if (auto businessCheck = Need(
+            status == SM_SUCCESS && found && std::isfinite(parameter) && std::isfinite(distance) && distance <= maximumMm,
+            "RingSubdivisionParameterUnestablished"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto guard = ParameterGuard(interval);
-    Need(parameter > interval[0] + guard && parameter < interval[1] - guard, "RingSubdivisionNearSourceEndpoint");
+    if (auto businessCheck = Need(parameter > interval[0] + guard && parameter < interval[1] - guard, "RingSubdivisionNearSourceEndpoint");
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     SmPoint3d evaluated;
     if (auto operation = checkpoint(); !operation)
     {
         return tl::unexpected(std::move(operation.error()));
     }
-    Need(
-        circle.EvaluatePoint(parameter, evaluated) == SM_SUCCESS && evaluated.DistanceBetween(SmPoint3d(point[0], point[1], point[2])) <= maximumMm,
-        "RingSubdivisionCutPointGap"
-    );
+    if (auto businessCheck = Need(
+            circle.EvaluatePoint(parameter, evaluated) == SM_SUCCESS &&
+                evaluated.DistanceBetween(SmPoint3d(point[0], point[1], point[2])) <= maximumMm,
+            "RingSubdivisionCutPointGap"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     return parameter;
 }
 [[nodiscard]] Result<void> PrepareRingSegments(
@@ -87,7 +126,10 @@ double ParameterGuard(std::array<double, 2> interval)
     const ExecutionCheckpoint& checkpoint
 )
 {
-    Need(!plan.cuts.empty() && plan.segments.empty() && !plan.reference, "RingSubdivisionPlanState");
+    if (auto businessCheck = Need(!plan.cuts.empty() && plan.segments.empty() && !plan.reference, "RingSubdivisionPlanState"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     std::sort(
         plan.cuts.begin(),
         plan.cuts.end(),
@@ -107,10 +149,14 @@ double ParameterGuard(std::array<double, 2> interval)
     plan.reference = std::move(*nativeValue24);
     for (const auto& cut : plan.cuts)
     {
-        Need(
-            std::isfinite(cut.parameter) && cut.parameter > previous + guard && cut.parameter < plan.interval[1] - guard,
-            "RingSubdivisionCoincidentCutsUnestablished"
-        );
+        if (auto businessCheck = Need(
+                std::isfinite(cut.parameter) && cut.parameter > previous + guard && cut.parameter < plan.interval[1] - guard,
+                "RingSubdivisionCoincidentCutsUnestablished"
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto basis = CopyBasis(circle, context, checkpoint);
         if (!basis)
         {
@@ -130,7 +176,10 @@ double ParameterGuard(std::array<double, 2> interval)
 }
 [[nodiscard]] Result<void> VerifyRingSegments(const RingSubdivision& plan, const ExecutionCheckpoint& checkpoint)
 {
-    Need(plan.reference && plan.segments.size() == plan.cuts.size() + 1, "RingSubdivisionIncompletePlan");
+    if (auto businessCheck = Need(plan.reference && plan.segments.size() == plan.cuts.size() + 1, "RingSubdivisionIncompletePlan"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     double parameter = plan.interval[0];
     std::size_t vertex = plan.originalVertex;
     for (const auto& segment : plan.segments)
@@ -139,18 +188,33 @@ double ParameterGuard(std::array<double, 2> interval)
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        Need(segment.edge && segment.edge->GetCurve() && !segment.curve, "RingSubdivisionUnpublishedSegment");
+        if (auto businessCheck = Need(segment.edge && segment.edge->GetCurve() && !segment.curve, "RingSubdivisionUnpublishedSegment");
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto interval = segment.edge->GetInterval();
-        Need(
-            segment.interval[0] == parameter && segment.interval[1] > parameter && segment.firstVertex == vertex &&
-                interval.GetMin() == segment.interval[0] && interval.GetMax() == segment.interval[1],
-            "RingSubdivisionSourceIntervalCoverage"
-        );
-        RequireSameNativeCurveDefinition(*plan.reference, *segment.edge->GetCurve());
+        if (auto businessCheck = Need(
+                segment.interval[0] == parameter && segment.interval[1] > parameter && segment.firstVertex == vertex &&
+                    interval.GetMin() == segment.interval[0] && interval.GetMax() == segment.interval[1],
+                "RingSubdivisionSourceIntervalCoverage"
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = RequireSameNativeCurveDefinition(*plan.reference, *segment.edge->GetCurve()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         parameter = segment.interval[1];
         vertex = segment.lastVertex;
     }
-    Need(parameter == plan.interval[1] && vertex == plan.originalVertex, "RingSubdivisionSourceIntervalCoverage");
+    if (auto businessCheck = Need(parameter == plan.interval[1] && vertex == plan.originalVertex, "RingSubdivisionSourceIntervalCoverage");
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     return {};
 }
 } // namespace step_import::detail

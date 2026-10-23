@@ -202,17 +202,26 @@ public:
     {
         if (m.topologyNormalization)
         {
+
+
             // Candidate detection itself uses source face order. Do not even
             // scan an already split/reordered inventory as if it were source.
-            Need(
-                !m.topologyNormalization->completed && m.faces.size() == faceRecords.size() && m.targetFaceSources.size() == faceRecords.size(),
-                "PeriodicNormalizationExistingOriginsUnsupported",
-                faceRecords.front(),
-                Status::Unsupported
-            );
+            if (auto businessCheck = Need(
+                    !m.topologyNormalization->completed && m.faces.size() == faceRecords.size() && m.targetFaceSources.size() == faceRecords.size(),
+                    "PeriodicNormalizationExistingOriginsUnsupported",
+                    faceRecords.front(),
+                    Status::Unsupported
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (std::size_t i = 0; i < faceRecords.size(); ++i)
             {
-                Need(m.targetFaceSources[i] == i, "PeriodicNormalizationExistingFaceMap", faceRecords[i]);
+                if (auto businessCheck = Need(m.targetFaceSources[i] == i, "PeriodicNormalizationExistingFaceMap", faceRecords[i]); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
         const auto originalFaces = m.faces;
@@ -236,7 +245,15 @@ public:
                 continue;
             }
             const auto bounds = source().Field(faceRecords[i], "bounds").ReferenceTargets();
-            Need(bounds.size() == 1 && Is(bounds[0], "FACE_OUTER_BOUND"), "PeriodicNormalizationRegionUnsupported", faceRecords[i]);
+            if (auto businessCheck = Need(
+                    bounds.size() == 1 && Is(bounds[0], "FACE_OUTER_BOUND"),
+                    "PeriodicNormalizationRegionUnsupported",
+                    faceRecords[i]
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             candidates.push_back(i);
         }
         if (candidates.empty())
@@ -253,12 +270,16 @@ public:
         if (m.topologyNormalization)
         {
             const auto& prior = *m.topologyNormalization;
-            Need(
-                !prior.completed && prior.faces.size() == faceRecords.size() && prior.vertices.size() == m.targetVertices.size(),
-                "PeriodicNormalizationExistingOriginsUnsupported",
-                faceRecords.front(),
-                Status::Unsupported
-            );
+            if (auto businessCheck = Need(
+                    !prior.completed && prior.faces.size() == faceRecords.size() && prior.vertices.size() == m.targetVertices.size(),
+                    "PeriodicNormalizationExistingOriginsUnsupported",
+                    faceRecords.front(),
+                    Status::Unsupported
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (const auto& vertex : prior.vertices)
             {
                 if (!vertex.surfacePole)
@@ -267,39 +288,79 @@ public:
                 }
                 const auto pointer = m.targetVertices.at(vertex.target);
                 const auto owner = m.targetVertexOwners.at(vertex.target);
-                Need(
-                    !vertex.sourceVertexId && vertex.basisEdgeParameters.empty() && vertex.surfacePole->sourceFaceId == Id(owner) &&
-                        vertex.surfacePole->sourceSurfaceId == Id(Ref(owner, "face_geometry")) &&
-                        (vertex.surfacePole->axisSign == 1 || vertex.surfacePole->axisSign == -1),
-                    "PeriodicNormalizationExistingPoleOrigin",
-                    owner
-                );
-                Need(priorPoles.emplace(pointer, std::pair{ *vertex.surfacePole, owner }).second, "PeriodicNormalizationExistingPoleDuplicate", owner);
+                if (auto businessCheck = Need(
+                        !vertex.sourceVertexId && vertex.basisEdgeParameters.empty() && vertex.surfacePole->sourceFaceId == Id(owner) &&
+                            vertex.surfacePole->sourceSurfaceId == Id(Ref(owner, "face_geometry")) &&
+                            (vertex.surfacePole->axisSign == 1 || vertex.surfacePole->axisSign == -1),
+                        "PeriodicNormalizationExistingPoleOrigin",
+                        owner
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = Need(
+                        priorPoles.emplace(pointer, std::pair{ *vertex.surfacePole, owner }).second,
+                        "PeriodicNormalizationExistingPoleDuplicate",
+                        owner
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 priorPolePoints.emplace(pointer, PointOf(pointer));
             }
-            Need(!priorPoles.empty(), "PeriodicNormalizationExistingOriginsUnsupported", faceRecords.front(), Status::Unsupported);
+            if (auto businessCheck = Need(
+                    !priorPoles.empty(),
+                    "PeriodicNormalizationExistingOriginsUnsupported",
+                    faceRecords.front(),
+                    Status::Unsupported
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
+
+
         // Interacting cuts need composition evidence. Do not use a later source
         // face pointer that an earlier native split may have replaced.
-        Need(candidates.size() == 1, "PeriodicNormalizationMultipleCandidatesUnsupported", faceRecords[candidates.front()], Status::Unsupported);
+        if (auto businessCheck = Need(
+                candidates.size() == 1,
+                "PeriodicNormalizationMultipleCandidatesUnsupported",
+                faceRecords[candidates.front()],
+                Status::Unsupported
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmTArray<SmEdge*> beforeEdges;
         SmTArray<SmVertex*> beforeVertices;
         m.brep->GetEdges(beforeEdges);
         m.brep->GetVertices(beforeVertices);
         const auto cap = q.sourceLimits.values;
-        Need(
-            beforeEdges.GetSize() <= cap && beforeVertices.GetSize() <= cap && originalFaces.size() <= cap,
-            "PeriodicNormalizationInventoryLimit",
-            faceRecords[candidates.front()],
-            Status::ResourceLimit
-        );
-        Need(
-            beforeEdges.GetSize() < static_cast<unsigned long>(std::numeric_limits<long>::max()) &&
-                originalFaces.size() < static_cast<std::size_t>(std::numeric_limits<long>::max()),
-            "PeriodicNormalizationLineageLimit",
-            faceRecords.front(),
-            Status::ResourceLimit
-        );
+        if (auto businessCheck = Need(
+                beforeEdges.GetSize() <= cap && beforeVertices.GetSize() <= cap && originalFaces.size() <= cap,
+                "PeriodicNormalizationInventoryLimit",
+                faceRecords[candidates.front()],
+                Status::ResourceLimit
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Need(
+                beforeEdges.GetSize() < static_cast<unsigned long>(std::numeric_limits<long>::max()) &&
+                    originalFaces.size() < static_cast<std::size_t>(std::numeric_limits<long>::max()),
+                "PeriodicNormalizationLineageLimit",
+                faceRecords.front(),
+                Status::ResourceLimit
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::vector<Point> sourcePoints;
         for (const auto vertex : m.vertices)
         {
@@ -313,18 +374,26 @@ public:
             const auto surface = dynamic_cast<const SmBSplineSurface*>(originalFaces[i].face->GetSurface());
             ULONG nu = 0, nv = 0;
             double* net = nullptr;
-            Need(
-                surface && surface->GetControlPointsPointer(nu, nv, net) == SM_SUCCESS && net && nu && nv,
-                "PeriodicNormalizationSurfaceType",
-                faceRecords[i],
-                Status::Unsupported
-            );
-            Need(
-                nu <= cap && nv <= cap / nu && std::size_t(nu) * nv <= cap - std::min(surfaceControls, cap),
-                "PeriodicNormalizationControlLimit",
-                faceRecords[i],
-                Status::ResourceLimit
-            );
+            if (auto businessCheck = Need(
+                    surface && surface->GetControlPointsPointer(nu, nv, net) == SM_SUCCESS && net && nu && nv,
+                    "PeriodicNormalizationSurfaceType",
+                    faceRecords[i],
+                    Status::Unsupported
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Need(
+                    nu <= cap && nv <= cap / nu && std::size_t(nu) * nv <= cap - std::min(surfaceControls, cap),
+                    "PeriodicNormalizationControlLimit",
+                    faceRecords[i],
+                    Status::ResourceLimit
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             surfaceControls += std::size_t(nu) * nv;
             SmSurface* raw = nullptr;
             if (auto operation = Step(faceRecords[i]); !operation)
@@ -333,11 +402,25 @@ public:
             }
             const auto copied = surface->SmBSplineSurface::Copy(*m.context, raw);
             std::unique_ptr<SmSurface> saved(raw);
-            Good(copied, faceRecords[i]);
-            Need(raw && raw != surface, "PeriodicNormalizationSurfaceAlias", faceRecords[i]);
+            if (auto businessCheck = Good(copied, faceRecords[i]); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Need(raw && raw != surface, "PeriodicNormalizationSurfaceAlias", faceRecords[i]); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             raw->SetOwner(nullptr);
             sourceSurfaces.push_back(std::move(saved));
-            Need(!originalFaces[i].face->FindAttribute(FaceLineage), "PeriodicNormalizationAttributeCollision", faceRecords[i]);
+            if (auto businessCheck = Need(
+                    !originalFaces[i].face->FindAttribute(FaceLineage),
+                    "PeriodicNormalizationAttributeCollision",
+                    faceRecords[i]
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (auto operation = Step(faceRecords[i]); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
@@ -354,25 +437,65 @@ public:
         for (const auto edge : beforeEdges)
         {
             const auto at = originalEdgeIndices.find(edge);
-            Need(at != originalEdgeIndices.end(), "PeriodicNormalizationUnmappedEdge", faceRecords.front());
+            if (auto businessCheck = Need(at != originalEdgeIndices.end(), "PeriodicNormalizationUnmappedEdge", faceRecords.front()); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto index = at->second;
             const auto owner = index < edgeRecords.size() ? edgeRecords[index] : derivedOwners[index - edgeRecords.size()];
             const auto curve = dynamic_cast<const SmBSplineCurve*>(edge->GetCurve());
-            Need(curve && !edge->FindAttribute(EdgeLineage), "PeriodicNormalizationBasisUnsupported", owner, Status::Unsupported);
+            if (auto businessCheck = Need(
+                    curve && !edge->FindAttribute(EdgeLineage),
+                    "PeriodicNormalizationBasisUnsupported",
+                    owner,
+                    Status::Unsupported
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             ULONG count = 0;
             double* net = nullptr;
-            Need(curve->GetControlPointsPointer(count, net) == SM_SUCCESS && net, "PeriodicNormalizationBasisUnsupported", owner, Status::Unsupported);
-            Need(count <= cap - std::min(basisControls, cap), "PeriodicNormalizationControlLimit", owner, Status::ResourceLimit);
+            if (auto businessCheck = Need(
+                    curve->GetControlPointsPointer(count, net) == SM_SUCCESS && net,
+                    "PeriodicNormalizationBasisUnsupported",
+                    owner,
+                    Status::Unsupported
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Need(
+                    count <= cap - std::min(basisControls, cap),
+                    "PeriodicNormalizationControlLimit",
+                    owner,
+                    Status::ResourceLimit
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             basisControls += count; // All retained original bases share one request-local memory cap.
             SmCurve* raw = nullptr;
             if (auto operation = Step(owner); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(curve->Copy(*m.context, raw), owner);
+            if (auto businessCheck = Good(curve->Copy(*m.context, raw), owner); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             std::unique_ptr<SmCurve> owned(raw);
-            Need(raw && raw != curve, "PeriodicNormalizationBasisAlias", owner);
-            Need(SameDefinition(*raw, *curve), "PeriodicNormalizationBasisCopyChanged", owner, Status::Indeterminate);
+            if (auto businessCheck = Need(raw && raw != curve, "PeriodicNormalizationBasisAlias", owner); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Need(SameDefinition(*raw, *curve), "PeriodicNormalizationBasisCopyChanged", owner, Status::Indeterminate);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             raw->SetOwner(nullptr);
             bases.push_back(
                 { edge,
@@ -399,25 +522,33 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(
-                face->GetSurface()->CreateIsoParametricCurve(
-                    *m.context,
-                    SM_SP_U,
-                    std::midpoint(domain.GetMin().x, domain.GetMax().x),
-                    Control(q.quality.definitionMm),
-                    cutRaw,
-                    &domain,
-                    &extractionGap
-                ),
-                record
-            );
+            if (auto businessCheck = Good(
+                    face->GetSurface()->CreateIsoParametricCurve(
+                        *m.context,
+                        SM_SP_U,
+                        std::midpoint(domain.GetMin().x, domain.GetMax().x),
+                        Control(q.quality.definitionMm),
+                        cutRaw,
+                        &domain,
+                        &extractionGap
+                    ),
+                    record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             std::unique_ptr<SmBSplineCurve> cut(cutRaw);
-            Need(
-                cut && std::isfinite(extractionGap) && extractionGap <= Control(q.quality.definitionMm),
-                "PeriodicNormalizationCutDefinitionUnestablished",
-                record,
-                Status::Indeterminate
-            );
+            if (auto businessCheck = Need(
+                    cut && std::isfinite(extractionGap) && extractionGap <= Control(q.quality.definitionMm),
+                    "PeriodicNormalizationCutDefinitionUnestablished",
+                    record,
+                    Status::Indeterminate
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             SmTArray<SmCurve*> curves;
             curves.Add(cut.get());
             SmTArray<SmFace*> createdFaces;
@@ -430,20 +561,33 @@ public:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(
-                    m.brep->MergeCurvesOnSurface(
-                        *face->GetSurface(),
-                        Control(q.quality.initialWorkToleranceMm),
-                        curves,
-                        nullptr,
-                        createdFaces,
-                        createdEdges,
-                        FALSE
-                    ),
-                    record
-                );
+                if (auto businessCheck = Good(
+                        m.brep->MergeCurvesOnSurface(
+                            *face->GetSurface(),
+                            Control(q.quality.initialWorkToleranceMm),
+                            curves,
+                            nullptr,
+                            createdFaces,
+                            createdEdges,
+                            FALSE
+                        ),
+                        record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
-            Need(createdFaces.GetSize() <= cap && createdEdges.GetSize() <= cap, "PeriodicNormalizationInventoryLimit", record, Status::ResourceLimit);
+            if (auto businessCheck = Need(
+                    createdFaces.GetSize() <= cap && createdEdges.GetSize() <= cap,
+                    "PeriodicNormalizationInventoryLimit",
+                    record,
+                    Status::ResourceLimit
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (const auto edge : createdEdges)
             {
                 if (!edge->FindAttribute(EdgeLineage))
@@ -469,12 +613,16 @@ public:
         m.brep->GetFaces(allFaces);
         m.brep->GetEdges(allEdges);
         m.brep->GetVertices(allVertices);
-        Need(
-            allFaces.GetSize() <= cap && allEdges.GetSize() <= cap && allVertices.GetSize() <= cap,
-            "PeriodicNormalizationInventoryLimit",
-            faceRecords.front(),
-            Status::ResourceLimit
-        );
+        if (auto businessCheck = Need(
+                allFaces.GetSize() <= cap && allEdges.GetSize() <= cap && allVertices.GetSize() <= cap,
+                "PeriodicNormalizationInventoryLimit",
+                faceRecords.front(),
+                Status::ResourceLimit
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::set<SmVertex*> retainedVertices;
         for (const auto vertex : allVertices)
         {
@@ -482,19 +630,27 @@ public:
         }
         for (std::size_t i = 0; i < m.vertices.size(); ++i)
         {
-            Need(
-                retainedVertices.contains(m.vertices[i]) && PointOf(m.vertices[i]) == sourcePoints[i],
-                "PeriodicNormalizationSourceVertexChanged",
-                vertexRecords[i]
-            );
+            if (auto businessCheck = Need(
+                    retainedVertices.contains(m.vertices[i]) && PointOf(m.vertices[i]) == sourcePoints[i],
+                    "PeriodicNormalizationSourceVertexChanged",
+                    vertexRecords[i]
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         for (const auto& [vertex, origin] : priorPoles)
         {
-            Need(
-                retainedVertices.contains(vertex) && PointOf(vertex) == priorPolePoints.at(vertex),
-                "PeriodicNormalizationExistingPoleChanged",
-                origin.second
-            );
+            if (auto businessCheck = Need(
+                    retainedVertices.contains(vertex) && PointOf(vertex) == priorPolePoints.at(vertex),
+                    "PeriodicNormalizationExistingPoleChanged",
+                    origin.second
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         // Rebuild target indices from the live inventory; never append a second
         // mapping to indices left by the pole constructor.
@@ -519,10 +675,29 @@ public:
             if (attribute)
             {
                 const auto tag = attribute->GetValue();
-                Need(tag > 0 && static_cast<std::size_t>(tag) <= bases.size(), "PeriodicNormalizationLineageInvalid", faceRecords.front());
+                if (auto businessCheck = Need(
+                        tag > 0 && static_cast<std::size_t>(tag) <= bases.size(),
+                        "PeriodicNormalizationLineageInvalid",
+                        faceRecords.front()
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 auto& original = bases[static_cast<std::size_t>(tag - 1)];
-                CountControls(*original.basis, targetControls, original.owner);
-                Need(interval.IsContainedBy(original.basis->GetNaturalInterval(), 0.), "PeriodicNormalizationParameterRange", original.owner);
+                if (auto businessCheck = CountControls(*original.basis, targetControls, original.owner); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = Need(
+                        interval.IsContainedBy(original.basis->GetNaturalInterval(), 0.),
+                        "PeriodicNormalizationParameterRange",
+                        original.owner
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 coverage[tag].emplace_back(interval.GetMin(), interval.GetMax());
                 if (original.source)
                 {
@@ -550,9 +725,16 @@ public:
                     {
                         return tl::unexpected(std::move(operation.error()));
                     }
-                    Good(original.basis->Copy(*m.context, raw), original.owner);
+                    if (auto businessCheck = Good(original.basis->Copy(*m.context, raw), original.owner); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     std::unique_ptr<SmCurve> owned(raw);
-                    Need(raw && raw != original.basis.get(), "PeriodicNormalizationBasisAlias", original.owner);
+                    if (auto businessCheck = Need(raw && raw != original.basis.get(), "PeriodicNormalizationBasisAlias", original.owner);
+                        !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     raw->SetOwner(nullptr);
                     if (auto operation = Step(original.owner); !operation)
                     {
@@ -566,14 +748,29 @@ public:
                         return tl::unexpected(std::move(operation.error()));
                     }
                 }
-                Need(SameDefinition(*edge->GetCurve(), *original.basis), "PeriodicNormalizationSourceBasisChanged", original.owner);
+                if (auto businessCheck = Need(
+                        SameDefinition(*edge->GetCurve(), *original.basis),
+                        "PeriodicNormalizationSourceBasisChanged",
+                        original.owner
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 m.targetEdgeOwners.push_back(original.owner);
             }
             else
             {
                 const auto found = cutOwners.find(edge);
-                Need(found != cutOwners.end(), "PeriodicNormalizationUnmappedDerivedEdge", faceRecords.front());
-                CountControls(*edge->GetCurve(), targetControls, found->second);
+                if (auto businessCheck = Need(found != cutOwners.end(), "PeriodicNormalizationUnmappedDerivedEdge", faceRecords.front());
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = CountControls(*edge->GetCurve(), targetControls, found->second); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 origin.derivedFromFaceId = Id(found->second);
                 m.targetEdgeOwners.push_back(found->second);
             }
@@ -585,24 +782,38 @@ public:
             auto ranges = coverage[static_cast<long>(i + 1)];
             std::sort(ranges.begin(), ranges.end());
             double end = bases[i].interval.GetMin();
-            Need(!ranges.empty(), "PeriodicNormalizationSourceEdgeMissing", bases[i].owner);
+            if (auto businessCheck = Need(!ranges.empty(), "PeriodicNormalizationSourceEdgeMissing", bases[i].owner); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (const auto& range : ranges)
             {
-                Need(range.first == end && range.second > range.first, "PeriodicNormalizationSourceCoverage", bases[i].owner);
+                if (auto businessCheck = Need(range.first == end && range.second > range.first, "PeriodicNormalizationSourceCoverage", bases[i].owner);
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 end = range.second;
             }
-            Need(end == bases[i].interval.GetMax(), "PeriodicNormalizationSourceCoverage", bases[i].owner);
+            if (auto businessCheck = Need(end == bases[i].interval.GetMax(), "PeriodicNormalizationSourceCoverage", bases[i].owner); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         std::vector<NativeFaceData> ordered;
         std::vector<std::vector<SmFace*>> children(originalFaces.size());
         for (const auto face : allFaces)
         {
             const auto tag = dynamic_cast<SmLongAttribute*>(face->FindAttribute(FaceLineage));
-            Need(
-                tag && tag->GetValue() > 0 && static_cast<std::size_t>(tag->GetValue()) <= children.size(),
-                "PeriodicNormalizationFaceLineageMissing",
-                faceRecords.front()
-            );
+            if (auto businessCheck = Need(
+                    tag && tag->GetValue() > 0 && static_cast<std::size_t>(tag->GetValue()) <= children.size(),
+                    "PeriodicNormalizationFaceLineageMissing",
+                    faceRecords.front()
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             children[static_cast<std::size_t>(tag->GetValue() - 1)].push_back(face);
         }
         // Stable target face order groups all children by original source face.
@@ -628,7 +839,11 @@ public:
                 origin.nativeDomain = { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y };
                 const auto original = dynamic_cast<const SmBSplineSurface*>(sourceSurfaces[sourceIndex].get());
                 const auto current = dynamic_cast<const SmBSplineSurface*>(face->GetSurface());
-                Need(original && current, "PeriodicNormalizationSurfaceType", faceRecords[sourceIndex], Status::Unsupported);
+                if (auto businessCheck = Need(original && current, "PeriodicNormalizationSurfaceType", faceRecords[sourceIndex], Status::Unsupported);
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 const auto beforeDomain = original->GetNaturalUVDomain();
                 origin.originalNativeDomain = { beforeDomain.GetMin().x, beforeDomain.GetMin().y, beforeDomain.GetMax().x, beforeDomain.GetMax().y };
                 auto proofResult = ProveSurfaceRestriction(
@@ -647,20 +862,32 @@ public:
                     return tl::unexpected(std::move(proofResult.error()));
                 }
                 const auto proof = std::move(*proofResult);
-                Need(
-                    proof.established && proof.maximumMm.has_value(),
-                    "PeriodicNormalizationSourceSurfaceUnestablished",
-                    faceRecords[sourceIndex],
-                    proof.workLimit ? Status::ResourceLimit : Status::Indeterminate
-                );
+                if (auto businessCheck = Need(
+                        proof.established && proof.maximumMm.has_value(),
+                        "PeriodicNormalizationSourceSurfaceUnestablished",
+                        faceRecords[sourceIndex],
+                        proof.workLimit ? Status::ResourceLimit : Status::Indeterminate
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 origin.nativeSurfaceDifferenceBoundMm = *proof.maximumMm;
                 info.faces.push_back(std::move(origin));
                 ordered.push_back(std::move(target));
                 m.targetFaceSources.push_back(sourceIndex);
             }
-            Need(ordered.size() > countBefore, "PeriodicNormalizationSourceFaceMissing", faceRecords[sourceIndex]);
+            if (auto businessCheck = Need(ordered.size() > countBefore, "PeriodicNormalizationSourceFaceMissing", faceRecords[sourceIndex]);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
-        Need(ordered.size() == allFaces.GetSize(), "PeriodicNormalizationFaceInventory", faceRecords.front());
+        if (auto businessCheck = Need(ordered.size() == allFaces.GetSize(), "PeriodicNormalizationFaceInventory", faceRecords.front());
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::map<SmVertex*, std::size_t> originalVertexIndices;
         for (std::size_t i = 0; i < m.vertices.size(); ++i)
         {
@@ -705,17 +932,28 @@ public:
                     {
                         return tl::unexpected(std::move(operation.error()));
                     }
-                    Good(edge->GetCurve()->EvaluatePoint(parameter, onBasis), owner);
+                    if (auto businessCheck = Good(edge->GetCurve()->EvaluatePoint(parameter, onBasis), owner); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     const double residual = onBasis.DistanceBetween(allVertices[i]->GetPoint());
-                    Need(
-                        std::isfinite(residual) && residual <= Control(q.quality.consistencyMm),
-                        "PeriodicNormalizationDerivedVertexResidual",
-                        owner,
-                        Status::Indeterminate
-                    );
+                    if (auto businessCheck = Need(
+                            std::isfinite(residual) && residual <= Control(q.quality.consistencyMm),
+                            "PeriodicNormalizationDerivedVertexResidual",
+                            owner,
+                            Status::Indeterminate
+                        );
+                        !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     origin.basisEdgeParameters.emplace_back(*edgeOrigin.sourceEdgeId, parameter);
                 }
-                Need(!origin.basisEdgeParameters.empty(), "PeriodicNormalizationDerivedVertexUnmapped", owner);
+                if (auto businessCheck = Need(!origin.basisEdgeParameters.empty(), "PeriodicNormalizationDerivedVertexUnmapped", owner);
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
             info.vertices.push_back(std::move(origin));
             m.targetVertexOwners.push_back(owner);
@@ -784,31 +1022,45 @@ private:
         }
         return {};
     }
-    void Need(bool okay, const char* key, std::size_t record, Status status = Status::PostcheckFailure) const
+    [[nodiscard]] Result<void> Need(bool okay, const char* key, std::size_t record, Status status = Status::PostcheckFailure) const
     {
         if (!okay)
         {
-            throw Failure{ status, key, "Periodic target normalization evidence is unestablished", record, "PeriodicNormalization" };
+            return tl::unexpected(Failure{ status, key, "Periodic target normalization evidence is unestablished", record, "PeriodicNormalization" });
         }
+        return {};
     }
-    void Good(SmStatus status, std::size_t record) const
+    [[nodiscard]] Result<void> Good(SmStatus status, std::size_t record) const
     {
-        Need(status == SM_SUCCESS, "PeriodicNormalizationNativeFailure", record, Status::BuildFailure);
+        if (auto businessCheck = Need(status == SM_SUCCESS, "PeriodicNormalizationNativeFailure", record, Status::BuildFailure); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        return {};
     }
-    void CountControls(const SmCurve& curve, std::size_t& used, std::size_t record) const
+    [[nodiscard]] Result<void> CountControls(const SmCurve& curve, std::size_t& used, std::size_t record) const
     {
         ULONG count = 0;
         double* net = nullptr;
         const auto spline = dynamic_cast<const SmBSplineCurve*>(&curve);
-        Need(
-            spline && spline->GetControlPointsPointer(count, net) == SM_SUCCESS && net,
-            "PeriodicNormalizationBasisUnsupported",
-            record,
-            Status::Unsupported
-        );
+        if (auto businessCheck = Need(
+                spline && spline->GetControlPointsPointer(count, net) == SM_SUCCESS && net,
+                "PeriodicNormalizationBasisUnsupported",
+                record,
+                Status::Unsupported
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto cap = q.sourceLimits.values;
-        Need(count <= cap - std::min(used, cap), "PeriodicNormalizationControlLimit", record, Status::ResourceLimit);
+        if (auto businessCheck = Need(count <= cap - std::min(used, cap), "PeriodicNormalizationControlLimit", record, Status::ResourceLimit);
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         used += count;
+        return {};
     }
     bool SameDefinition(const SmCurve& first, const SmCurve& second) const
     {
@@ -856,20 +1108,32 @@ private:
         {
             SmEdgeuse* owner = nullptr;
             const auto uv = use->GetUVTrimCurve(&owner);
-            Need(uv && owner, "PeriodicNormalizationMissingUv", record);
+            if (auto businessCheck = Need(uv && owner, "PeriodicNormalizationMissingUv", record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (!owners.insert(owner).second)
             {
                 continue;
             }
-            CountControls(*uv, controls, record);
+            if (auto businessCheck = CountControls(*uv, controls, record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             SmCurve* raw = nullptr;
             if (auto operation = Step(record); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(uv->Copy(*m.context, raw), record);
+            if (auto businessCheck = Good(uv->Copy(*m.context, raw), record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             std::unique_ptr<SmCurve> copy(raw);
-            Need(raw && raw != uv, "PeriodicNormalizationUvAlias", record);
+            if (auto businessCheck = Need(raw && raw != uv, "PeriodicNormalizationUvAlias", record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             raw->SetOwner(nullptr);
             saved.push_back({ owner, std::move(copy) });
         }
@@ -878,7 +1142,10 @@ private:
     [[nodiscard]] Result<std::vector<SavedUv>> SaveEdgeUv(SmEdge& edge, std::size_t record)
     {
         SmTArray<SmEdgeuse*> uses;
-        Good(edge.GetEdgeuses(uses), record);
+        if (auto businessCheck = Good(edge.GetEdgeuses(uses), record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         return Save(uses, record);
     }
     [[nodiscard]] Result<void> Restore(std::vector<SavedUv>& saved, std::size_t record)
@@ -886,13 +1153,24 @@ private:
         for (auto& item : saved)
         {
             const auto curve = dynamic_cast<SmBSplineCurve*>(item.curve.get());
-            Need(curve, "PeriodicNormalizationUvType", record);
+            if (auto businessCheck = Need(curve, "PeriodicNormalizationUvType", record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (auto operation = Step(record); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
             item.owner->SetUVTrimCurve(curve, 0., TRUE);
-            Need(curve->GetOwner() == item.owner || curve->GetOwner() == item.owner->GetMate(), "PeriodicNormalizationUvOwner", record);
+            if (auto businessCheck = Need(
+                    curve->GetOwner() == item.owner || curve->GetOwner() == item.owner->GetMate(),
+                    "PeriodicNormalizationUvOwner",
+                    record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             item.curve.release();
         }
         return {};
@@ -900,7 +1178,10 @@ private:
     [[nodiscard]] Result<void> Crop(SmFace& face, std::size_t record)
     {
         const auto original = dynamic_cast<SmBSplineSurface*>(face.GetSurface());
-        Need(original, "PeriodicNormalizationSurfaceType", record, Status::Unsupported);
+        if (auto businessCheck = Need(original, "PeriodicNormalizationSurfaceType", record, Status::Unsupported); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmTArray<SmEdgeuse*> uses;
         face.GetUpwardEdgeuses(uses);
         double loU = INFINITY, loV = INFINITY, hiU = -INFINITY, hiV = -INFINITY;
@@ -910,20 +1191,36 @@ private:
             const auto uv = use->GetUVTrimCurve();
             ULONG count = 0;
             double* net = nullptr;
-            Need(uv && uv->GetControlPointsPointer(count, net) == SM_SUCCESS && net, "PeriodicNormalizationUvHull", record);
-            Need(
-                count <= q.sourceLimits.values - std::min(controls, q.sourceLimits.values),
-                "PeriodicNormalizationControlLimit",
-                record,
-                Status::ResourceLimit
-            );
+            if (auto businessCheck = Need(uv && uv->GetControlPointsPointer(count, net) == SM_SUCCESS && net, "PeriodicNormalizationUvHull", record);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Need(
+                    count <= q.sourceLimits.values - std::min(controls, q.sourceLimits.values),
+                    "PeriodicNormalizationControlLimit",
+                    record,
+                    Status::ResourceLimit
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             controls += count;
             for (ULONG i = 0; i < count; ++i)
             {
                 const double weight = uv->IsRational() ? net[4 * i + 3] : 1.;
-                Need(weight > 0 && std::isfinite(weight), "PeriodicNormalizationUvWeights", record, Status::Indeterminate);
+                if (auto businessCheck = Need(weight > 0 && std::isfinite(weight), "PeriodicNormalizationUvWeights", record, Status::Indeterminate);
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 const double u = net[4 * i] / weight, v = net[4 * i + 1] / weight;
-                Need(std::isfinite(u) && std::isfinite(v), "PeriodicNormalizationUvHull", record, Status::Indeterminate);
+                if (auto businessCheck = Need(std::isfinite(u) && std::isfinite(v), "PeriodicNormalizationUvHull", record, Status::Indeterminate);
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 loU = std::min(loU, u);
                 hiU = std::max(hiU, u);
                 loV = std::min(loV, v);
@@ -931,13 +1228,17 @@ private:
             }
         }
         const auto natural = original->GetNaturalUVDomain();
-        Need(
-            loU < hiU && loV < hiV && loU >= natural.GetMin().x && hiU <= natural.GetMax().x && loV >= natural.GetMin().y &&
-                hiV <= natural.GetMax().y,
-            "PeriodicNormalizationUvRegion",
-            record,
-            Status::Indeterminate
-        );
+        if (auto businessCheck = Need(
+                loU < hiU && loV < hiV && loU >= natural.GetMin().x && hiU <= natural.GetMax().x && loV >= natural.GetMin().y &&
+                    hiV <= natural.GetMax().y,
+                "PeriodicNormalizationUvRegion",
+                record,
+                Status::Indeterminate
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmExtent2d requested(loU, loV, hiU, hiV);
         std::unique_ptr<SmSurface> candidate;
         auto nativeStatus0 = RestrictPeriodicSupport(
@@ -954,17 +1255,30 @@ private:
         {
             return tl::unexpected(std::move(nativeStatus0.error()));
         }
-        Good(*nativeStatus0, record);
+        if (auto businessCheck = Good(*nativeStatus0, record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto raw = candidate.get();
-        Need(raw && raw != original, "PeriodicNormalizationSurfaceAlias", record);
+        if (auto businessCheck = Need(raw && raw != original, "PeriodicNormalizationSurfaceAlias", record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto restricted = dynamic_cast<SmBSplineSurface*>(raw);
-        Need(restricted, "PeriodicNormalizationSurfaceType", record);
+        if (auto businessCheck = Need(restricted, "PeriodicNormalizationSurfaceType", record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto actual = restricted->GetNaturalUVDomain();
-        Need(
-            actual.GetMin().x <= loU && actual.GetMax().x >= hiU && actual.GetMin().y <= loV && actual.GetMax().y >= hiV,
-            "PeriodicNormalizationRegionClipped",
-            record
-        );
+        if (auto businessCheck = Need(
+                actual.GetMin().x <= loU && actual.GetMax().x >= hiU && actual.GetMin().y <= loV && actual.GetMax().y >= hiV,
+                "PeriodicNormalizationRegionClipped",
+                record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto proofResult = ProveSurfaceRestriction(
             *original,
             *restricted,
@@ -981,13 +1295,26 @@ private:
             return tl::unexpected(std::move(proofResult.error()));
         }
         const auto proof = std::move(*proofResult);
-        Need(
-            proof.established,
-            "PeriodicNormalizationSurfaceDefinitionUnestablished",
-            record,
-            proof.workLimit ? Status::ResourceLimit : Status::Indeterminate
-        );
-        Need(proof.maximumMm.has_value(), "PeriodicNormalizationSurfaceDefinitionUnestablished", record, Status::Indeterminate);
+        if (auto businessCheck = Need(
+                proof.established,
+                "PeriodicNormalizationSurfaceDefinitionUnestablished",
+                record,
+                proof.workLimit ? Status::ResourceLimit : Status::Indeterminate
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Need(
+                proof.maximumMm.has_value(),
+                "PeriodicNormalizationSurfaceDefinitionUnestablished",
+                record,
+                Status::Indeterminate
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto savedResult = Save(uses, record);
         if (!savedResult)
         {
@@ -1004,7 +1331,10 @@ private:
         {
             candidate.release();
         }
-        Need(adopted && raw->GetOwner() == &face, "PeriodicNormalizationSurfaceOwner", record);
+        if (auto businessCheck = Need(adopted && raw->GetOwner() == &face, "PeriodicNormalizationSurfaceOwner", record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         face.SetUVDomain(actual);
         if (auto operation = Restore(saved, record); !operation)
         {

@@ -12,15 +12,6 @@
 
 namespace
 {
-template <class T>
-T Value(step_import::detail::Result<T> result)
-{
-    if (!result)
-    {
-        throw std::runtime_error(result.error().key);
-    }
-    return std::move(*result);
-}
 void Require(bool value, const char* message)
 {
     if (!value)
@@ -106,25 +97,20 @@ void ConversionUnitContract(const std::filesystem::path& source)
         model->ClassifyMaterial({ 7 * 25.4, 7 * 25.4, 20 * 25.4 }) == step_import::MaterialPointClass::Inside,
         "material query uses canonical millimetres"
     );
-    bool wrongQuantity = false;
-    try
-    {
-        Value(
-            step_import::detail::ResolveLengthScale(
-                *sourceOwner,
-                sourceOwner->UnitContext().planeAngleUnit,
-                []() -> step_import::detail::Result<void>
-                {
-                    return {};
-                }
-            )
-        );
-    }
-    catch (const step_import::detail::Failure& failure)
-    {
-        wrongQuantity = failure.status == step_import::Status::Unsupported && failure.key == "GeneralConversionQuantityUnsupported";
-    }
-    Require(wrongQuantity, "angle units cannot substitute for a nominal length root");
+    const auto wrongQuantity = step_import::detail::ResolveLengthScale(
+        *sourceOwner,
+        sourceOwner->UnitContext().planeAngleUnit,
+        []() -> step_import::detail::Result<void>
+        {
+            return {};
+        }
+    );
+    Require(
+        !wrongQuantity && wrongQuantity.error().status == step_import::Status::Unsupported &&
+            wrongQuantity.error().key == "GeneralConversionQuantityUnsupported" &&
+            wrongQuantity.error().record == sourceOwner->UnitContext().planeAngleUnit,
+        "angle units cannot substitute for a nominal length root; the refusal is a result"
+    );
     auto wideText = text;
     const std::string factor = "LENGTH_MEASURE(0.0254)";
     const auto factorAt = wideText.find(factor);

@@ -197,9 +197,9 @@ Fraction NativeRatio(const WideRatio& value)
     }
     return { value.numerator.convert_to<std::int64_t>(), value.denominator.convert_to<std::int64_t>() };
 }
-[[noreturn]] void Refuse(Status status, const char* key, std::size_t record, const char* message)
+[[nodiscard]] Failure Refuse(Status status, const char* key, std::size_t record, const char* message)
 {
-    throw Failure{ status, key, message, record, "GeneralBrep" };
+    return Failure{ status, key, message, record, "GeneralBrep" };
 }
 } // namespace
 [[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(
@@ -244,13 +244,17 @@ Fraction NativeRatio(const WideRatio& value)
             Expects(unit < count);
             if (active[unit])
             {
-                Refuse(Status::Unsupported, "GeneralCyclicUnitDefinition", unit, "Canonical physical scale requires an acyclic SI-rooted chain");
+                return tl::unexpected(
+                    Refuse(Status::Unsupported, "GeneralCyclicUnitDefinition", unit, "Canonical physical scale requires an acyclic SI-rooted chain")
+                );
             }
             if (const auto terminal = si[unit])
             {
                 if (terminal->quantity != "Length" || terminal->siName != "METRE")
                 {
-                    Refuse(Status::Unsupported, "GeneralConversionQuantityUnsupported", unit, "Length scale requires a nominal SI length root");
+                    return tl::unexpected(
+                        Refuse(Status::Unsupported, "GeneralConversionQuantityUnsupported", unit, "Length scale requires a nominal SI length root")
+                    );
                 }
                 auto decoded = Decimal("1E" + std::to_string(terminal->canonicalPower10), boundary);
                 if (!decoded)
@@ -262,12 +266,12 @@ Fraction NativeRatio(const WideRatio& value)
             }
             if (!source.IsA(unit, "LENGTH_UNIT") || !source.IsA(unit, "CONVERSION_BASED_UNIT"))
             {
-                Refuse(
+                return tl::unexpected(Refuse(
                     Status::Unsupported,
                     "GeneralConversionBasisUnsupported",
                     unit,
                     "Only nominal conversion length units ending at SI METRE are supported"
-                );
+                ));
             }
             active[unit] = 1;
             const auto factor = source.Field(unit, "conversion_factor").ReferenceTarget();
@@ -288,7 +292,9 @@ Fraction NativeRatio(const WideRatio& value)
             }
             if (numeric->numerator <= 0)
             {
-                Refuse(Status::Unsupported, "GeneralUnitScaleNotPositive", factor, "Every physical conversion factor must be positive");
+                return tl::unexpected(
+                    Refuse(Status::Unsupported, "GeneralUnitScaleNotPositive", factor, "Every physical conversion factor must be positive")
+                );
             }
             path.push_back({ unit, factor, base, value.text, Evidence(*numeric), {} });
             unit = base;
@@ -321,12 +327,12 @@ Fraction NativeRatio(const WideRatio& value)
     {
         // Capacity exhaustion is target numerical evidence not established;
         // never round the source factor or relabel it a source-schema error.
-        Refuse(
+        return tl::unexpected(Refuse(
             Status::Indeterminate,
             "GeneralUnitScaleRange",
             unit,
             "Exact conversion exceeds bounded unit arithmetic or final native ratio capacity"
-        );
+        ));
     }
     if (auto operation = boundary(); !operation)
     {

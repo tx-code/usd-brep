@@ -30,157 +30,363 @@ namespace step_import::detail
 {
 namespace
 {
-void Need(bool value, const char* key, std::optional<std::size_t> record = {})
+[[nodiscard]] Result<void> Need(bool value, const char* key, std::optional<std::size_t> record = {})
 {
     if (!value)
     {
-        throw Failure{ Status::Indeterminate, key, "Explicit face-orientation repair evidence is unestablished", record, "Repair" };
+        return tl::unexpected(Failure{ Status::Indeterminate, key, "Explicit face-orientation repair evidence is unestablished", record, "Repair" });
     }
+    return {};
 }
-void Same(double a, double b)
+[[nodiscard]] Result<void> Same(double a, double b)
 {
-    Need(std::isfinite(a) && std::isfinite(b) && a == b, "RepairChangedDefinitionOrTolerance");
+    if (auto businessCheck = Need(std::isfinite(a) && std::isfinite(b) && a == b, "RepairChangedDefinitionOrTolerance"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    return {};
 }
-void SameFrame(const SmAxis2Placement& a, const SmAxis2Placement& b)
+[[nodiscard]] Result<void> SameFrame(const SmAxis2Placement& a, const SmAxis2Placement& b)
 {
-    Same(a.GetOriginRef().x, b.GetOriginRef().x);
-    Same(a.GetOriginRef().y, b.GetOriginRef().y);
-    Same(a.GetOriginRef().z, b.GetOriginRef().z);
-    Same(a.GetXAxisRef().x, b.GetXAxisRef().x);
-    Same(a.GetXAxisRef().y, b.GetXAxisRef().y);
-    Same(a.GetXAxisRef().z, b.GetXAxisRef().z);
-    Same(a.GetYAxisRef().x, b.GetYAxisRef().x);
-    Same(a.GetYAxisRef().y, b.GetYAxisRef().y);
-    Same(a.GetYAxisRef().z, b.GetYAxisRef().z);
+    if (auto businessCheck = Same(a.GetOriginRef().x, b.GetOriginRef().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetOriginRef().y, b.GetOriginRef().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetOriginRef().z, b.GetOriginRef().z); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetXAxisRef().x, b.GetXAxisRef().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetXAxisRef().y, b.GetXAxisRef().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetXAxisRef().z, b.GetXAxisRef().z); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetYAxisRef().x, b.GetYAxisRef().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetYAxisRef().y, b.GetYAxisRef().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetYAxisRef().z, b.GetYAxisRef().z); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    return {};
 }
-void SameCurve(const SmCurve& a, const SmCurve& b)
+[[nodiscard]] Result<void> SameCurve(const SmCurve& a, const SmCurve& b)
 {
-    Need(a.GetType() == b.GetType() && a.GetDim() == b.GetDim() && a.GetDegree() == b.GetDegree(), "RepairChangedCurveClass");
+    if (auto businessCheck = Need(a.GetType() == b.GetType() && a.GetDim() == b.GetDim() && a.GetDegree() == b.GetDegree(), "RepairChangedCurveClass");
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto first = dynamic_cast<const SmBSplineCurve*>(&a), second = dynamic_cast<const SmBSplineCurve*>(&b);
-    Need(first && second, "RepairCurveIdentityScope");
+    if (auto businessCheck = Need(first && second, "RepairCurveIdentityScope"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     ULONG ac = 0, bc = 0;
     double *ap = nullptr, *bp = nullptr;
-    Need(
-        first->GetControlPointsPointer(ac, ap) == SM_SUCCESS && second->GetControlPointsPointer(bc, bp) == SM_SUCCESS && ac == bc,
-        "RepairChangedCurveNet"
-    );
+    if (auto businessCheck = Need(
+            first->GetControlPointsPointer(ac, ap) == SM_SUCCESS && second->GetControlPointsPointer(bc, bp) == SM_SUCCESS && ac == bc,
+            "RepairChangedCurveNet"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     for (ULONG i = 0; i < ac * 4; ++i)
     {
-        Same(ap[i], bp[i]);
+        if (auto businessCheck = Same(ap[i], bp[i]); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     SmTArray<double> ak, bk;
-    Need(first->GetKnotsAll(ak) == SM_SUCCESS && second->GetKnotsAll(bk) == SM_SUCCESS && ak.GetSize() == bk.GetSize(), "RepairChangedCurveKnots");
+    if (auto businessCheck = Need(
+            first->GetKnotsAll(ak) == SM_SUCCESS && second->GetKnotsAll(bk) == SM_SUCCESS && ak.GetSize() == bk.GetSize(),
+            "RepairChangedCurveKnots"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     for (ULONG i = 0; i < ak.GetSize(); ++i)
     {
-        Same(ak[i], bk[i]);
+        if (auto businessCheck = Same(ak[i], bk[i]); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
-    Same(a.GetNaturalInterval().GetMin(), b.GetNaturalInterval().GetMin());
-    Same(a.GetNaturalInterval().GetMax(), b.GetNaturalInterval().GetMax());
-    Same(a.GetSTEPInterval().GetMin(), b.GetSTEPInterval().GetMin());
-    Same(a.GetSTEPInterval().GetMax(), b.GetSTEPInterval().GetMax());
+    if (auto businessCheck = Same(a.GetNaturalInterval().GetMin(), b.GetNaturalInterval().GetMin()); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetNaturalInterval().GetMax(), b.GetNaturalInterval().GetMax()); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetSTEPInterval().GetMin(), b.GetSTEPInterval().GetMin()); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(a.GetSTEPInterval().GetMax(), b.GetSTEPInterval().GetMax()); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     if (const auto line = dynamic_cast<const SmLine*>(&a))
     {
         const auto other = dynamic_cast<const SmLine*>(&b);
-        Need(other != nullptr, "RepairChangedAnalyticClass");
-        Same(line->GetLinePoint().x, other->GetLinePoint().x);
-        Same(line->GetLinePoint().y, other->GetLinePoint().y);
-        Same(line->GetLinePoint().z, other->GetLinePoint().z);
-        Same(line->GetLineVector().x, other->GetLineVector().x);
-        Same(line->GetLineVector().y, other->GetLineVector().y);
-        Same(line->GetLineVector().z, other->GetLineVector().z);
-        Same(line->GetLineScale(), other->GetLineScale());
-        Need(line->GetInsideOut() == other->GetInsideOut(), "RepairChangedAnalyticSense");
+        if (auto businessCheck = Need(other != nullptr, "RepairChangedAnalyticClass"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLinePoint().x, other->GetLinePoint().x); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLinePoint().y, other->GetLinePoint().y); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLinePoint().z, other->GetLinePoint().z); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLineVector().x, other->GetLineVector().x); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLineVector().y, other->GetLineVector().y); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLineVector().z, other->GetLineVector().z); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(line->GetLineScale(), other->GetLineScale()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Need(line->GetInsideOut() == other->GetInsideOut(), "RepairChangedAnalyticSense"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     if (const auto ellipse = dynamic_cast<const SmEllipse*>(&a))
     {
         const auto other = dynamic_cast<const SmEllipse*>(&b);
-        Need(other != nullptr && ellipse->GetInsideOut() == other->GetInsideOut(), "RepairChangedAnalyticSense");
-        SameFrame(ellipse->GetPosition(), other->GetPosition());
-        Same(ellipse->GetXRadius(), other->GetXRadius());
-        Same(ellipse->GetYRadius(), other->GetYRadius());
+        if (auto businessCheck = Need(other != nullptr && ellipse->GetInsideOut() == other->GetInsideOut(), "RepairChangedAnalyticSense");
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = SameFrame(ellipse->GetPosition(), other->GetPosition()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(ellipse->GetXRadius(), other->GetXRadius()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(ellipse->GetYRadius(), other->GetYRadius()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
+    return {};
 }
-void SameSurface(const SmSurface& a, const SmSurface& b)
+[[nodiscard]] Result<void> SameSurface(const SmSurface& a, const SmSurface& b)
 {
-    Need(a.GetType() == b.GetType(), "RepairChangedSurfaceClass");
+    if (auto businessCheck = Need(a.GetType() == b.GetType(), "RepairChangedSurfaceClass"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto first = dynamic_cast<const SmBSplineSurface*>(&a), second = dynamic_cast<const SmBSplineSurface*>(&b);
-    Need(
-        first && second && first->GetDegree(SM_SP_U) == second->GetDegree(SM_SP_U) && first->GetDegree(SM_SP_V) == second->GetDegree(SM_SP_V),
-        "RepairSurfaceIdentityScope"
-    );
+    if (auto businessCheck = Need(
+            first && second && first->GetDegree(SM_SP_U) == second->GetDegree(SM_SP_U) && first->GetDegree(SM_SP_V) == second->GetDegree(SM_SP_V),
+            "RepairSurfaceIdentityScope"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     ULONG au = 0, av = 0, bu = 0, bv = 0;
     double *ap = nullptr, *bp = nullptr;
-    Need(
-        first->GetControlPointsPointer(au, av, ap) == SM_SUCCESS && second->GetControlPointsPointer(bu, bv, bp) == SM_SUCCESS && au == bu && av == bv,
-        "RepairChangedSurfaceNet"
-    );
+    if (auto businessCheck = Need(
+            first->GetControlPointsPointer(au, av, ap) == SM_SUCCESS && second->GetControlPointsPointer(bu, bv, bp) == SM_SUCCESS && au == bu &&
+                av == bv,
+            "RepairChangedSurfaceNet"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     for (ULONG i = 0; i < au * av * 4; ++i)
     {
-        Same(ap[i], bp[i]);
+        if (auto businessCheck = Same(ap[i], bp[i]); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     double *ak = nullptr, *al = nullptr, *bk = nullptr, *bl = nullptr;
-    Need(
-        first->GetKnotsPointers(au, av, ak, al) == SM_SUCCESS && second->GetKnotsPointers(bu, bv, bk, bl) == SM_SUCCESS && au == bu && av == bv,
-        "RepairChangedSurfaceKnots"
-    );
+    if (auto businessCheck = Need(
+            first->GetKnotsPointers(au, av, ak, al) == SM_SUCCESS && second->GetKnotsPointers(bu, bv, bk, bl) == SM_SUCCESS && au == bu && av == bv,
+            "RepairChangedSurfaceKnots"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     for (ULONG i = 0; i < au; ++i)
     {
-        Same(ak[i], bk[i]);
+        if (auto businessCheck = Same(ak[i], bk[i]); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     for (ULONG i = 0; i < av; ++i)
     {
-        Same(al[i], bl[i]);
+        if (auto businessCheck = Same(al[i], bl[i]); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     const auto ad = a.GetNaturalUVDomain(), bd = b.GetNaturalUVDomain();
-    Same(ad.GetMin().x, bd.GetMin().x);
-    Same(ad.GetMax().x, bd.GetMax().x);
-    Same(ad.GetMin().y, bd.GetMin().y);
-    Same(ad.GetMax().y, bd.GetMax().y);
+    if (auto businessCheck = Same(ad.GetMin().x, bd.GetMin().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(ad.GetMax().x, bd.GetMax().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(ad.GetMin().y, bd.GetMin().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(ad.GetMax().y, bd.GetMax().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto as = a.GetSTEPUVDomain(), bs = b.GetSTEPUVDomain();
-    Same(as.GetMin().x, bs.GetMin().x);
-    Same(as.GetMin().y, bs.GetMin().y);
-    Same(as.GetMax().x, bs.GetMax().x);
-    Same(as.GetMax().y, bs.GetMax().y);
+    if (auto businessCheck = Same(as.GetMin().x, bs.GetMin().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(as.GetMin().y, bs.GetMin().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(as.GetMax().x, bs.GetMax().x); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Same(as.GetMax().y, bs.GetMax().y); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     if (const auto plane = dynamic_cast<const SmPlane*>(&a))
     {
         const auto other = dynamic_cast<const SmPlane*>(&b);
-        Need(other != nullptr, "RepairChangedAnalyticClass");
-        SameFrame(plane->GetPosition(), other->GetPosition());
-        Same(plane->GetUVScale().x, other->GetUVScale().x);
-        Same(plane->GetUVScale().y, other->GetUVScale().y);
+        if (auto businessCheck = Need(other != nullptr, "RepairChangedAnalyticClass"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = SameFrame(plane->GetPosition(), other->GetPosition()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(plane->GetUVScale().x, other->GetUVScale().x); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(plane->GetUVScale().y, other->GetUVScale().y); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
-    const auto comparePolar = [&](const auto* polar, const auto* other)
+    const auto comparePolar = [&](const auto* polar, const auto* other) -> Result<void>
     {
         if (!polar)
         {
-            return;
+            return {};
         }
-        Need(other != nullptr, "RepairChangedAnalyticClass");
+        if (auto businessCheck = Need(other != nullptr, "RepairChangedAnalyticClass"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmAxis2Placement x, y;
         double r1 = 0, r2 = 0, s1 = 0, s2 = 0;
         SmBoolean swapX = FALSE, swapY = FALSE, reverseX = FALSE, reverseY = FALSE;
         if constexpr (std::is_same_v<std::remove_cv_t<std::remove_pointer_t<decltype(polar)>>, SmSphere>)
         {
-            Need(
-                polar->GetCanonical(x, r1, &swapX, &reverseX) == SM_SUCCESS && other->GetCanonical(y, r2, &swapY, &reverseY) == SM_SUCCESS,
-                "RepairAnalyticDefinitionUnavailable"
-            );
+            if (auto businessCheck = Need(
+                    polar->GetCanonical(x, r1, &swapX, &reverseX) == SM_SUCCESS && other->GetCanonical(y, r2, &swapY, &reverseY) == SM_SUCCESS,
+                    "RepairAnalyticDefinitionUnavailable"
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         else
         {
-            Need(
-                polar->GetCanonical(x, r1, s1, &swapX, &reverseX) == SM_SUCCESS && other->GetCanonical(y, r2, s2, &swapY, &reverseY) == SM_SUCCESS,
-                "RepairAnalyticDefinitionUnavailable"
-            );
-            Same(s1, s2);
+            if (auto businessCheck = Need(
+                    polar->GetCanonical(x, r1, s1, &swapX, &reverseX) == SM_SUCCESS &&
+                        other->GetCanonical(y, r2, s2, &swapY, &reverseY) == SM_SUCCESS,
+                    "RepairAnalyticDefinitionUnavailable"
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Same(s1, s2); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
-        SameFrame(x, y);
-        Same(r1, r2);
-        Need(swapX == swapY && reverseX == reverseY, "RepairChangedAnalyticSense");
+        if (auto businessCheck = SameFrame(x, y); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(r1, r2); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Need(swapX == swapY && reverseX == reverseY, "RepairChangedAnalyticSense"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        return {};
     };
-    comparePolar(dynamic_cast<const SmCone*>(&a), dynamic_cast<const SmCone*>(&b));
-    comparePolar(dynamic_cast<const SmSphere*>(&a), dynamic_cast<const SmSphere*>(&b));
-    comparePolar(dynamic_cast<const SmTorus*>(&a), dynamic_cast<const SmTorus*>(&b));
+    if (auto businessCheck = comparePolar(dynamic_cast<const SmCone*>(&a), dynamic_cast<const SmCone*>(&b)); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = comparePolar(dynamic_cast<const SmSphere*>(&a), dynamic_cast<const SmSphere*>(&b)); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = comparePolar(dynamic_cast<const SmTorus*>(&a), dynamic_cast<const SmTorus*>(&b)); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    return {};
 }
 [[nodiscard]] Result<void> CompareDefinitions(
     const ModelData& before,
@@ -190,31 +396,54 @@ void SameSurface(const SmSurface& a, const SmSurface& b)
     Execution& execution
 )
 {
-    Need(
-        before.source == after.source && before.vertices.size() == after.vertices.size() && before.edges.size() == after.edges.size() &&
-            before.faces.size() == after.faces.size(),
-        "RepairChangedSelectedInventory"
-    );
+    if (auto businessCheck = Need(
+            before.source == after.source && before.vertices.size() == after.vertices.size() && before.edges.size() == after.edges.size() &&
+                before.faces.size() == after.faces.size(),
+            "RepairChangedSelectedInventory"
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto compare =
         [&](const auto& oldSources, const auto& newSources, const auto& oldObjects, const auto& newObjects, const auto& inspect) -> Result<void>
     {
-        Need(oldSources.size() == oldObjects.size() && newSources.size() == newObjects.size(), "RepairMissingSourceInventory");
+        if (auto businessCheck = Need(
+                oldSources.size() == oldObjects.size() && newSources.size() == newObjects.size(),
+                "RepairMissingSourceInventory"
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::map<std::size_t, std::size_t> targets;
         for (std::size_t i = 0; i < newSources.size(); ++i)
         {
-            Need(targets.emplace(newSources[i], i).second, "RepairRepeatedSourceInventory");
+            if (auto businessCheck = Need(targets.emplace(newSources[i], i).second, "RepairRepeatedSourceInventory"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         for (std::size_t i = 0; i < oldSources.size(); ++i)
         {
             const auto found = targets.find(oldSources[i]);
-            Need(found != targets.end(), "RepairLostSourceIdentity");
+            if (auto businessCheck = Need(found != targets.end(), "RepairLostSourceIdentity"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (auto operation = execution.ChargeNative(report, oldSources[i]); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
             const auto a = oldObjects[i], b = newObjects[found->second];
-            inspect(a, b);
-            Same(SmTol::GetZoneTol3d(a), SmTol::GetZoneTol3d(b));
+            if (auto inspected = inspect(a, b); !inspected)
+            {
+                return tl::unexpected(std::move(inspected.error()));
+            }
+            if (auto businessCheck = Same(SmTol::GetZoneTol3d(a), SmTol::GetZoneTol3d(b)); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         return {};
     };
@@ -223,12 +452,22 @@ void SameSurface(const SmSurface& a, const SmSurface& b)
             after.repairVertexSources,
             before.vertices,
             after.vertices,
-            [](const auto a, const auto b)
+            [](const auto a, const auto b) -> Result<void>
             {
                 const auto x = a->GetPoint(), y = b->GetPoint();
-                Same(x.x, y.x);
-                Same(x.y, y.y);
-                Same(x.z, y.z);
+                if (auto businessCheck = Same(x.x, y.x); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = Same(x.y, y.y); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = Same(x.z, y.z); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                return {};
             }
         );
         !proof)
@@ -240,11 +479,21 @@ void SameSurface(const SmSurface& a, const SmSurface& b)
             after.repairEdgeSources,
             before.edges,
             after.edges,
-            [](const auto a, const auto b)
+            [](const auto a, const auto b) -> Result<void>
             {
-                Same(a->GetInterval().GetMin(), b->GetInterval().GetMin());
-                Same(a->GetInterval().GetMax(), b->GetInterval().GetMax());
-                SameCurve(*a->GetCurve(), *b->GetCurve());
+                if (auto businessCheck = Same(a->GetInterval().GetMin(), b->GetInterval().GetMin()); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = Same(a->GetInterval().GetMax(), b->GetInterval().GetMax()); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                if (auto businessCheck = SameCurve(*a->GetCurve(), *b->GetCurve()); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
+                return {};
             }
         );
         !proof)
@@ -259,11 +508,23 @@ void SameSurface(const SmSurface& a, const SmSurface& b)
         }
         const auto& a = before.faces[i];
         const auto& b = after.faces[i];
-        Need(a.faceId == b.faceId, "RepairChangedFaceIdentity");
-        SameSurface(*a.face->GetSurface(), *b.face->GetSurface());
-        Same(SmTol::GetZoneTol3d(a.face), SmTol::GetZoneTol3d(b.face));
+        if (auto businessCheck = Need(a.faceId == b.faceId, "RepairChangedFaceIdentity"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = SameSurface(*a.face->GetSurface(), *b.face->GetSurface()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Same(SmTol::GetZoneTol3d(a.face), SmTol::GetZoneTol3d(b.face)); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
-    Same(SmTol::GetZoneTol3d(before.brep.get()), SmTol::GetZoneTol3d(after.brep.get()));
+    if (auto businessCheck = Same(SmTol::GetZoneTol3d(before.brep.get()), SmTol::GetZoneTol3d(after.brep.get())); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     history.verticesCompared = before.vertices.size();
     history.edgesCompared = before.edges.size();
     history.surfacesCompared = before.faces.size();
@@ -272,13 +533,21 @@ void SameSurface(const SmSurface& a, const SmSurface& b)
 }
 } // namespace
 
-void RequireSameNativeCurveDefinition(const SmCurve& before, const SmCurve& after)
+[[nodiscard]] Result<void> RequireSameNativeCurveDefinition(const SmCurve& before, const SmCurve& after)
 {
-    SameCurve(before, after);
+    if (auto businessCheck = SameCurve(before, after); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    return {};
 }
-void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface& after)
+[[nodiscard]] Result<void> RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface& after)
 {
-    SameSurface(before, after);
+    if (auto businessCheck = SameSurface(before, after); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    return {};
 }
 [[nodiscard]] Result<void> ValidateRepairTargets(const step_semantics::Outcome& checked, const Options& options, Execution& execution)
 {
@@ -289,7 +558,7 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
     using Body = std::pair<std::shared_ptr<const step_semantics::Snapshot>, step_semantics::Part::Shape>;
     using Key = std::pair<std::string, std::string>;
     std::map<Key, Body> bodies;
-    const auto include = [&](const std::shared_ptr<const step_semantics::Snapshot>& part)
+    const auto include = [&](const std::shared_ptr<const step_semantics::Snapshot>& part) -> Result<void>
     {
         const auto& roles = part->PartDefinition().roles;
         const auto role = std::find_if(
@@ -300,30 +569,42 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
                 return r.name == "definition";
             }
         );
-        Need(role != roles.end(), "RepairDefinitionIdentityMissing");
+        if (auto businessCheck = Need(role != roles.end(), "RepairDefinitionIdentityMissing"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto& records = part->Source().Records();
         for (const auto& shape : part->PartDefinition().shapes)
         {
             if (!bodies.emplace(Key{ records[role->recordIndex].id, records[shape.shape].id }, Body{ part, shape }).second)
             {
-                throw Failure{ Status::Unsupported,
-                               "RepairBodyScopeAmbiguous",
-                               "Repair body identity is not unique in the selected request",
-                               shape.shape,
-                               "Repair" };
+                return tl::unexpected(
+                    Failure{ Status::Unsupported,
+                             "RepairBodyScopeAmbiguous",
+                             "Repair body identity is not unique in the selected request",
+                             shape.shape,
+                             "Repair" }
+                );
             }
         }
+        return {};
     };
     if (checked.document)
     {
         for (std::size_t i = 0; i < checked.document->PartCount(); ++i)
         {
-            include(checked.document->Part(i));
+            if (auto included = include(checked.document->Part(i)); !included)
+            {
+                return tl::unexpected(std::move(included.error()));
+            }
         }
     }
     else
     {
-        include(checked.snapshot);
+        if (auto included = include(checked.snapshot); !included)
+        {
+            return tl::unexpected(std::move(included.error()));
+        }
     }
     std::map<Key, std::map<std::string, std::size_t>> faces;
     for (const auto& edit : options.faceOrientationRepair->edits)
@@ -336,16 +617,18 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
         const auto body = bodies.find(key);
         if (body == bodies.end())
         {
-            throw Failure{ Status::Unsupported, "RepairTargetOutsideSelectedRequest", "Repair target is not selected", {}, "Repair" };
+            return tl::unexpected(Failure{ Status::Unsupported, "RepairTargetOutsideSelectedRequest", "Repair target is not selected", {}, "Repair" });
         }
         const auto& source = body->second.first;
         if (body->second.second.role != "MaterialSolid")
         {
-            throw Failure{ Status::Unsupported,
-                           "RepairRoleUnsupported",
-                           "Orientation repair cannot upgrade a source surface role",
-                           body->second.second.shape,
-                           "Repair" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "RepairRoleUnsupported",
+                         "Orientation repair cannot upgrade a source surface role",
+                         body->second.second.shape,
+                         "Repair" }
+            );
         }
         auto map = faces.find(key);
         if (map == faces.end())
@@ -360,27 +643,47 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
         const auto found = map->second.find(edit.faceId);
         if (found == map->second.end())
         {
-            throw Failure{ Status::Unsupported, "RepairTargetOutsideSelectedRequest", "Repair face is not selected", {}, "Repair" };
+            return tl::unexpected(Failure{ Status::Unsupported, "RepairTargetOutsideSelectedRequest", "Repair face is not selected", {}, "Repair" });
         }
         const auto face = found->second;
         if ((source->Field(face, "same_sense").Value().text == "T") != edit.expectedSourceSameSense)
         {
-            throw Failure{ Status::Unsupported, "RepairSourceSenseMismatch", "Repair expectation differs from immutable source", face, "Repair" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported, "RepairSourceSenseMismatch", "Repair expectation differs from immutable source", face, "Repair" }
+            );
         }
         const auto bounds = source->Field(face, "bounds").ReferenceTargets();
         if (bounds.size() != 1 || !source->IsA(bounds[0], "FACE_OUTER_BOUND") ||
             !source->IsA(source->Field(face, "face_geometry").ReferenceTarget(), "B_SPLINE_SURFACE_WITH_KNOTS"))
         {
-            throw Failure{ Status::Unsupported,
-                           "RepairFaceProfileUnsupported",
-                           "Repair requires a single explicit outer loop on a B-spline support",
-                           face,
-                           "Repair" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "RepairFaceProfileUnsupported",
+                         "Repair requires a single explicit outer loop on a B-spline support",
+                         face,
+                         "Repair" }
+            );
         }
     }
     return {};
 }
 
+[[nodiscard]] Result<NativeCandidate> FinishConstructionAttempt(ConstructionResult<NativeCandidate> attempt)
+{
+    if (attempt)
+    {
+        return std::move(*attempt);
+    }
+    if (auto failure = std::get_if<Failure>(&attempt.error()))
+    {
+        return tl::unexpected(std::move(*failure));
+    }
+    auto witness = std::get<OrientationFailureCandidate>(std::move(attempt.error()));
+    // Ordinary construction cannot publish a retained strict-attempt witness.
+    // Destroy it before the returned plain failure can reach report serialization.
+    witness.model.reset();
+    return tl::unexpected(std::move(witness.failure));
+}
 [[nodiscard]] Result<std::shared_ptr<ModelData>> BuildWithOrientationRepair(
     std::shared_ptr<const step_semantics::Snapshot> source,
     std::optional<step_semantics::Part::Shape> binding,
@@ -392,7 +695,7 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
 {
     if (!options.faceOrientationRepair)
     {
-        return build(report, false, {});
+        return FinishConstructionAttempt(build(report, false, {}));
     }
     const auto& request = *options.faceOrientationRepair;
     const auto& part = source->PartDefinition();
@@ -404,7 +707,10 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
             return r.name == "definition";
         }
     );
-    Need(role != part.roles.end(), "RepairDefinitionIdentityMissing");
+    if (auto businessCheck = Need(role != part.roles.end(), "RepairDefinitionIdentityMissing"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const auto& records = source->Source().Records();
     const auto definition = records.at(role->recordIndex).id;
     const auto shape = binding ? *binding : part.shapes.at(0);
@@ -418,7 +724,7 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
     }
     if (indices.empty())
     {
-        return build(report, false, {});
+        return FinishConstructionAttempt(build(report, false, {}));
     }
     const auto sourceFaces = source->Field(shape.shell, "cfs_faces").ReferenceTargets();
     FaceSenseOverrides overrides;
@@ -433,12 +739,34 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
                 return records.at(r).id == edit.faceId;
             }
         );
-        Need(face != sourceFaces.end(), "RepairFaceOutsideSelectedBody");
-        Need((source->Field(*face, "same_sense").Value().text == "T") == edit.expectedSourceSameSense, "RepairSourceSenseMismatch", *face);
+        if (auto businessCheck = Need(face != sourceFaces.end(), "RepairFaceOutsideSelectedBody"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Need(
+                (source->Field(*face, "same_sense").Value().text == "T") == edit.expectedSourceSameSense,
+                "RepairSourceSenseMismatch",
+                *face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto bounds = source->Field(*face, "bounds").ReferenceTargets();
-        Need(bounds.size() == 1 && source->IsA(bounds[0], "FACE_OUTER_BOUND"), "RepairRequiresSingleExplicitOuterBound", *face);
+        if (auto businessCheck = Need(
+                bounds.size() == 1 && source->IsA(bounds[0], "FACE_OUTER_BOUND"),
+                "RepairRequiresSingleExplicitOuterBound",
+                *face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto surface = source->Field(*face, "face_geometry").ReferenceTarget();
-        Need(source->IsA(surface, "B_SPLINE_SURFACE_WITH_KNOTS"), "RepairSurfaceProfileUnsupported", *face);
+        if (auto businessCheck = Need(source->IsA(surface, "B_SPLINE_SURFACE_WITH_KNOTS"), "RepairSurfaceProfileUnsupported", *face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         overrides.emplace_back(*face, edit.targetSameSense);
     }
     auto original = std::make_shared<Report>();
@@ -453,40 +781,33 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
     report.repairStage = "StrictCandidate";
     OrientationFailureCandidate witness;
     const auto firstCall = execution.NativeCalls();
-    try
+    auto strict = build(*original, true, {});
+    if (strict)
     {
-        auto alreadyValid = build(*original, true, {});
-        if (!alreadyValid)
-        {
-            original->candidateDiscarded = original->nativeCalls > 0;
-            report.originalAttemptStatus = alreadyValid.error().status;
-            AddFailureDiagnostic(*original, alreadyValid.error());
-            return tl::unexpected(std::move(alreadyValid.error()));
-        }
         original->candidateDiscarded = true;
         report.originalAttemptStatus = HasAppliedSourceInterpretation(*source) ? Status::AcceptedUnderInterpretation : Status::Accepted;
-        throw Failure{ Status::Unsupported,
-                       "RepairNotRequired",
-                       "The requested repair cannot alter an already accepted candidate",
-                       shape.shape,
-                       "Repair" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "RepairNotRequired",
+                     "The requested repair cannot alter an already accepted candidate",
+                     shape.shape,
+                     "Repair" }
+        );
     }
-    catch (const OrientationFailureCandidate& failed)
+    if (auto failed = std::get_if<OrientationFailureCandidate>(&strict.error()))
     {
-        witness = failed;
-        report.originalAttemptStatus = failed.failure.status;
+        witness = std::move(*failed);
+        report.originalAttemptStatus = witness.failure.status;
         original->candidateDiscarded = true;
-        AddFailureDiagnostic(*original, failed.failure);
+        AddFailureDiagnostic(*original, witness.failure);
     }
-    catch (const Failure& failed)
+    else
     {
+        auto failure = std::get<Failure>(std::move(strict.error()));
         original->candidateDiscarded = original->nativeCalls > 0;
-        if (failed.key != "RepairNotRequired")
-        {
-            report.originalAttemptStatus = failed.status;
-            AddFailureDiagnostic(*original, failed);
-        }
-        throw;
+        report.originalAttemptStatus = failure.status;
+        AddFailureDiagnostic(*original, failure);
+        return tl::unexpected(std::move(failure));
     }
     report.repairStage = "EvidenceBefore";
     if (auto operation = execution.Check(Phase::BeforeRepairProof); !operation)
@@ -497,7 +818,10 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
     history.sourceSha256 = report.sourceSha256;
     history.originalDiagnostics = original->diagnostics;
     history.sourceInterpretationApplied = HasAppliedSourceInterpretation(*source);
-    Need(witness.targetFaces.size() == indices.size(), "RepairPlanDoesNotMatchFailureSet");
+    if (auto businessCheck = Need(witness.targetFaces.size() == indices.size(), "RepairPlanDoesNotMatchFailureSet"); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     const double numerator = std::nextafter(static_cast<double>(options.quality.derivedUvMm.Numerator()), 0.);
     const double denominator = std::nextafter(static_cast<double>(options.quality.derivedUvMm.Denominator()), std::numeric_limits<double>::infinity());
     const double allowed = std::nextafter(numerator / denominator, 0.);
@@ -514,10 +838,15 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
         {
             const auto interval = uses[i]->GetEdge()->GetInterval();
             const auto uv = uses[i]->GetUVTrimCurve();
-            Need(uv != nullptr, "RepairMissingDerivedTrim", record);
+            if (auto businessCheck = Need(uv != nullptr, "RepairMissingDerivedTrim", record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (!execution.RepairProofRemaining())
             {
-                throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Cumulative repair proof work exhausted", record, "Repair" };
+                return tl::unexpected(
+                    Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Cumulative repair proof work exhausted", record, "Repair" }
+                );
             }
             auto liftResult = ProveCurveLift(
                 *uses[i]->GetEdge()->GetCurve(),
@@ -541,9 +870,14 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
             }
             if (lift.workLimit)
             {
-                throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Repair lift proof exhausted its work", record, "Repair" };
+                return tl::unexpected(
+                    Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Repair lift proof exhausted its work", record, "Repair" }
+                );
             }
-            Need(lift.established, "RepairContinuousLiftUnestablished", record);
+            if (auto businessCheck = Need(lift.established, "RepairContinuousLiftUnestablished", record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             action.continuousLiftBoundMm = std::max(action.continuousLiftBoundMm, *lift.maximumMm);
             action.liftCells += lift.cells;
         }
@@ -560,7 +894,10 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
                 return witness.model->faces.at(i).faceId == edit.faceId;
             }
         );
-        Need(found != witness.targetFaces.end(), "RepairPlanDoesNotMatchFailureSet");
+        if (auto businessCheck = Need(found != witness.targetFaces.end(), "RepairPlanDoesNotMatchFailureSet"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto record = std::find_if(
             sourceFaces.begin(),
             sourceFaces.end(),
@@ -573,14 +910,19 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
         const auto surface = dynamic_cast<const SmBSplineSurface*>(native->GetSurface());
         SmTArray<SmLoop*> nativeLoops;
         native->GetLoops(nativeLoops);
-        Need(surface && nativeLoops.GetSize() == 1, "RepairNativeFaceProfileUnsupported", *record);
+        if (auto businessCheck = Need(surface && nativeLoops.GetSize() == 1, "RepairNativeFaceProfileUnsupported", *record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto checkpoint = [&]
         {
             return execution.ChargeNative(report, *record);
         };
         if (!execution.RepairProofRemaining())
         {
-            throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Cumulative repair proof work exhausted", *record, "Repair" };
+            return tl::unexpected(
+                Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Cumulative repair proof work exhausted", *record, "Repair" }
+            );
         }
         auto uniqueResult = ProveSurfaceInjectivity(*surface, request.maximumProofControls, execution.RepairProofRemaining(), checkpoint);
         if (!uniqueResult)
@@ -594,9 +936,14 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
         }
         if (unique.workLimit)
         {
-            throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Repair injectivity proof exhausted its workspace", *record, "Repair" };
+            return tl::unexpected(
+                Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Repair injectivity proof exhausted its workspace", *record, "Repair" }
+            );
         }
-        Need(unique.established, "RepairSupportInjectivityUnestablished", *record);
+        if (auto businessCheck = Need(unique.established, "RepairSupportInjectivityUnestablished", *record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         FaceOrientationRepairAction action;
         action.edit = edit;
         action.targetFace = *found;
@@ -621,7 +968,7 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
         return tl::unexpected(std::move(operation.error()));
     }
     report.repairEditsAttempted = indices.size();
-    auto candidateResult = build(report, false, overrides);
+    auto candidateResult = FinishConstructionAttempt(build(report, false, overrides));
     if (!candidateResult)
     {
         return tl::unexpected(std::move(candidateResult.error()));

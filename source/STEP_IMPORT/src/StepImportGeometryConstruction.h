@@ -131,16 +131,17 @@ protected:
     {
         return m_source->Source().Records().at(a).id;
     }
-    [[noreturn]] void Fail(const char* key, Index a, Status status = Status::PostcheckFailure) const
+    [[nodiscard]] Failure Fail(const char* key, Index a, Status status = Status::PostcheckFailure) const
     {
-        throw Failure{ status, key, "General source-to-native contract is unestablished", a, "GeneralBrep" };
+        return Failure{ status, key, "General source-to-native contract is unestablished", a, "GeneralBrep" };
     }
-    void Need(bool b, const char* key, Index a) const
+    [[nodiscard]] Result<void> Need(bool b, const char* key, Index a) const
     {
         if (!b)
         {
-            Fail(key, a);
+            return tl::unexpected(Fail(key, a));
         }
+        return {};
     }
     [[nodiscard]] Result<void> Step(Index a)
     {
@@ -237,7 +238,7 @@ protected:
         bool full;
         std::optional<double> angleScale;
     };
-    ConicTrim TrimmedConic(Index wrapper, const Frame& frame, double rx, double ry, double& measuredConsistency)
+    [[nodiscard]] Result<ConicTrim> TrimmedConic(Index wrapper, const Frame& frame, double rx, double ry, double& measuredConsistency)
     {
         constexpr double tau = 2 * std::numbers::pi;
         const auto evaluate = [&](double t)
@@ -251,7 +252,7 @@ protected:
         };
         std::optional<double> angleScale;
         const auto preferred = F(wrapper, "master_representation").text;
-        const auto cut = [&](std::string_view field)
+        const auto cut = [&](std::string_view field) -> Result<double>
         {
             std::optional<double> parameter, pointAngle;
             std::optional<V> point;
@@ -263,7 +264,15 @@ protected:
                     pointAngle = angle(*point);
                     const auto gap = Norm(Sub(evaluate(*pointAngle), *point));
                     measuredConsistency = std::max(measuredConsistency, gap);
-                    Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedPointOffBasis", wrapper);
+                    if (auto businessCheck = Need(
+                            std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm),
+                            "GeneralTrimmedPointOffBasis",
+                            wrapper
+                        );
+                        !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                 }
                 else
                 {
@@ -278,7 +287,7 @@ protected:
                         }
                         if (!angleScale || !std::isfinite(*angleScale) || !(*angleScale > 0))
                         {
-                            Fail("GeneralTrimmedAngleUnitUnestablished", wrapper, Status::Unsupported);
+                            return tl::unexpected(Fail("GeneralTrimmedAngleUnitUnestablished", wrapper, Status::Unsupported));
                         }
                     }
                     parameter = Number(value.children.at(0)) * *angleScale;
@@ -286,7 +295,7 @@ protected:
                     // development range. This is not an EXPRESS restriction.
                     if (!std::isfinite(*parameter) || std::abs(*parameter) > 2 * tau)
                     {
-                        Fail("GeneralTrimmedAngleRangeUnestablished", wrapper, Status::Unsupported);
+                        return tl::unexpected(Fail("GeneralTrimmedAngleRangeUnestablished", wrapper, Status::Unsupported));
                     }
                 }
             }
@@ -296,13 +305,31 @@ protected:
                 // excuse a conflicting second representation (4.4.40 IP1/IP2).
                 const auto gap = Norm(Sub(evaluate(*parameter), *point));
                 measuredConsistency = std::max(measuredConsistency, gap);
-                Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedRepresentationsConflict", wrapper);
+                if (auto businessCheck = Need(
+                        std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm),
+                        "GeneralTrimmedRepresentationsConflict",
+                        wrapper
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
             // With UNSPECIFIED and two consistent forms, deterministically
             // retain the supplied parameter. With one form, use that form.
             return preferred == "CARTESIAN" && pointAngle ? *pointAngle : parameter ? *parameter : pointAngle.value();
         };
-        double first = cut("trim_1"), last = cut("trim_2");
+        auto firstCut = cut("trim_1");
+        if (!firstCut)
+        {
+            return tl::unexpected(std::move(firstCut.error()));
+        }
+        auto lastCut = cut("trim_2");
+        if (!lastCut)
+        {
+            return tl::unexpected(std::move(lastCut.error()));
+        }
+        double first = *firstCut, last = *lastCut;
         const bool same = B(wrapper, "sense_agreement");
         double extent = same ? last - first : first - last;
         if (extent < 0 && extent > -tau)
@@ -322,9 +349,9 @@ protected:
         const double roundoff = 32 * std::numeric_limits<double>::epsilon() * tau;
         if (!(extent > 0) || extent > tau + roundoff)
         {
-            Fail("GeneralTrimmedConicExtentUnestablished", wrapper, Status::Unsupported);
+            return tl::unexpected(Fail("GeneralTrimmedConicExtentUnestablished", wrapper, Status::Unsupported));
         }
-        return { first, last, std::min(first, last), std::max(first, last), std::abs(extent - tau) <= roundoff, angleScale };
+        return ConicTrim{ first, last, std::min(first, last), std::max(first, last), std::abs(extent - tau) <= roundoff, angleScale };
     }
     [[nodiscard]] Result<std::unique_ptr<SmCurve>> MakeConic(
         Index geometry,
@@ -375,18 +402,31 @@ protected:
         {
             cp.Add(P(Position(control)));
         }
-        auto mult = Multiplicities(geometry, "knot_multiplicities");
+        SmTArray<ULONG> mult;
+        if (auto checked = Multiplicities(geometry, "knot_multiplicities", mult); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
         auto knots = Numbers(geometry, "knots");
-        auto weights = SplineWeights(geometry, false, cp);
+        SmTArray<double> weights;
+        if (auto checked = SplineWeights(geometry, false, cp, weights); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
         SmBSplineCurve* raw = nullptr;
         if (auto operation = Step(geometry); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
         }
+        auto degree = Degree(geometry, "degree");
+        if (!degree)
+        {
+            return tl::unexpected(std::move(degree.error()));
+        }
         const auto status = SmBSplineCurve::CreateCanonical(
             *m_context,
             3,
-            Degree(geometry, "degree"),
+            *degree,
             cp,
             SM_CF_UNSPECIFIED,
             mult,
@@ -400,30 +440,41 @@ protected:
         Good(status);
         if (weights.GetSize())
         {
-            Need(bool(raw), "GeneralCurveAllocation", geometry);
+            if (auto businessCheck = Need(bool(raw), "GeneralCurveAllocation", geometry); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             ULONG count = 0;
             double* net = nullptr;
             Good(raw->GetControlPointsPointer(count, net));
-            VerifyRationalNet(geometry, use, cp, weights, net, count, raw->IsRational());
+            if (auto businessCheck = VerifyRationalNet(geometry, use, cp, weights, net, count, raw->IsRational()); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         return result;
     }
-    ULONG Degree(Index a, std::string_view name) const
+    [[nodiscard]] Result<ULONG> Degree(Index a, std::string_view name) const
     {
         const double n = N(a, name);
-        Need(n >= 1 && n <= 32 && std::floor(n) == n, "GeneralSplineDegree", a);
+        if (auto businessCheck = Need(n >= 1 && n <= 32 && std::floor(n) == n, "GeneralSplineDegree", a); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         return static_cast<ULONG>(n);
     }
-    SmTArray<ULONG> Multiplicities(Index a, std::string_view name) const
+    [[nodiscard]] Result<void> Multiplicities(Index a, std::string_view name, SmTArray<ULONG>& result) const
     {
-        SmTArray<ULONG> result;
         for (const auto& value : F(a, name).children)
         {
             const auto n = Number(value);
-            Need(n >= 1 && n <= 33 && std::floor(n) == n, "GeneralKnotMultiplicity", a);
+            if (auto businessCheck = Need(n >= 1 && n <= 33 && std::floor(n) == n, "GeneralKnotMultiplicity", a); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             result.Add(static_cast<ULONG>(n));
         }
-        return result;
+        return {};
     }
     SmTArray<double> Numbers(Index a, std::string_view name) const
     {
@@ -434,19 +485,22 @@ protected:
         }
         return result;
     }
-    SmTArray<double> SplineWeights(Index geometry, bool surface, const SmTArray<SmPoint3d>& control) const
+    [[nodiscard]] Result<void> SplineWeights(Index geometry, bool surface, const SmTArray<SmPoint3d>& control, SmTArray<double>& result) const
     {
-        SmTArray<double> result;
         if (!Is(geometry, surface ? "RATIONAL_B_SPLINE_SURFACE" : "RATIONAL_B_SPLINE_CURVE"))
         {
-            return result;
+            return {};
         }
         const auto& values = F(geometry, "weights_data");
-        const auto append = [&](const step_source::Value& value)
+        const auto append = [&](const step_source::Value& value) -> Result<void>
         {
             const double weight = Number(value);
-            Need(weight > 0, "GeneralWeightRangeUnestablished", geometry);
+            if (auto businessCheck = Need(weight > 0, "GeneralWeightRangeUnestablished", geometry); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             result.Add(weight);
+            return {};
         };
         // STEP Cartesian controls are Euclidean, weights dimensionless. Preserve
         // source U rows / V entries and pass weights separately: CreateCanonical
@@ -457,26 +511,43 @@ protected:
             {
                 for (const auto& weight : value.children)
                 {
-                    append(weight);
+                    if (auto businessCheck = append(weight); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                 }
             }
             else
             {
-                append(value);
+                if (auto businessCheck = append(value); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
-        Need(result.GetSize() == control.GetSize(), "GeneralWeightNetShape", geometry);
+        if (auto businessCheck = Need(result.GetSize() == control.GetSize(), "GeneralWeightNetShape", geometry); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (ULONG i = 0; i < result.GetSize(); ++i)
         {
             for (const auto coordinate : P(control[i]))
             {
                 const double homogeneous = coordinate * result[i];
-                Need(std::isfinite(homogeneous) && (coordinate == 0 || homogeneous != 0), "GeneralHomogeneousRangeUnestablished", geometry);
+                if (auto businessCheck = Need(
+                        std::isfinite(homogeneous) && (coordinate == 0 || homogeneous != 0),
+                        "GeneralHomogeneousRangeUnestablished",
+                        geometry
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
-        return result;
+        return {};
     }
-    void VerifyRationalNet(
+    [[nodiscard]] Result<void> VerifyRationalNet(
         Index geometry,
         Index sourceUse,
         const SmTArray<SmPoint3d>& control,
@@ -486,7 +557,10 @@ protected:
         bool rational
     ) const
     {
-        Need(net && count == control.GetSize(), "GeneralRationalNetShapeChanged", geometry);
+        if (auto businessCheck = Need(net && count == control.GetSize(), "GeneralRationalNetShapeChanged", geometry); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         // Only an identical positive source weight at EVERY control can be
         // cancelled to one without changing geometry or parameterization.
         // Require literal equality as a sufficient exact source proof; binary64
@@ -518,16 +592,31 @@ protected:
             const double actualWeight = rational ? net[4 * i + 3] : 1.;
             if (actualWeight != weights[i])
             {
-                Need(uniformSource && !rational && actualWeight == 1., "GeneralSourceWeightsChanged", geometry);
+                if (auto businessCheck = Need(uniformSource && !rational && actualWeight == 1., "GeneralSourceWeightsChanged", geometry);
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 cancelled = true;
             }
             V actual{};
             for (Index axis = 0; axis < 3; ++axis)
             {
                 actual[axis] = net[4 * i + axis] / actualWeight;
-                Need(std::isfinite(actual[axis]), "GeneralHomogeneousRangeUnestablished", geometry);
+                if (auto businessCheck = Need(std::isfinite(actual[axis]), "GeneralHomogeneousRangeUnestablished", geometry); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
-            Need(Norm(Sub(actual, P(control[i]))) <= Q(m_options.quality.definitionMm), "GeneralControlRoundtripUnestablished", geometry);
+            if (auto businessCheck = Need(
+                    Norm(Sub(actual, P(control[i]))) <= Q(m_options.quality.definitionMm),
+                    "GeneralControlRoundtripUnestablished",
+                    geometry
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         if (cancelled)
         {
@@ -539,6 +628,7 @@ protected:
             trace.parameters = { { "source_uniform_weight", { weights[0] } }, { "native_uniform_weight", { 1. } } };
             m_report.parameterMappings.push_back(std::move(trace));
         }
+        return {};
     }
 };
 } // namespace step_import::detail::construction

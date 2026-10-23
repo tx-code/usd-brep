@@ -134,13 +134,16 @@ public:
             const auto vector = Ref(basis, "dir");
             const auto direction = Direction(Ref(vector, "orientation"));
             const auto magnitude = N(vector, "magnitude") * scale;
-            Need(std::isfinite(magnitude) && magnitude > 0, "GeneralWireLineMagnitude", record);
+            if (auto businessCheck = Need(std::isfinite(magnitude) && magnitude > 0, "GeneralWireLineMagnitude", record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto evaluate = [&](double t)
             {
                 return Add(origin, Mul(direction, magnitude * t));
             };
             const auto preferred = F(record, "master_representation").text;
-            const auto cut = [&](std::string_view field)
+            const auto cut = [&](std::string_view field) -> Result<double>
             {
                 std::optional<double> parameter, pointParameter;
                 std::optional<V> point;
@@ -152,7 +155,15 @@ public:
                         pointParameter = Dot(Sub(*point, origin), direction) / magnitude;
                         const auto gap = Norm(Sub(evaluate(*pointParameter), *point));
                         sourceConsistency = std::max(sourceConsistency, gap);
-                        Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralWireTrimPointOffBasis", record);
+                        if (auto businessCheck = Need(
+                                std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm),
+                                "GeneralWireTrimPointOffBasis",
+                                record
+                            );
+                            !businessCheck)
+                        {
+                            return tl::unexpected(std::move(businessCheck.error()));
+                        }
                     }
                     else
                     {
@@ -163,28 +174,54 @@ public:
                 {
                     const auto gap = Norm(Sub(evaluate(*parameter), *point));
                     sourceConsistency = std::max(sourceConsistency, gap);
-                    Need(std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm), "GeneralTrimmedRepresentationsConflict", record);
+                    if (auto businessCheck = Need(
+                            std::isfinite(gap) && gap <= Q(m_options.quality.consistencyMm),
+                            "GeneralTrimmedRepresentationsConflict",
+                            record
+                        );
+                        !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                 }
                 return preferred == "CARTESIAN" && pointParameter ? *pointParameter : parameter ? *parameter : pointParameter.value();
             };
-            const auto first = cut("trim_1"), last = cut("trim_2");
-            Need(info.sourceForwardInNative ? last > first : first > last, "GeneralWireLineTrimOrder", record);
+            auto firstCut = cut("trim_1");
+            if (!firstCut)
+            {
+                return tl::unexpected(std::move(firstCut.error()));
+            }
+            auto lastCut = cut("trim_2");
+            if (!lastCut)
+            {
+                return tl::unexpected(std::move(lastCut.error()));
+            }
+            const auto first = *firstCut, last = *lastCut;
+            if (auto businessCheck = Need(info.sourceForwardInNative ? last > first : first > last, "GeneralWireLineTrimOrder", record);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto low = std::min(first, last), high = std::max(first, last);
             expectedEnds = std::array{ evaluate(low), evaluate(high) };
             for (const auto& point : *expectedEnds)
             {
-                Need(
-                    std::all_of(
-                        point.begin(),
-                        point.end(),
-                        [](double v)
-                        {
-                            return std::isfinite(v);
-                        }
-                    ),
-                    "GeneralWireLineRange",
-                    record
-                );
+                if (auto businessCheck = Need(
+                        std::all_of(
+                            point.begin(),
+                            point.end(),
+                            [](double v)
+                            {
+                                return std::isfinite(v);
+                            }
+                        ),
+                        "GeneralWireLineRange",
+                        record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
             SmLine* raw = nullptr;
             if (auto operation = Step(record); !operation)
@@ -206,9 +243,26 @@ public:
             const bool circle = Is(basis, "CIRCLE");
             const auto rx = N(basis, circle ? "radius" : "semi_axis_1") * scale;
             const auto ry = circle ? rx : N(basis, "semi_axis_2") * scale;
-            Need(std::isfinite(rx) && std::isfinite(ry) && rx > SM_EFF_ZERO && ry > SM_EFF_ZERO, "GeneralWireConicRadiusRange", record);
+            if (auto businessCheck = Need(
+                    std::isfinite(rx) && std::isfinite(ry) && rx > SM_EFF_ZERO && ry > SM_EFF_ZERO,
+                    "GeneralWireConicRadiusRange",
+                    record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             constexpr double tau = 2 * std::numbers::pi;
-            const auto trim = trimmed ? TrimmedConic(record, frame, rx, ry, sourceConsistency) : ConicTrim{ 0, tau, 0, tau, true, {} };
+            ConicTrim trim{ 0, tau, 0, tau, true, {} };
+            if (trimmed)
+            {
+                auto checked = TrimmedConic(record, frame, rx, ry, sourceConsistency);
+                if (!checked)
+                {
+                    return tl::unexpected(std::move(checked.error()));
+                }
+                trim = std::move(*checked);
+            }
             double low = trim.low, high = trim.high;
             const auto shift = tau * std::floor(low / tau);
             low -= shift;
@@ -220,7 +274,11 @@ public:
             }
             const auto degrees = trim.full ? FullPeriodDegrees(low) :
                                              std::array<double, 2>{ low * 180 / std::numbers::pi, high * 180 / std::numbers::pi };
-            Need(degrees[1] > degrees[0] && degrees[0] >= -360 && degrees[1] <= 360, "GeneralWireConicAngleRange", record);
+            if (auto businessCheck = Need(degrees[1] > degrees[0] && degrees[0] >= -360 && degrees[1] <= 360, "GeneralWireConicAngleRange", record);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             auto created = MakeConic(basis, frame, rx, ry, SmExtent1d(degrees[0], degrees[1]), true);
             if (!created)
             {
@@ -255,10 +313,21 @@ public:
             mapping.kind = role == Role::Supporting ? "SupportingSplineIdentity" : "WireframeSplineIdentity";
             mapping.equation = "source_t=native_t; entire_source_natural_interval; defining_coefficients_unchanged";
         }
-        Need(bool(curve) && curve->GetDim() == 3, "GeneralWireCurveAllocation", record);
+        if (auto businessCheck = Need(bool(curve) && curve->GetDim() == 3, "GeneralWireCurveAllocation", record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         const auto domain = curve->GetNaturalInterval();
         info.parameterDomain = { domain.GetMin(), domain.GetMax() };
-        Need(std::isfinite(domain.GetMin()) && std::isfinite(domain.GetMax()) && domain.GetMax() > domain.GetMin(), "GeneralWireNativeDomain", record);
+        if (auto businessCheck = Need(
+                std::isfinite(domain.GetMin()) && std::isfinite(domain.GetMax()) && domain.GetMax() > domain.GetMin(),
+                "GeneralWireNativeDomain",
+                record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         if (expectedEnds)
         {
             for (Index i = 0; i < 2; ++i)
@@ -271,7 +340,15 @@ public:
                 Good(curve->EvaluatePoint(info.parameterDomain[i], actual));
                 const auto gap = Norm(Sub(P(actual), (*expectedEnds)[i]));
                 definitionEndpoints = std::max(definitionEndpoints, gap);
-                Need(std::isfinite(gap) && gap <= Q(m_options.quality.definitionMm), "GeneralWireDefinitionEndpointGap", record);
+                if (auto businessCheck = Need(
+                        std::isfinite(gap) && gap <= Q(m_options.quality.definitionMm),
+                        "GeneralWireDefinitionEndpointGap",
+                        record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
         mapping.parameters.push_back({ "native_natural_interval", { domain.GetMin(), domain.GetMax() } });
@@ -336,7 +413,7 @@ public:
                     throw std::logic_error("CurvePointDefinitionsUnknownSourceSet");
                 }
                 const auto& records = m_source->Source().Records();
-                Fail("GeneralWireFiniteBounds", static_cast<Index>(set - records.data()));
+                return tl::unexpected(Fail("GeneralWireFiniteBounds", static_cast<Index>(set - records.data())));
             }
             group.boundsMm[0][axis] = first ? bounds[0][axis] : std::min(group.boundsMm[0][axis], bounds[0][axis]);
             group.boundsMm[1][axis] = first ? bounds[1][axis] : std::max(group.boundsMm[1][axis], bounds[1][axis]);
