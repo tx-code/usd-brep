@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAssemblyBindings.h"
+#include "StepAssemblyDefinitions.h"
 #include "StepAssemblyInputs.h"
 
 #include <fstream>
@@ -128,6 +129,63 @@ void ContextInputs(const std::string& source)
         }
     }
 }
+void DefinitionScopes(const std::string& source)
+{
+    using namespace step_semantics;
+    const auto plan = [](const std::string& text, Limits limits = {})
+    {
+        auto raw = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
+        auto input = InspectAssemblyInputs(raw, {}, SourcePolicy::Strict);
+        Require(bool(input.inputs), "assembly input for definition scope");
+        return PlanAssemblyDefinitions(input.inputs, limits);
+    };
+    auto observed = plan(source);
+    Require(observed.plan && observed.plan->definitions.size() == 2, "one scope per definition, not per repeated instance");
+    for (const auto& scope : observed.plan->definitions)
+    {
+        const auto& fields = observed.plan->inputs->SourceFields();
+        const auto id = fields.Source().Records()[scope.definition].id;
+        Require(scope.representations.size() == 1 && scope.relationships.empty(), "occurrence links excluded from local adjacency");
+        Require(scope.hasOccurrences == (id == "902"), "placement-only parent role retained");
+        bool solid = false;
+        for (auto item : scope.directItems)
+        {
+            solid |= fields.IsA(item, "MANIFOLD_SOLID_BREP");
+        }
+        Require(solid == (id == "7"), "child solid remains with its definition");
+    }
+    auto linked = Replace(source, "'body',(#21,#931),#12", "'body',(#931),#12");
+    linked = Replace(
+        linked,
+        "ENDSEC;\nEND-ISO",
+        "#950=ADVANCED_BREP_SHAPE_REPRESENTATION('linked',(#21),#12);\n"
+        "#951=SHAPE_REPRESENTATION_RELATIONSHIP('',$,#20,#950);\nENDSEC;\nEND-ISO"
+    );
+    auto wrapped = plan(linked);
+    Require(
+        wrapped.plan && wrapped.plan->definitions[0].representations.size() == 2 && wrapped.plan->definitions[0].relationships.size() == 1,
+        "ordinary same-context body link included"
+    );
+    auto joined = plan(Replace(source, "ENDSEC;\nEND-ISO", "#950=SHAPE_REPRESENTATION_RELATIONSHIP('',$,#20,#920);\nENDSEC;\nEND-ISO"));
+    Require(
+        !joined.plan && joined.diagnostics[0].source.key == "AssemblyDefinitionContextMismatch",
+        "ordinary cross-context link never substitutes for occurrence placement"
+    );
+    auto localParent = plan(Replace(source, "'parent',(#933,#935),#921", "'parent',(#933,#935,#21),#921"));
+    Require(
+        localParent.plan && localParent.plan->definitions[1].directItems.size() == 3,
+        "parent-owned geometry is retained, not erased by assembly role"
+    );
+    Limits limits;
+    limits.dependencyVisits = observed.dependencyVisits;
+    Require(bool(plan(source, limits).plan), "exact definition planning budget");
+    --limits.dependencyVisits;
+    auto stopped = plan(source, limits);
+    Require(stopped.status == Status::ResourceLimit && !stopped.plan, "late scope failure withholds entire plan");
+    auto owner = observed.plan;
+    observed = {};
+    Require(owner->inputs->SourceFields().Source().Bytes() == source, "definition plan owns original source");
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -138,6 +196,7 @@ int main(int argc, char** argv)
         Require(bool(stream), "fixture exists");
         const std::string source{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
         ContextInputs(source);
+        DefinitionScopes(source);
         auto graph = Graph(source);
         auto result = step_semantics::BindAssemblyOccurrences(graph, {});
         Require(

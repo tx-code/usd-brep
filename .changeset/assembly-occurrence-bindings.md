@@ -16,6 +16,9 @@ arithmetic; successful observation stays `Deferred` without a qualified model.
 The internal native-import planner evaluates right-handed item-defined frame
 matrices using the shared source frame and exact unit routines. Its numeric
 candidates do not grant native assembly import or a geometric error certificate.
+`PlanAssemblyDefinitions` separates definition-local representation scopes from
+occurrence placement links, retaining all directly listed geometry and placement
+items. Scope success is not whole-document ownership or geometry qualification.
 
 ## Scope
 

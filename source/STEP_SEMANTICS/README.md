@@ -1224,6 +1224,24 @@ frame construction, physical placement, native geometry and model publication
 are separate prerequisites. No existing import/inspection entry point gains
 assembly admission from this API.
 
+## Assembly definition representation scopes
+
+`StepAssemblyDefinitions.h` provides `PlanAssemblyDefinitions` over owning
+`AssemblyInputs`. It separates occurrence placement relationships from ordinary,
+same-context shape relationships and returns one local representation scope per
+source definition. Repeated occurrences reuse that definition scope; no instance
+expansion or root selection occurs. Every directly listed item identity remains
+present, including geometry on a parent that also has child occurrences.
+
+Cross-definition ordinary links, shared representation ownership, different local
+contexts, missing checked contexts and multiple definition roots are unsupported.
+Traversal and indexed adjacency consume an explicit per-pass visit budget, and a
+late failure publishes no partial plan. The source graph retains excluded occurrence
+links and other relationships for subsequent full-document closure; they are not
+deleted or declared harmless. Scope success establishes representation membership
+only, not item/geometry validity, material role, administrative attachment or native
+construction. Parent placement wrappers never become empty material solids.
+
 ## Qualified independent definitions
 
 `CheckIndependentProducts` / CLI `--independent-products` explicitly requests all
