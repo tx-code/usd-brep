@@ -13,6 +13,7 @@
 #include <SmEdgeuse.h>
 #include <SmFace.h>
 #include <SmLine.h>
+#include <algorithm>
 #include <array>
 #include <cfenv>
 #include <iostream>
@@ -513,6 +514,56 @@ int main()
         Require(!flushed.established, "flushed subnormal arithmetic is not continuous evidence");
 #endif
         {
+            // A finite control box bounds a planar trim region only after its
+            // cyclic UV joins close in the same chart. A 3D gap allowance is
+            // insufficient authority for cropping an open parameter loop.
+            std::unique_ptr<SmBrep> brep(new (context) SmBrep());
+            auto support = Plane(context, false);
+            auto* original = support.get();
+            SmFace* face = nullptr;
+            const auto status = brep->CreateFaceFromSurface(support.get(), SmExtent2d(.25, .125, .75, .875), face);
+            if (support->GetOwner())
+            {
+                support.release();
+            }
+            Require(status == SM_SUCCESS && face, "open-chart native fixture");
+            double a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
+            Require(face->CreateUVTrimCurves(FALSE, nullptr, nullptr, a, b, c, d, e, f) == SM_SUCCESS, "open-chart UV creation");
+            SmTArray<SmEdgeuse*> uses;
+            face->GetUpwardEdgeuses(uses);
+            Require(uses.GetSize() == 4, "open-chart rectangular traversal");
+            auto changed = std::unique_ptr<SmBSplineCurve>(new (context) SmBSplineCurve(*uses[0]->GetUVTrimCurve()));
+            changed->SetOwner(nullptr);
+            SmPoint3d end;
+            Require(changed->EvaluatePoint(changed->GetNaturalInterval().GetMax(), end) == SM_SUCCESS, "open-chart endpoint");
+            const double gap = std::max(1e-6, 10 * SM_EFF_ZERO_PARAM);
+            end.x += gap;
+            Require(!changed->IsRational(), "open-chart polynomial fixture");
+            Require(
+                changed->EditEndPoint(end, FALSE, nullptr, SM_EE_PROJECT_UVTRIMCURVE_VERTEX_TO_SURFACE, FALSE) == SM_SUCCESS,
+                "open-chart endpoint change"
+            );
+            auto* installed = changed.get();
+            uses[0]->SetUVTrimCurve(installed, 0., TRUE);
+            Require(installed->GetOwner() == uses[0] || installed->GetOwner() == uses[0]->GetMate(), "open-chart UV owner");
+            changed.release();
+            const auto* edge = uses[0]->GetEdge()->GetCurve();
+            SmPoint3d edgeEnd, liftedEnd;
+            Require(
+                edge->EvaluatePoint(installed->GetNaturalInterval().GetMax(), edgeEnd) == SM_SUCCESS &&
+                    original->EvaluatePoint(SmPoint2d(end.x, end.y), liftedEnd) == SM_SUCCESS &&
+                    edgeEnd.DistanceBetween(liftedEnd) < 100 * gap,
+                "open-chart endpoint remains inside the declared spatial gap allowance"
+            );
+            const auto refused = step_import::detail::RestrictUnusedSupportDomain(*face, true, 100 * gap, 10000, 100000, [] {});
+            Require(
+                refused.status == step_import::detail::SupportDomainStatus::Unestablished &&
+                    refused.reason == "PlanarChartClosureUnestablished" && face->GetSurface() == original &&
+                    uses[0]->GetUVTrimCurve() == installed && uses[0]->GetEdge()->GetCurve() == edge,
+                "open ordinary B-spline chart refuses cropping without changing support, trim or defining edge"
+            );
+        }
+        {
             std::unique_ptr<SmBrep> brep(new (context) SmBrep());
             auto support = Plane(context, false);
             const auto original = support.get();
@@ -571,8 +622,11 @@ int main()
                 cancelled && face->GetSurface() == original && uses[0]->GetUVTrimCurve() == oldUv,
                 "cancellation before normalization preserves existing owners"
             );
-            for (unsigned stop = 2; stop <= 4; ++stop)
+            for (unsigned stage = 2; stage <= 4; ++stage)
             {
+                // Same copy/extraction/proof boundaries, after the new read-only
+                // closure checks have visited every edgeuse in the chart.
+                const auto stop = stage + uses.GetSize();
                 unsigned calls = 0;
                 bool stopped = false;
                 try

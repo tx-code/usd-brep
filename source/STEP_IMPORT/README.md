@@ -405,7 +405,10 @@ CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex／CLI
 显式通用选项 `Options.restrictUnusedSupportDomains`／CLI
 `--restrict-unused-support-domains` 可限制未使用的 B 样条支撑面域。默认关闭，P0 拒绝。
 首版要求源声明唯一外边界、非闭合／非周期参数图、正权重 UV 控制网，以及完整边参数
-包含于对应 UV 自然区间。边界控制凸包包围有界参数区域，孔边界也完整保留；
+包含于对应 UV 自然区间。每个目标 UV 环还须在同一二维图按内核参数分辨率闭合，
+不能按周期取模，也不能用三维误差预算代替缺失的 UV 连接；未建立闭合时，在复制或
+安装候选前返回 `PlanarChartClosureUnestablished`。这些条件同样适用于普通 B 样条支撑。
+边界控制凸包包围有界参数区域，孔边界也完整保留；
 图分支或区域条件不明时不执行该规范化。
 
 提取使用保参数的结点分割，不拟合、不平滑、不移动源点。实际提取域必须覆盖控制包围盒；

@@ -301,7 +301,11 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     {
         return result;
     }
-    if (spindle && !ClosedPlanarChart(face, uses, checkedCall))
+    // Every control-hull restriction needs a bounded region in one UV chart,
+    // including ordinary B-spline supports. A spatially acceptable endpoint
+    // gap or a collapsed surface boundary cannot supply a missing UV join.
+    // Refuse unestablished coverage before copying or replacing any geometry.
+    if (!ClosedPlanarChart(face, uses, checkedCall))
     {
         result.status = SupportDomainStatus::Unestablished;
         result.reason = "PlanarChartClosureUnestablished";
