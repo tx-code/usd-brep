@@ -103,6 +103,17 @@ public:
                 );
             }
             const auto& t = *transformed->second;
+            if (!t.firstItemInFirstRepresentation || !t.secondItemInSecondRepresentation)
+            {
+                // Direct-frame scope: do not swap malformed items, borrow the
+                // other representation's units, or use transitive geometry
+                // references as evidence of representation.items membership.
+                Fail(
+                    "AssemblyTransformItemOwnershipMismatch",
+                    t.transformation,
+                    "Each transformation item must belong directly to its declared representation endpoint"
+                );
+            }
             const auto first = representationOwner.find(t.firstRepresentation), second = representationOwner.find(t.secondRepresentation);
             if (first == representationOwner.end() || second == representationOwner.end())
             {

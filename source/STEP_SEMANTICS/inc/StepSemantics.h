@@ -247,6 +247,10 @@ struct RepresentationTransformLink
 {
     std::size_t relationship, firstRepresentation, secondRepresentation;
     std::size_t firstContext, secondContext, transformation, firstItem, secondItem;
+    // Direct representation.items membership only, not source validity, frame
+    // evaluation or inferred membership through arbitrary reference closure.
+    bool firstItemInFirstRepresentation = false;
+    bool secondItemInSecondRepresentation = false;
 };
 struct ProductRepresentationRelationship
 {

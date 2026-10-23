@@ -1171,6 +1171,11 @@ result qualifications retain their meaning.
 one CDSR and item-defined transformed relationship to distinct, directly associated
 parent/child definition representations. It retains usage, association, relationship,
 context and item identities, including whether the child is the first endpoint.
+Each transform item must occur directly in its declared endpoint representation's
+`items` set. The graph captures this membership through shared typed bindings,
+indexing each representation once under the semantic visit budget. Missing or
+swapped items are refused without silently exchanging items or borrowing units;
+transitive references through face geometry do not establish direct membership.
 Repeated children remain distinct occurrences. Reversing both relationship endpoints
 and transform items preserves the parent/child binding; names never choose direction.
 
@@ -1182,8 +1187,8 @@ chains are not inferred. Work consumes the supplied semantic visit allowance for
 this pass; exhaustion discards the entire candidate. The plan retains its source
 owner after inspection outcomes are released. It does not expand occurrence paths.
 
-`Checked` here means only complete occurrence binding. Representation-item membership,
-unit/frame evaluation, full source closure, root selection, native construction and
+`Checked` here means only complete occurrence binding and direct item membership.
+Unit/frame evaluation, full source closure, root selection, native construction and
 numeric placement remain unqualified. Existing single-part and independent-product
 entry points retain their admission behavior. The synthetic repeated-box control has
 distinct nonidentity frames and a coordinate oracle for later numeric/native tests;

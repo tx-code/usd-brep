@@ -95,6 +95,11 @@ int main(int argc, char** argv)
         );
         Refused(Replace(source, "#918=CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#924,#917);", ""), "AssemblyOccurrenceShapeMissing");
         Refused(
+            Replace(source, "ITEM_DEFINED_TRANSFORMATION('',$,#931,#933)", "ITEM_DEFINED_TRANSFORMATION('',$,#933,#931)"),
+            "AssemblyTransformItemOwnershipMismatch"
+        );
+        Refused(Replace(source, "'body',(#21,#931),#12", "'body',(#21),#12"), "AssemblyTransformItemOwnershipMismatch");
+        Refused(
             Replace(source, "ENDSEC;\nEND-ISO", "#950=CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#914,#911);\nENDSEC;\nEND-ISO"),
             "AssemblyOccurrenceShapeAmbiguous"
         );

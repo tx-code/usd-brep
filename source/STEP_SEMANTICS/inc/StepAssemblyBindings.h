@@ -14,7 +14,7 @@ struct AssemblyOccurrenceBinding
     bool childIsFirstRepresentation;
 };
 // A complete direct-representation binding plan, not a qualified assembly.
-// Owns declared source evidence; units, item membership, numeric frames, full
+// Includes direct representation.items membership. Units, numeric frames, full
 // document closure, root selection and native construction remain unestablished.
 struct AssemblyBindingPlan
 {

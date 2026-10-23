@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <tuple>
+#include <unordered_set>
 #include <utility>
 
 namespace step_semantics
@@ -195,6 +196,24 @@ public:
                 }
             }
         }
+        std::map<std::size_t, std::unordered_set<std::size_t>> representationItems;
+        const auto hasDirectItem = [&](std::size_t representation, std::size_t item)
+        {
+            auto [entry, inserted] = representationItems.try_emplace(representation);
+            if (inserted)
+            {
+                // Reuse typed source bindings. A placement referenced somewhere
+                // under a face is not thereby an item of the assembly frame's
+                // representation. Index each distinct item set once and charge
+                // every member; repeated occurrences cannot multiply this scan.
+                for (const auto& value : Value(representation, "items").children)
+                {
+                    m_visit(value.span);
+                    entry->second.insert(m_data.referenceTargets.at(&value));
+                }
+            }
+            return entry->second.contains(item);
+        };
         for (const auto record : Population("REPRESENTATION_RELATIONSHIP"))
         {
             const auto first = Ref(record, "rep_1"), second = Ref(record, "rep_2");
@@ -228,6 +247,7 @@ public:
                     first
                 );
             }
+            const auto firstItem = Ref(*transform, "transform_item_1"), secondItem = Ref(*transform, "transform_item_2");
             output->transforms.push_back(
                 { record,
                   first,
@@ -235,8 +255,10 @@ public:
                   firstContext,
                   secondContext,
                   *transform,
-                  Ref(*transform, "transform_item_1"),
-                  Ref(*transform, "transform_item_2") }
+                  firstItem,
+                  secondItem,
+                  hasDirectItem(first, firstItem),
+                  hasDirectItem(second, secondItem) }
             );
         }
         for (const auto record : Population("CONTEXT_DEPENDENT_SHAPE_REPRESENTATION"))
