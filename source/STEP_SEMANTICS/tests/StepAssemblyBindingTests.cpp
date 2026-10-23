@@ -147,6 +147,7 @@ void DefinitionScopes(const std::string& source)
         const auto id = fields.Source().Records()[scope.definition].id;
         Require(scope.representations.size() == 1 && scope.relationships.empty(), "occurrence links excluded from local adjacency");
         Require(scope.hasOccurrences == (id == "902"), "placement-only parent role retained");
+        Require(scope.placementOnly == (id == "902"), "parent wrapper is separate from material geometry");
         bool solid = false;
         for (auto item : scope.directItems)
         {
@@ -183,6 +184,33 @@ void DefinitionScopes(const std::string& source)
     auto stopped = plan(source, limits);
     Require(stopped.status == Status::ResourceLimit && !stopped.plan, "late scope failure withholds entire plan");
     auto owner = observed.plan;
+    auto surface = plan(Replace(
+        Replace(source, "#21=MANIFOLD_SOLID_BREP('',#22)", "#21=SHELL_BASED_SURFACE_MODEL('',(#22))"),
+        "#20=ADVANCED_BREP_SHAPE_REPRESENTATION",
+        "#20=MANIFOLD_SURFACE_SHAPE_REPRESENTATION"
+    ));
+    Require(surface.plan && !surface.plan->definitions[0].placementOnly, "surface definition retained");
+    bool retainedSurface = false;
+    for (const auto& item : surface.plan->definitions[0].items)
+    {
+        retainedSurface |= item.role == AssemblyItemRole::SurfaceModel;
+    }
+    Require(retainedSurface, "closed surface shell does not acquire material role");
+    auto absent = plan(Replace(source, "'body',(#21,#931),#12", "'body',(#931),#12"));
+    Require(
+        !absent.plan && absent.diagnostics[0].source.key == "AssemblyLeafGeometryMissing",
+        "missing leaf geometry is not an empty successful part"
+    );
+    auto extra = plan(Replace(source, "'parent',(#933,#935),#921", "'parent',(#933,#935,#932),#921"));
+    Require(!extra.plan && extra.diagnostics[0].source.key == "AssemblyDefinitionItemUnsupported", "parent point item cannot be silently dropped");
+    auto multiUse = plan(Replace(linked, "'linked',(#21),#12", "'linked',(#21,#931),#12"));
+    Require(bool(multiUse.plan), "multiple memberships of the same placement retained");
+    bool twoUses = false;
+    for (const auto& item : multiUse.plan->definitions[0].items)
+    {
+        twoUses |= item.role == AssemblyItemRole::Placement && item.representations.size() == 2;
+    }
+    Require(twoUses, "deduplicated item inventory does not discard representation provenance");
     observed = {};
     Require(owner->inputs->SourceFields().Source().Bytes() == source, "definition plan owns original source");
 }

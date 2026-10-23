@@ -94,9 +94,10 @@ public:
                 );
             }
             AssemblyDefinitionScope scope{
-                definition.definition, root.representation, root.context, {}, {}, {}, parents.contains(definition.definition)
+                definition.definition, root.representation, root.context, {}, {}, {}, parents.contains(definition.definition), {}, false
             };
             std::unordered_set<std::size_t> seen, relationships, items;
+            std::unordered_map<std::size_t, std::vector<std::size_t>> memberships;
             std::vector<std::size_t> stack{ root.representation };
             while (!stack.empty())
             {
@@ -124,7 +125,9 @@ public:
                 for (const auto& item : fields.Field(representation, "items").Value().children)
                 {
                     Visit(representation);
-                    items.insert(fields.ReferenceTarget(item));
+                    const auto target = fields.ReferenceTarget(item);
+                    items.insert(target);
+                    memberships[target].push_back(representation);
                 }
                 scope.representations.push_back(representation);
                 for (const auto& [other, relationship] : adjacency[representation])
@@ -141,6 +144,44 @@ public:
             scope.directItems.assign(items.begin(), items.end());
             std::sort(scope.relationships.begin(), scope.relationships.end());
             std::sort(scope.directItems.begin(), scope.directItems.end());
+            bool hasGeometry = false;
+            for (const auto item : scope.directItems)
+            {
+                Visit(item);
+                AssemblyItemRole role;
+                // Nominal source roles from the already bound fixed profile,
+                // not inferred from closure, volume, rendering or parenthood.
+                // A surface model with a CLOSED_SHELL remains a surface model.
+                if (fields.IsA(item, "AXIS2_PLACEMENT_3D"))
+                {
+                    role = AssemblyItemRole::Placement;
+                }
+                else if (fields.IsA(item, "MANIFOLD_SOLID_BREP"))
+                {
+                    role = AssemblyItemRole::MaterialSolid;
+                }
+                else if (fields.IsA(item, "SHELL_BASED_SURFACE_MODEL"))
+                {
+                    role = AssemblyItemRole::SurfaceModel;
+                }
+                else
+                {
+                    Fail(
+                        "AssemblyDefinitionItemUnsupported",
+                        item,
+                        "Definition item requires an explicit supported geometry or placement role; it cannot be discarded"
+                    );
+                }
+                hasGeometry |= role != AssemblyItemRole::Placement;
+                auto& uses = memberships.at(item);
+                std::sort(uses.begin(), uses.end());
+                scope.items.push_back({ item, role, std::move(uses) });
+            }
+            scope.placementOnly = !hasGeometry;
+            if (scope.placementOnly && !scope.hasOccurrences)
+            {
+                Fail("AssemblyLeafGeometryMissing", scope.definition, "A definition without child occurrences cannot stand in for missing geometry");
+            }
             result.push_back(std::move(scope));
         }
         return result;

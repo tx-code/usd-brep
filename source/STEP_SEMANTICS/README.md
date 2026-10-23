@@ -1241,6 +1241,13 @@ links and other relationships for subsequent full-document closure; they are not
 deleted or declared harmless. Scope success establishes representation membership
 only, not item/geometry validity, material role, administrative attachment or native
 construction. Parent placement wrappers never become empty material solids.
+The scope tags direct items by their bound nominal type as placement, material
+solid or surface model, retaining every representation membership. A closed
+surface model never becomes material merely because its shell is closed. A
+placement-only definition requires child occurrences; missing leaf geometry and
+unhandled direct items are refused rather than omitted. These tags do not prove
+shell/region validity or full representation WHERE rules. Parent-owned geometry
+is retained alongside its child occurrences for subsequent validation.
 
 ## Qualified independent definitions
 

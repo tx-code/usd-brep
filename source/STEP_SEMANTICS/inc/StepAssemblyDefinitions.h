@@ -5,11 +5,25 @@
 
 namespace step_semantics
 {
+enum class AssemblyItemRole
+{
+    Placement,
+    MaterialSolid,
+    SurfaceModel
+};
+struct AssemblyDefinitionItem
+{
+    std::size_t item;
+    AssemblyItemRole role;
+    std::vector<std::size_t> representations; // All direct memberships retained.
+};
 struct AssemblyDefinitionScope
 {
     std::size_t definition, rootRepresentation, context;
     std::vector<std::size_t> representations, relationships, directItems;
     bool hasOccurrences = false;
+    std::vector<AssemblyDefinitionItem> items;
+    bool placementOnly = false;
 };
 struct AssemblyDefinitionPlan
 {
