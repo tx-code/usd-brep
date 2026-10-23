@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAssemblyBindings.h"
+#include "StepAssemblyInputs.h"
 
 #include <fstream>
 #include <iostream>
@@ -42,6 +43,91 @@ void Refused(const std::string& source, const char* key)
     );
     Require(result.diagnostics[0].source.key == key && !result.diagnostics[0].source.recordId.empty(), "stable refusal with source identity");
 }
+void ContextInputs(const std::string& source)
+{
+    using namespace step_semantics;
+    auto inspect = [](const std::string& text, Limits limits = {})
+    {
+        auto raw = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
+        return InspectAssemblyInputs(raw, limits, SourcePolicy::Strict);
+    };
+    auto observed = inspect(source);
+    Require(
+        observed.checks.status == Status::Deferred && observed.inputs && !observed.checks.snapshot && !observed.checks.document,
+        "assembly context observations never publish a qualified source model"
+    );
+    Require(
+        observed.inputs->Contexts().size() == 2 && observed.inputs->Bindings().occurrences.size() == 2,
+        "repeated occurrences share two checked contexts"
+    );
+    for (const auto& context : observed.inputs->Contexts())
+    {
+        Require(context.units.lengthPower10Mm == 0, "both original contexts declare millimetres");
+    }
+    Require(
+        observed.checks.interoperability == "NotRun" && observed.checks.part == "NotQualifiedAssemblyInputs",
+        "context checks cannot imply ownership or metadata approval"
+    );
+    const auto mixed = Replace(
+        Replace(
+            source,
+            "#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+            "#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#939,#11))"
+        ),
+        "ENDSEC;\nEND-ISO",
+        "#939=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));\nENDSEC;\nEND-ISO"
+    );
+    auto different = inspect(mixed);
+    Require(different.inputs && different.inputs->Contexts().size() == 2, "mixed source length contexts retained");
+    for (const auto& context : different.inputs->Contexts())
+    {
+        const auto& id = different.inputs->SourceFields().Source().Records()[context.context].id;
+        Require(context.units.lengthPower10Mm == (id == "12" ? 0 : 3), "unit scale belongs to its context, not the first part");
+    }
+    auto missing = inspect(Replace(
+        source,
+        "#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+        "#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#11))"
+    ));
+    Require(
+        !missing.inputs && !missing.checks.snapshot && !missing.checks.document &&
+            missing.checks.diagnostics.back().source.key == "UnsupportedUnitAssignment",
+        "late parent-unit failure discards child context observations"
+    );
+    auto limits = Limits{};
+    limits.dependencyVisits = observed.checks.dependencyVisits;
+    Require(bool(inspect(source, limits).inputs), "exact combined graph/binding/unit budget succeeds");
+    --limits.dependencyVisits;
+    auto stopped = inspect(source, limits);
+    Require(stopped.checks.status == Status::ResourceLimit && !stopped.inputs, "one shared visit budget bounds every assembly prerequisite");
+    auto owner = different.inputs;
+    different = {};
+    Require(
+        owner->SourceFields().Source().Bytes() == mixed && owner->Contexts().size() == 2,
+        "contexts and source bindings outlive the inspection result"
+    );
+    const auto converted = Replace(
+        mixed,
+        "#939=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));",
+        "#939=(CONVERSION_BASED_UNIT('synthetic inch',#940) LENGTH_UNIT() NAMED_UNIT(*));\n"
+        "#940=MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10);"
+    );
+    auto conversion = inspect(converted);
+    Require(
+        conversion.inputs && conversion.checks.siUnits == "DeferredAssemblyContextConversion",
+        "source conversion chain remains explicit deferred numeric work"
+    );
+    for (const auto& context : conversion.inputs->Contexts())
+    {
+        if (conversion.inputs->SourceFields().Source().Records()[context.context].id == "921")
+        {
+            Require(
+                !context.units.lengthPower10Mm && conversion.inputs->SourceFields().Source().Records()[context.units.lengthUnit].id == "939",
+                "conversion context cannot inherit the child millimetre scale"
+            );
+        }
+    }
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -51,6 +137,7 @@ int main(int argc, char** argv)
         std::ifstream stream(argv[1], std::ios::binary);
         Require(bool(stream), "fixture exists");
         const std::string source{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        ContextInputs(source);
         auto graph = Graph(source);
         auto result = step_semantics::BindAssemblyOccurrences(graph, {});
         Require(

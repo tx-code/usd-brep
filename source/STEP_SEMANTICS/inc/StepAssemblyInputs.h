@@ -1,0 +1,43 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+#pragma once
+#include "StepAssemblyBindings.h"
+
+namespace step_semantics
+{
+struct AssemblyContextUnits
+{
+    std::size_t context;
+    Units units; // Nominal/context checks only; conversion arithmetic may remain deferred.
+};
+struct AssemblyInputData;
+// Owns the complete bound occurrence graph and every distinct endpoint context.
+// Not a qualified source document: geometry/ownership, final interoperability
+// approval, numeric frame evaluation and native construction have not run.
+class AssemblyInputs
+{
+public:
+
+    explicit AssemblyInputs(std::shared_ptr<const AssemblyInputData> data);
+    const AssemblyBindingPlan& Bindings() const;
+    const SourceBindings& SourceFields() const;
+    std::span<const AssemblyContextUnits> Contexts() const;
+
+private:
+
+    std::shared_ptr<const AssemblyInputData> m_data;
+};
+struct AssemblyInputOutcome
+{
+    Outcome checks; // Success is Deferred; snapshot/document always null.
+    std::shared_ptr<const AssemblyInputs> inputs; // Null if any prerequisite fails.
+};
+AssemblyInputOutcome InspectAssemblyInputs(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+);
+} // namespace step_semantics

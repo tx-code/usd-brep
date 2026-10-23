@@ -1204,6 +1204,26 @@ entry points retain their admission behavior. The synthetic repeated-box control
 distinct nonidentity frames and a coordinate oracle for later numeric/native tests;
 the current binding tests do not claim to evaluate that oracle.
 
+## Assembly context input inspection
+
+`StepAssemblyInputs.h` provides explicit `InspectAssemblyInputs`. It reuses the
+normal parsing/type/global dependency prerequisites, complete occurrence binding,
+and the same context-scoped unit walk and nominal-unit checks as independent parts.
+Every distinct parent/child endpoint context is checked once. Placement-only
+parents need no invented material part; their units never inherit from a child.
+All stages consume one semantic visit budget. A failed later context or exhausted
+budget returns no partial `AssemblyInputs` object.
+
+The owning result retains original typed source bindings, occurrence identities
+and per-context `Units`. SI scales belong to their actual context; conversion
+chains remain source definitions with numerical evaluation deferred. Success has
+`checks.status = Deferred`, `snapshot = document = null`, and an explicit
+`NotQualifiedAssemblyInputs` part state. Metadata exceptions are not approved:
+pending diagnostics remain in `unapprovedDiagnostics`. Full part/document closure,
+frame construction, physical placement, native geometry and model publication
+are separate prerequisites. No existing import/inspection entry point gains
+assembly admission from this API.
+
 ## Qualified independent definitions
 
 `CheckIndependentProducts` / CLI `--independent-products` explicitly requests all

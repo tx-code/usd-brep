@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAp203N916Profile.h"
+#include "StepAssemblyInputsInternal.h"
 #include "StepCatalog.h"
 #include "StepDefinitionInspection.h"
 #include "StepGeometryDependencies.h"
@@ -271,6 +272,99 @@ public:
                 throw Failure{ failure->status, std::move(failure->diagnostic) };
             }
         }
+    }
+    std::shared_ptr<const AssemblyInputs> InspectAssemblyContextInputs()
+    {
+        RunPrerequisites();
+        auto candidate = std::make_shared<AssemblyInputData>();
+        RunPhase(
+            Phase::Part,
+            [&]
+            {
+                auto graph = InspectProductStructure(
+                    m_data,
+                    [this](Span span)
+                    {
+                        Visit(span);
+                    },
+                    true
+                );
+                if (graph.failure)
+                {
+                    throw Failure{ graph.failure->status, std::move(graph.failure->diagnostic) };
+                }
+                m_outcome.productStructure = std::move(graph.structure);
+                if (!m_outcome.productStructure)
+                {
+                    Fail(
+                        "AssemblyProfileUnsupported",
+                        "D2",
+                        "The selected source profile does not supply declared assembly structure",
+                        m_data->source->Header()[2].span,
+                        Status::Unsupported
+                    );
+                }
+                auto budget = m_outcome.limits;
+                budget.dependencyVisits -= m_outcome.dependencyVisits;
+                auto binding = BindAssemblyOccurrences(m_outcome.productStructure, budget);
+                m_outcome.dependencyVisits += binding.dependencyVisits;
+                if (!binding.plan)
+                {
+                    Expects(!binding.diagnostics.empty());
+                    throw Failure{ binding.status, std::move(binding.diagnostics.front()) };
+                }
+                candidate->bindings = std::move(binding.plan);
+            }
+        );
+        RunPhase(
+            Phase::Units,
+            [&]
+            {
+                BuildReferenceIndex();
+                const auto dimensions = m_data->units.dimensionDefinitions;
+                std::unordered_map<std::size_t, const UnitDimensionDefinition*> dimensionByRecord;
+                for (const auto& dimension : dimensions)
+                {
+                    dimensionByRecord.emplace(dimension.recordIndex, &dimension);
+                }
+                std::unordered_set<std::size_t> visitedContexts;
+                for (const auto& occurrence : candidate->bindings->occurrences)
+                {
+                    Visit(Record(occurrence.usage).span);
+                    for (const auto context : { occurrence.childContext, occurrence.parentContext })
+                    {
+                        if (!visitedContexts.insert(context).second)
+                        {
+                            continue;
+                        }
+                        Visit(Record(context).span);
+                        if (!IsA(*m_data, context, "GEOMETRIC_REPRESENTATION_CONTEXT"))
+                        {
+                            Fail(
+                                "AssemblyGeometricContextUnestablished",
+                                "D2",
+                                "Assembly frames require a geometric representation context",
+                                Record(context).span,
+                                Status::Unsupported,
+                                context
+                            );
+                        }
+                        // The same dependency walk and nominal-unit rules used for
+                        // independent definitions apply to a placement-only parent.
+                        // No fake material part or inherited child units are created.
+                        candidate->contexts.push_back({ context, UnitsForContext(context, dimensionByRecord) });
+                    }
+                }
+            }
+        );
+        // Whole-document closure and final metadata approval have not run.
+        // Keep pending source facts visible instead of promoting exceptions.
+        for (const auto& issue : m_data->pendingIssues)
+        {
+            m_outcome.unapprovedDiagnostics.push_back(issue.diagnostic);
+        }
+        m_outcome.unitInterpretationDiagnostics = m_data->unitInterpretationDiagnostics;
+        return std::make_shared<const AssemblyInputs>(std::move(candidate));
     }
     void InspectDefinitions()
     {
@@ -839,7 +933,11 @@ private:
             }
         );
         Expects(context != part.roles.end());
-        m_context = context->recordIndex;
+        return UnitsForContext(context->recordIndex, dimensionByRecord);
+    }
+    Units UnitsForContext(std::size_t context, const std::unordered_map<std::size_t, const UnitDimensionDefinition*>& dimensionByRecord)
+    {
+        m_context = context;
         const auto reachable = SparseReach(m_context);
         m_data->units = {};
         for (auto record : reachable)
@@ -5298,7 +5396,8 @@ static Outcome CheckImpl(
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs,
     bool independentRequest,
     bool inspectDefinitions = false,
-    const SelectedSourceRequest* selection = nullptr
+    const SelectedSourceRequest* selection = nullptr,
+    std::shared_ptr<const AssemblyInputs>* assemblyInputs = nullptr
 )
 {
     if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
@@ -5428,6 +5527,25 @@ static Outcome CheckImpl(
     Checker checker(data, result, independentRequest);
     try
     {
+        if (assemblyInputs)
+        {
+            auto candidate = checker.InspectAssemblyContextInputs();
+            result.status = Status::Deferred;
+            checker.PublishProgress();
+            result.part = "NotQualifiedAssemblyInputs";
+            result.siUnits = std::all_of(
+                                 candidate->Contexts().begin(),
+                                 candidate->Contexts().end(),
+                                 [](const auto& context)
+                                 {
+                                     return context.units.lengthPower10Mm.has_value();
+                                 }
+                             ) ?
+                                 "CheckedPerAssemblyContext" :
+                                 "DeferredAssemblyContextConversion";
+            *assemblyInputs = std::move(candidate);
+            return result;
+        }
         if (inspectDefinitions)
         {
             checker.InspectDefinitions();
@@ -5491,6 +5609,32 @@ static Outcome CheckImpl(
         result.diagnostics.push_back(failure.diagnostic);
     }
     checker.PublishProgress();
+    return result;
+}
+AssemblyInputOutcome InspectAssemblyInputs(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
+)
+{
+    AssemblyInputOutcome result;
+    result.checks = CheckImpl(
+        source,
+        limits,
+        policy,
+        GeometryScope::GeneralBrep,
+        interpretation,
+        unitInterpretation,
+        complexMappingInterpretation,
+        {},
+        false,
+        false,
+        nullptr,
+        &result.inputs
+    );
     return result;
 }
 Outcome Check(
