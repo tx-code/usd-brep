@@ -30,3 +30,18 @@ foreach(case clean first all touching outside optional root-clean root-overlap l
         set_tests_properties(coincident_${case} PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${SMLIB_RUNTIME_DIR}")
     endif()
 endforeach()
+add_executable(coincident_partial partial.cpp)
+target_compile_features(coincident_partial PRIVATE cxx_std_20)
+target_link_libraries(coincident_partial PRIVATE SMLib)
+target_compile_definitions(coincident_partial PRIVATE NOMINMAX SM_GRAPHICS_CALLBACKS=1
+    $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>
+    $<$<PLATFORM_ID:Windows>:UNICODE;_UNICODE;NL_DEBUG_CODE>)
+if(MSVC)
+    target_compile_options(coincident_partial PRIVATE /W4 /WX /permissive- /utf-8)
+endif()
+foreach(case left right full separated)
+    add_test(NAME coincident_partial_${case} COMMAND coincident_partial ${case})
+    if(WIN32 AND SMLIB_RUNTIME_DIR)
+        set_tests_properties(coincident_partial_${case} PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${SMLIB_RUNTIME_DIR}")
+    endif()
+endforeach()

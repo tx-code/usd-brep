@@ -29373,6 +29373,20 @@ SmBoolean bDebugMe = FALSE ;
   double dStDist = sSolutions[0].m_vStart.m_dSolutionValue;
   double dEnDist = sSolutions[0].m_vStart.m_dSolutionValue;
 
+  // Keep the parameter, surface UV and distance from the same observed hit.
+  // Either search side can establish both ends when the initial midpoint misses.
+  // Update before early exit; the sampled interval is still not a continuous
+  // certificate of coincidence between its endpoints.
+  const auto recordHit = [&](double parameter, const SmPoint2d& uv, double distance)
+    {
+      const bool firstHit = sSampledIvl.IsInit() != FALSE;
+      if(firstHit || parameter < sSampledIvl.GetMin())
+        { sUV0 = uv; dStDist = distance; }
+      if(firstHit || parameter > sSampledIvl.GetMax())
+        { sUV1 = uv; dEnDist = distance; }
+      sSampledIvl.AddValue(parameter);
+    };
+
   SmPoint3d sStPnt[2]; // sStPnt[0] = crCurve 3dPoint    for param = dStT
                        // sStPnt[1] = crCurve 3dTangent  for param = dStT
   SmPoint3d sEnPnt[2]; // sEnPnt[0] = crCurve 3dPoint    for param = dEnT
@@ -29384,7 +29398,6 @@ SmBoolean bDebugMe = FALSE ;
   ULONG lCount = lDeg + 5;
 
   SmBoolean bFoundStart  = FALSE, bFoundEnd  = FALSE;
-  SmBoolean bHaveStartUV = FALSE, bHaveEndUV = FALSE;
   SmBoolean bEndPtsOnly  = TRUE ;
 
   ULONG ii;
@@ -29426,9 +29439,8 @@ SmBoolean bDebugMe = FALSE ;
             { bEndPtsOnly = FALSE ; }
 
           // add mid point to interval known to be coincident
-          sSampledIvl.AddValue(dStT) ;
-          dStDist = sSol.m_vStart.m_dSolutionValue;
           sUVGuessStart.Set( sSol.m_vStart[0], sSol.m_vStart[1] );
+          recordHit(dStT, sUVGuessStart, sSol.m_vStart.m_dSolutionValue);
 
           // Three coincident/tangent results is enough.
           if ( lNumHits++ >= 3  &&  bPartialCoincidenceOK )
@@ -29475,9 +29487,8 @@ SmBoolean bDebugMe = FALSE ;
             { bEndPtsOnly = FALSE ; }
 
           // add mid point to interval known to be coincident
-          sSampledIvl.AddValue(dEnT) ;
-          dEnDist = sSol.m_vStart.m_dSolutionValue ;
           sUVGuessEnd.Set( sSol.m_vStart[0], sSol.m_vStart[1] );
+          recordHit(dEnT, sUVGuessEnd, sSol.m_vStart.m_dSolutionValue);
 
           if ( lNumHits++ >= 3  &&  bPartialCoincidenceOK )
             { break; }
@@ -29491,33 +29502,6 @@ SmBoolean bDebugMe = FALSE ;
 
         } // end failed to drop current CurveEndPoint to Surface check
 
-
-      // Record the farthest-apart uv values.
-      if ( bFoundStart )
-        {
-          sUV0 = sUVGuessStart;
-          bHaveStartUV = TRUE;
-
-          // If we have no End uv yet, set it to this start uv.
-          // Otherwise these uv's might never get set.
-          if ( ! bHaveEndUV )
-            {
-              sUV1 = sUV0;
-              bHaveEndUV = TRUE;
-            }
-        }
-      if ( bFoundEnd )
-        {
-          sUV1 = sUVGuessEnd;
-          bHaveEndUV = TRUE;
-
-          // Again, don't let sUV0 be unset.
-          if ( ! bHaveStartUV )
-            {
-              sUV0 = sUV1;
-              bHaveStartUV = TRUE;
-            }
-        }
 
     } // end iter CurveSamplePoints from endPoint to midPoint looking for coincidence
 

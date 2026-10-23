@@ -13,6 +13,14 @@ LEVEL2 validation rejects coincident topology; LEVEL0 does not run test 15.
 predicate consistently in Release and Debug.
 This is a regression contract for these checks, not complete BRep validity.
 
+`coincident_partial` uses an exact affine planar support and a piecewise cubic
+wire that leaves or approaches that plane. Its endpoint parameters, UV values
+and recorded distances must describe the same sampled pairs, including an early
+exit and a midpoint that misses the support. Left-only, right-only, fully
+coincident and spatially separated controls also exercise the BRep caller.
+The partial-screen interval remains heuristic between observed endpoints;
+these controls do not grant it a continuous coincidence certificate.
+
 The validation-enabled SDK build registers the cases. For an existing matching
 SDK, the standalone entry point accepts `SMLIB_LIBRARY_DIR` and
 `SMLIB_RUNTIME_DIR`, uses C++20 and the same CRT/layout macros, and runs with:
