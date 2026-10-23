@@ -77,8 +77,36 @@ int main(int argc, char** argv)
             rejected.status == Status::Rejected && !rejected.model && rejected.report.nativeCalls == 0,
             "default source FACE.WR2 rejection preserved"
         );
-        auto result = ImportBytes(source, options);
+        std::vector<Progress> trace;
+        auto observing = options;
+        observing.execution.progress = [&](Progress progress)
+        {
+            trace.push_back(progress);
+        };
+        auto result = ImportBytes(source, observing);
         Require(result.status == Status::AcceptedWithRepairs && result.model, "explicit source-bound band repair");
+        for (std::size_t stop = 0; stop < trace.size(); ++stop)
+        {
+            if (trace[stop].phase != Phase::BeforeRepairProof)
+            {
+                continue;
+            }
+            auto refusal = options;
+            std::size_t visits = 0;
+            refusal.execution.progress = [&](Progress)
+            {
+                if (visits++ == stop)
+                {
+                    throw std::runtime_error("band proof observer refusal");
+                }
+            };
+            const auto failed = ImportBytes(source, refusal);
+            Require(
+                failed.status == Status::BuildFailure && !failed.model && visits == stop + 1 &&
+                    failed.report.nativeCalls == trace[stop].nativeCalls && failed.report.diagnostics.back().source.key == "ExecutionCallbackFailure",
+                "exact band proof stops immediately at every refused checkpoint without a later proof or native operation"
+            );
+        }
         auto model = result.model;
         const auto reportSize = result.report.json.size();
         result = {};

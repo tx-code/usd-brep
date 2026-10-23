@@ -3,16 +3,16 @@
 #include "StepImportDefinitionSelection.h"
 #include "StepImportExecution.h"
 #include "StepImportGroupedBuild.h"
-#include "StepImportLegacyFailure.h"
 #include "StepImportNativeData.h"
 #include "StepImportObservation.h"
+#include "StepImportPlan.h"
 
 #include <SmBrepData.h>
 #include <algorithm>
 
 namespace step_import::detail
 {
-Result<DocumentCandidate> BuildDocument(
+[[nodiscard]] Result<DocumentCandidate> BuildDocument(
     std::shared_ptr<const step_semantics::ProductDocument> source,
     const Options& options,
     Report& report,
@@ -70,12 +70,7 @@ Result<DocumentCandidate> BuildDocument(
             }
             else
             {
-                auto body = LegacyFailureAdapter(
-                    [&]
-                    {
-                        return BuildGeneral(part, options, checks, execution);
-                    }
-                );
+                auto body = BuildGeneral(part, options, checks, execution);
                 if (!body)
                 {
                     return tl::unexpected(std::move(body.error()));

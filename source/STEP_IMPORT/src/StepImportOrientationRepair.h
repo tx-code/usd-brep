@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include "StepImportPlan.h"
+#include "StepImportNativeBuild.h"
 namespace step_import::detail
 {
 class Execution;
@@ -12,9 +12,9 @@ struct OrientationFailureCandidate
     std::shared_ptr<ModelData> model;
     std::vector<std::size_t> targetFaces;
 };
-using GeneralRepairBuild = std::function<std::shared_ptr<ModelData>(Report&, bool, const FaceSenseOverrides&)>;
-void ValidateRepairTargets(const step_semantics::Outcome& source, const Options& options, Execution& execution);
-std::shared_ptr<ModelData> BuildWithOrientationRepair(
+using GeneralRepairBuild = std::function<Result<NativeCandidate>(Report&, bool, const FaceSenseOverrides&)>;
+[[nodiscard]] Result<void> ValidateRepairTargets(const step_semantics::Outcome& source, const Options& options, Execution& execution);
+[[nodiscard]] Result<NativeCandidate> BuildWithOrientationRepair(
     std::shared_ptr<const step_semantics::Snapshot> source,
     std::optional<step_semantics::Part::Shape> binding,
     const Options& options,

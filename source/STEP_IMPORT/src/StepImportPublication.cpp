@@ -3,8 +3,8 @@
 #include "StepImportPublication.h"
 
 #include "StepImportExecution.h"
-#include "StepImportLegacyFailure.h"
 #include "StepImportNativeData.h"
+#include "StepImportPlan.h"
 #include "StepImportReport.h"
 
 #include <algorithm>
@@ -41,7 +41,7 @@ Publication::Publication(const Options& options, FileOutcome& outcome, const ste
     : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_fileSink(&outcome.model)
 {
 }
-Result<void> Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
+[[nodiscard]] Result<void> Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
 {
     if ((!m_documentSink && !m_fileSink) || !candidate || candidate->PartCount() != m_report.definitions.size() ||
         std::any_of(
@@ -58,7 +58,7 @@ Result<void> Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot>
     m_preparedDocument = std::move(candidate);
     return FinishAccept();
 }
-Result<void> Publication::Accept(std::shared_ptr<ModelData> candidate)
+[[nodiscard]] Result<void> Publication::Accept(std::shared_ptr<ModelData> candidate)
 {
     m_candidate = std::move(candidate);
     if (!m_modelSink && !m_partSink && !m_fileSink)
@@ -68,7 +68,18 @@ Result<void> Publication::Accept(std::shared_ptr<ModelData> candidate)
     m_prepared = Access::Snapshot(std::move(m_candidate));
     return FinishAccept();
 }
-Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates)
+[[nodiscard]] Result<void> Publication::Accept(Result<NativeCandidate> candidate)
+{
+    if (!candidate)
+    {
+        return tl::unexpected(std::move(candidate.error()));
+    }
+    return Accept(std::move(*candidate));
+}
+[[nodiscard]] Result<void> Publication::AcceptCollection(
+    std::shared_ptr<const step_semantics::Snapshot> source,
+    std::vector<std::shared_ptr<ModelData>> candidates
+)
 {
     if (!m_collectionSink && !m_partSink && !m_fileSink)
     {
@@ -98,7 +109,7 @@ Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics:
     }
     return FinishAccept();
 }
-Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates)
+[[nodiscard]] Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates)
 {
     if (!candidates)
     {
@@ -106,7 +117,7 @@ Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics:
     }
     return AcceptCollection(std::move(source), std::move(*candidates));
 }
-Result<void> Publication::AcceptDocument(Result<DocumentCandidate> candidate)
+[[nodiscard]] Result<void> Publication::AcceptDocument(Result<DocumentCandidate> candidate)
 {
     if (!candidate)
     {
@@ -114,21 +125,16 @@ Result<void> Publication::AcceptDocument(Result<DocumentCandidate> candidate)
     }
     return AcceptDocument(std::move(*candidate));
 }
-Result<void> Publication::FinishAccept()
+[[nodiscard]] Result<void> Publication::FinishAccept()
 {
-    // Only Execution owns these legacy domain failures. Preserve their order
-    // while the publication protocol itself propagates results without throws.
+    // Execution results stop publication before any subsequent checkpoint,
+    // serialization or owner transfer. Keep their original order.
     auto repairs = m_execution.CheckRepairCompletion();
     if (!repairs)
     {
         return tl::unexpected(std::move(repairs.error()));
     }
-    auto ready = LegacyFailureAdapter(
-        [&]
-        {
-            m_execution.Check(Phase::NativeReady);
-        }
-    );
+    auto ready = m_execution.Check(Phase::NativeReady);
     if (!ready)
     {
         return tl::unexpected(std::move(ready.error()));
@@ -169,12 +175,7 @@ Result<void> Publication::FinishAccept()
                isolated    ? Status::AcceptedWithSourceIsolation :
                interpreted ? Status::AcceptedUnderInterpretation :
                              Status::Accepted;
-    auto beforeReport = LegacyFailureAdapter(
-        [&]
-        {
-            m_execution.Check(Phase::BeforeReport);
-        }
-    );
+    auto beforeReport = m_execution.Check(Phase::BeforeReport);
     if (!beforeReport)
     {
         return tl::unexpected(std::move(beforeReport.error()));
@@ -184,13 +185,12 @@ Result<void> Publication::FinishAccept()
     {
         return tl::unexpected(std::move(firstReport.error()));
     }
-    auto beforeCommit = LegacyFailureAdapter(
-        [&]
-        {
-            m_execution.Check(Phase::ReportReady);
-            m_execution.Check(Phase::BeforeCommit);
-        }
-    );
+    auto reportReady = m_execution.Check(Phase::ReportReady);
+    if (!reportReady)
+    {
+        return tl::unexpected(std::move(reportReady.error()));
+    }
+    auto beforeCommit = m_execution.Check(Phase::BeforeCommit);
     if (!beforeCommit)
     {
         return tl::unexpected(std::move(beforeCommit.error()));
@@ -255,7 +255,7 @@ Result<void> Publication::FinishAccept()
     }
     return {};
 }
-Result<void> Publication::WriteReport()
+[[nodiscard]] Result<void> Publication::WriteReport()
 {
     return Serialize(
         m_status,

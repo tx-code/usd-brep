@@ -26,6 +26,15 @@
 
 namespace
 {
+template <class T>
+T Value(step_import::detail::Result<T> result)
+{
+    if (!result)
+    {
+        throw std::runtime_error(result.error().key);
+    }
+    return std::move(*result);
+}
 void Require(bool value, const char* text)
 {
     if (!value)
@@ -125,11 +134,12 @@ std::unique_ptr<SmBSplineCurve> Diagonal(SmContext& context, bool uv, bool bulge
 }
 void OrientationEvidence(SmContext& context)
 {
-    const auto checkpoint = []
+    const auto checkpoint = []() -> step_import::detail::Result<void>
     {
+        return {};
     };
     const auto plane = Plane(context, false);
-    const auto unique = step_import::detail::ProveSurfaceInjectivity(*plane, 1000, 10000, checkpoint);
+    const auto unique = Value(step_import::detail::ProveSurfaceInjectivity(*plane, 1000, 10000, checkpoint));
     Require(
         unique.established && unique.firstDiagonalLower && *unique.firstDiagonalLower > 0 && unique.symmetricDeterminantLower &&
             *unique.symmetricDeterminantLower > 0,
@@ -137,12 +147,12 @@ void OrientationEvidence(SmContext& context)
     );
     const auto rational = Plane(context, true);
     Require(
-        !step_import::detail::ProveSurfaceInjectivity(*rational, 1000, 10000, checkpoint).established,
+        !Value(step_import::detail::ProveSurfaceInjectivity(*rational, 1000, 10000, checkpoint)).established,
         "rational support remains outside polynomial monotonicity proof"
     );
-    Require(step_import::detail::ProveSurfaceInjectivity(*plane, 1, 10000, checkpoint).workLimit, "injectivity workspace cap");
+    Require(Value(step_import::detail::ProveSurfaceInjectivity(*plane, 1, 10000, checkpoint)).workLimit, "injectivity workspace cap");
     auto edge = Diagonal(context, false), uv = Diagonal(context, true);
-    const auto lift = step_import::detail::ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint);
+    const auto lift = Value(step_import::detail::ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint));
     Require(lift.established && lift.maximumMm && *lift.maximumMm <= .001, "paired whole-interval lift proof");
     SmLine* rawLine = nullptr;
     Require(
@@ -151,7 +161,7 @@ void OrientationEvidence(SmContext& context)
     );
     std::unique_ptr<SmLine> line(rawLine);
     Require(
-        step_import::detail::ProveCurveLift(*line, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint).established,
+        Value(step_import::detail::ProveCurveLift(*line, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint)).established,
         "analytic affine line operands have their own continuous enclosure"
     );
     SmTArray<SmPoint3d> foldedPoints;
@@ -192,29 +202,31 @@ void OrientationEvidence(SmContext& context)
     );
     std::unique_ptr<SmBSplineSurface> folded(rawFold);
     Require(
-        !step_import::detail::ProveSurfaceInjectivity(*folded, 1000, 10000, checkpoint).established,
+        !Value(step_import::detail::ProveSurfaceInjectivity(*folded, 1000, 10000, checkpoint)).established,
         "matching opposite domain boundaries cannot obtain an injectivity certificate"
     );
     const auto bulged = Diagonal(context, false, true);
     Require(
-        !step_import::detail::ProveCurveLift(*bulged, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint).established,
+        !Value(step_import::detail::ProveCurveLift(*bulged, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint)).established,
         "matching endpoints cannot certify an interior gap"
     );
     Require(
-        step_import::detail::ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 1, checkpoint).workLimit,
+        Value(step_import::detail::ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 1, checkpoint)).workLimit,
         "lift proof work cap is not a passing bound"
     );
     bool cancelled = false;
     try
     {
-        step_import::detail::ProveSurfaceInjectivity(
-            *plane,
-            1000,
-            10000,
-            []
-            {
-                throw std::runtime_error("cancel");
-            }
+        Value(
+            step_import::detail::ProveSurfaceInjectivity(
+                *plane,
+                1000,
+                10000,
+                []() -> step_import::detail::Result<void>
+                {
+                    throw std::runtime_error("cancel");
+                }
+            )
         );
     }
     catch (const std::runtime_error&)
@@ -258,6 +270,66 @@ std::unique_ptr<SmBSplineSurface> MultiplePatches(SmContext& context, bool ratio
     Require(status == SM_SUCCESS && owned, "multiple tensor patch fixture");
     return owned;
 }
+void CheckpointErrors(SmContext& context)
+{
+    using namespace step_import;
+    using namespace step_import::detail;
+    const auto source = MultiplePatches(context, false), target = Restricted(*source, context);
+    const auto plane = Plane(context, false);
+    const auto edge = Diagonal(context, false), uv = Diagonal(context, true);
+    const auto verify = [&](const auto& operation)
+    {
+        std::size_t boundaries = 0;
+        const auto complete = operation(
+            [&]() -> Result<void>
+            {
+                ++boundaries;
+                return {};
+            }
+        );
+        Require(complete && complete->established && boundaries > 1, "proof control exercises nested cancellation boundaries");
+        for (const auto status : { Status::Cancelled, Status::ResourceLimit })
+        {
+            for (std::size_t stop = 1; stop <= boundaries; ++stop)
+            {
+                std::size_t visits = 0;
+                const auto failed = operation(
+                    [&]() -> Result<void>
+                    {
+                        if (++visits == stop)
+                        {
+                            return tl::unexpected(Failure{ status, "ProofExecutionStop", "checkpoint failure", 29, "Execution" });
+                        }
+                        return {};
+                    }
+                );
+                Require(
+                    !failed && visits == stop && failed.error().status == status && failed.error().key == "ProofExecutionStop" &&
+                        failed.error().message == "checkpoint failure" && failed.error().record == 29 && failed.error().stage == "Execution",
+                    "every proof checkpoint propagates execution failure without a mathematical result or later work"
+                );
+            }
+        }
+    };
+    verify(
+        [&](const ExecutionCheckpoint& checkpoint)
+        {
+            return ProveSurfaceRestriction(*source, *target, 1e-9, 10000, 100000, checkpoint);
+        }
+    );
+    verify(
+        [&](const ExecutionCheckpoint& checkpoint)
+        {
+            return ProveSurfaceInjectivity(*plane, 1000, 10000, checkpoint);
+        }
+    );
+    verify(
+        [&](const ExecutionCheckpoint& checkpoint)
+        {
+            return ProveCurveLift(*edge, *uv, *plane, 0, 1, .001, 1000, 100000, checkpoint);
+        }
+    );
+}
 } // namespace
 int main()
 {
@@ -265,6 +337,7 @@ int main()
     {
         SmContext context;
         OrientationEvidence(context);
+        CheckpointErrors(context);
         {
             // Independent public cylinder. These U bounds lie inside its old
             // quarter-circle knot spans; rebuilding the arc changes interior
@@ -300,29 +373,35 @@ int main()
             }
             std::unique_ptr<SmSurface> restricted;
             Require(
-                step_import::detail::RestrictPeriodicSupport(
-                    *cylinder,
-                    context,
-                    domain,
-                    restricted,
-                    []
-                    {
-                    }
+                Value(
+                    step_import::detail::RestrictPeriodicSupport(
+                        *cylinder,
+                        context,
+                        domain,
+                        restricted,
+                        []() -> step_import::detail::Result<void>
+                        {
+                            return {};
+                        }
+                    )
                 ) == SM_SUCCESS &&
                     restricted,
                 "periodic restriction candidate"
             );
             const auto basis = dynamic_cast<const SmBSplineSurface*>(restricted.get());
             Require(basis, "periodic restriction NURBS basis");
-            const auto proof = step_import::detail::ProveSurfaceRestriction(
-                *cylinder,
-                *basis,
-                1e-9,
-                10000,
-                100000,
-                []
-                {
-                }
+            const auto proof = Value(
+                step_import::detail::ProveSurfaceRestriction(
+                    *cylinder,
+                    *basis,
+                    1e-9,
+                    10000,
+                    100000,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(proof.established && proof.maximumMm && *proof.maximumMm <= 1e-9, "periodic crop preserves original native parameters");
             Require(restricted->GetType() == SmCylinder_TYPE, "restriction retains ordinary cylinder class");
@@ -343,85 +422,98 @@ int main()
                 auto window = domain;
                 std::unique_ptr<SmSurface> partial;
                 std::size_t calls = 0;
-                bool stopped = false;
-                try
-                {
-                    step_import::detail::RestrictPeriodicSupport(
-                        *cylinder,
-                        context,
-                        window,
-                        partial,
-                        [&]
+                const auto stopped = step_import::detail::RestrictPeriodicSupport(
+                    *cylinder,
+                    context,
+                    window,
+                    partial,
+                    [&]() -> step_import::detail::Result<void>
+                    {
+                        if (++calls == stop)
                         {
-                            if (++calls == stop)
-                            {
-                                throw std::runtime_error("restriction-stop");
-                            }
+                            return tl::unexpected(
+                                step_import::detail::Failure{ step_import::Status::Cancelled, "RestrictionStop", "stop", 17, "Execution" }
+                            );
                         }
-                    );
-                }
-                catch (const std::runtime_error& error)
-                {
-                    stopped = std::string_view(error.what()) == "restriction-stop";
-                }
-                Require(stopped && !partial, "partial restriction is released on cancellation");
+                        return {};
+                    }
+                );
+                Require(
+                    !stopped && stopped.error().key == "RestrictionStop" && calls == stop && !partial,
+                    "returned cancellation releases partial restriction and stops at its boundary"
+                );
+                Require(
+                    window.GetMin().x == domain.GetMin().x && window.GetMax().y == domain.GetMax().y,
+                    "failed periodic restriction does not publish its new domain"
+                );
             }
         }
         for (bool rational : { false, true })
         {
             auto source = Plane(context, rational), target = Restricted(*source, context);
             std::size_t callbacks = 0;
-            const auto proof = step_import::detail::ProveSurfaceRestriction(
-                *source,
-                *target,
-                1e-10,
-                10000,
-                100000,
-                [&]
-                {
-                    ++callbacks;
-                }
-            );
-            Require(
-                proof.established && proof.maximumMm && *proof.maximumMm <= 1e-10 && proof.patches == 1,
-                "whole retained domain, polynomial and positive rational proof"
-            );
-            Require(callbacks > 0, "proof work has cancellation checkpoints");
-            const auto limited = step_import::detail::ProveSurfaceRestriction(
-                *source,
-                *target,
-                1e-10,
-                1,
-                100000,
-                []
-                {
-                }
-            );
-            Require(!limited.established && limited.workLimit, "temporary control bound");
-            const auto productLimited = step_import::detail::ProveSurfaceRestriction(
-                *source,
-                *target,
-                1e-10,
-                10000,
-                1,
-                []
-                {
-                }
-            );
-            Require(!productLimited.established && productLimited.workLimit, "arithmetic work bound");
-            bool cancelled = false;
-            try
-            {
+            const auto proof = Value(
                 step_import::detail::ProveSurfaceRestriction(
                     *source,
                     *target,
                     1e-10,
                     10000,
                     100000,
-                    []
+                    [&]() -> step_import::detail::Result<void>
                     {
-                        throw std::runtime_error("surface-proof-cancel");
+                        ++callbacks;
+                        return {};
                     }
+                )
+            );
+            Require(
+                proof.established && proof.maximumMm && *proof.maximumMm <= 1e-10 && proof.patches == 1,
+                "whole retained domain, polynomial and positive rational proof"
+            );
+            Require(callbacks > 0, "proof work has cancellation checkpoints");
+            const auto limited = Value(
+                step_import::detail::ProveSurfaceRestriction(
+                    *source,
+                    *target,
+                    1e-10,
+                    1,
+                    100000,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
+            );
+            Require(!limited.established && limited.workLimit, "temporary control bound");
+            const auto productLimited = Value(
+                step_import::detail::ProveSurfaceRestriction(
+                    *source,
+                    *target,
+                    1e-10,
+                    10000,
+                    1,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
+            );
+            Require(!productLimited.established && productLimited.workLimit, "arithmetic work bound");
+            bool cancelled = false;
+            try
+            {
+                Value(
+                    step_import::detail::ProveSurfaceRestriction(
+                        *source,
+                        *target,
+                        1e-10,
+                        10000,
+                        100000,
+                        []() -> step_import::detail::Result<void>
+                        {
+                            throw std::runtime_error("surface-proof-cancel");
+                        }
+                    )
                 );
             }
             catch (const std::runtime_error& error)
@@ -430,15 +522,18 @@ int main()
             }
             Require(cancelled, "caller cancellation is not converted into numeric uncertainty");
             auto multiple = MultiplePatches(context, rational), subset = Restricted(*multiple, context);
-            const auto multiProof = step_import::detail::ProveSurfaceRestriction(
-                *multiple,
-                *subset,
-                1e-9,
-                10000,
-                100000,
-                []
-                {
-                }
+            const auto multiProof = Value(
+                step_import::detail::ProveSurfaceRestriction(
+                    *multiple,
+                    *subset,
+                    1e-9,
+                    10000,
+                    100000,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(
                 multiProof.established && multiProof.patches == 2 && multiProof.maximumMm && *multiProof.maximumMm <= 1e-9,
@@ -446,68 +541,83 @@ int main()
             );
         }
         auto source = Plane(context, false), shifted = Plane(context, false, .01);
-        const auto wrong = step_import::detail::ProveSurfaceRestriction(
-            *source,
-            *shifted,
-            .001,
-            10000,
-            100000,
-            []
-            {
-            }
+        const auto wrong = Value(
+            step_import::detail::ProveSurfaceRestriction(
+                *source,
+                *shifted,
+                .001,
+                10000,
+                100000,
+                []() -> step_import::detail::Result<void>
+                {
+                    return {};
+                }
+            )
         );
         Require(!wrong.established && wrong.maximumMm && *wrong.maximumMm > .001, "different geometry is not equivalent");
         auto warped = Plane(context, true);
-        const auto wrongParameter = step_import::detail::ProveSurfaceRestriction(
-            *source,
-            *warped,
-            1e-6,
-            10000,
-            100000,
-            []
-            {
-            }
+        const auto wrongParameter = Value(
+            step_import::detail::ProveSurfaceRestriction(
+                *source,
+                *warped,
+                1e-6,
+                10000,
+                100000,
+                []() -> step_import::detail::Result<void>
+                {
+                    return {};
+                }
+            )
         );
         Require(!wrongParameter.established, "same planar image does not establish same-parameter equivalence");
         const auto oldRound = std::fegetround();
         Require(std::fesetround(FE_UPWARD) == 0, "rounding control");
-        const auto uncertain = step_import::detail::ProveSurfaceRestriction(
-            *source,
-            *source,
-            .001,
-            10000,
-            100000,
-            []
-            {
-            }
+        const auto uncertain = Value(
+            step_import::detail::ProveSurfaceRestriction(
+                *source,
+                *source,
+                .001,
+                10000,
+                100000,
+                []() -> step_import::detail::Result<void>
+                {
+                    return {};
+                }
+            )
         );
         Require(std::fesetround(oldRound) == 0, "restore rounding control");
         Require(!uncertain.established, "unsupported rounding mode is not a proof");
-        const auto changedDuringCallback = step_import::detail::ProveSurfaceRestriction(
-            *source,
-            *source,
-            .001,
-            10000,
-            100000,
-            []
-            {
-                std::fesetround(FE_DOWNWARD);
-            }
+        const auto changedDuringCallback = Value(
+            step_import::detail::ProveSurfaceRestriction(
+                *source,
+                *source,
+                .001,
+                10000,
+                100000,
+                []() -> step_import::detail::Result<void>
+                {
+                    std::fesetround(FE_DOWNWARD);
+                    return {};
+                }
+            )
         );
         Require(std::fesetround(oldRound) == 0, "restore callback rounding control");
         Require(!changedDuringCallback.established, "callback cannot invalidate outward rounding assumptions");
 #if defined(_M_X64) || defined(__SSE2__)
         const auto oldCsr = _mm_getcsr();
         _mm_setcsr(oldCsr | 0x8040); // FTZ and DAZ are outside the proof contract.
-        const auto flushed = step_import::detail::ProveSurfaceRestriction(
-            *source,
-            *source,
-            .001,
-            10000,
-            100000,
-            []
-            {
-            }
+        const auto flushed = Value(
+            step_import::detail::ProveSurfaceRestriction(
+                *source,
+                *source,
+                .001,
+                10000,
+                100000,
+                []() -> step_import::detail::Result<void>
+                {
+                    return {};
+                }
+            )
         );
         _mm_setcsr(oldCsr);
         Require(!flushed.established, "flushed subnormal arithmetic is not continuous evidence");
@@ -534,15 +644,18 @@ int main()
             Require(uses.GetSize() == 4, "rectangular loop fixture");
             const auto oldUv = uses[0]->GetUVTrimCurve();
             const auto oldEdge = uses[0]->GetEdge()->GetCurve();
-            const auto skipped = step_import::detail::RestrictUnusedSupportDomain(
-                *face,
-                false,
-                1e-9,
-                10000,
-                100000,
-                []
-                {
-                }
+            const auto skipped = Value(
+                step_import::detail::RestrictUnusedSupportDomain(
+                    *face,
+                    false,
+                    1e-9,
+                    10000,
+                    100000,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(
                 skipped.status == step_import::detail::SupportDomainStatus::NotEligible && face->GetSurface() == original,
@@ -551,16 +664,18 @@ int main()
             bool cancelled = false;
             try
             {
-                step_import::detail::RestrictUnusedSupportDomain(
-                    *face,
-                    true,
-                    1e-9,
-                    10000,
-                    100000,
-                    []
-                    {
-                        throw std::runtime_error("support-cancel");
-                    }
+                Value(
+                    step_import::detail::RestrictUnusedSupportDomain(
+                        *face,
+                        true,
+                        1e-9,
+                        10000,
+                        100000,
+                        []() -> step_import::detail::Result<void>
+                        {
+                            throw std::runtime_error("support-cancel");
+                        }
+                    )
                 );
             }
             catch (const std::runtime_error& error)
@@ -577,19 +692,22 @@ int main()
                 bool stopped = false;
                 try
                 {
-                    step_import::detail::RestrictUnusedSupportDomain(
-                        *face,
-                        true,
-                        1e-9,
-                        10000,
-                        100000,
-                        [&]
-                        {
-                            if (++calls == stop)
+                    Value(
+                        step_import::detail::RestrictUnusedSupportDomain(
+                            *face,
+                            true,
+                            1e-9,
+                            10000,
+                            100000,
+                            [&]() -> step_import::detail::Result<void>
                             {
-                                throw std::runtime_error("support-stage-cancel");
+                                if (++calls == stop)
+                                {
+                                    throw std::runtime_error("support-stage-cancel");
+                                }
+                                return {};
                             }
-                        }
+                        )
                     );
                 }
                 catch (const std::runtime_error& error)
@@ -601,43 +719,52 @@ int main()
                     "copy, extraction and proof cancellation leave the old face installed"
                 );
             }
-            const auto proofLimited = step_import::detail::RestrictUnusedSupportDomain(
-                *face,
-                true,
-                1e-9,
-                10000,
-                1,
-                []
-                {
-                }
+            const auto proofLimited = Value(
+                step_import::detail::RestrictUnusedSupportDomain(
+                    *face,
+                    true,
+                    1e-9,
+                    10000,
+                    1,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(
                 proofLimited.status == step_import::detail::SupportDomainStatus::WorkLimit && face->GetSurface() == original,
                 "numeric proof budget cannot publish a partly restricted face"
             );
-            const auto limited = step_import::detail::RestrictUnusedSupportDomain(
-                *face,
-                true,
-                1e-9,
-                1,
-                100000,
-                []
-                {
-                }
+            const auto limited = Value(
+                step_import::detail::RestrictUnusedSupportDomain(
+                    *face,
+                    true,
+                    1e-9,
+                    1,
+                    100000,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(
                 limited.status == step_import::detail::SupportDomainStatus::WorkLimit && face->GetSurface() == original,
                 "control budget refuses before installation"
             );
-            const auto normalized = step_import::detail::RestrictUnusedSupportDomain(
-                *face,
-                true,
-                1e-9,
-                10000,
-                100000,
-                []
-                {
-                }
+            const auto normalized = Value(
+                step_import::detail::RestrictUnusedSupportDomain(
+                    *face,
+                    true,
+                    1e-9,
+                    10000,
+                    100000,
+                    []() -> step_import::detail::Result<void>
+                    {
+                        return {};
+                    }
+                )
             );
             Require(
                 normalized.status == step_import::detail::SupportDomainStatus::Normalized && normalized.numeric.established,
@@ -672,29 +799,27 @@ int main()
             double a = 0, b = 0, c = 0, d = 0, e = 0, f = 0;
             Require(face->CreateUVTrimCurves(FALSE, nullptr, nullptr, a, b, c, d, e, f) == SM_SUCCESS, "partial-install UV fixture");
             unsigned installedCallbacks = 0;
-            bool stopped = false;
-            try
-            {
-                step_import::detail::RestrictUnusedSupportDomain(
-                    *face,
-                    true,
-                    1e-9,
-                    10000,
-                    100000,
-                    [&]
+            const auto stopped = step_import::detail::RestrictUnusedSupportDomain(
+                *face,
+                true,
+                1e-9,
+                10000,
+                100000,
+                [&]() -> step_import::detail::Result<void>
+                {
+                    if (face->GetSurface() != original && ++installedCallbacks == stop)
                     {
-                        if (face->GetSurface() != original && ++installedCallbacks == stop)
-                        {
-                            throw std::runtime_error("partial-install-cancel");
-                        }
+                        return tl::unexpected(
+                            step_import::detail::Failure{ step_import::Status::Cancelled, "SupportInstallStop", "stop", 41, "Execution" }
+                        );
                     }
-                );
-            }
-            catch (const std::runtime_error& error)
-            {
-                stopped = std::string_view(error.what()) == "partial-install-cancel";
-            }
-            Require(stopped && installedCallbacks == stop, "cancellation propagates after partial native installation");
+                    return {};
+                }
+            );
+            Require(
+                !stopped && stopped.error().key == "SupportInstallStop" && installedCallbacks == stop,
+                "returned cancellation propagates after partial native installation without losing saved owners"
+            );
         }
         std::cout << "Surface restriction interval contracts passed\n";
         return 0;

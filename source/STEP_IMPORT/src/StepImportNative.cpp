@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
 #include "StepImportInterval.h"
+#include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
+#include "StepImportPlan.h"
 #include "StepImportPointClassification.h"
 
 #include <SmApiQueries.h>
@@ -233,7 +235,7 @@ public:
         m_model->queryTolerance = Value(m_options.quality.queryMm);
         m_model->queryBudget = m_options.quality.queryMm;
     }
-    std::shared_ptr<ModelData> Run()
+    [[nodiscard]] Result<std::shared_ptr<ModelData>> Run()
     {
         if (!std::numeric_limits<double>::is_iec559 || std::fegetround() != FE_TONEAREST)
         {
@@ -242,32 +244,64 @@ public:
                            "Outward binary64 evidence requires nearest rounding",
                            m_plan.record };
         }
+        struct DiscardOnFailure
+        {
+            std::shared_ptr<ModelData>& model;
+            Report& report;
+            bool completed = false;
+            ~DiscardOnFailure() noexcept
+            {
+                // A returned error does not enter the legacy catch. Retain its
+                // BRep-held rule, including context-only work before StartBrep.
+                if (!completed && model)
+                {
+                    const bool held = bool(model->brep);
+                    model.reset();
+                    report.candidateDiscarded = held;
+                }
+            }
+        } discard{ m_model, m_report };
         try
         {
             m_report.sourceShape = m_plan.sourceShape;
             m_report.units = m_plan.units;
             m_report.kernelPath = LoadedKernel();
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             m_model->context = std::make_unique<SmContext>();
             SmBrepConstructor ctor;
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             m_model->brep.reset(ctor.StartBrep(*m_model->context));
             Need(bool(m_model->brep), "NativeBrepAllocationFailed", m_plan.record);
             const auto tolerance = Value(m_options.quality.initialWorkToleranceMm);
             m_model->brep->SetTolerance(tolerance, FALSE);
             for (const auto& vertex : m_plan.vertices)
             {
-                Step(vertex.record);
+                if (auto operation = Step(vertex.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 auto value = ctor.StartVertex(Native(Value(vertex.pointMm)));
                 Need(value != nullptr, "NativeVertexConstructionFailed", vertex.record);
                 m_model->vertices.push_back(value);
                 value->SetTolerance(tolerance, FALSE);
-                Step(vertex.record);
+                if (auto operation = Step(vertex.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 Good(ctor.EndVertex());
             }
             if (m_plan.closedBoundary)
             {
-                Step(m_plan.record);
+                if (auto operation = Step(m_plan.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 m_model->bounded = ctor.StartRegion(m_plan.materialSolid ? TRUE : FALSE, nullptr);
                 Need(
                     m_model->bounded != nullptr,
@@ -279,7 +313,10 @@ public:
             }
             SmShell* outer = nullptr;
             SmShell* inner = nullptr;
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(ctor.StartShell(outer, inner));
             Need(outer && bool(inner) == m_plan.closedBoundary, "NativeShellRoleMismatch", m_plan.record);
             m_model->outside = outer;
@@ -289,42 +326,70 @@ public:
             m_model->faces.resize(m_plan.faces.size());
             for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
             {
-                BuildFace(ctor, m_plan.faces[i], m_model->faces[i]);
+                if (auto operation = BuildFace(ctor, m_plan.faces[i], m_model->faces[i]); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
             }
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(ctor.EndShell(FALSE));
             if (m_plan.closedBoundary)
             {
-                Step(m_plan.record);
+                if (auto operation = Step(m_plan.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 Good(ctor.EndRegion());
             }
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(ctor.EndBrep());
             Observe("Constructed");
             for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
             {
-                InstallUv(m_plan.faces[i], m_model->faces[i]);
+                if (auto operation = InstallUv(m_plan.faces[i], m_model->faces[i]); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
             }
             Observe("UvInstalled");
             SmAssertArray pointers;
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto pointerStatus = m_model->brep->ValidatePointers(&pointers);
             m_report.pointerReports = pointers.GetSize();
             Need(pointerStatus == SM_SUCCESS && pointers.GetSize() == 0, "NativePointerValidationFailed", m_plan.record);
             Observe("PointersChecked");
             SmAssertArray deep;
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const bool valid = m_model->brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) != FALSE;
             m_report.deepReports = deep.GetSize();
             Need(valid && deep.GetSize() == 0, "NativeDeepValidationFailed", m_plan.record);
             Observe("DeepChecked");
-            Verify();
-            Measure();
+            if (auto verified = Verify(); !verified)
+            {
+                return tl::unexpected(std::move(verified.error()));
+            }
+            if (auto operation = Measure(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Observe("Postchecked");
             for (const auto& edge : m_plan.edges)
             {
                 m_report.edges.push_back(edge.mapping);
             }
+            discard.completed = true;
             return m_model;
         }
         catch (...)
@@ -348,11 +413,14 @@ private:
     {
         return m_plan.source->Source().Records().at(record).id;
     }
-    void BuildFace(SmBrepConstructor& ctor, const FacePlan& facePlan, NativeFaceData& native)
+    [[nodiscard]] Result<void> BuildFace(SmBrepConstructor& ctor, const FacePlan& facePlan, NativeFaceData& native)
     {
         const auto tolerance = Value(m_options.quality.initialWorkToleranceMm);
         native.faceId = Id(facePlan.face);
-        Step(facePlan.face);
+        if (auto operation = Step(facePlan.face); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         native.face = ctor.StartFace(facePlan.faceSameSense ? SM_OT_SAME : SM_OT_OPPOSITE);
         Need(native.face != nullptr, "NativeFaceConstructionFailed", facePlan.face);
         native.face->SetTolerance(tolerance, FALSE);
@@ -384,7 +452,10 @@ private:
         const auto xValue = Value(facePlan.x), yValue = Value(facePlan.y);
         const double nx = std::sqrt(Value(facePlan.xNormSquared)), ny = std::sqrt(Value(facePlan.yNormSquared));
         const SmExtent2d domain(window[0], window[1], window[2], window[3]);
-        Step(facePlan.plane);
+        if (auto operation = Step(facePlan.plane); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         std::unique_ptr<SmPlane> plane(new (*m_model->context) SmPlane(
             Native(Value(facePlan.originMm)),
             SmVector3d(xValue[0] / nx, xValue[1] / nx, xValue[2] / nx),
@@ -393,7 +464,10 @@ private:
             domain,
             m_model->context.get()
         ));
-        Step(facePlan.face);
+        if (auto operation = Step(facePlan.face); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto surfaceStatus = ctor.SetFaceSurface(plane.get(), domain);
         if (plane->GetOwner() == native.face)
         {
@@ -403,14 +477,20 @@ private:
         Need(native.plane != nullptr, "NativeSurfaceOwnershipMismatch", facePlan.face);
         for (const auto& loop : facePlan.loops)
         {
-            Step(loop.bound);
+            if (auto operation = Step(loop.bound); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             auto targetLoop = ctor.StartLoop(SM_OT_SAME);
             Need(targetLoop != nullptr, "NativeLoopConstructionFailed", loop.bound);
             native.loops.push_back(targetLoop);
             for (const auto& use : loop.primaryUses)
             {
                 const auto& edge = m_plan.edges.at(use.edge);
-                Step(edge.record);
+                if (auto operation = Step(edge.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 const auto existing = m_model->edges[use.edge];
                 auto targetEdge = ctor.StartEdge(
                     use.forward ? SM_OT_SAME : SM_OT_OPPOSITE,
@@ -423,14 +503,20 @@ private:
                 {
                     targetEdge->SetTolerance(tolerance, FALSE);
                     m_model->edges[use.edge] = targetEdge;
-                    Step(edge.record);
+                    if (auto operation = Step(edge.record); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     SmLine* raw = nullptr;
                     const auto
                         created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
                     std::unique_ptr<SmLine> curve(raw);
                     Good(created);
                     Need(bool(curve), "NativeCurveAllocationFailed", edge.record);
-                    Step(edge.record);
+                    if (auto operation = Step(edge.record); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     const auto adopted = ctor.SetEdgeCurve(curve.get(), FALSE);
                     if (curve->GetOwner() == targetEdge)
                     {
@@ -438,30 +524,38 @@ private:
                     }
                     Good(adopted);
                     Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record);
-                    Step(edge.record);
+                    if (auto operation = Step(edge.record); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     Good(ctor.SetLimits(SmVertexNode(0.0), SmVertexNode(1.0)));
                 }
                 else
                 {
                     Need(targetEdge == existing, "NativeSharedEdgeNotReused", edge.record);
                 }
-                Step(edge.record);
+                if (auto operation = Step(edge.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 Good(ctor.EndEdge());
             }
-            Step(loop.bound);
+            if (auto operation = Step(loop.bound); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(ctor.EndLoop());
         }
-        Step(facePlan.face);
-        Good(ctor.EndFace());
-    }
-    void Step(std::size_t record)
-    {
-        m_execution.Check(Phase::BeforeNativeCall);
-        if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
+        if (auto operation = Step(facePlan.face); !operation)
         {
-            throw Failure{ Status::ResourceLimit, "NativeCallLimit", "Bounded native call allowance exhausted", record };
+            return tl::unexpected(std::move(operation.error()));
         }
-        ++m_report.nativeCalls;
+        Good(ctor.EndFace());
+        return {};
+    }
+    [[nodiscard]] Result<void> Step(std::size_t record)
+    {
+        return m_execution.ChargeNative(m_report, record, NativeCallAccounting::Planar);
     }
     void Observe(const char* stage)
     {
@@ -524,7 +618,7 @@ private:
         Need(result != nullptr, "NativeFaceOccurrenceMissing", m_plan.edges[edge].record);
         return result;
     }
-    void InstallUv(const FacePlan& facePlan, NativeFaceData& native)
+    [[nodiscard]] Result<void> InstallUv(const FacePlan& facePlan, NativeFaceData& native)
     {
         for (const auto i : facePlan.edges)
         {
@@ -533,7 +627,10 @@ private:
             SmTArray<double> weights;
             Good(m_model->curves[i]->GetControlPolygon(points, weights));
             Need(points.GetSize() == 2, "NativeCurveControlShape", m_plan.edges[i].record);
-            Step(m_plan.edges[i].record);
+            if (auto operation = Step(m_plan.edges[i].record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             SmLine* raw = nullptr;
             const auto status = SmLine::CreateLineSegment(
                 *m_model->context,
@@ -551,7 +648,10 @@ private:
                 LiftBound(plane, LineCoefficients(*uv, true), LineCoefficients(*m_model->curves[i], true))
             );
             Certify(bound, m_options.quality.derivedUvMm, "NativeUvErrorBudget", m_plan.edges[i].record);
-            Step(m_plan.edges[i].record);
+            if (auto operation = Step(m_plan.edges[i].record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             same->SetUVTrimCurve(uv.get(), bound);
             if (uv->GetOwner() == same)
             {
@@ -563,6 +663,7 @@ private:
                 m_plan.edges[i].record
             );
         }
+        return {};
     }
     std::size_t VerifyTraversal(SmLoopuse* loopuse, const std::vector<UsePlan>& expected, const LoopPlan& loop)
     {
@@ -629,7 +730,7 @@ private:
         }
         return result;
     }
-    void Verify()
+    [[nodiscard]] Result<void> Verify()
     {
         SmTArray<SmFace*> faces;
         SmTArray<SmVertex*> vertices;
@@ -680,11 +781,15 @@ private:
                 m_plan.edges[i].record
             );
         }
-        VerifyAdjacency();
+        if (auto operation = VerifyAdjacency(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
         {
             VerifyFace(m_plan.faces[i], m_model->faces[i]);
         }
+        return {};
     }
     void VerifyFace(const FacePlan& facePlan, const NativeFaceData& native)
     {
@@ -834,26 +939,35 @@ private:
         Certify(*m_report.consistencyBoundMm, m_options.quality.consistencyMm, "NativeConsistencyErrorBudget", facePlan.face);
         Certify(uvError, m_options.quality.derivedUvMm, "NativeUvErrorBudget", facePlan.face);
     }
-    void MeasureFace(const FacePlan& facePlan, NativeFaceData& native)
+    [[nodiscard]] Result<void> MeasureFace(const FacePlan& facePlan, NativeFaceData& native)
     {
         Statistics info;
         info.faces = 1;
         info.edges = facePlan.edges.size();
         info.vertices = facePlan.vertices.size();
         info.shapeRole = "FaceSurface";
-        Step(facePlan.face);
+        if (auto operation = Step(facePlan.face); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         SmPoint3d centroid;
         Good(SmApiFaceComputeCentroid(native.face, 1e-4, info.areaMm2, centroid));
         info.centroidMm = PointOf(centroid);
         for (const auto i : facePlan.edges)
         {
             double length = 0;
-            Step(m_plan.edges[i].record);
+            if (auto operation = Step(m_plan.edges[i].record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(SmApiEdgeComputeLength(m_model->edges[i], Value(m_options.quality.queryMm), length));
             info.boundaryMm += length;
         }
         SmPoint3d minimum, maximum;
-        Step(facePlan.face);
+        if (auto operation = Step(facePlan.face); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Good(SmApiFaceBoundingBox(native.face, TRUE, minimum, maximum));
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
         info.normal = PointOf(native.plane->GetPosition().GetZAxis());
@@ -904,10 +1018,11 @@ private:
             }
         }
         m_report.faces.push_back({ Id(facePlan.face), Id(facePlan.plane), facePlan.faceSameSense, native.info });
+        return {};
     }
-    void VerifyAdjacency();
-    void Measure();
-    Interval BoundaryVolume();
+    [[nodiscard]] Result<void> VerifyAdjacency();
+    [[nodiscard]] Result<void> Measure();
+    [[nodiscard]] Result<Interval> BoundaryVolume();
 };
 namespace
 {
@@ -998,7 +1113,7 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
     return result;
 }
 } // namespace
-Interval Builder::BoundaryVolume()
+[[nodiscard]] Result<Interval> Builder::BoundaryVolume()
 {
     Interval closedVolume = Exact(0);
     double gapFlux = 0, skippedFlux = 0;
@@ -1015,7 +1130,10 @@ Interval Builder::BoundaryVolume()
         }
         OwnedBoundary boundary;
         SmTArray<ULONG> counts;
-        Step(plan.face);
+        if (auto operation = Step(plan.face); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Good(native.face->CreateOrientedTrimBoundary(*m_model->context, TRUE, TRUE, counts, boundary.curves));
         Need(counts.GetSize() == plan.loops.size(), "NativeMassBoundaryLoopMismatch", plan.face);
         for (std::size_t e = 0; e < plan.edges.size(); ++e)
@@ -1086,7 +1204,7 @@ Interval Builder::BoundaryVolume()
     const auto omissions = Up(gapFlux + skippedFlux);
     return closedVolume + Interval{ -omissions, omissions };
 }
-void Builder::VerifyAdjacency()
+[[nodiscard]] Result<void> Builder::VerifyAdjacency()
 {
     SmTArray<SmRegion*> regions;
     m_model->brep->GetRegions(regions);
@@ -1161,7 +1279,10 @@ void Builder::VerifyAdjacency()
     if (m_plan.materialSolid)
     {
         long solids = 0, voids = 0;
-        Step(m_plan.record);
+        if (auto operation = Step(m_plan.record); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Good(SmApiBrepMaterialCensus(m_model->brep.get(), solids, voids));
         Need(solids == 1 && voids == 0, "NativeMaterialCensusMismatch", m_plan.record);
         m_report.solidRegions = static_cast<std::size_t>(solids);
@@ -1227,12 +1348,16 @@ void Builder::VerifyAdjacency()
         m_report.adjacency.push_back(std::move(row));
     }
     m_report.nativeRole = role;
+    return {};
 }
-void Builder::Measure()
+[[nodiscard]] Result<void> Builder::Measure()
 {
     for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
     {
-        MeasureFace(m_plan.faces[i], m_model->faces[i]);
+        if (auto operation = MeasureFace(m_plan.faces[i], m_model->faces[i]); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
     }
     Statistics info;
     if (m_plan.faces.size() == 1)
@@ -1249,7 +1374,10 @@ void Builder::Measure()
             SmPoint3d centroid;
             SmVector3d moments, products;
             double volume = 0, mass = 0;
-            Step(m_plan.record);
+            if (auto operation = Step(m_plan.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(SmApiBrepComputeMassProperties(
                 m_model->brep.get(),
                 1e-4,
@@ -1266,7 +1394,12 @@ void Builder::Measure()
             info.centroidMm = PointOf(centroid);
             const auto directVolumeError = Exact(volume) - Enclose(m_plan.box->volume);
             double volumeBound = std::max(std::abs(directVolumeError.low), std::abs(directVolumeError.high));
-            const auto integral = BoundaryVolume();
+            auto integralResult = BoundaryVolume();
+            if (!integralResult)
+            {
+                return tl::unexpected(std::move(integralResult.error()));
+            }
+            const auto integral = std::move(*integralResult);
             if (!(integral.low > 0))
             {
                 throw Failure{ Status::Indeterminate,
@@ -1341,7 +1474,10 @@ void Builder::Measure()
             }
         }
         SmPoint3d minimum, maximum;
-        Step(m_plan.record);
+        if (auto operation = Step(m_plan.record); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Good(SmApiBrepBoundingBox(m_model->brep.get(), TRUE, minimum, maximum));
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
         const auto& minimumExpected = m_plan.closedBoundary ? m_plan.box->minimum : m_plan.openSheet->minimum;
@@ -1379,7 +1515,10 @@ void Builder::Measure()
         for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
         {
             double length = 0;
-            Step(m_plan.edges[e].record);
+            if (auto operation = Step(m_plan.edges[e].record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(SmApiEdgeComputeLength(m_model->edges[e], Value(m_options.quality.queryMm), length));
             info.boundaryMm += length;
             expectedLength = expectedLength + SqrtNonnegative(Enclose(m_plan.edges[e].sourceLengthSquared));
@@ -1407,9 +1546,10 @@ void Builder::Measure()
     Need(info.freeBoundaryEdges == expectedFreeEdges, "NativeFreeBoundaryMismatch", m_plan.record);
     m_model->info = info;
     m_report.native = info;
+    return {};
 }
 } // namespace
-std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report, Execution& execution)
+[[nodiscard]] Result<std::shared_ptr<ModelData>> Build(const Plan& plan, const Options& options, Report& report, Execution& execution)
 {
     std::lock_guard lock(NativeMutex());
     return Builder(plan, options, report, execution).Run();

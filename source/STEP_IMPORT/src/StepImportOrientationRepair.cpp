@@ -182,14 +182,21 @@ void SameSurface(const SmSurface& a, const SmSurface& b)
     comparePolar(dynamic_cast<const SmSphere*>(&a), dynamic_cast<const SmSphere*>(&b));
     comparePolar(dynamic_cast<const SmTorus*>(&a), dynamic_cast<const SmTorus*>(&b));
 }
-void CompareDefinitions(const ModelData& before, const ModelData& after, FaceOrientationRepairHistory& history, Report& report, Execution& execution)
+[[nodiscard]] Result<void> CompareDefinitions(
+    const ModelData& before,
+    const ModelData& after,
+    FaceOrientationRepairHistory& history,
+    Report& report,
+    Execution& execution
+)
 {
     Need(
         before.source == after.source && before.vertices.size() == after.vertices.size() && before.edges.size() == after.edges.size() &&
             before.faces.size() == after.faces.size(),
         "RepairChangedSelectedInventory"
     );
-    const auto compare = [&](const auto& oldSources, const auto& newSources, const auto& oldObjects, const auto& newObjects, const auto& inspect)
+    const auto compare =
+        [&](const auto& oldSources, const auto& newSources, const auto& oldObjects, const auto& newObjects, const auto& inspect) -> Result<void>
     {
         Need(oldSources.size() == oldObjects.size() && newSources.size() == newObjects.size(), "RepairMissingSourceInventory");
         std::map<std::size_t, std::size_t> targets;
@@ -201,40 +208,55 @@ void CompareDefinitions(const ModelData& before, const ModelData& after, FaceOri
         {
             const auto found = targets.find(oldSources[i]);
             Need(found != targets.end(), "RepairLostSourceIdentity");
-            execution.ChargeNative(report, oldSources[i]);
+            if (auto operation = execution.ChargeNative(report, oldSources[i]); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto a = oldObjects[i], b = newObjects[found->second];
             inspect(a, b);
             Same(SmTol::GetZoneTol3d(a), SmTol::GetZoneTol3d(b));
         }
+        return {};
     };
-    compare(
-        before.repairVertexSources,
-        after.repairVertexSources,
-        before.vertices,
-        after.vertices,
-        [](const auto a, const auto b)
-        {
-            const auto x = a->GetPoint(), y = b->GetPoint();
-            Same(x.x, y.x);
-            Same(x.y, y.y);
-            Same(x.z, y.z);
-        }
-    );
-    compare(
-        before.repairEdgeSources,
-        after.repairEdgeSources,
-        before.edges,
-        after.edges,
-        [](const auto a, const auto b)
-        {
-            Same(a->GetInterval().GetMin(), b->GetInterval().GetMin());
-            Same(a->GetInterval().GetMax(), b->GetInterval().GetMax());
-            SameCurve(*a->GetCurve(), *b->GetCurve());
-        }
-    );
+    if (auto proof = compare(
+            before.repairVertexSources,
+            after.repairVertexSources,
+            before.vertices,
+            after.vertices,
+            [](const auto a, const auto b)
+            {
+                const auto x = a->GetPoint(), y = b->GetPoint();
+                Same(x.x, y.x);
+                Same(x.y, y.y);
+                Same(x.z, y.z);
+            }
+        );
+        !proof)
+    {
+        return tl::unexpected(std::move(proof.error()));
+    }
+    if (auto proof = compare(
+            before.repairEdgeSources,
+            after.repairEdgeSources,
+            before.edges,
+            after.edges,
+            [](const auto a, const auto b)
+            {
+                Same(a->GetInterval().GetMin(), b->GetInterval().GetMin());
+                Same(a->GetInterval().GetMax(), b->GetInterval().GetMax());
+                SameCurve(*a->GetCurve(), *b->GetCurve());
+            }
+        );
+        !proof)
+    {
+        return tl::unexpected(std::move(proof.error()));
+    }
     for (std::size_t i = 0; i < before.faces.size(); ++i)
     {
-        execution.ChargeNative(report, before.repairVertexSources.front());
+        if (auto operation = execution.ChargeNative(report, before.repairVertexSources.front()); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto& a = before.faces[i];
         const auto& b = after.faces[i];
         Need(a.faceId == b.faceId, "RepairChangedFaceIdentity");
@@ -246,6 +268,7 @@ void CompareDefinitions(const ModelData& before, const ModelData& after, FaceOri
     history.edgesCompared = before.edges.size();
     history.surfacesCompared = before.faces.size();
     history.definitionsIdentical = history.workingTolerancesIdentical = true;
+    return {};
 }
 } // namespace
 
@@ -257,11 +280,11 @@ void RequireSameNativeSurfaceDefinition(const SmSurface& before, const SmSurface
 {
     SameSurface(before, after);
 }
-void ValidateRepairTargets(const step_semantics::Outcome& checked, const Options& options, Execution& execution)
+[[nodiscard]] Result<void> ValidateRepairTargets(const step_semantics::Outcome& checked, const Options& options, Execution& execution)
 {
     if (!options.faceOrientationRepair)
     {
-        return;
+        return {};
     }
     using Body = std::pair<std::shared_ptr<const step_semantics::Snapshot>, step_semantics::Part::Shape>;
     using Key = std::pair<std::string, std::string>;
@@ -305,7 +328,10 @@ void ValidateRepairTargets(const step_semantics::Outcome& checked, const Options
     std::map<Key, std::map<std::string, std::size_t>> faces;
     for (const auto& edit : options.faceOrientationRepair->edits)
     {
-        execution.Check(Phase::SemanticsChecked);
+        if (auto operation = execution.Check(Phase::SemanticsChecked); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const Key key{ edit.definitionId, edit.shapeId };
         const auto body = bodies.find(key);
         if (body == bodies.end())
@@ -352,9 +378,10 @@ void ValidateRepairTargets(const step_semantics::Outcome& checked, const Options
                            "Repair" };
         }
     }
+    return {};
 }
 
-std::shared_ptr<ModelData> BuildWithOrientationRepair(
+[[nodiscard]] Result<std::shared_ptr<ModelData>> BuildWithOrientationRepair(
     std::shared_ptr<const step_semantics::Snapshot> source,
     std::optional<step_semantics::Part::Shape> binding,
     const Options& options,
@@ -429,6 +456,13 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
     try
     {
         auto alreadyValid = build(*original, true, {});
+        if (!alreadyValid)
+        {
+            original->candidateDiscarded = original->nativeCalls > 0;
+            report.originalAttemptStatus = alreadyValid.error().status;
+            AddFailureDiagnostic(*original, alreadyValid.error());
+            return tl::unexpected(std::move(alreadyValid.error()));
+        }
         original->candidateDiscarded = true;
         report.originalAttemptStatus = HasAppliedSourceInterpretation(*source) ? Status::AcceptedUnderInterpretation : Status::Accepted;
         throw Failure{ Status::Unsupported,
@@ -455,7 +489,10 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
         throw;
     }
     report.repairStage = "EvidenceBefore";
-    execution.Check(Phase::BeforeRepairProof);
+    if (auto operation = execution.Check(Phase::BeforeRepairProof); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     FaceOrientationRepairHistory history;
     history.sourceSha256 = report.sourceSha256;
     history.originalDiagnostics = original->diagnostics;
@@ -464,11 +501,12 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
     const double numerator = std::nextafter(static_cast<double>(options.quality.derivedUvMm.Numerator()), 0.);
     const double denominator = std::nextafter(static_cast<double>(options.quality.derivedUvMm.Denominator()), std::numeric_limits<double>::infinity());
     const double allowed = std::nextafter(numerator / denominator, 0.);
-    const auto proveLifts = [&](SmFace* native, const SmBSplineSurface* surface, std::size_t record, FaceOrientationRepairAction& action)
+    const auto proveLifts =
+        [&](SmFace* native, const SmBSplineSurface* surface, std::size_t record, FaceOrientationRepairAction& action) -> Result<void>
     {
         const auto checkpoint = [&]
         {
-            execution.ChargeNative(report, record);
+            return execution.ChargeNative(report, record);
         };
         SmTArray<SmEdgeuse*> uses;
         native->GetUpwardEdgeuses(uses);
@@ -481,7 +519,7 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
             {
                 throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Cumulative repair proof work exhausted", record, "Repair" };
             }
-            const auto lift = ProveCurveLift(
+            auto liftResult = ProveCurveLift(
                 *uses[i]->GetEdge()->GetCurve(),
                 *uv,
                 *surface,
@@ -492,7 +530,15 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
                 execution.RepairProofRemaining(),
                 checkpoint
             );
-            execution.SpendRepairProof(lift.productsUsed);
+            if (!liftResult)
+            {
+                return tl::unexpected(std::move(liftResult.error()));
+            }
+            const auto lift = std::move(*liftResult);
+            if (auto operation = execution.SpendRepairProof(lift.productsUsed); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             if (lift.workLimit)
             {
                 throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Repair lift proof exhausted its work", record, "Repair" };
@@ -501,6 +547,7 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
             action.continuousLiftBoundMm = std::max(action.continuousLiftBoundMm, *lift.maximumMm);
             action.liftCells += lift.cells;
         }
+        return {};
     };
     for (const auto index : indices)
     {
@@ -529,14 +576,22 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
         Need(surface && nativeLoops.GetSize() == 1, "RepairNativeFaceProfileUnsupported", *record);
         const auto checkpoint = [&]
         {
-            execution.ChargeNative(report, *record);
+            return execution.ChargeNative(report, *record);
         };
         if (!execution.RepairProofRemaining())
         {
             throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Cumulative repair proof work exhausted", *record, "Repair" };
         }
-        const auto unique = ProveSurfaceInjectivity(*surface, request.maximumProofControls, execution.RepairProofRemaining(), checkpoint);
-        execution.SpendRepairProof(unique.productsUsed);
+        auto uniqueResult = ProveSurfaceInjectivity(*surface, request.maximumProofControls, execution.RepairProofRemaining(), checkpoint);
+        if (!uniqueResult)
+        {
+            return tl::unexpected(std::move(uniqueResult.error()));
+        }
+        const auto unique = std::move(*uniqueResult);
+        if (auto operation = execution.SpendRepairProof(unique.productsUsed); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (unique.workLimit)
         {
             throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Repair injectivity proof exhausted its workspace", *record, "Repair" };
@@ -550,17 +605,37 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
         action.firstDiagonalLower = *unique.firstDiagonalLower;
         action.secondDiagonalLower = *unique.secondDiagonalLower;
         action.symmetricDeterminantLower = *unique.symmetricDeterminantLower;
-        proveLifts(native, surface, *record, action);
+        if (auto proof = proveLifts(native, surface, *record, action); !proof)
+        {
+            return tl::unexpected(std::move(proof.error()));
+        }
         history.actions.push_back(action);
     }
-    execution.ClaimRepairEdits(indices);
+    if (auto operation = execution.ClaimRepairEdits(indices); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     report.repairStage = "Rebuild";
-    execution.Check(Phase::BeforeRepair);
+    if (auto operation = execution.Check(Phase::BeforeRepair); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     report.repairEditsAttempted = indices.size();
-    auto candidate = build(report, false, overrides);
-    CompareDefinitions(*witness.model, *candidate, history, report, execution);
+    auto candidateResult = build(report, false, overrides);
+    if (!candidateResult)
+    {
+        return tl::unexpected(std::move(candidateResult.error()));
+    }
+    auto candidate = std::move(*candidateResult);
+    if (auto operation = CompareDefinitions(*witness.model, *candidate, history, report, execution); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     report.repairStage = "EvidenceAfter";
-    execution.Check(Phase::BeforeRepairProof);
+    if (auto operation = execution.Check(Phase::BeforeRepairProof); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     for (auto& action : history.actions)
     {
         const auto record = std::find_if(
@@ -572,7 +647,10 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
             }
         );
         auto face = candidate->faces.at(action.targetFace).face;
-        proveLifts(face, dynamic_cast<const SmBSplineSurface*>(face->GetSurface()), *record, action);
+        if (auto proof = proveLifts(face, dynamic_cast<const SmBSplineSurface*>(face->GetSurface()), *record, action); !proof)
+        {
+            return tl::unexpected(std::move(proof.error()));
+        }
     }
     witness.model.reset(); // Failed graph/context must be gone before readiness/publication callbacks.
     report.repairs = history;
@@ -582,7 +660,10 @@ std::shared_ptr<ModelData> BuildWithOrientationRepair(
     {
         report.nativeCalls = execution.NativeCalls() - firstCall;
     }
-    execution.Check(Phase::RepairReady);
+    if (auto operation = execution.Check(Phase::RepairReady); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     return candidate;
 }
 } // namespace step_import::detail

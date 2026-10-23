@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImport.h"
+#include "StepImportExecutionCallbacks.h"
 
 namespace step_import::detail
 {
@@ -20,5 +21,9 @@ struct ResolvedLengthScale
 // Canonical source contract: source/STEP_SEMANTICS/README.md, conversion-unit
 // external mappings and unit-dimensional dependencies; positivity here is a
 // project physical-normalization prerequisite, not a new source WHERE clause.
-ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, std::size_t root, const std::function<void()>& boundary);
+[[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(
+    const step_semantics::Snapshot& source,
+    std::size_t root,
+    const ExecutionCheckpoint& boundary
+);
 } // namespace step_import::detail

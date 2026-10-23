@@ -1,26 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include "StepImport.h"
+#include "StepImportFailure.h"
 
 namespace step_import::detail
 {
 using ExactPoint = step_planar::Vector;
-// An observed target predicate, never a source-invalid or repair verdict.
-enum class NativeFailureKind
-{
-    Unclassified,
-    FaceLoopOrientation
-};
-struct Failure
-{
-    Status status;
-    std::string key, message;
-    std::optional<std::size_t> record;
-    std::string stage = "D5";
-    NativeFailureKind nativeKind = NativeFailureKind::Unclassified;
-};
-void AddFailureDiagnostic(Report& report, const Failure& failure);
 struct VertexPlan
 {
     std::size_t record;
@@ -82,7 +67,6 @@ struct Plan
 Plan MakePlan(const step_planar::Outcome& checked);
 SourceDeclarations DescribeSource(const step_planar::Outcome& checked, const Quality& quality);
 class Execution;
-std::shared_ptr<ModelData> Build(const Plan& plan, const Options& options, Report& report, Execution& execution);
 struct Access
 {
     static std::shared_ptr<const ModelSnapshot> Snapshot(std::shared_ptr<ModelData> data);

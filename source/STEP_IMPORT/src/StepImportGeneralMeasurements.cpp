@@ -30,10 +30,10 @@ Point P(const SmVector3d& value)
 }
 } // namespace
 
-SmStatus IntegrateGeneralSolid(
+[[nodiscard]] Result<SmStatus> IntegrateGeneralSolid(
     const ModelData& model,
     const Point& origin,
-    const std::function<void(std::size_t)>& beforeFace,
+    const NativeStep& beforeFace,
     GeneralSolidIntegrals& output,
     double relativeAccuracy
 )
@@ -99,7 +99,10 @@ SmStatus IntegrateGeneralSolid(
         {
             return SM_ERR_INVALID_INPUT;
         }
-        beforeFace(found->second);
+        if (auto operation = beforeFace(found->second); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto* up = face->GetUpwardFaceuse();
         auto* down = up ? up->GetMate() : nullptr;
         if (!up || !down || !up->GetShell() || !down->GetShell())

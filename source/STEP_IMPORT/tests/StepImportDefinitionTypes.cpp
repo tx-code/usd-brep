@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepImportCurvePointDefinitions.h"
+#include "StepImportCurvePointConstruction.h"
 
 #include <concepts>
 #include <type_traits>
@@ -21,6 +21,15 @@ concept CurveLookup = requires(const OwnedCurvePointDefinitions& definitions, In
 
 static_assert(RoleAppend<WireframeInfo, WireframeEvidence>);
 static_assert(RoleAppend<SupportingGeometryInfo, SupportingEvidence>);
+static_assert(
+    std::same_as<
+        decltype(std::declval<CurvePointDefinitions&>().Append(SourceRecord{ 0 }, std::declval<WireframeInfo&>(), std::declval<WireframeEvidence&>())),
+        Result<void>>
+);
+static_assert(std::same_as<
+              decltype(std::declval<CurvePointDefinitions&>()
+                           .Append(SourceRecord{ 0 }, std::declval<SupportingGeometryInfo&>(), std::declval<SupportingEvidence&>())),
+              Result<SupportingAppendResult>>);
 static_assert(!RoleAppend<WireframeInfo, SupportingEvidence>);
 static_assert(!RoleAppend<SupportingGeometryInfo, WireframeEvidence>);
 static_assert(!std::convertible_to<SupportingAppendResult, bool>);

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include "StepImportExecutionCallbacks.h"
 #include "StepImportSurfaceProof.h"
 
 #include <array>
@@ -28,12 +29,12 @@ struct SupportDomainEvidence
 // remains in the owning source snapshot; no fit, point movement or tol growth.
 // All candidate/proof/copy work precedes installation; failures/cancellation
 // after installation abort the caller's whole unpublished model.
-SupportDomainEvidence RestrictUnusedSupportDomain(
+[[nodiscard]] Result<SupportDomainEvidence> RestrictUnusedSupportDomain(
     SmFace& face,
     bool uniqueExplicitOuter,
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& beforeNativeCall
+    const ExecutionCheckpoint& beforeNativeCall
 );
 } // namespace step_import::detail

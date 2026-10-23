@@ -133,7 +133,7 @@ struct Net
 struct Budget
 {
     std::size_t controls, products, used = 0;
-    const std::function<void()>& checkpoint;
+    const ExecutionCheckpoint& checkpoint;
     void ControlCount(std::size_t u, std::size_t v) const
     {
         if (u == 0 || v == 0 || u > controls / v)
@@ -141,7 +141,7 @@ struct Budget
             throw WorkLimit{};
         }
     }
-    void Product()
+    [[nodiscard]] Result<void> Product()
     {
         if (used == products)
         {
@@ -150,8 +150,12 @@ struct Budget
         ++used;
         if ((used & 255) == 1)
         {
-            checkpoint();
+            if (auto operation = checkpoint(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
         }
+        return {};
     }
 };
 std::vector<double> Knots(const SmBSplineSurface& s, SmSurfParamType axis)
@@ -257,7 +261,14 @@ void NaturalDomain(const SmBSplineSurface& surface, const Net& net)
         throw Unestablished{};
     }
 }
-std::vector<C> InsertCurve(const std::vector<C>& cp, const std::vector<double>& knots, unsigned p, double value, bool polynomial, Budget& budget)
+[[nodiscard]] Result<std::vector<C>> InsertCurve(
+    const std::vector<C>& cp,
+    const std::vector<double>& knots,
+    unsigned p,
+    double value,
+    bool polynomial,
+    Budget& budget
+)
 {
     const auto k = static_cast<std::size_t>(std::upper_bound(knots.begin(), knots.end(), value) - knots.begin() - 1);
     const auto s = static_cast<std::size_t>(std::count(knots.begin(), knots.end(), value));
@@ -276,7 +287,10 @@ std::vector<C> InsertCurve(const std::vector<C>& cp, const std::vector<double>& 
     }
     for (std::size_t i = k - p + 1; i <= k - s; ++i)
     {
-        budget.Product();
+        if (auto operation = budget.Product(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const I alpha = (I(value) - I(knots[i])) / (I(knots[i + p]) - I(knots[i]));
         for (std::size_t axis = 0; axis < 4; ++axis)
         {
@@ -291,7 +305,7 @@ std::vector<C> InsertCurve(const std::vector<C>& cp, const std::vector<double>& 
     }
     return result;
 }
-void Refine(Net& net, bool uAxis, const std::vector<double>& values, Budget& budget)
+[[nodiscard]] Result<void> Refine(Net& net, bool uAxis, const std::vector<double>& values, Budget& budget)
 {
     auto& knots = uAxis ? net.u : net.v;
     const unsigned p = uAxis ? net.p : net.q;
@@ -303,7 +317,10 @@ void Refine(Net& net, bool uAxis, const std::vector<double>& values, Budget& bud
         }
         while (static_cast<unsigned>(std::count(knots.begin(), knots.end(), value)) < p)
         {
-            budget.checkpoint();
+            if (auto operation = budget.checkpoint(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto newU = net.nu + (uAxis ? 1 : 0), newV = net.nv + (uAxis ? 0 : 1);
             budget.ControlCount(newU, newV);
             std::vector<C> result(newU * newV);
@@ -317,7 +334,12 @@ void Refine(Net& net, bool uAxis, const std::vector<double>& values, Budget& bud
                 {
                     cp.push_back(uAxis ? net.cp[i * net.nv + row] : net.cp[row * net.nv + i]);
                 }
-                const auto inserted = InsertCurve(cp, knots, p, value, net.polynomial, budget);
+                auto insertedResult = InsertCurve(cp, knots, p, value, net.polynomial, budget);
+                if (!insertedResult)
+                {
+                    return tl::unexpected(std::move(insertedResult.error()));
+                }
+                const auto inserted = std::move(*insertedResult);
                 for (std::size_t i = 0; i < inserted.size(); ++i)
                 {
                     result[uAxis ? i * newV + row : row * newV + i] = inserted[i];
@@ -330,6 +352,7 @@ void Refine(Net& net, bool uAxis, const std::vector<double>& values, Budget& bud
             net.cp = std::move(result);
         }
     }
+    return {};
 }
 std::vector<double> Union(std::vector<double> a, const std::vector<double>& b)
 {
@@ -365,7 +388,8 @@ double Magnitude(I x)
 {
     return std::max(std::abs(x.lo), std::abs(x.hi));
 }
-double PatchBound(const Net& a, const Net& b, std::size_t au, std::size_t av, std::size_t bu, std::size_t bv, Budget& budget, const Choose& choose)
+[[nodiscard]] Result<double>
+PatchBound(const Net& a, const Net& b, std::size_t au, std::size_t av, std::size_t bu, std::size_t bv, Budget& budget, const Choose& choose)
 {
     const unsigned p = a.p, q = a.q;
     const auto control = [](const Net& n, std::size_t u, std::size_t v, unsigned i, unsigned j) -> const C&
@@ -392,7 +416,10 @@ double PatchBound(const Net& a, const Net& b, std::size_t au, std::size_t av, st
         {
             for (unsigned j = 0; j <= q; ++j)
             {
-                budget.Product();
+                if (auto operation = budget.Product(); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 const auto& x = control(a, au, av, i, j);
                 const auto& y = control(b, bu, bv, i, j);
                 for (unsigned axis = 0; axis < 3; ++axis)
@@ -415,7 +442,10 @@ double PatchBound(const Net& a, const Net& b, std::size_t au, std::size_t av, st
                 {
                     for (unsigned j = s > q ? s - q : 0; j <= std::min(q, s); ++j)
                     {
-                        budget.Product();
+                        if (auto operation = budget.Product(); !operation)
+                        {
+                            return tl::unexpected(std::move(operation.error()));
+                        }
                         const unsigned k = r - i, l = s - j;
                         const I coefficient = (Integer(choose[p][i]) * Integer(choose[p][k]) / Integer(choose[2 * p][r])) *
                                               (Integer(choose[q][j]) * Integer(choose[q][l]) / Integer(choose[2 * q][s]));
@@ -464,13 +494,13 @@ std::size_t Span(const std::vector<double>& knots, unsigned p, std::size_t count
     throw Unestablished{};
 }
 } // namespace
-SurfaceRestrictionProof ProveSurfaceRestriction(
+[[nodiscard]] Result<SurfaceRestrictionProof> ProveSurfaceRestriction(
     const SmBSplineSurface& original,
     const SmBSplineSurface& restricted,
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 )
 {
     SurfaceRestrictionProof result;
@@ -481,18 +511,25 @@ SurfaceRestrictionProof ProveSurfaceRestriction(
     // FE_TONEAREST alone does not rule out x86 DAZ/FTZ. Inspect integer bits of
     // both a subnormal input operation and an inexact subnormal result; refusal
     // is preferable to an interval bound weakened by flushed underflow.
-    const std::function<void()> checkedCheckpoint = [&]
+    const ExecutionCheckpoint checkedCheckpoint = [&]() -> Result<void>
     {
-        checkpoint(); // Caller exceptions remain execution/cancellation failures.
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        } // Caller exceptions remain execution/cancellation failures.
         if (!SurfaceProofNumericEnvironment())
         {
             throw Unestablished{};
         }
+        return {};
     };
     Budget budget{ maximumControls, maximumProducts, 0, checkedCheckpoint };
     try
     {
-        checkedCheckpoint();
+        if (auto checked = checkedCheckpoint(); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
         Net a = Read(original, budget), b = Read(restricted, budget);
         if (a.p != b.p || a.q != b.q)
         {
@@ -504,10 +541,22 @@ SurfaceRestrictionProof ProveSurfaceRestriction(
             return result;
         }
         const auto u = Union(a.u, b.u), v = Union(a.v, b.v);
-        Refine(a, true, u, budget);
-        Refine(a, false, v, budget);
-        Refine(b, true, u, budget);
-        Refine(b, false, v, budget);
+        if (auto operation = Refine(a, true, u, budget); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        if (auto operation = Refine(a, false, v, budget); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        if (auto operation = Refine(b, true, u, budget); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        if (auto operation = Refine(b, false, v, budget); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto choose = Binomials();
         double maximum = 0;
         for (std::size_t i = a.p; i < a.nu; ++i)
@@ -518,10 +567,18 @@ SurfaceRestrictionProof ProveSurfaceRestriction(
                 {
                     if (a.v[j] < a.v[j + 1] && a.v[j] >= domain[2] && a.v[j + 1] <= domain[3])
                     {
-                        checkedCheckpoint();
+                        if (auto checked = checkedCheckpoint(); !checked)
+                        {
+                            return tl::unexpected(std::move(checked.error()));
+                        }
                         const auto bi = Span(b.u, b.p, b.nu, a.u[i], a.u[i + 1]);
                         const auto bj = Span(b.v, b.q, b.nv, a.v[j], a.v[j + 1]);
-                        maximum = std::max(maximum, PatchBound(a, b, i, j, bi, bj, budget, choose));
+                        auto bound = PatchBound(a, b, i, j, bi, bj, budget, choose);
+                        if (!bound)
+                        {
+                            return tl::unexpected(std::move(bound.error()));
+                        }
+                        maximum = std::max(maximum, *bound);
                         ++result.patches;
                     }
                 }
@@ -579,15 +636,19 @@ void Continuous(const std::vector<double>& knots, unsigned degree, std::size_t c
         i = next;
     }
 }
-std::function<void()> Checked(const std::function<void()>& checkpoint)
+ExecutionCheckpoint Checked(const ExecutionCheckpoint& checkpoint)
 {
-    return [checkpoint]
+    return [checkpoint]() -> Result<void>
     {
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (!SurfaceProofNumericEnvironment())
         {
             throw Unestablished{};
         }
+        return {};
     };
 }
 struct CurveNet
@@ -600,7 +661,7 @@ struct CurveNet
     V3 lineOrigin{}, lineSlope{};
     double lineBase = 0, lineStepBegin = 0;
 };
-CurveNet ReadCurve(const SmCurve& curve, Budget& budget)
+[[nodiscard]] Result<CurveNet> ReadCurve(const SmCurve& curve, Budget& budget)
 {
     // Analytic conics can expose a NURBS base with a different evaluator
     // parameter. Reading that base as curve(t) would be a false certificate.
@@ -655,7 +716,10 @@ CurveNet ReadCurve(const SmCurve& curve, Budget& budget)
     net.cp.reserve(count);
     for (ULONG i = 0; i < count; ++i)
     {
-        budget.Product();
+        if (auto operation = budget.Product(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto w = net.polynomial ? 1. : data[4 * i + 3];
         if (!(w > 0))
         {
@@ -697,7 +761,8 @@ CurveNet ReadCurve(const SmCurve& curve, Budget& budget)
     }
     return net;
 }
-C DeBoor(std::vector<C> work, const std::vector<double>& knots, unsigned degree, std::size_t span, I t, bool polynomial, Budget& budget)
+[[nodiscard]] Result<C>
+DeBoor(std::vector<C> work, const std::vector<double>& knots, unsigned degree, std::size_t span, I t, bool polynomial, Budget& budget)
 {
     C hull = work[0];
     for (std::size_t j = 1; j < work.size(); ++j)
@@ -711,7 +776,10 @@ C DeBoor(std::vector<C> work, const std::vector<double>& knots, unsigned degree,
     {
         for (unsigned j = degree; j >= level; --j)
         {
-            budget.Product();
+            if (auto operation = budget.Product(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto i = span - degree + j;
             const I alpha = (t - I(knots[i])) / (I(knots[i + degree + 1 - level]) - I(knots[i]));
             for (std::size_t axis = 0; axis < 4; ++axis)
@@ -739,7 +807,7 @@ std::size_t CurveSpan(const CurveNet& net, double t)
     auto index = static_cast<std::size_t>(std::upper_bound(net.knots.begin(), net.knots.end(), t) - net.knots.begin() - 1);
     return std::clamp(index, static_cast<std::size_t>(net.degree), net.cp.size() - 1);
 }
-C CurveRange(const CurveNet& net, I t, Budget& budget)
+[[nodiscard]] Result<C> CurveRange(const CurveNet& net, I t, Budget& budget)
 {
     if (net.analyticLine)
     {
@@ -762,7 +830,7 @@ I DivideWeight(I value, I weight)
 {
     return weight.lo == 1 && weight.hi == 1 ? value : value / weight;
 }
-CurveNet Derivative(const CurveNet& source, Budget& budget)
+[[nodiscard]] Result<CurveNet> Derivative(const CurveNet& source, Budget& budget)
 {
     CurveNet out;
     if (source.analyticLine)
@@ -777,7 +845,10 @@ CurveNet Derivative(const CurveNet& source, Budget& budget)
     out.knots.assign(source.knots.begin() + 1, source.knots.end() - 1);
     for (std::size_t i = 0; i + 1 < source.cp.size(); ++i)
     {
-        budget.Product();
+        if (auto operation = budget.Product(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const I factor = I(source.degree) / (I(source.knots[i + source.degree + 1]) - I(source.knots[i + 1]));
         C value;
         for (std::size_t axis = 0; axis < 4; ++axis)
@@ -788,17 +859,27 @@ CurveNet Derivative(const CurveNet& source, Budget& budget)
     }
     return out;
 }
-V3 EuclideanDerivative(const CurveNet& source, const CurveNet& derivative, I t, Budget& budget)
+[[nodiscard]] Result<V3> EuclideanDerivative(const CurveNet& source, const CurveNet& derivative, I t, Budget& budget)
 {
-    const auto value = CurveRange(source, t, budget), tangent = CurveRange(derivative, t, budget);
+    auto value = CurveRange(source, t, budget);
+    if (!value)
+    {
+        return tl::unexpected(std::move(value.error()));
+    }
+    auto tangent = CurveRange(derivative, t, budget);
+    if (!tangent)
+    {
+        return tl::unexpected(std::move(tangent.error()));
+    }
     V3 result;
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
-        result[axis] = source.polynomial ? tangent[axis] : (tangent[axis] * value[3] - value[axis] * tangent[3]) / (value[3] * value[3]);
+        result[axis] = source.polynomial ? (*tangent)[axis] :
+                                           ((*tangent)[axis] * (*value)[3] - (*value)[axis] * (*tangent)[3]) / ((*value)[3] * (*value)[3]);
     }
     return result;
 }
-Net Derivative(const Net& source, bool uAxis, Budget& budget)
+[[nodiscard]] Result<Net> Derivative(const Net& source, bool uAxis, Budget& budget)
 {
     Net out;
     out.polynomial = true;
@@ -818,7 +899,10 @@ Net Derivative(const Net& source, bool uAxis, Budget& budget)
     {
         for (std::size_t j = 0; j < out.nv; ++j)
         {
-            budget.Product();
+            if (auto operation = budget.Product(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto k = uAxis ? i : j;
             const I factor = I(degree) / (I(original[k + degree + 1]) - I(original[k + 1]));
             C value;
@@ -833,7 +917,7 @@ Net Derivative(const Net& source, bool uAxis, Budget& budget)
     }
     return out;
 }
-V3 SurfaceRange(const Net& net, I u, I v, Budget& budget)
+[[nodiscard]] Result<V3> SurfaceRange(const Net& net, I u, I v, Budget& budget)
 {
     if (u.lo < net.u[net.p] || u.hi > net.u[net.nu] || v.lo < net.v[net.q] || v.hi > net.v[net.nv])
     {
@@ -862,9 +946,19 @@ V3 SurfaceRange(const Net& net, I u, I v, Budget& budget)
                 {
                     row.push_back(net.cp[i * net.nv + j]);
                 }
-                column.push_back(DeBoor(std::move(row), net.u, net.p, ku, us, true, budget));
+                auto rowResult = DeBoor(std::move(row), net.u, net.p, ku, us, true, budget);
+                if (!rowResult)
+                {
+                    return tl::unexpected(std::move(rowResult.error()));
+                }
+                column.push_back(std::move(*rowResult));
             }
-            const auto value = DeBoor(std::move(column), net.v, net.q, kv, I(std::max(v.lo, net.v[kv]), std::min(v.hi, net.v[kv + 1])), true, budget);
+            auto valueResult = DeBoor(std::move(column), net.v, net.q, kv, I(std::max(v.lo, net.v[kv]), std::min(v.hi, net.v[kv + 1])), true, budget);
+            if (!valueResult)
+            {
+                return tl::unexpected(std::move(valueResult.error()));
+            }
+            const auto value = std::move(*valueResult);
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
                 Include(result[axis], value[axis], first);
@@ -880,11 +974,11 @@ V3 SurfaceRange(const Net& net, I u, I v, Budget& budget)
 }
 } // namespace
 
-SurfaceInjectivityProof ProveSurfaceInjectivity(
+[[nodiscard]] Result<SurfaceInjectivityProof> ProveSurfaceInjectivity(
     const SmBSplineSurface& surface,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 )
 {
     SurfaceInjectivityProof result;
@@ -901,7 +995,10 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
     };
     try
     {
-        check();
+        if (auto operation = check(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto net = Read(surface, budget);
         NaturalDomain(surface, net);
         if (!net.polynomial)
@@ -917,7 +1014,7 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
         }
         result.domain = { net.u[net.p], net.u[net.nu], net.v[net.q], net.v[net.nv] };
         std::vector<V3> du, dv;
-        const auto derivative = [&](bool uAxis, std::vector<V3>& values)
+        const auto derivative = [&](bool uAxis, std::vector<V3>& values) -> Result<void>
         {
             const auto countU = net.nu - (uAxis ? 1 : 0), countV = net.nv - (uAxis ? 0 : 1);
             const auto& knots = uAxis ? net.u : net.v;
@@ -927,7 +1024,10 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
             {
                 for (std::size_t j = 0; j < countV; ++j)
                 {
-                    budget.Product();
+                    if (auto operation = budget.Product(); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     const auto k = uAxis ? i : j;
                     const I factor = I(degree) * (I(knots[count]) - I(knots[degree])) / (I(knots[k + degree + 1]) - I(knots[k + 1]));
                     V3 value;
@@ -938,9 +1038,16 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
                     values.push_back(value);
                 }
             }
+            return {};
         };
-        derivative(true, du);
-        derivative(false, dv);
+        if (auto differentiated = derivative(true, du); !differentiated)
+        {
+            return tl::unexpected(std::move(differentiated.error()));
+        }
+        if (auto differentiated = derivative(false, dv); !differentiated)
+        {
+            return tl::unexpected(std::move(differentiated.error()));
+        }
         std::array<double, 3> a{}, b{};
         for (const auto& v : du)
         {
@@ -993,7 +1100,10 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
         bool first = true;
         for (const auto& v : du)
         {
-            budget.Product();
+            if (auto operation = budget.Product(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Include(j00, Dot(v, result.projection[0]), first);
             Include(j10, Dot(v, result.projection[1]), first);
             first = false;
@@ -1001,7 +1111,10 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
         first = true;
         for (const auto& v : dv)
         {
-            budget.Product();
+            if (auto operation = budget.Product(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Include(j01, Dot(v, result.projection[0]), first);
             Include(j11, Dot(v, result.projection[1]), first);
             first = false;
@@ -1023,7 +1136,7 @@ SurfaceInjectivityProof ProveSurfaceInjectivity(
     return finish();
 }
 
-CurveLiftProof ProveCurveLift(
+[[nodiscard]] Result<CurveLiftProof> ProveCurveLift(
     const SmCurve& edge,
     const SmCurve& uv,
     const SmBSplineSurface& surface,
@@ -1032,7 +1145,7 @@ CurveLiftProof ProveCurveLift(
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 )
 {
     CurveLiftProof result;
@@ -1050,14 +1163,28 @@ CurveLiftProof ProveCurveLift(
     };
     try
     {
-        check();
+        if (auto operation = check(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto net = Read(surface, budget);
         NaturalDomain(surface, net);
         if (!net.polynomial || edge.GetDim() != 3 || uv.GetDim() != 2)
         {
             return finish();
         }
-        const auto curve = ReadCurve(edge, budget), trim = ReadCurve(uv, budget);
+        auto curveResult = ReadCurve(edge, budget);
+        if (!curveResult)
+        {
+            return tl::unexpected(std::move(curveResult.error()));
+        }
+        const auto curve = std::move(*curveResult);
+        auto trimResult = ReadCurve(uv, budget);
+        if (!trimResult)
+        {
+            return tl::unexpected(std::move(trimResult.error()));
+        }
+        const auto trim = std::move(*trimResult);
         std::size_t total = 0;
         for (const auto count :
              { net.cp.size(), (net.nu - 1) * net.nv, net.nu * (net.nv - 1), curve.cp.size(), trim.cp.size(), curve.cp.size() - 1, trim.cp.size() - 1 })
@@ -1068,8 +1195,30 @@ CurveLiftProof ProveCurveLift(
             }
             total += count;
         }
-        const auto dc = Derivative(curve, budget), dt = Derivative(trim, budget);
-        const auto su = Derivative(net, true, budget), sv = Derivative(net, false, budget);
+        auto dcResult = Derivative(curve, budget);
+        if (!dcResult)
+        {
+            return tl::unexpected(std::move(dcResult.error()));
+        }
+        const auto dc = std::move(*dcResult);
+        auto dtResult = Derivative(trim, budget);
+        if (!dtResult)
+        {
+            return tl::unexpected(std::move(dtResult.error()));
+        }
+        const auto dt = std::move(*dtResult);
+        auto suResult = Derivative(net, true, budget);
+        if (!suResult)
+        {
+            return tl::unexpected(std::move(suResult.error()));
+        }
+        const auto su = std::move(*suResult);
+        auto svResult = Derivative(net, false, budget);
+        if (!svResult)
+        {
+            return tl::unexpected(std::move(svResult.error()));
+        }
+        const auto sv = std::move(*svResult);
         if (begin < curve.knots[curve.degree] || end > curve.knots[curve.cp.size()] || begin < trim.knots[trim.degree] ||
             end > trim.knots[trim.cp.size()])
         {
@@ -1097,21 +1246,78 @@ CurveLiftProof ProveCurveLift(
         }
         while (!pending.empty())
         {
-            budget.Product();
+            if (auto operation = budget.Product(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const I t = pending.back();
             pending.pop_back();
             bool bounded = false;
             double squared = 0;
             try
             {
-                const auto c = CurveRange(curve, t, budget), p = CurveRange(trim, t, budget);
+                auto cResult = CurveRange(curve, t, budget);
+                if (!cResult)
+                {
+                    return tl::unexpected(std::move(cResult.error()));
+                }
+                const auto c = std::move(*cResult);
+                auto pResult = CurveRange(trim, t, budget);
+                if (!pResult)
+                {
+                    return tl::unexpected(std::move(pResult.error()));
+                }
+                const auto p = std::move(*pResult);
                 const I u = DivideWeight(p[0], p[3]), v = DivideWeight(p[1], p[3]);
-                const auto lifted = SurfaceRange(net, u, v, budget);
+                auto liftedResult = SurfaceRange(net, u, v, budget);
+                if (!liftedResult)
+                {
+                    return tl::unexpected(std::move(liftedResult.error()));
+                }
+                const auto lifted = std::move(*liftedResult);
                 const I middle(std::midpoint(t.lo, t.hi));
-                const auto cm = CurveRange(curve, middle, budget), pm = CurveRange(trim, middle, budget);
-                const auto sm = SurfaceRange(net, DivideWeight(pm[0], pm[3]), DivideWeight(pm[1], pm[3]), budget);
-                const auto cp = EuclideanDerivative(curve, dc, t, budget), tp = EuclideanDerivative(trim, dt, t, budget);
-                const auto sup = SurfaceRange(su, u, v, budget), svp = SurfaceRange(sv, u, v, budget);
+                auto cmResult = CurveRange(curve, middle, budget);
+                if (!cmResult)
+                {
+                    return tl::unexpected(std::move(cmResult.error()));
+                }
+                const auto cm = std::move(*cmResult);
+                auto pmResult = CurveRange(trim, middle, budget);
+                if (!pmResult)
+                {
+                    return tl::unexpected(std::move(pmResult.error()));
+                }
+                const auto pm = std::move(*pmResult);
+                auto smResult = SurfaceRange(net, DivideWeight(pm[0], pm[3]), DivideWeight(pm[1], pm[3]), budget);
+                if (!smResult)
+                {
+                    return tl::unexpected(std::move(smResult.error()));
+                }
+                const auto sm = std::move(*smResult);
+                auto cpResult = EuclideanDerivative(curve, dc, t, budget);
+                if (!cpResult)
+                {
+                    return tl::unexpected(std::move(cpResult.error()));
+                }
+                const auto cp = std::move(*cpResult);
+                auto tpResult = EuclideanDerivative(trim, dt, t, budget);
+                if (!tpResult)
+                {
+                    return tl::unexpected(std::move(tpResult.error()));
+                }
+                const auto tp = std::move(*tpResult);
+                auto supResult = SurfaceRange(su, u, v, budget);
+                if (!supResult)
+                {
+                    return tl::unexpected(std::move(supResult.error()));
+                }
+                const auto sup = std::move(*supResult);
+                auto svpResult = SurfaceRange(sv, u, v, budget);
+                if (!svpResult)
+                {
+                    return tl::unexpected(std::move(svpResult.error()));
+                }
+                const auto svp = std::move(*svpResult);
                 I error;
                 for (std::size_t axis = 0; axis < 3; ++axis)
                 {

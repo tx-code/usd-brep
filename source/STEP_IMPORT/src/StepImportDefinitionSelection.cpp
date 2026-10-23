@@ -3,7 +3,6 @@
 #include "StepImportDefinitionSelection.h"
 
 #include "StepImportExecution.h"
-#include "StepImportLegacyFailure.h"
 
 #include <algorithm>
 #include <numeric>
@@ -11,7 +10,7 @@
 
 namespace step_import::detail
 {
-Result<std::vector<std::size_t>> SelectNativeDefinitions(
+[[nodiscard]] Result<std::vector<std::size_t>> SelectNativeDefinitions(
     const step_semantics::ProductDocument& source,
     const Options& options,
     Report& report,
@@ -19,16 +18,11 @@ Result<std::vector<std::size_t>> SelectNativeDefinitions(
 )
 {
     std::vector<std::size_t> indices;
-    // Execution still owns the request ledger and observer protocol. Bridge
-    // only its legacy Failure here, at the unchanged selection checkpoints.
+    // Execution owns the request ledger and observer protocol. Forward its
+    // result at the unchanged selection checkpoints.
     const auto checkpoint = [&](Phase phase)
     {
-        return LegacyFailureAdapter(
-            [&]
-            {
-                execution.Check(phase);
-            }
-        );
+        return execution.Check(phase);
     };
     if (const auto& owned = source.SourceSelection())
     {

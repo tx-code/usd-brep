@@ -82,48 +82,53 @@ Execution::Execution(const Options& options, Report& report)
         m_cylindricalBandRepairsClaimed.resize(options.cylindricalBandRepair->faces.size(), false);
     }
 }
-void Execution::ClaimRepairEdits(const std::vector<std::size_t>& indices)
+[[nodiscard]] Result<void> Execution::ClaimRepairEdits(const std::vector<std::size_t>& indices)
 {
     for (const auto index : indices)
     {
         if (index >= m_repairEditsClaimed.size() || m_repairEditsClaimed[index])
         {
-            throw Failure{ Status::Unsupported,
-                           "RepairEditScopeConflict",
-                           "An edit must apply to exactly one selected definition/body",
-                           {},
-                           "Repair" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported, "RepairEditScopeConflict", "An edit must apply to exactly one selected definition/body", {}, "Repair" }
+            );
         }
         m_repairEditsClaimed[index] = true;
     }
+    return {};
 }
-void Execution::ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices)
+[[nodiscard]] Result<void> Execution::ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices)
 {
     for (const auto index : indices)
     {
         if (index >= m_cylindricalBandRepairsClaimed.size() || m_cylindricalBandRepairsClaimed[index])
         {
-            throw Failure{ Status::Unsupported,
-                           "CylindricalBandRepairScopeConflict",
-                           "Each planned face use must be repaired exactly once",
-                           {},
-                           "Repair" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "CylindricalBandRepairScopeConflict",
+                         "Each planned face use must be repaired exactly once",
+                         {},
+                         "Repair" }
+            );
         }
         m_cylindricalBandRepairsClaimed[index] = true;
     }
+    return {};
 }
-void Execution::SpendCylindricalBandProof()
+[[nodiscard]] Result<void> Execution::SpendCylindricalBandProof()
 {
     if (!m_options.cylindricalBandRepair || m_report.cylindricalBandProofOperations >= m_options.cylindricalBandRepair->maximumProofOperations)
     {
-        throw Failure{ Status::ResourceLimit, "CylindricalBandRepairProofLimit", "Cumulative exact proof work exhausted", {}, "Repair" };
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "CylindricalBandRepairProofLimit", "Cumulative exact proof work exhausted", {}, "Repair" }
+        );
     }
     if ((m_report.cylindricalBandProofOperations++ & 63) == 0)
     {
-        Check(Phase::BeforeRepairProof);
+        return Check(Phase::BeforeRepairProof);
     }
+    return {};
 }
-Result<void> Execution::CheckRepairCompletion()
+[[nodiscard]] Result<void> Execution::CheckRepairCompletion()
 {
     if (std::find(m_repairEditsClaimed.begin(), m_repairEditsClaimed.end(), false) != m_repairEditsClaimed.end())
     {
@@ -151,13 +156,16 @@ std::size_t Execution::RepairProofRemaining() const
     }
     return m_options.faceOrientationRepair->maximumProofProducts - m_report.repairProofProducts;
 }
-void Execution::SpendRepairProof(std::size_t products)
+[[nodiscard]] Result<void> Execution::SpendRepairProof(std::size_t products)
 {
     if (products > RepairProofRemaining())
     {
-        throw Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Request-cumulative repair proof budget exhausted", {}, "Repair" };
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "RepairProofWorkLimit", "Request-cumulative repair proof budget exhausted", {}, "Repair" }
+        );
     }
     m_report.repairProofProducts += products;
+    return {};
 }
 Execution::~Execution()
 {
@@ -170,36 +178,49 @@ Execution::~Execution()
         }
     }
 }
-void Execution::Cancel()
+[[nodiscard]] Result<void> Execution::Cancel()
 {
     auto requested = ImportControl::State::Requested;
     m_control->m_state.compare_exchange_strong(requested, ImportControl::State::Cancelled);
-    throw Failure{ Status::Cancelled, "ImportCancelled", "Cooperative cancellation observed at a safe boundary", {}, "Execution" };
+    return tl::unexpected(Failure{ Status::Cancelled, "ImportCancelled", "Cooperative cancellation observed at a safe boundary", {}, "Execution" });
 }
-void Execution::ChargeNative(Report& observation, std::size_t record)
+[[nodiscard]] Result<void> Execution::ChargeNative(Report& observation, std::size_t record, NativeCallAccounting accounting)
 {
-    Check(Phase::BeforeNativeCall);
+    auto checked = Check(Phase::BeforeNativeCall);
+    if (!checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
     if (m_report.nativeCalls >= m_options.nativeLimits.nativeCalls)
     {
-        throw Failure{ Status::ResourceLimit, "NativeCallLimit", "General source-to-native contract is unestablished", record, "GeneralBrep" };
+        if (accounting == NativeCallAccounting::Planar)
+        {
+            return tl::unexpected(Failure{ Status::ResourceLimit, "NativeCallLimit", "Bounded native call allowance exhausted", record });
+        }
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "NativeCallLimit", "General source-to-native contract is unestablished", record, "GeneralBrep" }
+        );
     }
     ++m_report.nativeCalls;
     if (&observation != &m_report)
     {
         ++observation.nativeCalls;
     }
+    return {};
 }
-void Execution::Check(Phase phase)
+[[nodiscard]] Result<void> Execution::Check(Phase phase)
 {
     m_report.lastBoundary = phase;
     ++m_report.checkpoints;
     if (m_options.nativeLimits.hardMemoryBytes)
     {
-        throw Failure{ Status::Unsupported,
-                       "UnsupportedHardMemoryContract",
-                       "OS hard memory limits require a qualified isolated execution mode",
-                       {},
-                       "Execution" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "UnsupportedHardMemoryContract",
+                     "OS hard memory limits require a qualified isolated execution mode",
+                     {},
+                     "Execution" }
+        );
     }
     if (m_options.execution.progress)
     {
@@ -213,20 +234,22 @@ void Execution::Check(Phase phase)
         }
         catch (const std::exception& error)
         {
-            throw Failure{ Status::BuildFailure, "ExecutionCallbackFailure", error.what(), {}, "Execution" };
+            return tl::unexpected(Failure{ Status::BuildFailure, "ExecutionCallbackFailure", error.what(), {}, "Execution" });
         }
         catch (...)
         {
-            throw Failure{ Status::BuildFailure, "ExecutionCallbackFailure", "Unknown observer exception", {}, "Execution" };
+            return tl::unexpected(Failure{ Status::BuildFailure, "ExecutionCallbackFailure", "Unknown observer exception", {}, "Execution" });
         }
     }
     if (m_control->m_state.load() == ImportControl::State::Requested)
     {
-        Cancel();
+        return Cancel();
     }
     if (m_options.execution.deadline && std::chrono::steady_clock::now() >= *m_options.execution.deadline)
     {
-        throw Failure{ Status::ResourceLimit, "DeadlineExceeded", "Cooperative deadline observed after a safe operation boundary", {}, "Execution" };
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "DeadlineExceeded", "Cooperative deadline observed after a safe operation boundary", {}, "Execution" }
+        );
     }
     if (m_options.nativeLimits.processPrivateBytes || m_options.execution.measureProcessMemory)
     {
@@ -234,7 +257,7 @@ void Execution::Check(Phase phase)
         PROCESS_MEMORY_COUNTERS_EX memory{};
         if (!GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory), sizeof(memory)))
         {
-            throw Failure{ Status::BuildFailure, "ProcessMemoryMeasurementFailed", "GetProcessMemoryInfo failed", {}, "Execution" };
+            return tl::unexpected(Failure{ Status::BuildFailure, "ProcessMemoryMeasurementFailed", "GetProcessMemoryInfo failed", {}, "Execution" });
         }
         m_report.maximumObservedPrivateBytes = std::max(
             m_report.maximumObservedPrivateBytes.value_or(0),
@@ -243,22 +266,27 @@ void Execution::Check(Phase phase)
         m_report.processPeakCommitBytes = static_cast<std::size_t>(memory.PeakPagefileUsage);
         if (m_options.nativeLimits.processPrivateBytes && memory.PrivateUsage > *m_options.nativeLimits.processPrivateBytes)
         {
-            throw Failure{ Status::ResourceLimit,
-                           "ProcessMemoryLimit",
-                           "Process-wide private commit charge exceeds the cooperative byte limit",
-                           {},
-                           "Execution" };
+            return tl::unexpected(
+                Failure{ Status::ResourceLimit,
+                         "ProcessMemoryLimit",
+                         "Process-wide private commit charge exceeds the cooperative byte limit",
+                         {},
+                         "Execution" }
+            );
         }
 #else
-        throw Failure{ Status::Unsupported,
-                       "UnsupportedProcessMemoryObserver",
-                       "This execution mode has no qualified process memory observer",
-                       {},
-                       "Execution" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "UnsupportedProcessMemoryObserver",
+                     "This execution mode has no qualified process memory observer",
+                     {},
+                     "Execution" }
+        );
 #endif
     }
+    return {};
 }
-Result<void> Execution::Commit()
+[[nodiscard]] Result<void> Execution::Commit()
 {
     // Final serialization is bounded but can take time/allocate. Recheck declared limits before arbitration.
     // Accepted report observations remain explicitly scoped to the pre-serialization checkpoint.
@@ -290,11 +318,7 @@ Result<void> Execution::Commit()
     auto expected = ImportControl::State::Ready;
     if (!m_control->m_state.compare_exchange_strong(expected, ImportControl::State::Accepted))
     {
-        auto requested = ImportControl::State::Requested;
-        m_control->m_state.compare_exchange_strong(requested, ImportControl::State::Cancelled);
-        return tl::unexpected(
-            Failure{ Status::Cancelled, "ImportCancelled", "Cooperative cancellation observed at a safe boundary", {}, "Execution" }
-        );
+        return Cancel();
     }
     m_committed = true;
     return {};

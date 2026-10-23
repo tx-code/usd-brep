@@ -43,14 +43,14 @@ bool FiniteUv(const SmPoint3d& p)
 }
 } // namespace
 
-DerivedUvCandidate MatchProjectedUvEndpoints(
+[[nodiscard]] Result<DerivedUvCandidate> MatchProjectedUvEndpoints(
     std::unique_ptr<SmBSplineCurve> projected,
     const SmCurve& edge,
     const SmCurve& installed,
     const SmSurface& surface,
     const SmExtent1d& interval,
     double maximumMm,
-    const std::function<void()>& beforeNativeCall
+    const ExecutionCheckpoint& beforeNativeCall
 )
 {
     Expects(bool(beforeNativeCall));
@@ -70,7 +70,10 @@ DerivedUvCandidate MatchProjectedUvEndpoints(
     {
         return result;
     }
-    beforeNativeCall();
+    if (auto operation = beforeNativeCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     try
     {
         result.rawPair = MeasureFinalTrim(edge, *projected, surface, interval.GetMin(), interval.GetMax());
@@ -92,7 +95,10 @@ DerivedUvCandidate MatchProjectedUvEndpoints(
     std::array<SmPoint3d, 2> targets;
     for (std::size_t side = 0; side < targets.size(); ++side)
     {
-        beforeNativeCall();
+        if (auto operation = beforeNativeCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (installed.EvaluatePoint(side == 0 ? fixedDomain.GetMin() : fixedDomain.GetMax(), targets[side]) != SM_SUCCESS || !FiniteUv(targets[side]))
         {
             result.status = DerivedUvStatus::EndpointEvaluationFailed;
@@ -123,14 +129,20 @@ DerivedUvCandidate MatchProjectedUvEndpoints(
             }
             weight = &weights[side];
         }
-        beforeNativeCall();
+        if (auto operation = beforeNativeCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (projected->EditEndPoint(point, side == 0, weight, SM_EE_PROJECT_UVTRIMCURVE_VERTEX_TO_SURFACE, FALSE) != SM_SUCCESS)
         {
             result.status = DerivedUvStatus::EndpointEditFailed;
             return result;
         }
     }
-    beforeNativeCall();
+    if (auto operation = beforeNativeCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     try
     {
         result.matchedPair = MeasureFinalTrim(edge, *projected, surface, interval.GetMin(), interval.GetMax());
@@ -150,7 +162,7 @@ DerivedUvCandidate MatchProjectedUvEndpoints(
     result.curve = std::move(projected);
     return result;
 }
-DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall)
+[[nodiscard]] Result<DerivedUvCandidate> RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, const ExecutionCheckpoint& beforeNativeCall)
 {
     Expects(bool(beforeNativeCall));
     Expects(std::isfinite(maximumMm) && maximumMm > 0);
@@ -168,7 +180,10 @@ DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, cons
     SmStatus status;
     {
         SurfaceOwnerScope owner(*surface);
-        beforeNativeCall();
+        if (auto operation = beforeNativeCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         status = use.CreateUVTrimCurve(gap, raw);
     }
     // This API returns an unattached allocation with an association owner.
@@ -197,12 +212,17 @@ DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, cons
         result.status = DerivedUvStatus::ProjectionGapExceeded;
         return result;
     }
-    auto matched =
+    auto matchedResult =
         MatchProjectedUvEndpoints(std::move(projected), *edge->GetCurve(), *installed, *surface, edge->GetInterval(), maximumMm, beforeNativeCall);
+    if (!matchedResult)
+    {
+        return tl::unexpected(std::move(matchedResult.error()));
+    }
+    auto matched = std::move(*matchedResult);
     matched.projectionGapMm = gap;
     return matched;
 }
-DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall)
+[[nodiscard]] Result<DerivedUvCandidate> ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, const ExecutionCheckpoint& beforeNativeCall)
 {
     Expects(bool(beforeNativeCall));
     Expects(std::isfinite(maximumMm) && maximumMm > 0);
@@ -220,20 +240,35 @@ DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, cons
     SmStatus status;
     {
         SurfaceOwnerScope owner(*surface);
-        beforeNativeCall();
+        if (auto operation = beforeNativeCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         // Separate numerical approximation from normal source/surface distance.
         // KeepAll permits the latter to exceed the tighter solve target, but
         // both returned projection distance and paired lift must still satisfy
         // maximumMm below. No topology tolerance is adjusted to obtain a curve.
-        status = surface->DropCurve(*face->GetContext(), face->GetUVDomain(), *edge->GetCurve(), edge->GetInterval(),
-                                    SmApproxTol3d(maximumMm / 8), gap, approximation, curves, TRUE);
+        status = surface->DropCurve(
+            *face->GetContext(),
+            face->GetUVDomain(),
+            *edge->GetCurve(),
+            edge->GetInterval(),
+            SmApproxTol3d(maximumMm / 8),
+            gap,
+            approximation,
+            curves,
+            TRUE
+        );
     }
     if (status != SM_SUCCESS || curves.GetSize() != 1 || !curves[0] || !std::isfinite(gap) || gap < 0 || gap > maximumMm)
     {
         return result;
     }
     result.projectionGapMm = gap;
-    beforeNativeCall();
+    if (auto operation = beforeNativeCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     try
     {
         const auto interval = edge->GetInterval();

@@ -28,10 +28,13 @@ double ParameterGuard(std::array<double, 2> interval)
     // physical circle. This is a parameter guard, never a millimetre allowance.
     return SM_EFF_ZERO_PARAM * (1 + std::max(std::abs(interval[0]), std::abs(interval[1])));
 }
-std::unique_ptr<SmCurve> CopyBasis(const SmCurve& source, const SmContext& context, const std::function<void()>& checkpoint)
+[[nodiscard]] Result<std::unique_ptr<SmCurve>> CopyBasis(const SmCurve& source, const SmContext& context, const ExecutionCheckpoint& checkpoint)
 {
     SmCurve* raw = nullptr;
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto status = source.Copy(context, raw);
     Need(raw != &source, "RingSubdivisionBorrowedBasis");
     std::unique_ptr<SmCurve> result(raw);
@@ -41,7 +44,13 @@ std::unique_ptr<SmCurve> CopyBasis(const SmCurve& source, const SmContext& conte
     return result;
 }
 } // namespace
-double LocateRingCut(const SmCurve& circle, std::array<double, 2> interval, Point point, double maximumMm, const std::function<void()>& checkpoint)
+[[nodiscard]] Result<double> LocateRingCut(
+    const SmCurve& circle,
+    std::array<double, 2> interval,
+    Point point,
+    double maximumMm,
+    const ExecutionCheckpoint& checkpoint
+)
 {
     Need(bool(checkpoint) && circle.GetType() == SmCircle_TYPE && std::isfinite(maximumMm) && maximumMm > 0, "RingSubdivisionCircleScope");
     const SmExtent1d domain(interval[0], interval[1]);
@@ -49,7 +58,10 @@ double LocateRingCut(const SmCurve& circle, std::array<double, 2> interval, Poin
     Need(domain.GetMin() == natural.GetMin() && domain.GetMax() == natural.GetMax() && domain.GetLength() > 0, "RingSubdivisionWholeBasisRequired");
     SmBoolean found = FALSE;
     double parameter = 0, distance = 0;
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto status = circle.DropPoint(domain, SmPoint3d(point[0], point[1], point[2]), nullptr, maximumMm, nullptr, found, parameter, distance);
     Need(
         status == SM_SUCCESS && found && std::isfinite(parameter) && std::isfinite(distance) && distance <= maximumMm,
@@ -58,14 +70,22 @@ double LocateRingCut(const SmCurve& circle, std::array<double, 2> interval, Poin
     const auto guard = ParameterGuard(interval);
     Need(parameter > interval[0] + guard && parameter < interval[1] - guard, "RingSubdivisionNearSourceEndpoint");
     SmPoint3d evaluated;
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     Need(
         circle.EvaluatePoint(parameter, evaluated) == SM_SUCCESS && evaluated.DistanceBetween(SmPoint3d(point[0], point[1], point[2])) <= maximumMm,
         "RingSubdivisionCutPointGap"
     );
     return parameter;
 }
-void PrepareRingSegments(RingSubdivision& plan, const SmCurve& circle, const SmContext& context, const std::function<void()>& checkpoint)
+[[nodiscard]] Result<void> PrepareRingSegments(
+    RingSubdivision& plan,
+    const SmCurve& circle,
+    const SmContext& context,
+    const ExecutionCheckpoint& checkpoint
+)
 {
     Need(!plan.cuts.empty() && plan.segments.empty() && !plan.reference, "RingSubdivisionPlanState");
     std::sort(
@@ -79,27 +99,46 @@ void PrepareRingSegments(RingSubdivision& plan, const SmCurve& circle, const SmC
     const auto guard = ParameterGuard(plan.interval);
     double previous = plan.interval[0];
     std::size_t vertex = plan.originalVertex;
-    plan.reference = CopyBasis(circle, context, checkpoint);
+    auto nativeValue24 = CopyBasis(circle, context, checkpoint);
+    if (!nativeValue24)
+    {
+        return tl::unexpected(std::move(nativeValue24.error()));
+    }
+    plan.reference = std::move(*nativeValue24);
     for (const auto& cut : plan.cuts)
     {
         Need(
             std::isfinite(cut.parameter) && cut.parameter > previous + guard && cut.parameter < plan.interval[1] - guard,
             "RingSubdivisionCoincidentCutsUnestablished"
         );
-        plan.segments.push_back({ vertex, cut.vertex, { previous, cut.parameter }, CopyBasis(circle, context, checkpoint), nullptr });
+        auto basis = CopyBasis(circle, context, checkpoint);
+        if (!basis)
+        {
+            return tl::unexpected(std::move(basis.error()));
+        }
+        plan.segments.push_back({ vertex, cut.vertex, { previous, cut.parameter }, std::move(*basis), nullptr });
         previous = cut.parameter;
         vertex = cut.vertex;
     }
-    plan.segments.push_back({ vertex, plan.originalVertex, { previous, plan.interval[1] }, CopyBasis(circle, context, checkpoint), nullptr });
+    auto basis = CopyBasis(circle, context, checkpoint);
+    if (!basis)
+    {
+        return tl::unexpected(std::move(basis.error()));
+    }
+    plan.segments.push_back({ vertex, plan.originalVertex, { previous, plan.interval[1] }, std::move(*basis), nullptr });
+    return {};
 }
-void VerifyRingSegments(const RingSubdivision& plan, const std::function<void()>& checkpoint)
+[[nodiscard]] Result<void> VerifyRingSegments(const RingSubdivision& plan, const ExecutionCheckpoint& checkpoint)
 {
     Need(plan.reference && plan.segments.size() == plan.cuts.size() + 1, "RingSubdivisionIncompletePlan");
     double parameter = plan.interval[0];
     std::size_t vertex = plan.originalVertex;
     for (const auto& segment : plan.segments)
     {
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Need(segment.edge && segment.edge->GetCurve() && !segment.curve, "RingSubdivisionUnpublishedSegment");
         const auto interval = segment.edge->GetInterval();
         Need(
@@ -112,5 +151,6 @@ void VerifyRingSegments(const RingSubdivision& plan, const std::function<void()>
         vertex = segment.lastVertex;
     }
     Need(parameter == plan.interval[1] && vertex == plan.originalVertex, "RingSubdivisionSourceIntervalCoverage");
+    return {};
 }
 } // namespace step_import::detail

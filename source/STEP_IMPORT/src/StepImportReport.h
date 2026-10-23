@@ -7,7 +7,7 @@ namespace step_import::detail
 {
 // Private report composition result. The shared source writer owns bounded
 // buffer publication; only its complete output may reach the import report.
-Result<void> Serialize(
+[[nodiscard]] Result<void> Serialize(
     Status status,
     const Report& report,
     const Quality& quality,

@@ -38,9 +38,12 @@ public:
     explicit Exact(Execution& execution) : e(execution)
     {
     }
-    Ratio Normalize(Ratio a)
+    [[nodiscard]] Result<Ratio> Normalize(Ratio a)
     {
-        e.SpendCylindricalBandProof();
+        if (auto spent = e.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         Need(a.d != 0, "CylindricalBandExactDivision");
         if (a.d < 0)
         {
@@ -50,7 +53,10 @@ public:
         Integer x = a.n < 0 ? -a.n : a.n, y = a.d;
         while (y != 0)
         {
-            e.SpendCylindricalBandProof();
+            if (auto spent = e.SpendCylindricalBandProof(); !spent)
+            {
+                return tl::unexpected(std::move(spent.error()));
+            }
             Integer r = x % y;
             x = y;
             y = r;
@@ -62,7 +68,7 @@ public:
         }
         return a;
     }
-    Ratio Parse(std::string_view text)
+    [[nodiscard]] Result<Ratio> Parse(std::string_view text)
     {
         Ratio a;
         bool negative = false;
@@ -76,7 +82,10 @@ public:
         }
         for (; i < text.size() && text[i] != 'E' && text[i] != 'e'; ++i)
         {
-            e.SpendCylindricalBandProof();
+            if (auto spent = e.SpendCylindricalBandProof(); !spent)
+            {
+                return tl::unexpected(std::move(spent.error()));
+            }
             if (text[i] == '.')
             {
                 fractional = true;
@@ -99,7 +108,10 @@ public:
             }
             for (; i < text.size(); ++i)
             {
-                e.SpendCylindricalBandProof();
+                if (auto spent = e.SpendCylindricalBandProof(); !spent)
+                {
+                    return tl::unexpected(std::move(spent.error()));
+                }
                 Need(exponent < 1234, "CylindricalBandExactCapacity");
                 exponent = exponent * 10 + text[i] - '0';
             }
@@ -113,7 +125,10 @@ public:
         Need(power >= -1233 && power <= 1233, "CylindricalBandExactCapacity");
         for (int p = 0; p < std::abs(power); ++p)
         {
-            e.SpendCylindricalBandProof();
+            if (auto spent = e.SpendCylindricalBandProof(); !spent)
+            {
+                return tl::unexpected(std::move(spent.error()));
+            }
             if (power > 0)
             {
                 a.n *= 10;
@@ -129,55 +144,93 @@ public:
         }
         return Normalize(std::move(a));
     }
-    Ratio Add(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<Ratio> Add(const Ratio& a, const Ratio& b)
     {
         return Normalize({ a.n * b.d + b.n * a.d, a.d * b.d });
     }
-    Ratio Sub(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<Ratio> Sub(const Ratio& a, const Ratio& b)
     {
         return Normalize({ a.n * b.d - b.n * a.d, a.d * b.d });
     }
-    Ratio Mul(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<Ratio> Mul(const Ratio& a, const Ratio& b)
     {
         return Normalize({ a.n * b.n, a.d * b.d });
     }
-    Ratio Dot(const Vector& a, const Vector& b)
+    [[nodiscard]] Result<Ratio> Dot(const Vector& a, const Vector& b)
     {
         Ratio r;
         for (std::size_t i = 0; i < 3; ++i)
         {
-            r = Add(r, Mul(a[i], b[i]));
+            auto product = Mul(a[i], b[i]);
+            if (!product)
+            {
+                return tl::unexpected(std::move(product.error()));
+            }
+            auto sum = Add(r, *product);
+            if (!sum)
+            {
+                return tl::unexpected(std::move(sum.error()));
+            }
+            r = std::move(*sum);
         }
         return r;
     }
-    Vector Difference(const Vector& a, const Vector& b)
+    [[nodiscard]] Result<Vector> Difference(const Vector& a, const Vector& b)
     {
         Vector v;
         for (std::size_t i = 0; i < 3; ++i)
         {
-            v[i] = Sub(a[i], b[i]);
+            auto difference = Sub(a[i], b[i]);
+            if (!difference)
+            {
+                return tl::unexpected(std::move(difference.error()));
+            }
+            v[i] = std::move(*difference);
         }
         return v;
     }
-    bool Parallel(const Vector& a, const Vector& b)
+    [[nodiscard]] Result<bool> Parallel(const Vector& a, const Vector& b)
     {
         for (std::size_t i = 0; i < 3; ++i)
         {
-            if (Sub(Mul(a[(i + 1) % 3], b[(i + 2) % 3]), Mul(a[(i + 2) % 3], b[(i + 1) % 3])).n != 0)
+            // Keep the MSVC baseline's argument order for the two fallible
+            // products. Exact rational operations and proof charges are unchanged.
+            auto right = Mul(a[(i + 2) % 3], b[(i + 1) % 3]);
+            if (!right)
+            {
+                return tl::unexpected(std::move(right.error()));
+            }
+            auto left = Mul(a[(i + 1) % 3], b[(i + 2) % 3]);
+            if (!left)
+            {
+                return tl::unexpected(std::move(left.error()));
+            }
+            auto cross = Sub(*left, *right);
+            if (!cross)
+            {
+                return tl::unexpected(std::move(cross.error()));
+            }
+            if (cross->n != 0)
             {
                 return false;
             }
         }
         return true;
     }
-    bool Less(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<bool> Less(const Ratio& a, const Ratio& b)
     {
-        e.SpendCylindricalBandProof();
+        if (auto spent = e.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         return a.n * b.d < b.n * a.d;
     }
-    bool Equal(const Ratio& a, const Ratio& b)
+    [[nodiscard]] Result<bool> Equal(const Ratio& a, const Ratio& b)
     {
-        e.SpendCylindricalBandProof();
+        if (auto spent = e.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         return a.n == b.n && a.d == b.d;
     }
 
@@ -204,35 +257,64 @@ public:
     {
         return s.Field(r, name).Value().text == "T";
     }
-    Vector Coordinates(std::size_t r, std::string_view name)
+    [[nodiscard]] Result<Vector> Coordinates(std::size_t r, std::string_view name)
     {
         const auto& values = s.Field(r, name).Value().children;
         Need(values.size() == 3, "CylindricalBandDimension");
         Vector v;
         for (std::size_t i = 0; i < 3; ++i)
         {
-            v[i] = q.Parse(values[i].text);
+            auto coordinate = q.Parse(values[i].text);
+            if (!coordinate)
+            {
+                return tl::unexpected(std::move(coordinate.error()));
+            }
+            v[i] = std::move(*coordinate);
         }
         return v;
     }
-    std::pair<Vector, Vector> Frame(std::size_t r)
+    [[nodiscard]] Result<std::pair<Vector, Vector>> Frame(std::size_t r)
     {
         Need(s.IsA(r, "AXIS2_PLACEMENT_3D"), "CylindricalBandPlacement");
         auto origin = Coordinates(Ref(r, "location"), "coordinates");
+        if (!origin)
+        {
+            return tl::unexpected(std::move(origin.error()));
+        }
         Vector axis{ { { 0, 1 }, { 0, 1 }, { 1, 1 } } };
         if (s.Field(r, "axis").Value().kind != step_source::ValueKind::Unset)
         {
-            axis = Coordinates(Ref(r, "axis"), "direction_ratios");
+            auto direction = Coordinates(Ref(r, "axis"), "direction_ratios");
+            if (!direction)
+            {
+                return tl::unexpected(std::move(direction.error()));
+            }
+            axis = std::move(*direction);
         }
-        Need(q.Dot(axis, axis).n > 0, "CylindricalBandAxis");
-        return { origin, axis };
+        auto norm = q.Dot(axis, axis);
+        if (!norm)
+        {
+            return tl::unexpected(std::move(norm.error()));
+        }
+        Need(norm->n > 0, "CylindricalBandAxis");
+        return std::pair<Vector, Vector>{ std::move(*origin), std::move(axis) };
     }
-    CylindricalBandRepairAction Prove(std::size_t face, const step_semantics::CylindricalBandRepairDeferral& edit)
+    [[nodiscard]] Result<CylindricalBandRepairAction> Prove(std::size_t face, const step_semantics::CylindricalBandRepairDeferral& edit)
     {
         const auto surface = Ref(face, "face_geometry");
         Need(s.IsA(surface, "CYLINDRICAL_SURFACE"), "CylindricalBandSurface");
-        const auto [origin, axis] = Frame(Ref(surface, "position"));
-        const auto radius = q.Parse(s.Field(surface, "radius").Value().text);
+        auto frame = Frame(Ref(surface, "position"));
+        if (!frame)
+        {
+            return tl::unexpected(std::move(frame.error()));
+        }
+        const auto& [origin, axis] = *frame;
+        auto radiusResult = q.Parse(s.Field(surface, "radius").Value().text);
+        if (!radiusResult)
+        {
+            return tl::unexpected(std::move(radiusResult.error()));
+        }
+        const auto& radius = *radiusResult;
         Need(radius.n > 0, "CylindricalBandRadius");
         const auto bounds = Refs(face, "bounds");
         Need(bounds.size() == 2, "CylindricalBandBoundaryCount");
@@ -260,11 +342,46 @@ public:
             Need(s.IsA(edge, "EDGE_CURVE"), "CylindricalBandWholeCircleRequired");
             const auto circle = Ref(edge, "edge_geometry");
             Need(s.IsA(circle, "CIRCLE") && Ref(edge, "edge_start") == Ref(edge, "edge_end"), "CylindricalBandWholeCircleRequired");
-            const auto [center, normal] = Frame(Ref(circle, "position"));
-            const auto delta = q.Difference(center, origin);
-            Need(q.Parallel(delta, axis) && q.Parallel(normal, axis), "CylindricalBandCoaxialityUnestablished");
-            Need(q.Equal(radius, q.Parse(s.Field(circle, "radius").Value().text)), "CylindricalBandRadiusMismatch");
-            const auto normalSense = q.Dot(normal, axis).n;
+            auto placement = Frame(Ref(circle, "position"));
+            if (!placement)
+            {
+                return tl::unexpected(std::move(placement.error()));
+            }
+            const auto& [center, normal] = *placement;
+            auto delta = q.Difference(center, origin);
+            if (!delta)
+            {
+                return tl::unexpected(std::move(delta.error()));
+            }
+            auto coaxial = q.Parallel(*delta, axis);
+            if (!coaxial)
+            {
+                return tl::unexpected(std::move(coaxial.error()));
+            }
+            Need(*coaxial, "CylindricalBandCoaxialityUnestablished");
+            auto aligned = q.Parallel(normal, axis);
+            if (!aligned)
+            {
+                return tl::unexpected(std::move(aligned.error()));
+            }
+            Need(*aligned, "CylindricalBandCoaxialityUnestablished");
+            auto circleRadius = q.Parse(s.Field(circle, "radius").Value().text);
+            if (!circleRadius)
+            {
+                return tl::unexpected(std::move(circleRadius.error()));
+            }
+            auto sameRadius = q.Equal(radius, *circleRadius);
+            if (!sameRadius)
+            {
+                return tl::unexpected(std::move(sameRadius.error()));
+            }
+            Need(*sameRadius, "CylindricalBandRadiusMismatch");
+            auto normalDot = q.Dot(normal, axis);
+            if (!normalDot)
+            {
+                return tl::unexpected(std::move(normalDot.error()));
+            }
+            const auto& normalSense = normalDot->n;
             Need(normalSense != 0, "CylindricalBandCircleAxis");
             int direction = normalSense > 0 ? 1 : -1;
             for (const bool same : { Bool(b, "orientation"), Bool(face, "same_sense"), Bool(use, "orientation"), Bool(edge, "same_sense") })
@@ -274,9 +391,19 @@ public:
                     direction = -direction;
                 }
             }
-            rings[i] = { q.Dot(delta, axis), direction, b, circle };
+            auto height = q.Dot(*delta, axis);
+            if (!height)
+            {
+                return tl::unexpected(std::move(height.error()));
+            }
+            rings[i] = { std::move(*height), direction, b, circle };
         }
-        if (q.Less(rings[1].height, rings[0].height))
+        auto descending = q.Less(rings[1].height, rings[0].height);
+        if (!descending)
+        {
+            return tl::unexpected(std::move(descending.error()));
+        }
+        if (*descending)
         {
             std::swap(rings[0], rings[1]);
         }
@@ -284,12 +411,17 @@ public:
         // FINITE band: lower ring increases theta, upper ring decreases it.
         // The complement has opposite boundary orientation. Neither serialized
         // SET order nor an arbitrary distinguished outer loop is used here.
-        Need(
-            q.Less(rings[0].height, rings[1].height) && rings[0].orientation == 1 && rings[1].orientation == -1,
-            "CylindricalBandFiniteOrientedRegionUnestablished"
-        );
+        auto increasing = q.Less(rings[0].height, rings[1].height);
+        if (!increasing)
+        {
+            return tl::unexpected(std::move(increasing.error()));
+        }
+        Need(*increasing && rings[0].orientation == 1 && rings[1].orientation == -1, "CylindricalBandFiniteOrientedRegionUnestablished");
         const auto& id = s.Source().Records();
-        return { edit, id[surface].id, { id[rings[0].circle].id, id[rings[1].circle].id }, { id[rings[0].bound].id, id[rings[1].bound].id } };
+        return CylindricalBandRepairAction{ edit,
+                                            id[surface].id,
+                                            { id[rings[0].circle].id, id[rings[1].circle].id },
+                                            { id[rings[0].bound].id, id[rings[1].bound].id } };
     }
 
 private:
@@ -330,7 +462,7 @@ struct CylindricalBandRepairTrial
     std::vector<std::size_t> sourceFaces;
     CylindricalBandRepairHistory history;
 };
-std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
+[[nodiscard]] Result<std::shared_ptr<CylindricalBandRepairTrial>> PrepareCylindricalBandRepair(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const std::optional<step_semantics::Part::Shape>& binding,
     const Options& options,
@@ -369,7 +501,12 @@ std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
             const auto face = source->Source().Find(edit.faceId);
             Need(face != nullptr, "CylindricalBandFaceIdentity");
             const auto index = static_cast<std::size_t>(face - records.data());
-            trial->history.actions.push_back(proof.Prove(index, edit));
+            auto action = proof.Prove(index, edit);
+            if (!action)
+            {
+                return tl::unexpected(std::move(action.error()));
+            }
+            trial->history.actions.push_back(std::move(*action));
             trial->sourceFaces.push_back(index);
             claimed.push_back(i);
         }
@@ -382,8 +519,14 @@ std::shared_ptr<CylindricalBandRepairTrial> PrepareCylindricalBandRepair(
     {
         return {};
     }
-    execution.ClaimCylindricalBandRepairs(claimed);
-    execution.Check(Phase::BeforeRepair);
+    if (auto operation = execution.ClaimCylindricalBandRepairs(claimed); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    if (auto operation = execution.Check(Phase::BeforeRepair); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     trial->history.sourceSha256 = options.cylindricalBandRepair->sourceSha256;
     trial->history.sourceInterpretationApplied = HasAppliedSourceInterpretation(*source);
     for (const auto& action : trial->history.actions)
@@ -411,7 +554,7 @@ bool NeutralizesCylindricalBandBounds(const std::shared_ptr<CylindricalBandRepai
 {
     return t && std::find(t->sourceFaces.begin(), t->sourceFaces.end(), face) != t->sourceFaces.end();
 }
-void CaptureCylindricalBandDefinitions(
+[[nodiscard]] Result<void> CaptureCylindricalBandDefinitions(
     const std::shared_ptr<CylindricalBandRepairTrial>& t,
     std::shared_ptr<ModelData> model,
     Report& report,
@@ -420,7 +563,7 @@ void CaptureCylindricalBandDefinitions(
 {
     if (!t)
     {
-        return;
+        return {};
     }
     t->owner = std::move(model);
     auto& m = *t->owner;
@@ -436,7 +579,10 @@ void CaptureCylindricalBandDefinitions(
     }
     for (ULONG i = 0; i < edges.GetSize(); ++i)
     {
-        execution.ChargeNative(report, 0);
+        if (auto operation = execution.ChargeNative(report, 0); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto source = edges[i]->GetCurve();
         SmCurve* raw = nullptr;
         const auto status = source->Copy(*m.context, raw);
@@ -448,7 +594,10 @@ void CaptureCylindricalBandDefinitions(
     }
     for (ULONG i = 0; i < faces.GetSize(); ++i)
     {
-        execution.ChargeNative(report, 0);
+        if (auto operation = execution.ChargeNative(report, 0); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto source = faces[i]->GetSurface();
         SmSurface* raw = nullptr;
         const auto status = source->Copy(*m.context, raw);
@@ -458,12 +607,18 @@ void CaptureCylindricalBandDefinitions(
         copy->SetOwner(nullptr);
         t->faces.push_back({ faces[i], std::move(copy), SmTol::GetZoneTol3d(faces[i]) });
     }
+    return {};
 }
-void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTrial>& t, ModelData& m, Report& report, Execution& execution)
+[[nodiscard]] Result<void> CompleteCylindricalBandRepair(
+    const std::shared_ptr<CylindricalBandRepairTrial>& t,
+    ModelData& m,
+    Report& report,
+    Execution& execution
+)
 {
     if (!t)
     {
-        return;
+        return {};
     }
     SmTArray<SmVertex*> vertices;
     SmTArray<SmEdge*> edges;
@@ -488,7 +643,10 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     };
     for (const auto& v : t->vertices)
     {
-        execution.SpendCylindricalBandProof();
+        if (auto spent = execution.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         Need(present(vertices, v.key), "CylindricalBandReplacedVertex");
         const auto p = v.key->GetPoint();
         Same(p.x, v.point.x);
@@ -498,7 +656,10 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     }
     for (const auto& e : t->edges)
     {
-        execution.SpendCylindricalBandProof();
+        if (auto spent = execution.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         Need(present(edges, e.key), "CylindricalBandReplacedEdge");
         Same(e.interval.GetMin(), e.key->GetInterval().GetMin());
         Same(e.interval.GetMax(), e.key->GetInterval().GetMax());
@@ -507,7 +668,10 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     }
     for (const auto& f : t->faces)
     {
-        execution.SpendCylindricalBandProof();
+        if (auto spent = execution.SpendCylindricalBandProof(); !spent)
+        {
+            return tl::unexpected(std::move(spent.error()));
+        }
         Need(present(faces, f.key), "CylindricalBandReplacedFace");
         RequireSameNativeSurfaceDefinition(*f.surface, *f.key->GetSurface());
         Same(f.tolerance, SmTol::GetZoneTol3d(f.key));
@@ -518,6 +682,10 @@ void CompleteCylindricalBandRepair(const std::shared_ptr<CylindricalBandRepairTr
     t->history.definitionsIdentical = t->history.workingTolerancesIdentical = true;
     m.cylindricalBandRepairs = t->history;
     report.cylindricalBandRepairs = t->history;
-    execution.Check(Phase::RepairReady);
+    if (auto operation = execution.Check(Phase::RepairReady); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    return {};
 }
 } // namespace step_import::detail

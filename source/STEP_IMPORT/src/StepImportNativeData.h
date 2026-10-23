@@ -93,17 +93,4 @@ struct DocumentData
     std::vector<Body> bodies;
 };
 void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path);
-std::shared_ptr<ModelData> BuildGeneralBody(
-    std::shared_ptr<const step_semantics::Snapshot> source,
-    const step_semantics::Part::Shape& binding,
-    const Options& options,
-    Report& report,
-    Execution& execution
-);
-std::shared_ptr<ModelData> BuildGeneral(
-    std::shared_ptr<const step_semantics::Snapshot> source,
-    const Options& options,
-    Report& report,
-    Execution& execution
-);
 } // namespace step_import::detail

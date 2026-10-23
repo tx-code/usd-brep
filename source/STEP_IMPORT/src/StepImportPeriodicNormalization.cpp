@@ -40,14 +40,17 @@ public:
     {
     }
 
-    SmStatus Restrict(SmExtent2d& domain, const std::function<void()>& checkpoint)
+    [[nodiscard]] Result<SmStatus> Restrict(SmExtent2d& domain, const ExecutionCheckpoint& checkpoint)
     {
         // SmSurfOfRevolution::TrimWithDomain (SmSurfOfRevolution.cpp,
         // contract above that method) rebuilds the arc and preserves only its
         // corner parameters. Existing UV data instead requires the old basis.
         // First find the exact extraction's actual, possibly snapped domain.
         SmSurface* raw = nullptr;
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto copied = this->SmBSplineSurface::Copy(*this->GetContext(), raw);
         if (raw == this)
         {
@@ -65,7 +68,10 @@ public:
             return SM_ERR;
         }
         auto actual = domain;
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto status = basis->SmBSplineSurface::TrimWithDomain(actual);
         if (status != SM_SUCCESS)
         {
@@ -75,14 +81,20 @@ public:
         // The analytic conversion must see the UNTRIMMED NURBS domain while
         // converting its new corners. Then extract the original basis without
         // MakeNurb/Reparameterize, and rebuild the converter from that basis.
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         status = this->UpdateAnalyticalDomain(actual);
         if (status != SM_SUCCESS)
         {
             return status;
         }
         const auto planned = actual;
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         status = this->SmBSplineSurface::TrimWithDomain(actual);
         if (status != SM_SUCCESS)
         {
@@ -93,7 +105,10 @@ public:
         {
             return SM_ERR; // Never retain analytic helpers for a different domain.
         }
-        checkpoint();
+        if (auto operation = checkpoint(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         status = this->RebuildPolarConverter();
         if (status != SM_SUCCESS)
         {
@@ -105,19 +120,27 @@ public:
 };
 
 template <class Base>
-SmStatus RestrictAnalytic(
+[[nodiscard]] Result<SmStatus> RestrictAnalytic(
     const Base& source,
     const SmContext& context,
     SmExtent2d& domain,
     std::unique_ptr<SmSurface>& output,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 )
 {
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     std::unique_ptr<ParameterRestriction<Base>> work(new (context) ParameterRestriction<Base>(source));
     work->SetOwner(nullptr); // Mutations must never notify the source face.
     auto actual = domain;
-    const auto restricted = work->Restrict(actual, checkpoint);
+    auto restrictedResult = work->Restrict(actual, checkpoint);
+    if (!restrictedResult)
+    {
+        return tl::unexpected(std::move(restrictedResult.error()));
+    }
+    const auto restricted = std::move(*restrictedResult);
     if (restricted != SM_SUCCESS)
     {
         return restricted;
@@ -126,7 +149,10 @@ SmStatus RestrictAnalytic(
     // The access adapter owns no extra state and is never delivered. Ordinary
     // virtual Copy restores the native cylinder/cone class before publication.
     SmSurface* raw = nullptr;
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto copied = work->Copy(context, raw);
     if (raw == work.get() || raw == &source)
     {
@@ -167,12 +193,12 @@ public:
         std::span<const std::size_t> derived,
         const Options& options,
         Report& report,
-        const std::function<void(std::size_t)>& step
+        const NativeStep& step
     )
         : m(model), faceRecords(faces), edgeRecords(edges), vertexRecords(vertices), derivedOwners(derived), q(options), report(report), charge(step)
     {
     }
-    void Run()
+    [[nodiscard]] Result<void> Run()
     {
         if (m.topologyNormalization)
         {
@@ -200,7 +226,10 @@ public:
             }
             SmCurveClassification u, v;
             SmSurfParamType crossed, missing, near;
-            Step(faceRecords[i]);
+            if (auto operation = Step(faceRecords[i]); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             originalFaces[i].face->HasSeamProblem(u, v, crossed, missing, near);
             if (near != SM_SP_U)
             {
@@ -214,7 +243,7 @@ public:
         {
             // No new operation: keep any earlier pole provenance intact and
             // do not invent a periodic-splitting result merely for the request.
-            return;
+            return {};
         }
         // Only the constructor's pending, face-preserving pole inventory is
         // composable here. An already split inventory needs a different source
@@ -298,7 +327,10 @@ public:
             );
             surfaceControls += std::size_t(nu) * nv;
             SmSurface* raw = nullptr;
-            Step(faceRecords[i]);
+            if (auto operation = Step(faceRecords[i]); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto copied = surface->SmBSplineSurface::Copy(*m.context, raw);
             std::unique_ptr<SmSurface> saved(raw);
             Good(copied, faceRecords[i]);
@@ -306,7 +338,10 @@ public:
             raw->SetOwner(nullptr);
             sourceSurfaces.push_back(std::move(saved));
             Need(!originalFaces[i].face->FindAttribute(FaceLineage), "PeriodicNormalizationAttributeCollision", faceRecords[i]);
-            Step(faceRecords[i]);
+            if (auto operation = Step(faceRecords[i]); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             originalFaces[i].face->AddAttribute(new (*m.context) SmLongAttribute(FaceLineage, static_cast<long>(i + 1), SM_AB_COPY));
         }
         std::vector<OriginalEdge> bases;
@@ -330,7 +365,10 @@ public:
             Need(count <= cap - std::min(basisControls, cap), "PeriodicNormalizationControlLimit", owner, Status::ResourceLimit);
             basisControls += count; // All retained original bases share one request-local memory cap.
             SmCurve* raw = nullptr;
-            Step(owner);
+            if (auto operation = Step(owner); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(curve->Copy(*m.context, raw), owner);
             std::unique_ptr<SmCurve> owned(raw);
             Need(raw && raw != curve, "PeriodicNormalizationBasisAlias", owner);
@@ -343,7 +381,10 @@ public:
                   index < edgeRecords.size() ? std::optional<std::size_t>(edgeRecords[index]) : std::nullopt,
                   owner }
             );
-            Step(owner);
+            if (auto operation = Step(owner); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             edge->AddAttribute(new (*m.context) SmLongAttribute(EdgeLineage, static_cast<long>(bases.size()), SM_AB_COPY));
         }
         std::map<SmEdge*, std::size_t> cutOwners;
@@ -354,7 +395,10 @@ public:
             const auto domain = face->GetSurface()->GetNaturalUVDomain();
             SmBSplineCurve* cutRaw = nullptr;
             double extractionGap = 0;
-            Step(record);
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(
                 face->GetSurface()->CreateIsoParametricCurve(
                     *m.context,
@@ -382,7 +426,10 @@ public:
                 // Native merge requires edit state; inputs remain caller-owned.
                 // The entire candidate/context is discarded on ANY later failure.
                 SmTemporaryChangeValue<SmBoolean> editing(m.brep->m_bEditingEnabled, TRUE);
-                Step(record);
+                if (auto operation = Step(record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 Good(
                     m.brep->MergeCurvesOnSurface(
                         *face->GetSurface(),
@@ -404,10 +451,16 @@ public:
                     cutOwners.emplace(edge, record);
                 }
             }
-            Crop(*face, record);
+            if (auto operation = Crop(*face, record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             for (const auto child : createdFaces)
             {
-                Crop(*child, record);
+                if (auto operation = Crop(*child, record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
             }
         }
         SmTArray<SmFace*> allFaces;
@@ -437,8 +490,11 @@ public:
         }
         for (const auto& [vertex, origin] : priorPoles)
         {
-            Need(retainedVertices.contains(vertex) && PointOf(vertex) == priorPolePoints.at(vertex),
-                 "PeriodicNormalizationExistingPoleChanged", origin.second);
+            Need(
+                retainedVertices.contains(vertex) && PointOf(vertex) == priorPolePoints.at(vertex),
+                "PeriodicNormalizationExistingPoleChanged",
+                origin.second
+            );
         }
         // Rebuild target indices from the live inventory; never append a second
         // mapping to indices left by the pole constructor.
@@ -483,18 +539,32 @@ public:
                 // basis. Equal nets alone cannot prove an edited primitive's
                 // analytic evaluator or its cached parameter map is unchanged.
                 {
-                    auto saved = SaveEdgeUv(*edge, original.owner);
+                    auto savedResult = SaveEdgeUv(*edge, original.owner);
+                    if (!savedResult)
+                    {
+                        return tl::unexpected(std::move(savedResult.error()));
+                    }
+                    auto saved = std::move(*savedResult);
                     SmCurve* raw = nullptr;
-                    Step(original.owner);
+                    if (auto operation = Step(original.owner); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     Good(original.basis->Copy(*m.context, raw), original.owner);
                     std::unique_ptr<SmCurve> owned(raw);
                     Need(raw && raw != original.basis.get(), "PeriodicNormalizationBasisAlias", original.owner);
                     raw->SetOwner(nullptr);
-                    Step(original.owner);
+                    if (auto operation = Step(original.owner); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     edge->SetCurve(raw, TRUE);
                     raw->SetOwner(edge);
                     owned.release();
-                    Restore(saved, original.owner);
+                    if (auto operation = Restore(saved, original.owner); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                 }
                 Need(SameDefinition(*edge->GetCurve(), *original.basis), "PeriodicNormalizationSourceBasisChanged", original.owner);
                 m.targetEdgeOwners.push_back(original.owner);
@@ -561,7 +631,7 @@ public:
                 Need(original && current, "PeriodicNormalizationSurfaceType", faceRecords[sourceIndex], Status::Unsupported);
                 const auto beforeDomain = original->GetNaturalUVDomain();
                 origin.originalNativeDomain = { beforeDomain.GetMin().x, beforeDomain.GetMin().y, beforeDomain.GetMax().x, beforeDomain.GetMax().y };
-                const auto proof = ProveSurfaceRestriction(
+                auto proofResult = ProveSurfaceRestriction(
                     *original,
                     *current,
                     Control(q.quality.definitionMm),
@@ -569,9 +639,14 @@ public:
                     cap,
                     [&]
                     {
-                        Step(faceRecords[sourceIndex]);
+                        return Step(faceRecords[sourceIndex]);
                     }
                 );
+                if (!proofResult)
+                {
+                    return tl::unexpected(std::move(proofResult.error()));
+                }
+                const auto proof = std::move(*proofResult);
                 Need(
                     proof.established && proof.maximumMm.has_value(),
                     "PeriodicNormalizationSourceSurfaceUnestablished",
@@ -626,7 +701,10 @@ public:
                     const double parameter = edgeOrigin.basisParameterInterval[minimum ? 0 : 1];
                     owner = m.targetEdgeOwners[index];
                     SmPoint3d onBasis;
-                    Step(owner);
+                    if (auto operation = Step(owner); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
                     Good(edge->GetCurve()->EvaluatePoint(parameter, onBasis), owner);
                     const double residual = onBasis.DistanceBetween(allVertices[i]->GetPoint());
                     Need(
@@ -662,6 +740,7 @@ public:
         info.sourceVerticesPreserved = info.sourceCurveIntervalsCovered = info.completed = true;
         m.topologyNormalization = info;
         report.topologyNormalization = std::move(info);
+        return {};
     }
 
 private:
@@ -670,7 +749,7 @@ private:
     std::span<const std::size_t> faceRecords, edgeRecords, vertexRecords, derivedOwners;
     const Options& q;
     Report& report;
-    const std::function<void(std::size_t)>& charge;
+    const NativeStep& charge;
     std::vector<std::unique_ptr<SmSurface>> sourceSurfaces;
     const step_semantics::Snapshot& source() const
     {
@@ -697,9 +776,13 @@ private:
     {
         return Enclose(value).low;
     } // Never round an acceptance budget upward.
-    void Step(std::size_t record) const
+    [[nodiscard]] Result<void> Step(std::size_t record) const
     {
-        charge(record);
+        if (auto operation = charge(record); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        return {};
     }
     void Need(bool okay, const char* key, std::size_t record, Status status = Status::PostcheckFailure) const
     {
@@ -764,7 +847,7 @@ private:
         }
         return true;
     }
-    std::vector<SavedUv> Save(SmTArray<SmEdgeuse*>& uses, std::size_t record)
+    [[nodiscard]] Result<std::vector<SavedUv>> Save(SmTArray<SmEdgeuse*>& uses, std::size_t record)
     {
         std::set<SmEdgeuse*> owners;
         std::vector<SavedUv> saved;
@@ -780,7 +863,10 @@ private:
             }
             CountControls(*uv, controls, record);
             SmCurve* raw = nullptr;
-            Step(record);
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(uv->Copy(*m.context, raw), record);
             std::unique_ptr<SmCurve> copy(raw);
             Need(raw && raw != uv, "PeriodicNormalizationUvAlias", record);
@@ -789,25 +875,29 @@ private:
         }
         return saved;
     }
-    std::vector<SavedUv> SaveEdgeUv(SmEdge& edge, std::size_t record)
+    [[nodiscard]] Result<std::vector<SavedUv>> SaveEdgeUv(SmEdge& edge, std::size_t record)
     {
         SmTArray<SmEdgeuse*> uses;
         Good(edge.GetEdgeuses(uses), record);
         return Save(uses, record);
     }
-    void Restore(std::vector<SavedUv>& saved, std::size_t record)
+    [[nodiscard]] Result<void> Restore(std::vector<SavedUv>& saved, std::size_t record)
     {
         for (auto& item : saved)
         {
             const auto curve = dynamic_cast<SmBSplineCurve*>(item.curve.get());
             Need(curve, "PeriodicNormalizationUvType", record);
-            Step(record);
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             item.owner->SetUVTrimCurve(curve, 0., TRUE);
             Need(curve->GetOwner() == item.owner || curve->GetOwner() == item.owner->GetMate(), "PeriodicNormalizationUvOwner", record);
             item.curve.release();
         }
+        return {};
     }
-    void Crop(SmFace& face, std::size_t record)
+    [[nodiscard]] Result<void> Crop(SmFace& face, std::size_t record)
     {
         const auto original = dynamic_cast<SmBSplineSurface*>(face.GetSurface());
         Need(original, "PeriodicNormalizationSurfaceType", record, Status::Unsupported);
@@ -850,19 +940,21 @@ private:
         );
         SmExtent2d requested(loU, loV, hiU, hiV);
         std::unique_ptr<SmSurface> candidate;
-        Good(
-            RestrictPeriodicSupport(
-                *original,
-                *m.context,
-                requested,
-                candidate,
-                [&]
-                {
-                    Step(record);
-                }
-            ),
-            record
+        auto nativeStatus0 = RestrictPeriodicSupport(
+            *original,
+            *m.context,
+            requested,
+            candidate,
+            [&]
+            {
+                return Step(record);
+            }
         );
+        if (!nativeStatus0)
+        {
+            return tl::unexpected(std::move(nativeStatus0.error()));
+        }
+        Good(*nativeStatus0, record);
         auto raw = candidate.get();
         Need(raw && raw != original, "PeriodicNormalizationSurfaceAlias", record);
         const auto restricted = dynamic_cast<SmBSplineSurface*>(raw);
@@ -873,7 +965,7 @@ private:
             "PeriodicNormalizationRegionClipped",
             record
         );
-        const auto proof = ProveSurfaceRestriction(
+        auto proofResult = ProveSurfaceRestriction(
             *original,
             *restricted,
             Control(q.quality.definitionMm),
@@ -881,9 +973,14 @@ private:
             q.sourceLimits.values,
             [&]
             {
-                Step(record);
+                return Step(record);
             }
         );
+        if (!proofResult)
+        {
+            return tl::unexpected(std::move(proofResult.error()));
+        }
+        const auto proof = std::move(*proofResult);
         Need(
             proof.established,
             "PeriodicNormalizationSurfaceDefinitionUnestablished",
@@ -891,8 +988,16 @@ private:
             proof.workLimit ? Status::ResourceLimit : Status::Indeterminate
         );
         Need(proof.maximumMm.has_value(), "PeriodicNormalizationSurfaceDefinitionUnestablished", record, Status::Indeterminate);
-        auto saved = Save(uses, record);
-        Step(record);
+        auto savedResult = Save(uses, record);
+        if (!savedResult)
+        {
+            return tl::unexpected(std::move(savedResult.error()));
+        }
+        auto saved = std::move(*savedResult);
+        if (auto operation = Step(record); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         face.SetSurface(raw, TRUE);
         const bool adopted = face.GetSurface() == raw;
         if (adopted)
@@ -901,16 +1006,20 @@ private:
         }
         Need(adopted && raw->GetOwner() == &face, "PeriodicNormalizationSurfaceOwner", record);
         face.SetUVDomain(actual);
-        Restore(saved, record);
+        if (auto operation = Restore(saved, record); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        return {};
     }
 };
 } // namespace
-SmStatus RestrictPeriodicSupport(
+[[nodiscard]] Result<SmStatus> RestrictPeriodicSupport(
     const SmBSplineSurface& source,
     const SmContext& context,
     SmExtent2d& domain,
     std::unique_ptr<SmSurface>& output,
-    const std::function<void()>& checkpoint
+    const ExecutionCheckpoint& checkpoint
 )
 {
     if (output || !checkpoint)
@@ -931,7 +1040,10 @@ SmStatus RestrictPeriodicSupport(
         return SM_ERR; // Other analytic subclasses need their own helper contract.
     }
     SmSurface* raw = nullptr;
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto copied = source.Copy(context, raw);
     if (raw == &source)
     {
@@ -948,7 +1060,10 @@ SmStatus RestrictPeriodicSupport(
     {
         return SM_ERR;
     }
-    checkpoint();
+    if (auto operation = checkpoint(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     auto actual = domain;
     const auto status = restricted->SmBSplineSurface::TrimWithDomain(actual);
     if (status != SM_SUCCESS)
@@ -959,7 +1074,7 @@ SmStatus RestrictPeriodicSupport(
     output = std::move(candidate);
     return SM_SUCCESS;
 }
-void NormalizePeriodicTopology(
+[[nodiscard]] Result<void> NormalizePeriodicTopology(
     ModelData& model,
     std::span<const std::size_t> faces,
     std::span<const std::size_t> edges,
@@ -967,9 +1082,9 @@ void NormalizePeriodicTopology(
     std::span<const std::size_t> derived,
     const Options& options,
     Report& report,
-    const std::function<void(std::size_t)>& step
+    const NativeStep& step
 )
 {
-    Normalizer(model, faces, edges, vertices, derived, options, report, step).Run();
+    return Normalizer(model, faces, edges, vertices, derived, options, report, step).Run();
 }
 } // namespace step_import::detail

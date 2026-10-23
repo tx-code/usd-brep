@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-#include "StepImportCurvePointDefinitions.h"
-
+#include "StepImportCurvePointConstruction.h"
 #include "StepImportGeometryConstruction.h"
 
 #include <SmLine.h>
@@ -86,17 +85,21 @@ public:
         m_points.emplace(record, PointIndex{ point.nativeIndex });
         return m_owned.m_points.back();
     }
-    const OwnedCurvePointDefinitions::CurveDefinition& CurveDefinition(Index record, Role role)
+    [[nodiscard]] Result<const OwnedCurvePointDefinitions::CurveDefinition*> CurveDefinition(Index record, Role role)
     {
         if (const auto found = m_curves.find(record); found != m_curves.end())
         {
-            return m_owned.m_curves.at(found->second.index);
+            return &m_owned.m_curves.at(found->second.index);
         }
-        const auto index = AddCurve(record, role);
-        m_curves.emplace(record, index);
-        return m_owned.m_curves.at(index.index);
+        auto index = AddCurve(record, role);
+        if (!index)
+        {
+            return tl::unexpected(std::move(index.error()));
+        }
+        m_curves.emplace(record, *index);
+        return &m_owned.m_curves.at(index->index);
     }
-    CurveIndex AddCurve(Index record, Role role)
+    [[nodiscard]] Result<CurveIndex> AddCurve(Index record, Role role)
     {
         const bool trimmed = Is(record, "TRIMMED_CURVE");
         const auto basis = trimmed ? Ref(record, "basis_curve") : record;
@@ -184,7 +187,10 @@ public:
                 );
             }
             SmLine* raw = nullptr;
-            Step(record);
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto status = SmLine::CreateLineSegment(*m_context, 3, P((*expectedEnds)[0]), P((*expectedEnds)[1]), raw);
             curve.reset(raw);
             Good(status);
@@ -215,7 +221,12 @@ public:
             const auto degrees = trim.full ? FullPeriodDegrees(low) :
                                              std::array<double, 2>{ low * 180 / std::numbers::pi, high * 180 / std::numbers::pi };
             Need(degrees[1] > degrees[0] && degrees[0] >= -360 && degrees[1] <= 360, "GeneralWireConicAngleRange", record);
-            curve = MakeConic(basis, frame, rx, ry, SmExtent1d(degrees[0], degrees[1]), true);
+            auto created = MakeConic(basis, frame, rx, ry, SmExtent1d(degrees[0], degrees[1]), true);
+            if (!created)
+            {
+                return tl::unexpected(std::move(created.error()));
+            }
+            curve = std::move(*created);
             const auto evaluate = [&](double angle)
             {
                 return Add(frame.o, Add(Mul(frame.x, rx * std::cos(angle)), Mul(frame.y, ry * std::sin(angle))));
@@ -235,7 +246,12 @@ public:
         }
         else
         {
-            curve = MakeSplineCurve(basis, record);
+            auto created = MakeSplineCurve(basis, record);
+            if (!created)
+            {
+                return tl::unexpected(std::move(created.error()));
+            }
+            curve = std::move(*created);
             mapping.kind = role == Role::Supporting ? "SupportingSplineIdentity" : "WireframeSplineIdentity";
             mapping.equation = "source_t=native_t; entire_source_natural_interval; defining_coefficients_unchanged";
         }
@@ -248,7 +264,10 @@ public:
             for (Index i = 0; i < 2; ++i)
             {
                 SmPoint3d actual;
-                Step(record);
+                if (auto operation = Step(record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
                 Good(curve->EvaluatePoint(info.parameterDomain[i], actual));
                 const auto gap = Norm(Sub(P(actual), (*expectedEnds)[i]));
                 definitionEndpoints = std::max(definitionEndpoints, gap);
@@ -271,7 +290,7 @@ public:
         return index;
     }
 
-    void Wire(SourceRecord source, WireframeInfo& group, WireframeEvidence& evidence)
+    [[nodiscard]] Result<void> Wire(SourceRecord source, WireframeInfo& group, WireframeEvidence& evidence)
     {
         CheckOpen();
         const auto record = source.index;
@@ -285,14 +304,22 @@ public:
         }
         else
         {
-            const auto& definition = CurveDefinition(record, Role::Wireframe);
+            auto resolved = CurveDefinition(record, Role::Wireframe);
+            if (!resolved)
+            {
+                return tl::unexpected(std::move(resolved.error()));
+            }
+            const auto& definition = **resolved;
             evidence.m_source = std::max(evidence.m_source, definition.source.value_or(0));
             evidence.m_endpoints = std::max(evidence.m_endpoints, definition.endpoints.value_or(0));
             group.curves.push_back(definition.info);
             SmExtent3d box;
             // This belongs to each source USE, including cache hits. Moving it
             // into definition construction would change native-call/cancel order.
-            Step(record);
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Good(
                 definition.native->CalculateTightBoundingBox(SmExtent1d(definition.info.parameterDomain[0], definition.info.parameterDomain[1]), &box)
             );
@@ -314,8 +341,9 @@ public:
             group.boundsMm[0][axis] = first ? bounds[0][axis] : std::min(group.boundsMm[0][axis], bounds[0][axis]);
             group.boundsMm[1][axis] = first ? bounds[1][axis] : std::max(group.boundsMm[1][axis], bounds[1][axis]);
         }
+        return {};
     }
-    SupportingAppendResult Support(SourceRecord source, SupportingGeometryInfo& group, SupportingEvidence& evidence)
+    [[nodiscard]] Result<SupportingAppendResult> Support(SourceRecord source, SupportingGeometryInfo& group, SupportingEvidence& evidence)
     {
         CheckOpen();
         if (Is(source.index, "CARTESIAN_POINT"))
@@ -328,7 +356,12 @@ public:
         }
         else
         {
-            const auto& definition = CurveDefinition(source.index, Role::Supporting);
+            auto resolved = CurveDefinition(source.index, Role::Supporting);
+            if (!resolved)
+            {
+                return tl::unexpected(std::move(resolved.error()));
+            }
+            const auto& definition = **resolved;
             if (definition.source)
             {
                 evidence.m_source = std::max(evidence.m_source.value_or(0), *definition.source);
@@ -346,11 +379,19 @@ CurvePointDefinitions::CurvePointDefinitions(const GeometryConstruction& inputs)
 {
 }
 CurvePointDefinitions::~CurvePointDefinitions() = default;
-void CurvePointDefinitions::Append(SourceRecord record, WireframeInfo& group, WireframeEvidence& evidence)
+[[nodiscard]] Result<void> CurvePointDefinitions::Append(SourceRecord record, WireframeInfo& group, WireframeEvidence& evidence)
 {
-    m_implementation->Wire(record, group, evidence);
+    if (auto operation = m_implementation->Wire(record, group, evidence); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    return {};
 }
-SupportingAppendResult CurvePointDefinitions::Append(SourceRecord record, SupportingGeometryInfo& group, SupportingEvidence& evidence)
+[[nodiscard]] Result<SupportingAppendResult> CurvePointDefinitions::Append(
+    SourceRecord record,
+    SupportingGeometryInfo& group,
+    SupportingEvidence& evidence
+)
 {
     return m_implementation->Support(record, group, evidence);
 }

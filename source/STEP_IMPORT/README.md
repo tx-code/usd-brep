@@ -709,7 +709,7 @@ part分类、旧MECHANICAL_CONTEXT/DESIGN_CONTEXT、指定SOURCE枚举及rad/sr�
 Requested/AlreadyRequested/TooLate/AlreadyCompleted；取消请求自身不访问native。
 `execution.progress`在捕获、源检查、逐native调用间、报告及提交前同步通知。
 不可中断调用先安全返回，候选撤销完成后返回Cancelled；旧快照和捕获源不变。
-observer异常是ExecutionFailure；意外`bad_alloc`向调用者传播，不能伪称已配置限额耗尽。
+observer的非分配异常返回`ExecutionCallbackFailure`（BuildFailure）；意外`bad_alloc`向调用者传播，不能伪称已配置限额耗尽。
 
 模型owner和必需报告在发布前完整准备，取消/成功由一次原子提交裁决。
 成功之后迟到取消返回TooLate，模型寿命由快照/view持有者决定。
@@ -992,8 +992,8 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 
 上述两个批次入口、集合／文档构建及对应发布入口使用私有
 `Result<T> = tl::expected<T, Failure>`，错误类别和诊断直接向上传递。
-`LegacyFailureAdapter` 仅在尚未迁移的下层调用外把 `Failure` 转为错误值；
-它位于方向修复状态机之外，不拦截分配异常、参数异常或携带候选的修复 witness。
+尚未迁移的底层 `Failure` 仍由入口的显式异常边界处理；不拦截分配异常、
+参数异常或携带候选的修复 witness，不把错误值重新抛出。
 这不是全库禁用异常或全链路 `noexcept`。公开 Outcome、快照及报告格式不暴露
 `tl`。Execution 继续仲裁最终执行结果，Publication 保留两次报告生成和原子发布协议。
 
@@ -1003,9 +1003,12 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 
 定义选择也直接返回 `Result`，保留源顺序、owning 选择收据以及选择前／完成后的检查点。
 Publication 的接纳、报告容量和最终提交检查结果直接传播至入口，由公开 Outcome 的
-拥有者记录诊断及完成失败收尾；不把错误值再抛回异常。Execution 的 Commit 与修复登记
-完成检查也直接返回结果；其余尚未迁移的调用通过明确的 legacy adapter 保留原检查顺序、
-计费及 observer 异常分类。[执行协议回归](tests/Execution.md) 独立固定最终 guard 与 CAS 的顺序。
+拥有者记录诊断及完成失败收尾。Execution 的检查点、原生调用计费、修复登记／证明预算和
+提交仲裁均返回结果。原生构建、精确单位算术、UV、周期处理和连续证明的必要回调链直接
+传播错误，既不丢弃错误值，也不把执行拒绝转成数值证据未建立。内部结果函数标记
+`[[nodiscard]]`；拥有候选的构建边界同时处理错误返回与异常退出的清理。
+[执行协议回归](tests/Execution.md) 固定检查／计费顺序、拒绝诊断、最终 guard 与 CAS，
+公开生命周期和修复回归核对完整报告及原始尝试的重叠计数。
 
 迁移目标是消除项目主动创建的异常，以显式结果表达业务、配置及内部失败，
 而非按异常类型名筛选：

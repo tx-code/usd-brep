@@ -12,6 +12,15 @@
 
 namespace
 {
+template <class T>
+T Value(step_import::detail::Result<T> result)
+{
+    if (!result)
+    {
+        throw std::runtime_error(result.error().key);
+    }
+    return std::move(*result);
+}
 void Require(bool value, const char* message)
 {
     if (!value)
@@ -55,6 +64,37 @@ void ConversionUnitContract(const std::filesystem::path& source)
     copy.generalDefinitions.clear();
     Require(model->LengthUnits().generalDefinitions.size() == 1, "length normalization is an independent returned value");
     const auto sourceOwner = model->Source();
+    std::size_t checkpoints = 0;
+    const auto resolved = step_import::detail::ResolveLengthScale(
+        *sourceOwner,
+        sourceOwner->UnitContext().lengthUnit,
+        [&]() -> step_import::detail::Result<void>
+        {
+            ++checkpoints;
+            return {};
+        }
+    );
+    Require(resolved && checkpoints > 4, "conversion control reaches exact-arithmetic checkpoints");
+    for (std::size_t stop = 1; stop <= checkpoints; ++stop)
+    {
+        std::size_t visits = 0;
+        const auto stopped = step_import::detail::ResolveLengthScale(
+            *sourceOwner,
+            sourceOwner->UnitContext().lengthUnit,
+            [&]() -> step_import::detail::Result<void>
+            {
+                if (++visits == stop)
+                {
+                    return tl::unexpected(step_import::detail::Failure{ step_import::Status::Cancelled, "UnitStop", "stop", 23, "Execution" });
+                }
+                return {};
+            }
+        );
+        Require(
+            !stopped && visits == stop && stopped.error().key == "UnitStop" && stopped.error().record == 23,
+            "exact conversion arithmetic returns cancellation without completing or visiting a later checkpoint"
+        );
+    }
     const auto& definition = units.generalDefinitions.front();
     Require(
         sourceOwner->Source().Records()[definition.factor].id == "1000" &&
@@ -69,12 +109,15 @@ void ConversionUnitContract(const std::filesystem::path& source)
     bool wrongQuantity = false;
     try
     {
-        step_import::detail::ResolveLengthScale(
-            *sourceOwner,
-            sourceOwner->UnitContext().planeAngleUnit,
-            []
-            {
-            }
+        Value(
+            step_import::detail::ResolveLengthScale(
+                *sourceOwner,
+                sourceOwner->UnitContext().planeAngleUnit,
+                []() -> step_import::detail::Result<void>
+                {
+                    return {};
+                }
+            )
         );
     }
     catch (const step_import::detail::Failure& failure)

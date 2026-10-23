@@ -60,13 +60,13 @@ bool IncludeCoordinate(double numerator, double weight, double& lower, double& u
     return true;
 }
 } // namespace
-SupportDomainEvidence RestrictUnusedSupportDomain(
+[[nodiscard]] Result<SupportDomainEvidence> RestrictUnusedSupportDomain(
     SmFace& face,
     bool uniqueExplicitOuter,
     double maximumMm,
     std::size_t maximumControls,
     std::size_t maximumProducts,
-    const std::function<void()>& beforeNativeCall
+    const ExecutionCheckpoint& beforeNativeCall
 )
 {
     Expects(bool(beforeNativeCall));
@@ -77,13 +77,17 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
         result.status = SupportDomainStatus::Unestablished;
         return result;
     }
-    const std::function<void()> checkedCall = [&]
+    const ExecutionCheckpoint checkedCall = [&]() -> Result<void>
     {
-        beforeNativeCall();
+        if (auto operation = beforeNativeCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         if (!SurfaceProofNumericEnvironment())
         {
             throw std::runtime_error("SupportDomainNumericEnvironmentChanged");
         }
+        return {};
     };
     auto surface = dynamic_cast<SmBSplineSurface*>(face.GetSurface());
     // Analytic types have separate defining data. Trimming only their NURBS
@@ -98,7 +102,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     {
         return result;
     }
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     if (surface->IsClosed(natural, SM_SP_U) || surface->IsClosed(natural, SM_SP_V) || surface->IsPeriodic(natural, SM_SP_U) ||
         surface->IsPeriodic(natural, SM_SP_V))
     {
@@ -166,7 +173,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     result.requested = bounds;
     result.status = SupportDomainStatus::Unestablished;
     SmSurface* copy = nullptr;
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto copied = surface->Copy(*face.GetContext(), copy);
     if (copy == surface)
     {
@@ -183,7 +193,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
         return result;
     }
     SmExtent2d requested(bounds[0], bounds[1], bounds[2], bounds[3]);
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     if (restricted->TrimWithDomain(requested) != SM_SUCCESS)
     {
         return result;
@@ -195,7 +208,12 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     {
         return result;
     }
-    result.numeric = ProveSurfaceRestriction(*surface, *restricted, maximumMm, maximumControls, maximumProducts, checkedCall);
+    auto nativeValue25 = ProveSurfaceRestriction(*surface, *restricted, maximumMm, maximumControls, maximumProducts, checkedCall);
+    if (!nativeValue25)
+    {
+        return tl::unexpected(std::move(nativeValue25.error()));
+    }
+    result.numeric = std::move(*nativeValue25);
     if (!result.numeric.established)
     {
         if (result.numeric.workLimit)
@@ -221,7 +239,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
             continue;
         }
         SmCurve* raw = nullptr;
-        checkedCall();
+        if (auto operation = checkedCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto copiedUv = old->Copy(*face.GetContext(), raw);
         if (raw == old)
         {
@@ -242,7 +263,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     }
     // From here on, an exception aborts the entire unpublished model. Never
     // return an unestablished result after committing a partial native change.
-    checkedCall();
+    if (auto operation = checkedCall(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     face.SetSurface(candidate.get(), TRUE);
     const bool adopted = candidate->GetOwner() == &face;
     if (adopted)
@@ -255,7 +279,10 @@ SupportDomainEvidence RestrictUnusedSupportDomain(
     }
     for (auto& trim : saved)
     {
-        checkedCall();
+        if (auto operation = checkedCall(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         const auto raw = trim.curve.get();
         trim.owner->SetUVTrimCurve(raw, 0., TRUE); // No native tolerance growth.
         const bool uvOwned = raw->GetOwner() == trim.owner || raw->GetOwner() == trim.owner->GetMate();

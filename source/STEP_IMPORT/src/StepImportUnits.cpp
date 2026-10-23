@@ -40,7 +40,7 @@ struct WideRatio
 {
     throw std::overflow_error("ExactUnitArithmeticCapacityExceeded");
 }
-Integer Gcd(Integer a, Integer b, const std::function<void()>& boundary)
+[[nodiscard]] Result<Integer> Gcd(Integer a, Integer b, const ExecutionCheckpoint& boundary)
 {
     if (a < 0)
     {
@@ -48,14 +48,17 @@ Integer Gcd(Integer a, Integer b, const std::function<void()>& boundary)
     }
     while (b != 0)
     {
-        boundary();
+        if (auto operation = boundary(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Integer remainder = a % b;
         a = std::move(b);
         b = std::move(remainder);
     }
     return a;
 }
-WideRatio Decimal(std::string_view text, const std::function<void()>& boundary)
+[[nodiscard]] Result<WideRatio> Decimal(std::string_view text, const ExecutionCheckpoint& boundary)
 {
     // Input is a lexically validated source REAL. Preserve the original token in
     // the source owner; parsing here establishes only an exact physical ratio.
@@ -89,7 +92,10 @@ WideRatio Decimal(std::string_view text, const std::function<void()>& boundary)
     {
         if (i % 256 == 0)
         {
-            boundary();
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
         }
         const char c = mantissa[i];
         if (c == '.')
@@ -125,7 +131,10 @@ WideRatio Decimal(std::string_view text, const std::function<void()>& boundary)
     {
         if ((i - first) % 64 == 0)
         {
-            boundary();
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
         }
         result.numerator *= 10;
         result.numerator += digits[i] - '0';
@@ -135,26 +144,41 @@ WideRatio Decimal(std::string_view text, const std::function<void()>& boundary)
     {
         if (i % 64 == 0)
         {
-            boundary();
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
         }
         expanded *= 10;
     }
-    const auto divisor = Gcd(result.numerator, result.denominator, boundary);
-    result.numerator /= divisor;
-    result.denominator /= divisor;
+    auto divisor = Gcd(result.numerator, result.denominator, boundary);
+    if (!divisor)
+    {
+        return tl::unexpected(std::move(divisor.error()));
+    }
+    result.numerator /= *divisor;
+    result.denominator /= *divisor;
     if (negative)
     {
         result.numerator = -result.numerator;
     }
     return result;
 }
-WideRatio Multiply(const WideRatio& a, const WideRatio& b, const std::function<void()>& boundary)
+[[nodiscard]] Result<WideRatio> Multiply(const WideRatio& a, const WideRatio& b, const ExecutionCheckpoint& boundary)
 {
-    const auto x = Gcd(a.numerator, b.denominator, boundary);
-    const auto y = Gcd(b.numerator, a.denominator, boundary);
+    auto x = Gcd(a.numerator, b.denominator, boundary);
+    if (!x)
+    {
+        return tl::unexpected(std::move(x.error()));
+    }
+    auto y = Gcd(b.numerator, a.denominator, boundary);
+    if (!y)
+    {
+        return tl::unexpected(std::move(y.error()));
+    }
     // Cross-cancel before multiplying so representable products do not fail
     // just because their unreduced cross-products exceed the fixed capacity.
-    return { (a.numerator / x) * (b.numerator / y), (a.denominator / y) * (b.denominator / x) };
+    return WideRatio{ (a.numerator / *x) * (b.numerator / *y), (a.denominator / *y) * (b.denominator / *x) };
 }
 ExactUnitRatio Evidence(const WideRatio& value)
 {
@@ -178,10 +202,17 @@ Fraction NativeRatio(const WideRatio& value)
     throw Failure{ status, key, message, record, "GeneralBrep" };
 }
 } // namespace
-ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, std::size_t root, const std::function<void()>& boundary)
+[[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(
+    const step_semantics::Snapshot& source,
+    std::size_t root,
+    const ExecutionCheckpoint& boundary
+)
 {
     Expects(bool(boundary));
-    boundary();
+    if (auto operation = boundary(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     const auto count = source.Source().Records().size();
     Expects(root < count);
     // Dense source indices bound lookup and cycle bookkeeping by the captured
@@ -190,7 +221,10 @@ ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, s
     std::vector<const step_semantics::SiUnit*> si(count, nullptr);
     for (const auto& definition : source.UnitContext().siDefinitions)
     {
-        boundary();
+        if (auto operation = boundary(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         Expects(definition.recordIndex < count);
         si[definition.recordIndex] = &definition;
     }
@@ -203,7 +237,10 @@ ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, s
     {
         for (;;)
         {
-            boundary();
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             Expects(unit < count);
             if (active[unit])
             {
@@ -215,7 +252,12 @@ ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, s
                 {
                     Refuse(Status::Unsupported, "GeneralConversionQuantityUnsupported", unit, "Length scale requires a nominal SI length root");
                 }
-                scale = Decimal("1E" + std::to_string(terminal->canonicalPower10), boundary);
+                auto decoded = Decimal("1E" + std::to_string(terminal->canonicalPower10), boundary);
+                if (!decoded)
+                {
+                    return tl::unexpected(std::move(decoded.error()));
+                }
+                scale = std::move(*decoded);
                 break;
             }
             if (!source.IsA(unit, "LENGTH_UNIT") || !source.IsA(unit, "CONVERSION_BASED_UNIT"))
@@ -229,28 +271,43 @@ ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, s
             }
             active[unit] = 1;
             const auto factor = source.Field(unit, "conversion_factor").ReferenceTarget();
-            boundary();
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             const auto& value = source.Field(factor, "value_component").Value();
             const auto base = source.Field(factor, "unit_component").ReferenceTarget();
             // Source WHERE/dimensional checks were already run. This is the
             // additional project prerequisite for a positive, reversible
             // physical length scale, not an invented AP214 positivity clause.
             Expects(value.kind == step_source::ValueKind::Typed && value.children.size() == 1);
-            const auto numeric = Decimal(value.children.front().text, boundary);
-            if (numeric.numerator <= 0)
+            auto numeric = Decimal(value.children.front().text, boundary);
+            if (!numeric)
+            {
+                return tl::unexpected(std::move(numeric.error()));
+            }
+            if (numeric->numerator <= 0)
             {
                 Refuse(Status::Unsupported, "GeneralUnitScaleNotPositive", factor, "Every physical conversion factor must be positive");
             }
-            path.push_back({ unit, factor, base, value.text, Evidence(numeric), {} });
+            path.push_back({ unit, factor, base, value.text, Evidence(*numeric), {} });
             unit = base;
         }
         while (!path.empty())
         {
-            boundary();
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
             auto definition = std::move(path.back());
             path.pop_back();
             unit = definition.unit;
-            scale = Multiply(ReadEvidence(definition.factorValue), scale, boundary);
+            auto multiplied = Multiply(ReadEvidence(definition.factorValue), scale, boundary);
+            if (!multiplied)
+            {
+                return tl::unexpected(std::move(multiplied.error()));
+            }
+            scale = std::move(*multiplied);
             definition.scaleMm = Evidence(scale);
             result.definitions.push_back(std::move(definition));
         }
@@ -271,7 +328,10 @@ ResolvedLengthScale ResolveLengthScale(const step_semantics::Snapshot& source, s
             "Exact conversion exceeds bounded unit arithmetic or final native ratio capacity"
         );
     }
-    boundary();
+    if (auto operation = boundary(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
     return result;
 }
 } // namespace step_import::detail
