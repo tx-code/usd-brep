@@ -76,7 +76,7 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_include_directories(step_import_business_failure_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
     target_compile_definitions(step_import_business_failure_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
-    foreach(mode early late mapping general units witness definitions planning)
+    foreach(mode early late mapping general units witness definitions planning native)
         if(mode STREQUAL early)
             set(business_failure_mode)
         else()
@@ -85,6 +85,8 @@ if(STEP_IMPORT_BUILD_TESTS)
         add_test(NAME step_import_business_failure_${mode}_contracts COMMAND step_import_business_failure_tests
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P01/input.step" ${business_failure_mode})
     endforeach()
+    add_test(NAME step_import_business_failure_strict_native_contracts COMMAND step_import_business_failure_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/conic_bounds_bulged_box.step" --strict-native)
     add_executable(step_import_execution_tests tests/StepImportExecutionTests.cpp)
     target_include_directories(step_import_execution_tests PRIVATE src)
     target_link_libraries(step_import_execution_tests PRIVATE STEP_IMPORT usd_brep_expected)

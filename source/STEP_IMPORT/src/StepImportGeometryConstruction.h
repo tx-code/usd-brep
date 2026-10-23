@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImportExecution.h"
+#include "StepImportNativeStatus.h"
 
 #include <SmAxis2Placement.h>
 #include <SmBSplineCurve.h>
@@ -87,12 +88,9 @@ inline std::array<double, 2> FullPeriodDegrees(double startRadians)
     const double startDegrees = startRadians * 180 / std::numbers::pi;
     return { startDegrees, startDegrees + 360.0 };
 }
-inline void Good(SmStatus a)
+[[nodiscard]] inline Result<void> Good(SmStatus a)
 {
-    if (a != SM_SUCCESS)
-    {
-        throw std::runtime_error("GeneralNativeReturn:" + std::to_string(a));
-    }
+    return CheckNativeStatus(a, NativeStatusOrigin::GeneralConstruction);
 }
 struct Frame
 {
@@ -383,7 +381,11 @@ protected:
                 status = SmEllipse::CreateCanonical(*m_context, frame.Native(), rx, ry, curve, &domain);
                 result.reset(curve);
             }
-            Good(status); // Own even a nonnull failure result before propagating.
+            // Own even a nonnull failure result before propagating.
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         else if (circle)
         {
@@ -437,7 +439,10 @@ protected:
             raw
         );
         std::unique_ptr<SmCurve> result(raw);
-        Good(status);
+        if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+        {
+            return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
         if (weights->GetSize())
         {
             if (auto businessCheck = Need(bool(raw), "GeneralCurveAllocation", geometry); !businessCheck)
@@ -446,7 +451,10 @@ protected:
             }
             ULONG count = 0;
             double* net = nullptr;
-            Good(raw->GetControlPointsPointer(count, net));
+            if (auto nativeStatusCheck = Good(raw->GetControlPointsPointer(count, net)); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             if (auto businessCheck = VerifyRationalNet(geometry, use, cp, *weights, net, count, raw->IsRational()); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));

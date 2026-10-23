@@ -230,7 +230,10 @@ public:
             }
             const auto status = SmLine::CreateLineSegment(*m_context, 3, P((*expectedEnds)[0]), P((*expectedEnds)[1]), raw);
             curve.reset(raw);
-            Good(status);
+            if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             mapping.kind = role == Role::Supporting ? "SupportingTrimmedLine" : "WireframeTrimmedLine";
             mapping.equation = "basis_t=lerp(basis_range,(native_t-native_begin)/(native_end-native_begin)); source_s=sign*(basis_t-trim_1)";
             mapping.parameters = { { "basis_trim_parameters", { first, last } },
@@ -337,7 +340,10 @@ public:
                 {
                     return tl::unexpected(std::move(operation.error()));
                 }
-                Good(curve->EvaluatePoint(info.parameterDomain[i], actual));
+                if (auto nativeStatusCheck = Good(curve->EvaluatePoint(info.parameterDomain[i], actual)); !nativeStatusCheck)
+                {
+                    return tl::unexpected(std::move(nativeStatusCheck.error()));
+                }
                 const auto gap = Norm(Sub(P(actual), (*expectedEnds)[i]));
                 definitionEndpoints = std::max(definitionEndpoints, gap);
                 if (auto businessCheck = Need(
@@ -397,9 +403,14 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Good(
-                definition.native->CalculateTightBoundingBox(SmExtent1d(definition.info.parameterDomain[0], definition.info.parameterDomain[1]), &box)
-            );
+            if (auto nativeStatusCheck = Good(definition.native->CalculateTightBoundingBox(
+                    SmExtent1d(definition.info.parameterDomain[0], definition.info.parameterDomain[1]),
+                    &box
+                ));
+                !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
             bounds = { P(box.GetMin()), P(box.GetMax()) };
         }
         for (Index axis = 0; axis < 3; ++axis)

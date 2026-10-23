@@ -10,7 +10,11 @@ namespace step_import::detail
 enum class NativeFailureKind
 {
     Unclassified,
-    FaceLoopOrientation
+    FaceLoopOrientation,
+    // An operation refusal formerly left the strict attempt immediately via
+    // exception, before its failure evidence was finalized. Keep that private
+    // observation boundary when the refusal is returned as a value instead.
+    ConstructionOperation
 };
 struct Failure
 {

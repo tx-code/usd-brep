@@ -804,6 +804,14 @@ namespace
     else
     {
         auto failure = std::get<Failure>(std::move(strict.error()));
+        if (failure.nativeKind == NativeFailureKind::ConstructionOperation)
+        {
+            // These operation refusals used to leave through an exception.
+            // Retain the partial observation as it stands: no completed strict
+            // status, diagnostic or discard receipt was added by this layer.
+            // Contract/execution failures below keep their existing observation.
+            return tl::unexpected(std::move(failure));
+        }
         original->candidateDiscarded = original->nativeCalls > 0;
         report.originalAttemptStatus = failure.status;
         AddFailureDiagnostic(*original, failure);

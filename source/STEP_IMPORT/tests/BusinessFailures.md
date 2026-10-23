@@ -72,3 +72,42 @@ Isolated runtime mutants bypass parameter-error propagation, reclassify its reas
 erase the physical displacement, throw a returned error, or downgrade cancellation
 to an unestablished candidate. Require successful compilation, the intended runtime
 failure and passing unchanged controls in matching Release/Debug configurations.
+
+## Native status results
+
+The `native` business-failure mode qualifies the public P0 planar fixture first,
+then contradicts only a disposable edge plan so the real line factory refuses a
+zero direction with `SM_ERR_INVALID_INPUT`. The private builder must return the
+former importer diagnostic (`BuildFailure`, `NativeReturnOrConstructionFailure`,
+`NativeReturnFailure:1007`, no source record, D5), retaining 17 native calls and
+discarding its incomplete BRep. Pointer/deep validation has not run: its optional
+observations remain absent, not zero-report successes. No edge/loop report rows
+are invented. A separate general-status control retains its distinct
+`GeneralNativeReturn:1007` message, and success remains successful.
+
+The required planar line/plane coefficient and envelope readers propagate errors
+to the builder. Their numerical refusals retain the former domain-error outcome,
+and primitive bounded-arithmetic sentinels keep their separate outer contract.
+Public query/archive methods retain direct raw-status exception checks; they do
+not turn an internal expected error back into an exception.
+
+Runtime mutants should ignore a returned native failure, erase the discard
+receipt, conflate native status with a configured quota, lose the message origin,
+or throw the returned status error again. Keep the unchanged real-builder control
+and require compilation plus the intended runtime failure for each mutation.
+
+The separate `strict_native` control uses the admitted synthetic B-spline support
+and the existing strict-build callback boundary to exercise a real native refusal,
+a real trim-domain refusal and cooperative cancellation. This tests report delivery,
+not geometric repair eligibility. Operation aborts preserve the pre-migration
+unfinished strict observation: they do not add status, diagnostics or a discard
+receipt at the coordinator. A private `ConstructionOperation` kind distinguishes
+that exit from ordinary contract/execution failure; the cancellation control must
+still retain its completed strict-failure observation. None of the controls may
+enter the repaired build or charge a face edit.
+
+Compare complete serialized reports with frozen pre-migration native/trim/cancel
+controls. Mutants should erase the operation kind, record the unfinished attempt
+as a completed failure, or bypass observation for every failure (which must break
+the cancellation control). Keep the existing orientation-witness, repair-budget
+and complete-import report comparisons in both native configurations.
