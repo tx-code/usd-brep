@@ -1164,6 +1164,31 @@ The internal C++ Outcome layout adds an owning observation pointer: rebuild
 source/semantic/planar/native consumers together. Public source bytes and earlier
 result qualifications retain their meaning.
 
+## Assembly occurrence binding prerequisite
+
+`StepAssemblyBindings.h` provides `BindAssemblyOccurrences` for an already owned
+`ProductStructure`. The read-only returned plan binds every declared NAUO through
+one CDSR and item-defined transformed relationship to distinct, directly associated
+parent/child definition representations. It retains usage, association, relationship,
+context and item identities, including whether the child is the first endpoint.
+Repeated children remain distinct occurrences. Reversing both relationship endpoints
+and transform items preserves the parent/child binding; names never choose direction.
+
+This is a project binding scope, not an additional EXPRESS rule or assembly import
+qualification. Missing/ambiguous associations, unbound or multiply owned direct
+representations, unsupported usage kinds and unowned transformed relationships
+return a source-located unsupported diagnostic and no plan. Wrapper relationship
+chains are not inferred. Work consumes the supplied semantic visit allowance for
+this pass; exhaustion discards the entire candidate. The plan retains its source
+owner after inspection outcomes are released. It does not expand occurrence paths.
+
+`Checked` here means only complete occurrence binding. Representation-item membership,
+unit/frame evaluation, full source closure, root selection, native construction and
+numeric placement remain unqualified. Existing single-part and independent-product
+entry points retain their admission behavior. The synthetic repeated-box control has
+distinct nonidentity frames and a coordinate oracle for later numeric/native tests;
+the current binding tests do not claim to evaluate that oracle.
+
 ## Qualified independent definitions
 
 `CheckIndependentProducts` / CLI `--independent-products` explicitly requests all
