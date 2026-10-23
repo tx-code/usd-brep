@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
+#include "StepImportGroupedBuild.h"
+#include "StepImportLegacyFailure.h"
 #include "StepImportNativeData.h"
+#include "StepImportObservation.h"
 
 #include <SmBrepData.h>
 #include <algorithm>
@@ -9,7 +12,7 @@
 
 namespace step_import::detail
 {
-std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
+Result<MaterialCandidates> BuildMaterialCollection(
     std::shared_ptr<const step_semantics::Snapshot> source,
     const Options& options,
     Report& report,
@@ -27,80 +30,56 @@ std::vector<std::shared_ptr<ModelData>> BuildMaterialCollection(
                                    }
                                ))
     {
-        throw Failure{ Status::Unsupported,
-                       "MaterialCollectionRequiresSolids",
-                       "Every collection member must retain a source material-solid role",
-                       {},
-                       "GeneralBrep" };
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "MaterialCollectionRequiresSolids",
+                     "Every collection member must retain a source material-solid role",
+                     {},
+                     "GeneralBrep" }
+        );
     }
     // Associated geometry belongs to the part, not an arbitrary first body.
-    // Until a collection-level owner/export is qualified, refuse the complete
-    // mixed request before constructing bodies rather than duplicating/dropping it.
+    // Keep this admission check before native allocation and report children.
     for (const auto& role : part.roles)
     {
         if (role.name == "wireframe_representation" || role.name == "construction_representation")
         {
-            throw Failure{ Status::Unsupported,
-                           "MaterialCollectionAssociatedGeometryUnimplemented",
-                           "Collection-level associated geometry ownership is not implemented",
-                           role.recordIndex,
-                           "GeneralBrep" };
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "MaterialCollectionAssociatedGeometryUnimplemented",
+                         "Collection-level associated geometry ownership is not implemented",
+                         role.recordIndex,
+                         "GeneralBrep" }
+            );
         }
     }
-    std::vector<std::shared_ptr<ModelData>> candidates;
+    MaterialCandidates candidates;
     candidates.reserve(part.shapes.size());
     report.bodies.reserve(part.shapes.size());
-    try
-    {
-        for (const auto& binding : part.shapes)
+    return ObserveBodies(
+        *source,
+        report,
+        execution,
+        [&](const step_semantics::Part::Shape& binding, Report& checks) -> Result<void>
         {
-            auto checks = std::make_shared<Report>();
-            checks->generalBrep = true;
-            checks->encoding = report.encoding;
-            checks->sourceEvidenceScope = report.sourceEvidenceScope;
-            checks->source = report.source;
-            checks->sourceSha256 = report.sourceSha256;
-            checks->sourceSchema = report.sourceSchema;
-            checks->numericalIntegration = report.numericalIntegration;
-            checks->periodicNormalizationRequested = report.periodicNormalizationRequested;
-            checks->supportDomainRestrictionRequested = report.supportDomainRestrictionRequested;
-            report.bodies.push_back({ binding.shape, binding.shell, false, checks });
-            // One immutable source and one Execution ledger for all bodies.
-            // A child report never resets the native-call/cancellation budget.
-            candidates.push_back(BuildGeneralBody(source, binding, options, *checks, execution));
-            report.bodies.back().checksPassed = true;
-        }
-        if (report.numericalIntegration)
-        {
-            report.numericalIntegration->completed = std::all_of(
-                report.bodies.begin(),
-                report.bodies.end(),
-                [](const auto& body)
+            auto body = LegacyFailureAdapter(
+                [&]
                 {
-                    return body.checks->numericalIntegration && body.checks->numericalIntegration->completed;
+                    return BuildGeneralBody(source, binding, options, checks, execution);
                 }
             );
-            if (report.numericalIntegration->completed)
+            if (!body)
             {
-                report.numericalIntegration->appliedRelativeAccuracy = report.bodies.front().checks->numericalIntegration->appliedRelativeAccuracy;
+                return tl::unexpected(std::move(body.error()));
             }
-        }
-        return candidates;
-    }
-    catch (...)
-    {
-        // Vector owners release every earlier native body before the failure
-        // report is produced. Observations survive; candidate handles do not.
-        report.candidateDiscarded = report.nativeCalls > 0 || !candidates.empty();
-        for (auto& body : report.bodies)
+            candidates.push_back(std::move(*body));
+            return {};
+        },
+        [&]() -> Result<MaterialCandidates>
         {
-            if (body.checks && body.checks->nativeCalls)
-            {
-                body.checks->candidateDiscarded = true;
-            }
+            return std::move(candidates);
         }
-        throw;
-    }
+    );
 }
 std::shared_ptr<const MaterialCollectionSnapshot> Access::Collection(
     std::shared_ptr<const step_semantics::Snapshot> source,

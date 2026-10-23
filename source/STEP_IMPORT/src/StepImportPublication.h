@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include "StepImportPlan.h"
+#include "StepImportGroupedBuild.h"
 
 namespace step_import::detail
 {
@@ -22,6 +22,8 @@ public:
     void Accept(std::shared_ptr<ModelData> candidate);
     void AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates);
     void AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate);
+    void AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates);
+    void AcceptDocument(Result<DocumentCandidate> candidate);
     void Fail(const Failure& failure);
     void FinishFailure();
 

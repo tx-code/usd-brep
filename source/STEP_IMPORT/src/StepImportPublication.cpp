@@ -96,6 +96,26 @@ void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapsho
     }
     FinishAccept();
 }
+void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates)
+{
+    if (!candidates)
+    {
+        Fail(candidates.error());
+        FinishFailure();
+        return;
+    }
+    AcceptCollection(std::move(source), std::move(*candidates));
+}
+void Publication::AcceptDocument(Result<DocumentCandidate> candidate)
+{
+    if (!candidate)
+    {
+        Fail(candidate.error());
+        FinishFailure();
+        return;
+    }
+    AcceptDocument(std::move(*candidate));
+}
 void Publication::FinishAccept()
 {
     m_execution.CheckRepairCompletion();

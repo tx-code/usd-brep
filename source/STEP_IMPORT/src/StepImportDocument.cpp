@@ -2,141 +2,99 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportDefinitionSelection.h"
 #include "StepImportExecution.h"
+#include "StepImportGroupedBuild.h"
+#include "StepImportLegacyFailure.h"
 #include "StepImportNativeData.h"
+#include "StepImportObservation.h"
 
 #include <SmBrepData.h>
 #include <algorithm>
 
 namespace step_import::detail
 {
-std::shared_ptr<const DocumentSnapshot> BuildDocument(
+Result<DocumentCandidate> BuildDocument(
     std::shared_ptr<const step_semantics::ProductDocument> source,
     const Options& options,
     Report& report,
     Execution& execution
 )
 {
-    const auto selected = SelectNativeDefinitions(*source, options, report, execution);
+    auto selected = LegacyFailureAdapter(
+        [&]
+        {
+            return SelectNativeDefinitions(*source, options, report, execution);
+        }
+    );
+    if (!selected)
+    {
+        return tl::unexpected(std::move(selected.error()));
+    }
     auto candidate = std::make_shared<DocumentData>();
     candidate->source = source;
     candidate->selection = report.definitionSelection;
-    candidate->sourcePartIndices = selected;
-    // Complete-request export of detached associated definitions is not yet
-    // qualified for this container. Reject before native allocations rather
-    // than duplicating or dropping one part's physical auxiliary geometry.
-    for (const auto i : selected)
+    candidate->sourcePartIndices = *selected;
+    // Preserve complete-request admission and its order before native work.
+    for (const auto i : *selected)
     {
         for (const auto& role : source->Part(i)->PartDefinition().roles)
         {
             if (role.name == "wireframe_representation" || role.name == "construction_representation")
             {
-                throw Failure{ Status::Unsupported,
-                               "DocumentAssociatedGeometryUnimplemented",
-                               "Independent document associated geometry must be preserved at document level",
-                               role.recordIndex,
-                               "GeneralBrep" };
+                return tl::unexpected(
+                    Failure{ Status::Unsupported,
+                             "DocumentAssociatedGeometryUnimplemented",
+                             "Independent document associated geometry must be preserved at document level",
+                             role.recordIndex,
+                             "GeneralBrep" }
+                );
             }
         }
     }
-    try
-    {
-        for (std::size_t i = 0; i < selected.size(); ++i)
+    return ObserveDefinitions(
+        *source,
+        *selected,
+        report,
+        execution,
+        [&](const DefinitionMember& member, Report& checks) -> Result<void>
         {
-            const auto part = source->Part(selected[i]);
+            const auto& part = member.source;
             const auto& definition = part->PartDefinition();
-            const auto owner = std::find_if(
-                definition.roles.begin(),
-                definition.roles.end(),
-                [](const auto& r)
+            if (definition.shapes.size() > 1)
+            {
+                checks.materialCollection = true;
+                auto bodies = BuildMaterialCollection(part, options, checks, execution);
+                if (!bodies)
                 {
-                    return r.name == "definition";
+                    return tl::unexpected(std::move(bodies.error()));
                 }
-            );
-            if (owner == definition.roles.end() || definition.shapes.empty())
-            {
-                throw std::logic_error("UnqualifiedDocumentDefinition");
-            }
-            auto checks = std::make_shared<Report>();
-            checks->generalBrep = true;
-            checks->encoding = report.encoding;
-            checks->sourceEvidenceScope = "ProductDocumentRoot";
-            checks->source = report.source;
-            checks->sourceSha256 = report.sourceSha256;
-            checks->sourceSchema = report.sourceSchema;
-            checks->numericalIntegration = report.numericalIntegration;
-            checks->periodicNormalizationRequested = report.periodicNormalizationRequested;
-            checks->supportDomainRestrictionRequested = report.supportDomainRestrictionRequested;
-            report.definitions.push_back({ owner->recordIndex, false, checks });
-            const auto before = report.nativeCalls;
-            try
-            {
-                if (definition.shapes.size() > 1)
+                for (std::size_t k = 0; k < bodies->size(); ++k)
                 {
-                    checks->materialCollection = true;
-                    auto bodies = BuildMaterialCollection(part, options, *checks, execution);
-                    for (std::size_t k = 0; k < bodies.size(); ++k)
+                    candidate->bodies.push_back({ member.ordinal, member.sourceDefinitionRecord, definition.shapes[k].shape, (*bodies)[k] });
+                }
+                candidate->parts.emplace_back(Access::Collection(part, std::move(*bodies)));
+            }
+            else
+            {
+                auto body = LegacyFailureAdapter(
+                    [&]
                     {
-                        candidate->bodies.push_back({ i, owner->recordIndex, definition.shapes[k].shape, bodies[k] });
+                        return BuildGeneral(part, options, checks, execution);
                     }
-                    candidate->parts.emplace_back(Access::Collection(part, std::move(bodies)));
-                }
-                else
+                );
+                if (!body)
                 {
-                    auto body = BuildGeneral(part, options, *checks, execution);
-                    candidate->bodies.push_back({ i, owner->recordIndex, definition.shapes[0].shape, body });
-                    candidate->parts.emplace_back(Access::Snapshot(std::move(body)));
+                    return tl::unexpected(std::move(body.error()));
                 }
+                candidate->bodies.push_back({ member.ordinal, member.sourceDefinitionRecord, definition.shapes[0].shape, *body });
+                candidate->parts.emplace_back(Access::Snapshot(std::move(*body)));
             }
-            catch (...)
-            {
-                checks->nativeCalls = report.nativeCalls - before;
-                checks->candidateDiscarded = checks->nativeCalls > 0;
-                throw;
-            }
-            checks->nativeCalls = report.nativeCalls - before;
-            report.definitions.back().checksPassed = true;
-        }
-        if (report.numericalIntegration)
+            return {};
+        },
+        [&]() -> Result<DocumentCandidate>
         {
-            report.numericalIntegration->completed = std::all_of(
-                report.definitions.begin(),
-                report.definitions.end(),
-                [](const auto& part)
-                {
-                    return part.checks->numericalIntegration && part.checks->numericalIntegration->completed;
-                }
-            );
-            if (report.numericalIntegration->completed)
-            {
-                report.numericalIntegration->appliedRelativeAccuracy = report.definitions.front()
-                                                                           .checks->numericalIntegration->appliedRelativeAccuracy;
-            }
+            return Access::Document(std::move(candidate));
         }
-        return Access::Document(std::move(candidate));
-    }
-    catch (...)
-    {
-        report.candidateDiscarded = report.nativeCalls > 0;
-        for (auto& part : report.definitions)
-        {
-            if (part.checks && part.checks->nativeCalls)
-            {
-                part.checks->candidateDiscarded = true;
-            }
-            if (part.checks)
-            {
-                for (auto& body : part.checks->bodies)
-                {
-                    if (body.checks && body.checks->nativeCalls)
-                    {
-                        body.checks->candidateDiscarded = true;
-                    }
-                }
-            }
-        }
-        // Candidate snapshots/contexts are private and unwind before reporting.
-        throw;
-    }
+    );
 }
 std::shared_ptr<const DocumentSnapshot> Access::Document(std::shared_ptr<DocumentData> data)
 {

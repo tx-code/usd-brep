@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
+#include "StepImportGroupedBuild.h"
 #include "StepImportNativeData.h"
 #include "StepImportOrientationRepair.h"
 #include "StepImportPlan.h"
