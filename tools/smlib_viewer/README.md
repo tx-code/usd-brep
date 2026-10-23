@@ -51,6 +51,18 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+`--integration-relative-accuracy 1e-8` explicitly forwards the native importer's
+existing dimensionless stopping control for fused material area/volume integrals.
+Finite values in `[1e-8,1e-4]` are supported; omission preserves the existing
+`1e-4` computation and default payloads. Single STEP, assembly, and STEP scan
+children retain the request, actual applied value and completion in the local
+result. Missing/mismatched request evidence prevents scene adoption. A retained
+request does not imply an integral ran for a surface/container or failed source.
+This changes neither geometry acceptance nor working/repair tolerances and
+establishes no continuous error certificate. Independent picking queries retain
+their own recorded face-area `1e-4` and edge-length `1e-5 mm` controls.
+See the [native numerical-integration contract](../../source/STEP_IMPORT/README.md).
+
 `--assembly` explicitly selects the public native assembly importer for one STEP
 file. It preserves repeated/nested instance identities and uses transformed private
 display copies in the single source root's millimetre frame. Hover and selection

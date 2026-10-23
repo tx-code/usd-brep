@@ -17,6 +17,7 @@ from .interpretation import validate, complex_mapping_arguments, validate_comple
 from .repair import arguments as repair_arguments
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
+from .integration import arguments as integration_arguments, validate_receipt as validate_integration_receipt
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -53,6 +54,7 @@ class ImportSettings:
     cylindrical_band_repairs: tuple[str, ...] = ()
     assembly: bool = False
     unreferenced_placement_policy: str = 'Reject'
+    integration_relative_accuracy: float | None = None
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
@@ -63,6 +65,7 @@ class ImportSettings:
         repair_arguments(self)
         selection_arguments(self)
         assembly_arguments(self)
+        integration_arguments(self)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -148,7 +151,8 @@ class SceneLoader(QtCore.QObject):
                 if self.settings.unit_interpretation != "DeclaredOnly":
                     arguments.append(self.settings.unit_interpretation)
             intent = (repair_arguments(self.settings) + selection_arguments(self.settings) +
-                      complex_mapping_arguments(self.settings) + assembly_arguments(self.settings))
+                      complex_mapping_arguments(self.settings) + assembly_arguments(self.settings) +
+                      integration_arguments(self.settings))
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -261,6 +265,7 @@ class SceneLoader(QtCore.QObject):
                 return
             validate_selection(manifest, self.settings)
             if job['path'].suffix.lower() in CAD_EXTENSIONS:
+                validate_integration_receipt(manifest, self.settings)
                 validate_complex_mapping_receipt(manifest, self.settings)
                 validate_assembly_request(manifest, self.settings)
             import pyvista as pv

@@ -572,7 +572,8 @@ def run(options):
                               maximum_band_proof_operations=getattr(options, 'maximum_band_proof_operations', 0),
                               cylindrical_band_repairs=tuple(getattr(options, 'cylindrical_band_repairs', ())),
                               assembly=getattr(options, 'assembly', False),
-                              unreferenced_placement_policy=getattr(options, 'unreferenced_placement_policy', 'Reject'))
+                              unreferenced_placement_policy=getattr(options, 'unreferenced_placement_policy', 'Reject'),
+                              integration_relative_accuracy=getattr(options, 'integration_relative_accuracy', None))
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

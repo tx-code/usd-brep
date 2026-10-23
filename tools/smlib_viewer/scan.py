@@ -88,6 +88,9 @@ def run_case(path, directory, options, caption):
     mapping = getattr(options, 'complex_mapping_interpretation', 'DeclaredOnly')
     if mapping != 'DeclaredOnly':
         command.extend(['--complex-mapping-interpretation', mapping])
+    if path.suffix.lower() in {'.step', '.stp'}:
+        from .integration import arguments as integration_arguments
+        command.extend(integration_arguments(options))
     for enabled, flag in [(options.normalize_periodic_faces, "--normalize-periodic-faces"),
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
                           (options.strict_source, "--strict-source"), (options.edges, "--edges"),

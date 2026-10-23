@@ -33,6 +33,8 @@ def main(argv=None):
                         help="显式假定 DATA 高位字节不表示 ASCII；保留未知文本和诊断")
     parser.add_argument("--report-budget-mib", type=int, choices=(16, 32, 64, 128, 256), default=16,
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
+    parser.add_argument('--integration-relative-accuracy', type=float,
+                        help='STEP 原生积分停止控制 [1e-8,1e-4]；未指定沿用 1e-4，不是几何误差保证')
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
     parser.add_argument('--assembly', action='store_true', help='显式装配导入；保留实例及根坐标')
     parser.add_argument('--unreferenced-placement-policy', choices=('Reject', 'RetainDisconnected'), default='Reject',
@@ -70,6 +72,8 @@ def main(argv=None):
     if options.assembly and (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
         parser.error('--assembly 当前需要一个显式 STEP 文件')
     try:
+        from .integration import arguments as integration_arguments
+        integration_arguments(options)
         from .assembly import arguments as assembly_arguments
         assembly_arguments(options)
         from .repair import arguments as repair_arguments

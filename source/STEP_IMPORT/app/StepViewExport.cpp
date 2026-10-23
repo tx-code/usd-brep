@@ -5,6 +5,7 @@
 #include "StepComplexMappingArguments.h"
 #include "StepCylindricalBandArguments.h"
 #include "StepImport.h"
+#include "StepIntegrationArguments.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
 #include "StepSourceReport.h"
@@ -407,6 +408,26 @@ void Publish(
                 w.String(carrier);
                 w.Add(",\"report_budget_mib\":");
                 w.Number(reportMiB);
+                if (report.numericalIntegration)
+                {
+                    // Copy actual core observations, including NotRun on
+                    // source failure. Never infer execution from the request.
+                    const auto& integration = *report.numericalIntegration;
+                    w.Add(",\"numerical_integration\":{\"requested_relative_accuracy\":");
+                    step_view::Scalar(w, integration.requestedRelativeAccuracy);
+                    w.Add(",\"applied_relative_accuracy\":");
+                    if (integration.appliedRelativeAccuracy)
+                    {
+                        step_view::Scalar(w, *integration.appliedRelativeAccuracy);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
+                    w.Add(",\"completed\":");
+                    w.Bool(integration.completed);
+                    w.Add(",\"continuous_error_bound_established\":false,\"control_scope\":\"DimensionlessNumericalStoppingOnly\"}");
+                }
                 w.Add(",\"preserve_opaque_file_name_text\":");
                 w.Bool(fileNameText);
                 w.Add(",\"assume_ascii_invariant_data\":");
@@ -553,7 +574,8 @@ int Run(
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
     const std::optional<step_import::CylindricalBandRepairRequest>& bandRepair = {},
     const std::optional<step_import::SourceErrorIsolationLimits>& sourceIsolation = {},
-    const step_import_app::AssemblyArguments& assemblyRequest = {}
+    const step_import_app::AssemblyArguments& assemblyRequest = {},
+    const std::optional<step_import::NumericalIntegrationSettings>& numericalIntegration = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -580,6 +602,7 @@ int Run(
     {
         auto options = step_import::Options::PlanarFixture();
         options.generalBrep = true;
+        options.numericalIntegration = numericalIntegration;
         options.faceOrientationRepair = repair;
         options.definitionSelection = selection;
         options.sourceErrorIsolation = sourceIsolation;
@@ -1027,11 +1050,12 @@ int wmain(int argc, wchar_t** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::AssemblyArgument(
-                    std::filesystem::path(argv[i]).string(),
-                    std::filesystem::path(argv[i + 1]).string(),
-                    assemblyRequest
-                ) ||
+                step_import_app::IntegrationArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                    step_import_app::AssemblyArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        assemblyRequest
+                    ) ||
                     step_import_app::CylindricalBandArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -1071,7 +1095,8 @@ int wmain(int argc, wchar_t** argv)
             request.complexMappingInterpretation,
             request.cylindricalBandRepair,
             request.sourceErrorIsolation,
-            assemblyRequest
+            assemblyRequest,
+            request.numericalIntegration
         );
     }
     catch (...)
@@ -1108,11 +1133,13 @@ int main(int argc, char** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::AssemblyArgument(
-                    std::filesystem::path(argv[i]).string(),
-                    std::filesystem::path(argv[i + 1]).string(),
-                    assemblyRequest
-                ) || step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
+                step_import_app::IntegrationArgument(argv[i], argv[i + 1], request) ||
+                    step_import_app::AssemblyArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        assemblyRequest
+                    ) ||
+                    step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::RepairArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::SelectionArgument(argv[i], argv[i + 1], request, selectionArguments) ||
                     step_import_app::ComplexMappingArgument(argv[i], argv[i + 1], request),
@@ -1138,7 +1165,8 @@ int main(int argc, char** argv)
             request.complexMappingInterpretation,
             request.cylindricalBandRepair,
             request.sourceErrorIsolation,
-            assemblyRequest
+            assemblyRequest,
+            request.numericalIntegration
         );
     }
     catch (...)
