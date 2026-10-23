@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include "StepAssemblyInputs.h"
 #include "StepImportExecution.h"
 #include "StepImportResult.h"
 
@@ -72,6 +73,14 @@ struct CandidateOperation
     MemberOperation<DefinitionMember> member,
     CandidateOperation candidate
 );
+[[nodiscard]] Result<void> Definitions(
+    const step_semantics::AssemblyDocument& source,
+    std::span<const std::size_t> selected,
+    Report& parent,
+    Execution& execution,
+    MemberOperation<DefinitionMember> member,
+    CandidateOperation candidate
+);
 
 template <class Member, class Adopt, class Finish, class Drive>
 auto Run(Adopt&& adopt, Finish&& finish, Drive&& drive)
@@ -127,10 +136,10 @@ auto ObserveBodies(const step_semantics::Snapshot& source, Report& parent, Execu
         }
     );
 }
-template <class Adopt, class Finish>
+template <class Source, class Adopt, class Finish>
     requires observation_impl::MemberWork<Adopt, DefinitionMember> && observation_impl::CandidateWork<Finish>
 auto ObserveDefinitions(
-    const step_semantics::ProductDocument& source,
+    const Source& source,
     std::span<const std::size_t> selected,
     Report& parent,
     Execution& execution,

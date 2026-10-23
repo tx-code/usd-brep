@@ -33,13 +33,22 @@ void Aggregate(Report& parent, const Members& members)
             members.end(),
             [](const auto& member)
             {
-                return member.checks->numericalIntegration && member.checks->numericalIntegration->completed;
+                return member.checks->sourceEvidenceScope == "AssemblyPlacementWrapper" ||
+                       (member.checks->numericalIntegration && member.checks->numericalIntegration->completed);
             }
         );
-        parent.numericalIntegration->completed = !members.empty() && completed;
+        const auto geometry = std::find_if(
+            members.begin(),
+            members.end(),
+            [](const auto& member)
+            {
+                return member.checks->sourceEvidenceScope != "AssemblyPlacementWrapper";
+            }
+        );
+        parent.numericalIntegration->completed = geometry != members.end() && completed;
         if (parent.numericalIntegration->completed)
         {
-            parent.numericalIntegration->appliedRelativeAccuracy = members.front().checks->numericalIntegration->appliedRelativeAccuracy;
+            parent.numericalIntegration->appliedRelativeAccuracy = geometry->checks->numericalIntegration->appliedRelativeAccuracy;
         }
     }
 }
@@ -177,8 +186,9 @@ private:
     batch.Complete();
     return {};
 }
-[[nodiscard]] Result<void> Definitions(
-    const step_semantics::ProductDocument& source,
+template <class Source>
+[[nodiscard]] Result<void> DefinitionSequence(
+    const Source& source,
     std::span<const std::size_t> selected,
     Report& parent,
     Execution& execution,
@@ -191,7 +201,18 @@ private:
     {
         // Resolve identities only when entering this member, preserving the
         // prior observed prefix if an internal source contract fails later.
-        auto part = source.Part(selected[i]);
+        constexpr bool assembly = std::is_same_v<Source, step_semantics::AssemblyDocument>;
+        auto part = [&]
+        {
+            if constexpr (assembly)
+            {
+                return source.Definition(selected[i]);
+            }
+            else
+            {
+                return source.Part(selected[i]);
+            }
+        }();
         const auto& definition = part->PartDefinition();
         const auto owner = std::find_if(
             definition.roles.begin(),
@@ -201,11 +222,12 @@ private:
                 return role.name == "definition";
             }
         );
-        if (owner == definition.roles.end() || definition.shapes.empty())
+        const bool wrapper = assembly && definition.shapeRole == "AssemblyPlacementWrapper" && definition.shapes.empty();
+        if (owner == definition.roles.end() || (definition.shapes.empty() && !wrapper))
         {
             throw std::logic_error("UnqualifiedDocumentDefinition");
         }
-        auto checks = Child(parent, "ProductDocumentRoot");
+        auto checks = Child(parent, wrapper ? "AssemblyPlacementWrapper" : assembly ? "AssemblyDefinitionRoot" : "ProductDocumentRoot");
         parent.definitions.push_back({ owner->recordIndex, false, checks });
         const auto index = parent.definitions.size() - 1;
         DefinitionCounter counter(*checks, execution);
@@ -226,5 +248,27 @@ private:
     }
     batch.Complete();
     return {};
+}
+Result<void> Definitions(
+    const step_semantics::ProductDocument& source,
+    std::span<const std::size_t> selected,
+    Report& parent,
+    Execution& execution,
+    MemberOperation<DefinitionMember> member,
+    CandidateOperation candidate
+)
+{
+    return DefinitionSequence(source, selected, parent, execution, member, candidate);
+}
+Result<void> Definitions(
+    const step_semantics::AssemblyDocument& source,
+    std::span<const std::size_t> selected,
+    Report& parent,
+    Execution& execution,
+    MemberOperation<DefinitionMember> member,
+    CandidateOperation candidate
+)
+{
+    return DefinitionSequence(source, selected, parent, execution, member, candidate);
 }
 } // namespace step_import::detail::observation_impl

@@ -34,6 +34,10 @@ definition observations remain unqualified until whole-document closure succeeds
 publishing dedicated owning definition snapshots only when every required source
 check completes. Unowned geometry still blocks publication; native assembly
 construction is not yet exposed by this API.
+An internal native assembly candidate builder reuses existing definition/body
+construction and report accounting. Repeated instances share a definition;
+placement wrappers create no empty body. No public assembly import/publication
+entry point is exposed yet.
 
 ## Scope
 
