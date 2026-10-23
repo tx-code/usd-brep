@@ -19,12 +19,7 @@ Result<DocumentCandidate> BuildDocument(
     Execution& execution
 )
 {
-    auto selected = LegacyFailureAdapter(
-        [&]
-        {
-            return SelectNativeDefinitions(*source, options, report, execution);
-        }
-    );
+    auto selected = SelectNativeDefinitions(*source, options, report, execution);
     if (!selected)
     {
         return tl::unexpected(std::move(selected.error()));
