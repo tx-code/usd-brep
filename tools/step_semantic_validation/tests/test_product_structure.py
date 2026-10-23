@@ -45,6 +45,50 @@ def append_record(data, text):
     return data.replace(b"ENDSEC;\nEND-ISO", text + b"\nENDSEC;\nEND-ISO")
 
 
+def placed_repeated_box_source():
+    """Two occurrences of one local box; parent wrapper owns no material solid.
+
+    The child frame is identity. Parent frame A has origin (100,200,300),
+    X=(0,1,0), Z=(0,0,1); frame B is identity at (-40,0,0), all in mm.
+    Independent placement truth for a future native test is A(x,y,z)=
+    (100-y,200+x,300+z), B(x,y,z)=(x-40,y,z). Declaration inspection below
+    deliberately does not claim that either transform has been evaluated.
+    """
+    data = ap214_source((CORPUS / "S203-P04/input.step").read_bytes())
+    data = data.replace(b"'body',(#21),#12", b"'body',(#21,#931),#12")
+    return append_record(data, b"\n".join([
+        b"#900=PRODUCT('assembly','synthetic parent',$,(#3));",
+        b"#901=PRODUCT_DEFINITION_FORMATION('A',$,#900);",
+        b"#902=PRODUCT_DEFINITION('parent',$,#901,#6);",
+        b"#903=PRODUCT_DEFINITION_SHAPE('',$,#902);",
+        b"#904=SHAPE_DEFINITION_REPRESENTATION(#903,#920);",
+        b"#910=NEXT_ASSEMBLY_USAGE_OCCURRENCE('instance-a','same label',$,#902,#7,$);",
+        b"#911=PRODUCT_DEFINITION_SHAPE('',$,#910);",
+        b"#912=CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#914,#911);",
+        b"#914=(REPRESENTATION_RELATIONSHIP('',$,#20,#920) "
+        b"REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#915) SHAPE_REPRESENTATION_RELATIONSHIP());",
+        b"#915=ITEM_DEFINED_TRANSFORMATION('',$,#931,#933);",
+        b"#916=NEXT_ASSEMBLY_USAGE_OCCURRENCE('instance-b','same label',$,#902,#7,$);",
+        b"#917=PRODUCT_DEFINITION_SHAPE('',$,#916);",
+        b"#918=CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#924,#917);",
+        b"#920=SHAPE_REPRESENTATION('parent',(#933,#935),#921);",
+        b"#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) "
+        b"REPRESENTATION_CONTEXT('parent','3D'));",
+        b"#924=(REPRESENTATION_RELATIONSHIP('',$,#20,#920) "
+        b"REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#925) SHAPE_REPRESENTATION_RELATIONSHIP());",
+        b"#925=ITEM_DEFINED_TRANSFORMATION('',$,#931,#935);",
+        b"#930=CARTESIAN_POINT('',(0.,0.,0.));",
+        b"#931=AXIS2_PLACEMENT_3D('',#930,#936,#937);",
+        b"#932=CARTESIAN_POINT('',(100.,200.,300.));",
+        b"#933=AXIS2_PLACEMENT_3D('',#932,#936,#938);",
+        b"#934=CARTESIAN_POINT('',(-40.,0.,0.));",
+        b"#935=AXIS2_PLACEMENT_3D('',#934,#936,#937);",
+        b"#936=DIRECTION('',(0.,0.,1.));",
+        b"#937=DIRECTION('',(1.,0.,0.));",
+        b"#938=DIRECTION('',(0.,1.,0.));",
+    ]))
+
+
 def legacy_graph_source():
     data = legacy_source(graph_source(transform=True, ap214=False))
     for old, new in (
@@ -116,6 +160,29 @@ class ProductStructureTests(unittest.TestCase):
         relation, = graph["representation_relationships"]
         self.assertEqual("915", relation["transformation"])
         self.assertTrue(relation["shape_relationship"])
+
+    def test_placed_repeated_box_preserves_parent_child_and_distinct_frames(self):
+        data = placed_repeated_box_source()
+        graph = self.inspect_structure(data)
+        self.assertEqual(["902"], graph["usage_roots"])
+        self.assertEqual([("910", "902", "7"), ("916", "902", "7")],
+                         [(u["usage"], u["relating_definition"], u["related_definition"])
+                          for u in graph["usages"]])
+        definitions = {d["definition"]: d for d in graph["definitions"]}
+        self.assertEqual("20", definitions["7"]["shape_definition_representations"][0]["representation"])
+        self.assertEqual("920", definitions["902"]["shape_definition_representations"][0]["representation"])
+        self.assertEqual([("910", "914"), ("916", "924")],
+                         [(s["product_relationship"], s["representation_relationship"])
+                          for s in graph["context_dependent_shapes"]])
+        self.assertEqual([("20", "920", "931", "933"), ("20", "920", "931", "935")],
+                         [(t["first_representation"], t["second_representation"],
+                           t["first_item"], t["second_item"]) for t in graph["transforms"]])
+        # This is actual placement-bearing input, not two independent roots.
+        # Existing admission must not discard occurrences to return coincident boxes.
+        run, rejected = self.invoke(data, "--independent-products")
+        self.assertNotEqual(0, run.returncode)
+        self.assertIn("IndependentProductsContainAssembly", [d["key"] for d in rejected["diagnostics"]])
+        self.assertIsNone(rejected["snapshot"])
 
     def test_required_graph_rules_have_source_locations_and_withhold_structure(self):
         controls = [
