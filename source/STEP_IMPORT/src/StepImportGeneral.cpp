@@ -923,7 +923,12 @@ private:
             {
                 const bool plane = Is(geometry, "PLANE");
                 const auto position = plane ? Ref(geometry, "position") : geometry;
-                const auto frame = Placement(position);
+                auto frameResult = Placement(position);
+                if (!frameResult)
+                {
+                    return tl::unexpected(std::move(frameResult.error()));
+                }
+                const auto& frame = *frameResult;
                 // STEP PLANE is unbounded. CreateCanonical retains its analytic
                 // axes and native sentinel domain, without a finite source trim.
                 // For a direct placement this same native storage is explicitly
@@ -1013,7 +1018,12 @@ private:
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            const auto d = Direction(Ref(vector, "orientation"));
+            auto dResult = Direction(Ref(vector, "orientation"));
+            if (!dResult)
+            {
+                return tl::unexpected(std::move(dResult.error()));
+            }
+            const auto& d = *dResult;
             const auto t0 = Dot(Sub(a, origin), d), t1 = Dot(Sub(b, origin), d);
             if (auto businessCheck = Need(t1 > t0, "GeneralLineParameterOrder", c.record); !businessCheck)
             {
@@ -1038,7 +1048,12 @@ private:
         }
         else if (Is(g, "CIRCLE") || Is(g, "ELLIPSE"))
         {
-            const auto frame = Placement(Ref(g, "position"));
+            auto frameResult = Placement(Ref(g, "position"));
+            if (!frameResult)
+            {
+                return tl::unexpected(std::move(frameResult.error()));
+            }
+            const auto& frame = *frameResult;
             const bool circle = Is(g, "CIRCLE");
             const auto rx = N(g, circle ? "radius" : "semi_axis_1") * scale;
             const auto ry = circle ? rx : N(g, "semi_axis_2") * scale;
@@ -1334,7 +1349,12 @@ private:
             }
         }
         const auto a = curves[f.loops[0].uses[0].edge].v0, b = curves[f.loops[1].uses[0].edge].v0;
-        const auto frame = Placement(Ref(f.surface, "position"));
+        auto frameResult = Placement(Ref(f.surface, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
         const auto radius = N(f.surface, "radius") * scale;
         const auto da = Sub(points[a], frame.o), db = Sub(points[b], frame.o);
         const auto z0 = Dot(da, frame.z), z1 = Dot(db, frame.z);
@@ -1361,7 +1381,12 @@ private:
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
-        const auto radial = Unit(Sub(da, Mul(frame.z, z0)));
+        auto radialResult = Unit(Sub(da, Mul(frame.z, z0)));
+        if (!radialResult)
+        {
+            return tl::unexpected(std::move(radialResult.error()));
+        }
+        const auto& radial = *radialResult;
         const auto pa = Add(Add(frame.o, Mul(frame.z, z0)), Mul(radial, radius0));
         const auto pb = Add(Add(frame.o, Mul(frame.z, z1)), Mul(radial, radius1));
         if (auto businessCheck = Need(std::abs(z1 - z0) > Tol(), "GeneralImplicitSeamHeight", f.record); !businessCheck)
@@ -1507,7 +1532,12 @@ private:
         }
         for (const auto& face : faces)
         {
-            if (MissingSpherePole(face))
+            auto pole = MissingSpherePole(face);
+            if (!pole)
+            {
+                return tl::unexpected(std::move(pole.error()));
+            }
+            if (*pole)
             {
                 return tl::unexpected(Fail("RingSubdivisionPoleCompositionUnestablished", face.record, Status::Unsupported));
             }
@@ -1919,7 +1949,12 @@ private:
                 const auto& c = curves[use.edge];
                 if (Is(c.geometry, "CIRCLE"))
                 {
-                    const auto cr = Placement(Ref(c.geometry, "position"));
+                    auto crResult = Placement(Ref(c.geometry, "position"));
+                    if (!crResult)
+                    {
+                        return tl::unexpected(std::move(crResult.error()));
+                    }
+                    const auto& cr = *crResult;
                     const auto dc = Sub(cr.o, frame.o);
                     const double parallel = Dot(cr.z, frame.z);
                     // Closed-form angular coverage applies only to coaxial circular
@@ -2441,7 +2476,7 @@ private:
         m_report.normalizations.push_back(std::move(normalization));
         return owned;
     }
-    std::optional<SpherePolePlan> MissingSpherePole(const Face& face) const
+    [[nodiscard]] Result<std::optional<SpherePolePlan>> MissingSpherePole(const Face& face) const
     {
         if (!Is(face.surface, "SPHERICAL_SURFACE") || face.loops.size() != 1 || !face.loops[0].outer || face.loops[0].uses.size() != 1)
         {
@@ -2453,8 +2488,18 @@ private:
         {
             return {};
         }
-        const auto frame = Placement(Ref(face.surface, "position"));
-        const auto circle = Placement(Ref(edge.geometry, "position"));
+        auto frameResult = Placement(Ref(face.surface, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
+        auto circleResult = Placement(Ref(edge.geometry, "position"));
+        if (!circleResult)
+        {
+            return tl::unexpected(std::move(circleResult.error()));
+        }
+        const auto& circle = *circleResult;
         const double radius = N(face.surface, "radius") * scale, ring = N(edge.geometry, "radius") * scale;
         // Round the rational allowance inward, as for support restriction:
         // conversion to binary64 must not enlarge a normalization allowance.
@@ -2490,7 +2535,12 @@ private:
         // sphere longitude leaves the north cap on the left; reversing the
         // circle axis reverses that longitude direction, not the material side.
         const int sign = use.forward == (parallel > 0) ? 1 : -1;
-        const auto radial = Unit(radialPart);
+        auto radialResult = Unit(radialPart);
+        if (!radialResult)
+        {
+            return tl::unexpected(std::move(radialResult.error()));
+        }
+        const auto& radial = *radialResult;
         return SpherePolePlan{ edge.v0,
                                frame,
                                Add(frame.o, Mul(frame.z, sign * radius)),
@@ -2726,7 +2776,12 @@ private:
             }
             return owned;
         }
-        const auto frame = Placement(Ref(g, "position"));
+        auto frameResult = Placement(Ref(g, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
         // Finite computational windows must cover the entire defining boundary,
         // not just vertices (closed circles may have only one source vertex).
         // Project conservative curve boxes; this changes no trim or geometry.
@@ -2899,7 +2954,12 @@ private:
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            if (const auto pole = MissingSpherePole(f))
+            auto poleResult = MissingSpherePole(f);
+            if (!poleResult)
+            {
+                return tl::unexpected(std::move(poleResult.error()));
+            }
+            if (const auto& pole = *poleResult)
             {
                 const auto angles = FullPeriodDegrees(pole->longitude > 0 ? pole->longitude - 2 * std::numbers::pi : pole->longitude);
                 if (auto operation = Step(g); !operation)
@@ -3429,7 +3489,12 @@ private:
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
-        const auto polePlan = MissingSpherePole(f);
+        auto poleResult = MissingSpherePole(f);
+        if (!poleResult)
+        {
+            return tl::unexpected(std::move(poleResult.error()));
+        }
+        const auto& polePlan = *poleResult;
         std::optional<SeamPlan> seamPlan;
         if (!polePlan)
         {

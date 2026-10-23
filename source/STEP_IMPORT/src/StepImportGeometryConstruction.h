@@ -53,12 +53,22 @@ inline double Norm(V a)
 {
     return std::hypot(a[0], a[1], a[2]);
 }
-inline V Unit(V a)
+[[nodiscard]] inline Result<V> Unit(V a)
 {
     const double n = Norm(a);
     if (!(n > 0) || !std::isfinite(n))
     {
-        throw std::domain_error("GeneralDegenerateFrame");
+        // Keep the former domain-error outcome and unfinished strict-attempt
+        // observation. Do not rescale the input or silently widen its admitted
+        // numeric range; the established normalization formula stays unchanged.
+        return tl::unexpected(
+            Failure{ Status::Indeterminate,
+                     "GeneralDegenerateFrame",
+                     "Native derived evidence is unestablished",
+                     {},
+                     "D5",
+                     NativeFailureKind::ConstructionOperation }
+        );
     }
     return Mul(a, 1 / n);
 }
@@ -204,19 +214,36 @@ protected:
         }
         return point;
     }
-    V Direction(Index a) const
+    [[nodiscard]] Result<V> Direction(Index a) const
     {
         return Unit(Triple(F(a, "direction_ratios")));
     }
-    Frame Placement(Index a) const
+    [[nodiscard]] Result<Frame> Placement(Index a) const
     {
         Frame f;
         f.o = Position(Ref(a, "location"));
-        f.z = F(a, "axis").kind == step_source::ValueKind::Unset ? V{ 0, 0, 1 } : Direction(Ref(a, "axis"));
+        if (F(a, "axis").kind == step_source::ValueKind::Unset)
+        {
+            f.z = { 0, 0, 1 };
+        }
+        else
+        {
+            auto axis = Direction(Ref(a, "axis"));
+            if (!axis)
+            {
+                return tl::unexpected(std::move(axis.error()));
+            }
+            f.z = *axis;
+        }
         V x;
         if (F(a, "ref_direction").kind != step_source::ValueKind::Unset)
         {
-            x = Direction(Ref(a, "ref_direction"));
+            auto reference = Direction(Ref(a, "ref_direction"));
+            if (!reference)
+            {
+                return tl::unexpected(std::move(reference.error()));
+            }
+            x = *reference;
         }
         else
         {
@@ -226,8 +253,18 @@ protected:
         // plane. Ratios are dimensionless; arbitrary source magnitudes are not scales.
         // AP214E3_2010.exp FIRST_PROJ_AXIS defaults to X unless exactly
         // parallel to it. The double cross avoids cancellation near parallel.
-        f.x = Unit(Cross(f.z, Cross(x, f.z)));
-        f.y = Unit(Cross(f.z, f.x));
+        auto projected = Unit(Cross(f.z, Cross(x, f.z)));
+        if (!projected)
+        {
+            return tl::unexpected(std::move(projected.error()));
+        }
+        f.x = *projected;
+        auto perpendicular = Unit(Cross(f.z, f.x));
+        if (!perpendicular)
+        {
+            return tl::unexpected(std::move(perpendicular.error()));
+        }
+        f.y = *perpendicular;
         return f;
     }
     struct ConicTrim

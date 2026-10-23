@@ -111,3 +111,30 @@ controls. Mutants should erase the operation kind, record the unfinished attempt
 as a completed failure, or bypass observation for every failure (which must break
 the cancellation control). Keep the existing orientation-witness, repair-budget
 and complete-import report comparisons in both native configurations.
+
+## General frame results
+
+The `frame` control qualifies synthetic sources with finite, mathematically nonzero
+direction ratios whose binary64 normalization is unestablished. It exercises real
+material lines, conic reference/axis directions, near-parallel frame projection,
+surface placement, independent wireframe/supporting curves and supporting frames.
+The private builder returns the original `Indeterminate` / `GeneralDegenerateFrame`
+diagnostic, empty record and D5 stage. Charged work and completed validations remain;
+checks that have not run retain absent observations. Public import retains the
+original bytes and refuses atomic publication. The native range and normalization
+formula are unchanged; this is not direction repair or source invalidity evidence.
+
+A real strict build on the same source retains its unfinished original-attempt
+report without starting repair, charging edits or manufacturing diagnostics. This
+tests the actual construction-to-repair boundary without substituting a callback.
+Successful controls retain normalization of finite direction magnitudes and the
+STEP defaults for unset axes. Existing geometry, parameter, seam and pole contracts
+continue to cover successful uses of returned frames.
+
+Compare complete failure reports against frozen pre-migration outputs, including
+the strict attempt. Runtime mutants should reclassify the numerical refusal, throw
+it again, erase its operation kind, bypass normalization or substitute a default
+basis for unestablished projection. Require successful compilation, intended
+assertion failures and unchanged passing controls in both native configurations.
+Scalar lexeme/coordinate conversion and primitive interval sentinels remain a
+separate exception migration; this batch does not claim an exception-free importer.

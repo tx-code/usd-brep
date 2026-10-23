@@ -132,7 +132,12 @@ public:
             // scale the VECTOR length once, never scale t by the length unit.
             const auto origin = Position(Ref(basis, "pnt"));
             const auto vector = Ref(basis, "dir");
-            const auto direction = Direction(Ref(vector, "orientation"));
+            auto directionResult = Direction(Ref(vector, "orientation"));
+            if (!directionResult)
+            {
+                return tl::unexpected(std::move(directionResult.error()));
+            }
+            const auto& direction = *directionResult;
             const auto magnitude = N(vector, "magnitude") * scale;
             if (auto businessCheck = Need(std::isfinite(magnitude) && magnitude > 0, "GeneralWireLineMagnitude", record); !businessCheck)
             {
@@ -242,7 +247,12 @@ public:
         }
         else if (Is(basis, "CIRCLE") || Is(basis, "ELLIPSE"))
         {
-            const auto frame = Placement(Ref(basis, "position"));
+            auto frameResult = Placement(Ref(basis, "position"));
+            if (!frameResult)
+            {
+                return tl::unexpected(std::move(frameResult.error()));
+            }
+            const auto& frame = *frameResult;
             const bool circle = Is(basis, "CIRCLE");
             const auto rx = N(basis, circle ? "radius" : "semi_axis_1") * scale;
             const auto ry = circle ? rx : N(basis, "semi_axis_2") * scale;

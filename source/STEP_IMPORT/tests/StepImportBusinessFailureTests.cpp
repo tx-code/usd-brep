@@ -111,6 +111,106 @@ void GeneralBusinessErrors(const Plan& plan)
     );
     Require(report.nativeCalls == 0 && !report.candidateDiscarded, "general profile refusal returns before native work");
 }
+void FrameBusinessErrors(const std::filesystem::path& fixtures)
+{
+    auto options = Options::PlanarFixture();
+    options.generalBrep = true;
+    options.quality = Quality::GeneralDevelopment();
+    const auto read = [&](const char* fixture)
+    {
+        std::ifstream stream(fixtures / fixture, std::ios::binary);
+        Require(bool(stream), "synthetic native frame fixture opens");
+        return std::string{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+    };
+    struct FrameCase
+    {
+        const char *fixture, *before, *after;
+        std::size_t calls;
+        bool validated;
+    };
+    const FrameCase cases[]{
+        { "conic_bounds_bulged_box.step", "#200=DIRECTION('',(1.,0.,0.));", "#200=DIRECTION('',(1.7E308,1.7E308,0.));", 14, false },
+        { "conic_bounds_cylinder.step", "#105=DIRECTION('',(1.,0.,0.));", "#105=DIRECTION('',(1.7E308,1.7E308,0.));", 2, false },
+        { "conic_bounds_cylinder.step", "#104=DIRECTION('',(0.,0.,1.));", "#104=DIRECTION('',(0.,1.7E308,1.7E308));", 2, false },
+        { "conic_bounds_cylinder.step", "#105=DIRECTION('',(1.,0.,0.));", "#105=DIRECTION('',(1.E-320,0.,1.));", 2, false },
+        { "conic_bounds_bulged_box.step", "#501=DIRECTION('',(0.,0.,-1.));", "#501=DIRECTION('',(0.,1.7E308,1.7E308));", 69, false },
+        { "linked_wireframe.step", "#917=DIRECTION('',(1.,0.,0.));", "#917=DIRECTION('',(1.7E308,1.7E308,0.));", 236, true },
+        { "linked_wireframe.step", "#907=DIRECTION('',(1.,0.,0.));", "#907=DIRECTION('',(1.7E308,1.7E308,0.));", 240, true },
+        { "supporting_geometry.step", "#917=DIRECTION('',(1.,0.,0.));", "#917=DIRECTION('',(1.7E308,1.7E308,0.));", 239, true },
+        { "supporting_geometry.step", "#907=DIRECTION('',(1.,0.,0.));", "#907=DIRECTION('',(1.7E308,1.7E308,0.));", 236, true },
+        { "supporting_geometry.step", "#973=DIRECTION('',(1.,0.,0.));", "#973=DIRECTION('',(1.7E308,1.7E308,0.));", 237, true },
+    };
+    for (const auto& item : cases)
+    {
+        auto text = read(item.fixture);
+        const auto at = text.find(item.before);
+        Require(at != std::string::npos, "synthetic native frame direction exists");
+        // Source ratios remain finite and mathematically nonzero. Either their
+        // binary64 norm overflows or a near-parallel projection cannot establish
+        // a finite basis. These are native-evidence refusals, not source repairs.
+        text.replace(at, std::char_traits<char>::length(item.before), item.after);
+        const auto raw = step_source::InspectBytes(text, options.sourceLimits);
+        const auto qualified = step_semantics::Check(raw, options.semanticLimits, options.sourcePolicy, step_semantics::GeometryScope::GeneralBrep);
+        Require(bool(qualified.snapshot), "finite source ratios qualify before native frame conversion");
+        Report report;
+        Execution execution(options, report);
+        const auto result = BuildGeneral(qualified.snapshot, options, report, execution);
+        Require(
+            !result && result.error().status == Status::Indeterminate && result.error().key == "GeneralDegenerateFrame" &&
+                result.error().message == "Native derived evidence is unestablished" && !result.error().record && result.error().stage == "D5",
+            "unestablished native direction returns its original numerical refusal"
+        );
+        Require(
+            report.nativeCalls == item.calls && report.candidateDiscarded &&
+                report.pointerReports == (item.validated ? std::optional<std::size_t>(0) : std::nullopt) &&
+                report.deepReports == (item.validated ? std::optional<std::size_t>(0) : std::nullopt),
+            "direction refusal keeps charged work and validation evidence while releasing its unpublished candidate"
+        );
+        if (std::string_view(item.fixture) == "conic_bounds_bulged_box.step" && item.calls == 14)
+        {
+            FaceOrientationRepairRequest request;
+            request.sourceSha256 = raw.sha256;
+            request.maximumFaceEdits = 1;
+            request.maximumProofControls = 10000;
+            request.maximumProofProducts = 1000000;
+            request.edits.push_back({ "7", "21", "517", true, false });
+            auto repairOptions = options;
+            repairOptions.faceOrientationRepair = request;
+            Report repairReport;
+            Execution repairExecution(repairOptions, repairReport);
+            const auto strict = BuildGeneral(qualified.snapshot, repairOptions, repairReport, repairExecution);
+            Require(
+                !strict && strict.error().status == Status::Indeterminate && strict.error().key == "GeneralDegenerateFrame" &&
+                    repairReport.candidateDiscarded && repairReport.nativeCalls == 14 && repairReport.originalAttempt &&
+                    repairReport.originalAttempt->nativeCalls == 14 && !repairReport.originalAttemptStatus &&
+                    repairReport.originalAttempt->diagnostics.empty() && !repairReport.originalAttempt->candidateDiscarded &&
+                    repairReport.repairEditsAttempted == 0 && repairReport.repairStage == "StrictCandidate",
+                "frame refusal preserves the unfinished strict observation and never starts an orientation repair"
+            );
+        }
+        const auto publicResult = ImportBytes(text, options);
+        Require(
+            publicResult.status == Status::Indeterminate && !publicResult.model && publicResult.report.candidateDiscarded &&
+                publicResult.report.nativeCalls == item.calls && publicResult.report.source && publicResult.report.source->Bytes() == text &&
+                publicResult.report.diagnostics.size() == 1 && publicResult.report.diagnostics[0].source.key == "GeneralDegenerateFrame" &&
+                publicResult.report.diagnostics[0].source.recordId.empty(),
+            "public import retains the original source and numerical refusal without publishing a partial model"
+        );
+    }
+    auto scaled = read("conic_bounds_bulged_box.step");
+    const std::string line = "#200=DIRECTION('',(1.,0.,0.));";
+    scaled.replace(scaled.find(line), line.size(), "#200=DIRECTION('',(4.,0.,0.));");
+    const auto normalized = ImportBytes(scaled, options);
+    Require(
+        normalized.status == Status::Accepted && normalized.model && normalized.model->Source()->Source().Bytes() == scaled,
+        "finite source direction magnitude is normalized without changing length or parameter semantics"
+    );
+    auto defaults = read("conic_bounds_cylinder.step");
+    const std::string placement = "#106=AXIS2_PLACEMENT_3D('',#100,#104,#105);";
+    defaults.replace(defaults.find(placement), placement.size(), "#106=AXIS2_PLACEMENT_3D('',#100,$,$);");
+    const auto defaulted = ImportBytes(defaults, options);
+    Require(defaulted.status == Status::Accepted && defaulted.model, "unset axes retain the established STEP frame defaults");
+}
 void NativeStatusBusinessErrors(Plan plan)
 {
     Require(bool(construction::Good(SM_SUCCESS)), "native success remains successful in the general construction boundary");
@@ -320,6 +420,11 @@ int main(int argc, char** argv)
         Require(argc == 2 || argc == 3, "public planar fixture and optional contract mode required");
         std::ifstream input(argv[1], std::ios::binary);
         const std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+        if (argc == 3 && std::string_view(argv[2]) == "--frame")
+        {
+            FrameBusinessErrors(std::filesystem::path(argv[1]).parent_path());
+            return 0;
+        }
         if (argc == 3 && std::string_view(argv[2]) == "--strict-native")
         {
             StrictOperationErrors(text);
