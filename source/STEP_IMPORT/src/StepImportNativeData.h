@@ -52,6 +52,9 @@ struct ModelData
     // inserted into the material BRep or presented as a source PLANE.
     std::vector<std::unique_ptr<SmSurface>> supportingSurfaces;
     std::vector<SupportingGeometryInfo> supportingGeometry;
+    // Detached original analytic/native UV definitions; clear under NativeMutex before context.
+    std::vector<std::unique_ptr<SmSurface>> retainedSupportDefinitions;
+    std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     SmRegion* material = nullptr;
     SmRegion* bounded = nullptr;
     SmShell* outside = nullptr;

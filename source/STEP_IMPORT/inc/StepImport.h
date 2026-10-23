@@ -161,6 +161,20 @@ struct SourceUseSegmentOrigin
     bool forwardInNativeCurve = true;
     TargetUseSegment target;
 };
+struct SurfaceNormalizationInfo
+{
+    std::string sourceFaceId, sourceSurfaceId;
+    std::size_t targetFaceIndex = 0;
+    // Domains are umin,vmin,umax,vmax. Native UV is retained across extraction;
+    // analytic degrees describe the complete native computational chart before
+    // extraction, not the STEP angular parameters or a clipped source surface.
+    std::array<double, 4> originalNativeDomain{}, retainedNativeDomain{}, originalAnalyticDomainDegrees{};
+    // Signed generator radius in the retained torus frame; either sign is valid
+    // when its whole outward interval excludes the axis. All lengths are mm.
+    std::array<double, 2> generatorRadiusBoundsMm{};
+    double minimumAbsoluteGeneratorRadiusMm = 0, continuousDifferenceUpperMm = 0;
+    std::size_t tensorPatches = 0;
+};
 struct TopologyNormalizationInfo
 {
     std::vector<TargetFaceOrigin> faces;
@@ -434,9 +448,11 @@ public:
     std::optional<NumericalIntegrationObservation> NumericalIntegration() const; // Owning snapshot evidence; null for the proved planar path.
     UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
+    std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis support extraction, separate from repair/topology
+                                                                         // changes.
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
-    void WriteNative(const std::filesystem::path& path) const; // Native archive, analytic definitions retained; no STEP re-encoding.
+    void WriteNative(const std::filesystem::path& path) const; // Native target archive; original STEP/normalization metadata is not encoded.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
 
@@ -594,6 +610,7 @@ struct Report
     std::vector<std::pair<std::string, std::string>> classifiedOuterBounds; // Derived face/bound IDs, never source relabeling.
     std::vector<RepresentationNormalization> normalizations;
     std::vector<ParameterMapping> parameterMappings; // Derived native maps; never changes source parameters or entities.
+    std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     std::vector<WireframeInfo> wireframes; // Owning values/source identities only, never native owners.
     std::vector<SupportingGeometryInfo> supportingGeometry;
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;

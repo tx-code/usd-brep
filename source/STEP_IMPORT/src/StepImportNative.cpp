@@ -47,6 +47,7 @@ ModelData::~ModelData()
     // Empty the move-only storage while the lock and allocating context live.
     curvePointDefinitions = OwnedCurvePointDefinitions{};
     supportingSurfaces.clear();
+    retainedSupportDefinitions.clear();
     brep.reset();
     context.reset();
 }
@@ -1543,6 +1544,10 @@ UnitNormalization ModelSnapshot::LengthUnits() const
 std::optional<TopologyNormalizationInfo> ModelSnapshot::TopologyNormalization() const
 {
     return m_data->topologyNormalization;
+}
+std::vector<SurfaceNormalizationInfo> ModelSnapshot::SurfaceNormalizations() const
+{
+    return m_data->surfaceNormalizations;
 }
 std::optional<FaceOrientationRepairHistory> ModelSnapshot::Repairs() const
 {

@@ -293,6 +293,8 @@ public:
 private:
 
     std::shared_ptr<ModelData> m_model;
+    std::set<Index> m_pendingToroidalSupports;
+    std::map<Index, const SmTorus*> m_toroidalOriginals;
     std::shared_ptr<CylindricalBandRepairTrial> m_cylindricalBandTrial;
     std::optional<step_semantics::Part::Shape> m_binding;
     Index shape = 0, shell = 0;
@@ -1002,6 +1004,72 @@ private:
             }
         }
         Fail("GeneralConeAngleUnitUnestablished", surface);
+    }
+    SmExtent2d ToroidalChart(const Face& f, const Frame& frame, double major, double minor) const
+    {
+        constexpr double tau = 2 * std::numbers::pi;
+        std::map<Index, std::size_t> counts;
+        double outerScore = 0, innerScore = 0;
+        for (const auto& loop : f.loops)
+        {
+            for (const auto& use : loop.uses)
+            {
+                ++counts[use.edge];
+                for (const auto& point : { curves[use.edge].p0, curves[use.edge].p1 })
+                {
+                    const auto delta = Sub(point, frame.o);
+                    const auto rho = std::hypot(Dot(delta, frame.x), Dot(delta, frame.y)), z = Dot(delta, frame.z);
+                    outerScore += std::abs(std::hypot(rho - major, z) - minor);
+                    innerScore += std::abs(std::hypot(rho + major, z) - minor);
+                    if (!std::isfinite(outerScore) || !std::isfinite(innerScore))
+                    {
+                        Fail("GeneralToroidalChartUnestablished", f.surface, Status::Indeterminate);
+                    }
+                }
+            }
+        }
+        // Only choose a full-period computational chart here. Vertex scores
+        // are candidates, not source conformity, region or regularity proofs.
+        // The signed generator bound and complete UV hull must prove the used
+        // region later; no surface region is omitted by either full-period chart.
+        const bool inner = innerScore < outerScore;
+        const auto longitude = [&](const V& point)
+        {
+            const auto delta = Sub(point, frame.o);
+            auto angle = std::atan2(Dot(delta, frame.y), Dot(delta, frame.x)) - (inner ? std::numbers::pi : 0);
+            angle = std::fmod(angle, tau);
+            return angle < 0 ? angle + tau : angle;
+        };
+        double cut = 0;
+        bool seam = false;
+        std::vector<double> angles;
+        for (const auto& [edge, count] : counts)
+        {
+            const auto a = longitude(curves[edge].p0), b = longitude(curves[edge].p1);
+            angles.push_back(a);
+            angles.push_back(b);
+            if (!seam && count == 2 && std::abs(std::remainder(a - b, tau)) < 1e-10)
+            {
+                seam = true;
+                cut = a;
+            }
+        }
+        if (!seam && !angles.empty())
+        {
+            std::sort(angles.begin(), angles.end());
+            double largest = -1;
+            for (std::size_t i = 0; i < angles.size(); ++i)
+            {
+                const auto next = i + 1 < angles.size() ? angles[i + 1] : angles[0] + tau;
+                if (next - angles[i] > largest)
+                {
+                    largest = next - angles[i];
+                    cut = std::fmod(angles[i] + largest / 2, tau);
+                }
+            }
+        }
+        const auto degrees = FullPeriodDegrees(cut > 0 ? cut - tau : cut);
+        return SmExtent2d(degrees[0], inner ? 0 : -180, degrees[1], inner ? 360 : 180);
     }
     std::optional<SeamPlan> RingSeamCandidate(const Face& f) const
     {
@@ -2387,10 +2455,13 @@ private:
         if (Is(g, "TOROIDAL_SURFACE"))
         {
             const double major = N(g, "major_radius") * scale, minor = N(g, "minor_radius") * scale;
-            // This native slice handles finite nonsingular ring tori only.
-            // Horn/spindle surfaces are valid source TOROIDAL_SURFACE values;
-            // refusing their native construction is not an EXPRESS violation.
-            if (!(std::isfinite(major) && std::isfinite(minor) && minor > 0 && major > minor))
+            // Defaults handle nonsingular ring tori. An explicit restriction
+            // request may construct a private full horn/spindle candidate, but
+            // every used region must later prove regularity and original-basis
+            // equivalence. These surface values are not EXPRESS violations.
+            const bool spindle = major <= minor;
+            if (!(std::isfinite(major) && std::isfinite(minor) && minor > 0 && major > 0) ||
+                (spindle && (!m_options.restrictUnusedSupportDomains || f.loops.empty())))
             {
                 Fail("GeneralToroidalRingRequired", g, Status::Unsupported);
             }
@@ -2405,13 +2476,35 @@ private:
             // the nonlinearly related NURBS UV. No source parameter is changed
             // or claimed identical to target UV. Existing source seams/edges
             // remain defining geometry; installed UV must pass the same gates.
-            const SmExtent2d domain(0, 0, 360, 360);
+            // A full analytic chart remains private until its actual UV region
+            // can be extracted and continuously compared in RestrictSupports.
+            // Center V on a candidate profile sheet to avoid an artificial cut.
+            // This does not discard any source surface or authorize a
+            // singular support. Defaults retain the earlier ring-only guard.
+            const auto domain = spindle ? ToroidalChart(f, frame, major, minor) : SmExtent2d(0, 0, 360, 360);
             SmTorus* raw = nullptr;
             Step(g);
             const auto status = SmTorus::CreateCanonical(*m_model->context, frame.Native(), major, minor, raw, FALSE, FALSE, nullptr, &domain);
             std::unique_ptr<SmTorus> torus(raw);
             Good(status);
             Need(torus && torus->GetMajorRadius() == major && torus->GetMinorRadius() == minor, "GeneralToroidalDefinitionChanged", g);
+            if (spindle)
+            {
+                m_pendingToroidalSupports.insert(f.record);
+                // The analytic projection path can preserve an isocurve image
+                // while losing its paired edge parameter. Project on the same
+                // complete ordinary NURBS basis instead. The original analytic
+                // object/angle converter remains owned until snapshot release.
+                // This is still a private, unqualified full support: mandatory
+                // region/radius/restriction proofs run before native acceptance.
+                Step(g);
+                auto ordinary = std::unique_ptr<SmBSplineSurface>(new (*m_model->context) SmBSplineSurface(*torus));
+                ordinary->SetOwner(nullptr);
+                ordinary->SetBSplineSurfaceForm(SM_SF_UNSPECIFIED);
+                m_toroidalOriginals.emplace(f.record, torus.get());
+                m_model->retainedSupportDefinitions.push_back(std::move(torus));
+                return ordinary;
+            }
             return torus;
         }
         Fail("GeneralUnsupportedSurface", g, Status::Unsupported);
@@ -2757,7 +2850,8 @@ private:
             const bool cylinderProjection = Is(f.surface, "CYLINDRICAL_SURFACE");
             const bool coneProjection = Is(f.surface, "CONICAL_SURFACE");
             const bool splineProjection = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
-            if (cylinderProjection || coneProjection || splineProjection)
+            const bool toroidalProjection = m_options.restrictUnusedSupportDomains && Is(f.surface, "TOROIDAL_SURFACE");
+            if (cylinderProjection || coneProjection || splineProjection || toroidalProjection)
             {
                 SmTArray<SmEdgeuse*> uses;
                 native.face->GetUpwardEdgeuses(uses);
@@ -2772,7 +2866,8 @@ private:
                     const auto index = *source;
                     const bool closed = !m_ringSubdivisions.empty() ? edge->GetStartVertex() == edge->GetEndVertex() :
                                                                       curves[index].v0 == curves[index].v1;
-                    if (closed || !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS")))
+                    if ((closed && !toroidalProjection) ||
+                        !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS")))
                     {
                         continue;
                     }
@@ -2788,7 +2883,8 @@ private:
                         [&]
                         {
                             Step(f.record);
-                        }
+                        },
+                        toroidalProjection
                     );
                     Need(SmTol::GetZoneTol3d(edge) == tolerance, "GeneralProjectionChangedWorkTolerance", f.record);
                     if (projected.status != DerivedUvStatus::Ready)
@@ -2808,7 +2904,8 @@ private:
                     // Preserve the defining curve and its native parameter t.
                     // Face closure/seam handling and final paired measurements
                     // still run below, followed by global topology/tolerance checks.
-                    const char* kind = splineProjection                                        ? "ControlledSplineSurfaceUvProjection" :
+                    const char* kind = toroidalProjection                                      ? "ControlledToroidalCurveUvProjection" :
+                                       splineProjection                                        ? "ControlledSplineSurfaceUvProjection" :
                                        coneProjection                                          ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
                                                                                                  "ControlledCircleUvProjection";
@@ -2965,7 +3062,12 @@ private:
                     return loop.outer;
                 }
             );
-            const auto evidence = RestrictUnusedSupportDomain(
+            if (m_pendingToroidalSupports.contains(source.record) && (m_options.normalizePeriodicFaces || m_model->topologyNormalization ||
+                                                                      m_options.faceOrientationRepair || m_options.cylindricalBandRepair))
+            {
+                Fail("ToroidalSupportNormalizationCompositionUnestablished", source.surface, Status::Unsupported);
+            }
+            auto evidence = RestrictUnusedSupportDomain(
                 *m_model->faces[i].face,
                 outerCount == 1,
                 lowerDefinition,
@@ -2974,7 +3076,8 @@ private:
                 [&]
                 {
                     Step(source.surface);
-                }
+                },
+                m_toroidalOriginals.contains(source.record) ? m_toroidalOriginals.at(source.record) : nullptr
             );
             if (evidence.status == SupportDomainStatus::WorkLimit)
             {
@@ -2982,10 +3085,41 @@ private:
             }
             if (evidence.status != SupportDomainStatus::Normalized)
             {
+                if (m_pendingToroidalSupports.contains(source.record))
+                {
+                    const auto key = "ToroidalSupport" + evidence.reason;
+                    Fail(
+                        key.c_str(),
+                        source.surface,
+                        evidence.status == SupportDomainStatus::Unestablished ? Status::Indeterminate : Status::Unsupported
+                    );
+                }
                 continue; // Original candidate still faces every native check.
             }
+            if (m_pendingToroidalSupports.contains(source.record))
+            {
+                Need(
+                    m_toroidalOriginals.contains(source.record) && evidence.numeric.maximumMm.has_value(),
+                    "ToroidalSupportEvidenceMissing",
+                    source.surface
+                );
+                SurfaceNormalizationInfo info;
+                info.sourceFaceId = Id(source.record);
+                info.sourceSurfaceId = Id(source.surface);
+                info.targetFaceIndex = i;
+                info.originalNativeDomain = evidence.original;
+                info.retainedNativeDomain = evidence.actual;
+                info.originalAnalyticDomainDegrees = evidence.analyticDomainDegrees;
+                info.generatorRadiusBoundsMm = evidence.generatorRadiusBoundsMm;
+                info.minimumAbsoluteGeneratorRadiusMm = evidence.minimumAbsoluteGeneratorRadiusMm;
+                info.continuousDifferenceUpperMm = *evidence.numeric.maximumMm;
+                info.tensorPatches = evidence.numeric.patches;
+                m_model->surfaceNormalizations.push_back(info);
+                m_report.surfaceNormalizations.push_back(std::move(info));
+            }
             ParameterMapping mapping;
-            mapping.kind = "UnusedSupportDomainRestriction";
+            const bool toroidal = m_pendingToroidalSupports.contains(source.record);
+            mapping.kind = toroidal ? "ToroidalOriginalBasisRestriction" : "UnusedSupportDomainRestriction";
             mapping.sourceGeometryId = Id(source.surface);
             mapping.sourceUseId = Id(source.record);
             mapping.targetFaceIndex = i;
@@ -2997,7 +3131,11 @@ private:
                                    { "proved_native_difference_mm", { *evidence.numeric.maximumMm } },
                                    { "proved_tensor_patches", { double(evidence.numeric.patches) } } };
             m_report.parameterMappings.push_back(std::move(mapping));
-            RepresentationNormalization normalization{ "UnusedSupportDomainRestriction", Id(source.record), {}, {}, {} };
+            RepresentationNormalization normalization{ toroidal ? "ToroidalOriginalBasisRestriction" : "UnusedSupportDomainRestriction",
+                                                       Id(source.record),
+                                                       {},
+                                                       {},
+                                                       {} };
             for (const auto& loop : source.loops)
             {
                 normalization.sourceBoundIds.push_back(Id(loop.bound));

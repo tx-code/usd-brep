@@ -53,5 +53,13 @@ DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, cons
 // One bounded surface projection, with a tighter numerical solve target than
 // the acceptance budget. No edgeuse retry or topology tolerance adjustment.
 // Multiple branches remain unestablished for the caller to handle normally.
-DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall);
+// The optional original-basis mode is bounded to the canonical analytic torus
+// use case. A temporary ordinary surface must retain every coefficient, knot
+// and native domain exactly; paired measurements still use the real surface.
+DerivedUvCandidate ProjectDerivedUv(
+    const SmEdgeuse& use,
+    double maximumMm,
+    const std::function<void()>& beforeNativeCall,
+    bool projectOnOriginalNurbsBasis = false
+);
 } // namespace step_import::detail

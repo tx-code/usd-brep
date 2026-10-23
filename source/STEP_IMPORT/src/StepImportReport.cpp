@@ -1130,7 +1130,53 @@ void WriteReportJson(
             Number(w, t.valueMm);
             w.Add("}");
         }
-        w.Add("],\"representation_normalizations\":[");
+        w.Add("]");
+        if (!report.surfaceNormalizations.empty())
+        {
+            w.Add(",\"surface_normalizations\":[");
+            for (std::size_t i = 0; i < report.surfaceNormalizations.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& info = report.surfaceNormalizations[i];
+                w.Add("{\"kind\":\"ToroidalOriginalBasisRestriction\",\"source_face_id\":");
+                w.String(info.sourceFaceId);
+                w.Add(",\"source_surface_id\":");
+                w.String(info.sourceSurfaceId);
+                w.Add(",\"target_face_index\":");
+                w.Number(info.targetFaceIndex);
+                const auto array = [&](std::string_view name, const auto& values)
+                {
+                    w.Add(",");
+                    w.String(name);
+                    w.Add(":[");
+                    for (std::size_t j = 0; j < values.size(); ++j)
+                    {
+                        if (j)
+                        {
+                            w.Add(",");
+                        }
+                        Number(w, values[j]);
+                    }
+                    w.Add("]");
+                };
+                array("original_native_domain", info.originalNativeDomain);
+                array("retained_native_domain", info.retainedNativeDomain);
+                array("original_analytic_domain_degrees", info.originalAnalyticDomainDegrees);
+                array("generator_radius_bounds_mm", info.generatorRadiusBoundsMm);
+                w.Add(",\"minimum_absolute_generator_radius_mm\":");
+                Number(w, info.minimumAbsoluteGeneratorRadiusMm);
+                w.Add(",\"continuous_difference_upper_mm\":");
+                Number(w, info.continuousDifferenceUpperMm);
+                w.Add(",\"tensor_patches\":");
+                w.Number(info.tensorPatches);
+                w.Add(",\"source_rewritten\":false}");
+            }
+            w.Add("]");
+        }
+        w.Add(",\"representation_normalizations\":[");
         for (std::size_t i = 0; i < report.normalizations.size(); ++i)
         {
             if (i)

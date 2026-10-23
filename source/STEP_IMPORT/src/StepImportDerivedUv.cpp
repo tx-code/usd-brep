@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportDerivedUv.h"
 
+#include <SmBSplineSurface.h>
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
 #include <SmSurface.h>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <gsl/assert>
 #include <stdexcept>
 
@@ -40,6 +42,29 @@ private:
 bool FiniteUv(const SmPoint3d& p)
 {
     return std::isfinite(p.x) && std::isfinite(p.y);
+}
+bool SameBasis(const SmBSplineSurface& a, const SmBSplineSurface& b)
+{
+    if (a.IsRational() != b.IsRational() || a.GetDegree(SM_SP_U) != b.GetDegree(SM_SP_U) || a.GetDegree(SM_SP_V) != b.GetDegree(SM_SP_V))
+    {
+        return false;
+    }
+    ULONG au = 0, av = 0, bu = 0, bv = 0;
+    double *ap = nullptr, *bp = nullptr;
+    if (a.GetControlPointsPointer(au, av, ap) != SM_SUCCESS || b.GetControlPointsPointer(bu, bv, bp) != SM_SUCCESS || au != bu || av != bv || !ap ||
+        !bp || !au || !av || au > 64 || av > 64 || std::memcmp(ap, bp, std::size_t(au) * av * 4 * sizeof(double)) != 0)
+    {
+        return false;
+    }
+    double *ak = nullptr, *al = nullptr, *bk = nullptr, *bl = nullptr;
+    if (a.GetKnotsPointers(au, av, ak, al) != SM_SUCCESS || b.GetKnotsPointers(bu, bv, bk, bl) != SM_SUCCESS || au != bu || av != bv || !ak || !al ||
+        !bk || !bl || au > 128 || av > 128 || std::memcmp(ak, bk, std::size_t(au) * sizeof(double)) != 0 ||
+        std::memcmp(al, bl, std::size_t(av) * sizeof(double)) != 0)
+    {
+        return false;
+    }
+    const auto x = a.GetNaturalUVDomain(), y = b.GetNaturalUVDomain();
+    return x.GetMin().x == y.GetMin().x && x.GetMax().x == y.GetMax().x && x.GetMin().y == y.GetMin().y && x.GetMax().y == y.GetMax().y;
 }
 } // namespace
 
@@ -202,7 +227,12 @@ DerivedUvCandidate RebuildDerivedUv(const SmEdgeuse& use, double maximumMm, cons
     matched.projectionGapMm = gap;
     return matched;
 }
-DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, const std::function<void()>& beforeNativeCall)
+DerivedUvCandidate ProjectDerivedUv(
+    const SmEdgeuse& use,
+    double maximumMm,
+    const std::function<void()>& beforeNativeCall,
+    bool projectOnOriginalNurbsBasis
+)
 {
     Expects(bool(beforeNativeCall));
     Expects(std::isfinite(maximumMm) && maximumMm > 0);
@@ -214,19 +244,53 @@ DerivedUvCandidate ProjectDerivedUv(const SmEdgeuse& use, double maximumMm, cons
     {
         return result;
     }
+    std::unique_ptr<SmBSplineSurface> ordinary;
+    SmSurface* projectionSurface = surface;
+    if (projectOnOriginalNurbsBasis)
+    {
+        const auto spline = dynamic_cast<const SmBSplineSurface*>(surface);
+        if (!spline)
+        {
+            return result;
+        }
+        if (spline->GetType() != SmBSplineSurface_TYPE)
+        {
+            beforeNativeCall();
+            ordinary.reset(new (*face->GetContext()) SmBSplineSurface(*spline));
+            ordinary->SetOwner(nullptr);
+            ordinary->SetBSplineSurfaceForm(SM_SF_UNSPECIFIED);
+            // The bounded analytic torus net is small. Reject any copy-time
+            // knot correction instead of claiming an unchanged UV map. Measure
+            // every resulting trim against the actual original surface below.
+            if (!SameBasis(*spline, *ordinary))
+            {
+                return result;
+            }
+            projectionSurface = ordinary.get();
+        }
+    }
     SmTArray<SmBSplineCurve*> curves;
     SmObjsDelete<SmBSplineCurve*> cleanup(&curves);
     double gap = -1, approximation = -1;
     SmStatus status;
     {
-        SurfaceOwnerScope owner(*surface);
+        SurfaceOwnerScope owner(*projectionSurface);
         beforeNativeCall();
         // Separate numerical approximation from normal source/surface distance.
         // KeepAll permits the latter to exceed the tighter solve target, but
         // both returned projection distance and paired lift must still satisfy
         // maximumMm below. No topology tolerance is adjusted to obtain a curve.
-        status = surface->DropCurve(*face->GetContext(), face->GetUVDomain(), *edge->GetCurve(), edge->GetInterval(),
-                                    SmApproxTol3d(maximumMm / 8), gap, approximation, curves, TRUE);
+        status = projectionSurface->DropCurve(
+            *face->GetContext(),
+            face->GetUVDomain(),
+            *edge->GetCurve(),
+            edge->GetInterval(),
+            SmApproxTol3d(maximumMm / 8),
+            gap,
+            approximation,
+            curves,
+            TRUE
+        );
     }
     if (status != SM_SUCCESS || curves.GetSize() != 1 || !curves[0] || !std::isfinite(gap) || gap < 0 || gap > maximumMm)
     {
