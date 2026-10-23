@@ -100,12 +100,13 @@ std::string LoadedKernel()
     return "Unmeasured";
 #endif
 }
-void Need(bool value, const char* key, std::size_t record)
+[[nodiscard]] Result<void> Need(bool value, const char* key, std::size_t record)
 {
     if (!value)
     {
-        throw Failure{ Status::PostcheckFailure, key, "Native candidate does not preserve the qualified source contract", record };
+        return tl::unexpected(Failure{ Status::PostcheckFailure, key, "Native candidate does not preserve the qualified source contract", record });
     }
+    return {};
 }
 void Good(SmStatus status)
 {
@@ -114,12 +115,13 @@ void Good(SmStatus status)
         throw std::runtime_error("NativeReturnFailure:" + std::to_string(status));
     }
 }
-void Certify(double upper, Fraction budget, const char* key, std::size_t record)
+[[nodiscard]] Result<void> Certify(double upper, Fraction budget, const char* key, std::size_t record)
 {
     if (!std::isfinite(upper) || upper > Enclose(budget).low)
     {
-        throw Failure{ Status::Indeterminate, key, "Conservative native error bound cannot establish the requested quality", record };
+        return tl::unexpected(Failure{ Status::Indeterminate, key, "Conservative native error bound cannot establish the requested quality", record });
     }
+    return {};
 }
 struct Affine
 {
@@ -239,10 +241,12 @@ public:
     {
         if (!std::numeric_limits<double>::is_iec559 || std::fegetround() != FE_TONEAREST)
         {
-            throw Failure{ Status::Indeterminate,
-                           "UnsupportedNativeNumericEnvironment",
-                           "Outward binary64 evidence requires nearest rounding",
-                           m_plan.record };
+            return tl::unexpected(
+                Failure{ Status::Indeterminate,
+                         "UnsupportedNativeNumericEnvironment",
+                         "Outward binary64 evidence requires nearest rounding",
+                         m_plan.record }
+            );
         }
         struct DiscardOnFailure
         {
@@ -277,7 +281,10 @@ public:
                 return tl::unexpected(std::move(operation.error()));
             }
             m_model->brep.reset(ctor.StartBrep(*m_model->context));
-            Need(bool(m_model->brep), "NativeBrepAllocationFailed", m_plan.record);
+            if (auto businessCheck = Need(bool(m_model->brep), "NativeBrepAllocationFailed", m_plan.record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto tolerance = Value(m_options.quality.initialWorkToleranceMm);
             m_model->brep->SetTolerance(tolerance, FALSE);
             for (const auto& vertex : m_plan.vertices)
@@ -287,7 +294,10 @@ public:
                     return tl::unexpected(std::move(operation.error()));
                 }
                 auto value = ctor.StartVertex(Native(Value(vertex.pointMm)));
-                Need(value != nullptr, "NativeVertexConstructionFailed", vertex.record);
+                if (auto businessCheck = Need(value != nullptr, "NativeVertexConstructionFailed", vertex.record); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 m_model->vertices.push_back(value);
                 value->SetTolerance(tolerance, FALSE);
                 if (auto operation = Step(vertex.record); !operation)
@@ -303,11 +313,15 @@ public:
                     return tl::unexpected(std::move(operation.error()));
                 }
                 m_model->bounded = ctor.StartRegion(m_plan.materialSolid ? TRUE : FALSE, nullptr);
-                Need(
-                    m_model->bounded != nullptr,
-                    m_plan.materialSolid ? "NativeMaterialRegionAllocationFailed" : "NativeBoundedRegionAllocationFailed",
-                    m_plan.record
-                );
+                if (auto businessCheck = Need(
+                        m_model->bounded != nullptr,
+                        m_plan.materialSolid ? "NativeMaterialRegionAllocationFailed" : "NativeBoundedRegionAllocationFailed",
+                        m_plan.record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 m_model->bounded->SetIsVoid(m_plan.materialSolid ? FALSE : TRUE);
                 m_model->material = m_plan.materialSolid ? m_model->bounded : nullptr;
             }
@@ -318,7 +332,10 @@ public:
                 return tl::unexpected(std::move(operation.error()));
             }
             Good(ctor.StartShell(outer, inner));
-            Need(outer && bool(inner) == m_plan.closedBoundary, "NativeShellRoleMismatch", m_plan.record);
+            if (auto businessCheck = Need(outer && bool(inner) == m_plan.closedBoundary, "NativeShellRoleMismatch", m_plan.record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             m_model->outside = outer;
             m_model->inside = inner;
             m_model->edges.resize(m_plan.edges.size());
@@ -349,7 +366,10 @@ public:
                 return tl::unexpected(std::move(operation.error()));
             }
             Good(ctor.EndBrep());
-            Observe("Constructed");
+            if (auto businessCheck = Observe("Constructed"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
             {
                 if (auto operation = InstallUv(m_plan.faces[i], m_model->faces[i]); !operation)
@@ -357,7 +377,10 @@ public:
                     return tl::unexpected(std::move(operation.error()));
                 }
             }
-            Observe("UvInstalled");
+            if (auto businessCheck = Observe("UvInstalled"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             SmAssertArray pointers;
             if (auto operation = Step(m_plan.record); !operation)
             {
@@ -365,8 +388,15 @@ public:
             }
             const auto pointerStatus = m_model->brep->ValidatePointers(&pointers);
             m_report.pointerReports = pointers.GetSize();
-            Need(pointerStatus == SM_SUCCESS && pointers.GetSize() == 0, "NativePointerValidationFailed", m_plan.record);
-            Observe("PointersChecked");
+            if (auto businessCheck = Need(pointerStatus == SM_SUCCESS && pointers.GetSize() == 0, "NativePointerValidationFailed", m_plan.record);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Observe("PointersChecked"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             SmAssertArray deep;
             if (auto operation = Step(m_plan.record); !operation)
             {
@@ -374,8 +404,14 @@ public:
             }
             const bool valid = m_model->brep->AssertValid(&deep, SM_LEVEL_2, SM_WALK) != FALSE;
             m_report.deepReports = deep.GetSize();
-            Need(valid && deep.GetSize() == 0, "NativeDeepValidationFailed", m_plan.record);
-            Observe("DeepChecked");
+            if (auto businessCheck = Need(valid && deep.GetSize() == 0, "NativeDeepValidationFailed", m_plan.record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Observe("DeepChecked"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (auto verified = Verify(); !verified)
             {
                 return tl::unexpected(std::move(verified.error()));
@@ -384,7 +420,10 @@ public:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            Observe("Postchecked");
+            if (auto businessCheck = Observe("Postchecked"); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (const auto& edge : m_plan.edges)
             {
                 m_report.edges.push_back(edge.mapping);
@@ -422,7 +461,10 @@ private:
             return tl::unexpected(std::move(operation.error()));
         }
         native.face = ctor.StartFace(facePlan.faceSameSense ? SM_OT_SAME : SM_OT_OPPOSITE);
-        Need(native.face != nullptr, "NativeFaceConstructionFailed", facePlan.face);
+        if (auto businessCheck = Need(native.face != nullptr, "NativeFaceConstructionFailed", facePlan.face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         native.face->SetTolerance(tolerance, FALSE);
         const auto x = Unit(facePlan.x, facePlan.xNormSquared), y = Unit(facePlan.y, facePlan.yNormSquared), origin = Enclose(facePlan.originMm);
         std::array<double, 4> window{ std::numeric_limits<double>::infinity(),
@@ -474,7 +516,10 @@ private:
             native.plane = plane.release();
         }
         Good(surfaceStatus);
-        Need(native.plane != nullptr, "NativeSurfaceOwnershipMismatch", facePlan.face);
+        if (auto businessCheck = Need(native.plane != nullptr, "NativeSurfaceOwnershipMismatch", facePlan.face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (const auto& loop : facePlan.loops)
         {
             if (auto operation = Step(loop.bound); !operation)
@@ -482,7 +527,10 @@ private:
                 return tl::unexpected(std::move(operation.error()));
             }
             auto targetLoop = ctor.StartLoop(SM_OT_SAME);
-            Need(targetLoop != nullptr, "NativeLoopConstructionFailed", loop.bound);
+            if (auto businessCheck = Need(targetLoop != nullptr, "NativeLoopConstructionFailed", loop.bound); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             native.loops.push_back(targetLoop);
             for (const auto& use : loop.primaryUses)
             {
@@ -498,7 +546,10 @@ private:
                     m_model->vertices.at(edge.minimumVertex),
                     m_model->vertices.at(edge.maximumVertex)
                 );
-                Need(targetEdge != nullptr, "NativeEdgeConstructionFailed", edge.record);
+                if (auto businessCheck = Need(targetEdge != nullptr, "NativeEdgeConstructionFailed", edge.record); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 if (!existing)
                 {
                     targetEdge->SetTolerance(tolerance, FALSE);
@@ -512,7 +563,10 @@ private:
                         created = SmLine::CreateLineSegment(*m_model->context, 3, Native(Value(edge.minimumMm)), Native(Value(edge.maximumMm)), raw);
                     std::unique_ptr<SmLine> curve(raw);
                     Good(created);
-                    Need(bool(curve), "NativeCurveAllocationFailed", edge.record);
+                    if (auto businessCheck = Need(bool(curve), "NativeCurveAllocationFailed", edge.record); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     if (auto operation = Step(edge.record); !operation)
                     {
                         return tl::unexpected(std::move(operation.error()));
@@ -523,7 +577,10 @@ private:
                         m_model->curves[use.edge] = curve.release();
                     }
                     Good(adopted);
-                    Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record);
+                    if (auto businessCheck = Need(m_model->curves[use.edge] != nullptr, "NativeCurveOwnershipMismatch", edge.record); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                     if (auto operation = Step(edge.record); !operation)
                     {
                         return tl::unexpected(std::move(operation.error()));
@@ -532,7 +589,10 @@ private:
                 }
                 else
                 {
-                    Need(targetEdge == existing, "NativeSharedEdgeNotReused", edge.record);
+                    if (auto businessCheck = Need(targetEdge == existing, "NativeSharedEdgeNotReused", edge.record); !businessCheck)
+                    {
+                        return tl::unexpected(std::move(businessCheck.error()));
+                    }
                 }
                 if (auto operation = Step(edge.record); !operation)
                 {
@@ -557,36 +617,66 @@ private:
     {
         return m_execution.ChargeNative(m_report, record, NativeCallAccounting::Planar);
     }
-    void Observe(const char* stage)
+    [[nodiscard]] Result<void> Observe(const char* stage)
     {
-        const auto observe = [&](const char* kind, std::string id, const SmObject* object)
+        const auto observe = [&](const char* kind, std::string id, const SmObject* object) -> Result<void>
         {
             const double value = SmTol::GetZoneTol3d(object);
             m_report.tolerances.push_back({ stage, kind, id, value });
-            Need(
-                std::isfinite(value) && value > 0 && value <= Enclose(m_options.quality.maximumWorkToleranceMm).low,
-                "NativeWorkingToleranceMismatch",
-                m_plan.record
-            );
+            if (auto businessCheck = Need(
+                    std::isfinite(value) && value > 0 && value <= Enclose(m_options.quality.maximumWorkToleranceMm).low,
+                    "NativeWorkingToleranceMismatch",
+                    m_plan.record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto key = std::string(kind) + ":" + id;
             const auto [found, added] = initialTolerances.emplace(key, value);
-            Need(!added || value == Value(m_options.quality.initialWorkToleranceMm), "NativeInitialToleranceMismatch", m_plan.record);
+            if (auto businessCheck = Need(
+                    !added || value == Value(m_options.quality.initialWorkToleranceMm),
+                    "NativeInitialToleranceMismatch",
+                    m_plan.record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto growth = value == found->second ? 0.0 : (Exact(value) - Exact(found->second)).high;
-            Need(growth <= Enclose(m_options.quality.toleranceGrowthMm).low, "NativeToleranceGrowth", m_plan.record);
+            if (auto businessCheck = Need(growth <= Enclose(m_options.quality.toleranceGrowthMm).low, "NativeToleranceGrowth", m_plan.record);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            return {};
         };
-        observe("Brep", Id(m_plan.record), m_model->brep.get());
+        if (auto businessCheck = observe("Brep", Id(m_plan.record), m_model->brep.get()); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
         {
-            observe("Face", Id(m_plan.faces[i].face), m_model->faces[i].face);
+            if (auto businessCheck = observe("Face", Id(m_plan.faces[i].face), m_model->faces[i].face); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         for (std::size_t i = 0; i < m_model->vertices.size(); ++i)
         {
-            observe("Vertex", Id(m_plan.vertices[i].record), m_model->vertices[i]);
+            if (auto businessCheck = observe("Vertex", Id(m_plan.vertices[i].record), m_model->vertices[i]); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         for (std::size_t i = 0; i < m_model->edges.size(); ++i)
         {
-            observe("Edge", Id(m_plan.edges[i].record), m_model->edges[i]);
+            if (auto businessCheck = observe("Edge", Id(m_plan.edges[i].record), m_model->edges[i]); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
+        return {};
     }
     Point Uv(const NativeFaceData& native, const Point& point) const
     {
@@ -601,7 +691,7 @@ private:
         }
         return { (a * yy - b * xy) / det, (b * xx - a * xy) / det, 0 };
     }
-    SmEdgeuse* SameUse(std::size_t edge, const NativeFaceData& native) const
+    [[nodiscard]] Result<SmEdgeuse*> SameUse(std::size_t edge, const NativeFaceData& native) const
     {
         SmTArray<SmEdgeuse*> uses;
         Good(m_model->edges[edge]->GetEdgeuses(uses));
@@ -611,22 +701,36 @@ private:
             const auto use = uses[i];
             if (use->GetLoopuse()->GetFaceuse()->GetFace() == native.face && use->GetOrientation() == SM_OT_SAME)
             {
-                Need(result == nullptr, "NativeRepeatedSameFaceOccurrence", m_plan.edges[edge].record);
+                if (auto businessCheck = Need(result == nullptr, "NativeRepeatedSameFaceOccurrence", m_plan.edges[edge].record); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 result = use;
             }
         }
-        Need(result != nullptr, "NativeFaceOccurrenceMissing", m_plan.edges[edge].record);
+        if (auto businessCheck = Need(result != nullptr, "NativeFaceOccurrenceMissing", m_plan.edges[edge].record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         return result;
     }
     [[nodiscard]] Result<void> InstallUv(const FacePlan& facePlan, NativeFaceData& native)
     {
         for (const auto i : facePlan.edges)
         {
-            const auto same = SameUse(i, native);
+            auto sameResult = SameUse(i, native);
+            if (!sameResult)
+            {
+                return tl::unexpected(std::move(sameResult.error()));
+            }
+            const auto same = *sameResult;
             SmTArray<SmPoint3d> points;
             SmTArray<double> weights;
             Good(m_model->curves[i]->GetControlPolygon(points, weights));
-            Need(points.GetSize() == 2, "NativeCurveControlShape", m_plan.edges[i].record);
+            if (auto businessCheck = Need(points.GetSize() == 2, "NativeCurveControlShape", m_plan.edges[i].record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (auto operation = Step(m_plan.edges[i].record); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
@@ -641,13 +745,19 @@ private:
             );
             std::unique_ptr<SmLine> uv(raw);
             Good(status);
-            Need(bool(uv), "NativeUvAllocationFailed", m_plan.edges[i].record);
+            if (auto businessCheck = Need(bool(uv), "NativeUvAllocationFailed", m_plan.edges[i].record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto plane = PlaneCoefficients(*native.plane, false);
             const double bound = std::max(
                 LiftBound(plane, LineCoefficients(*uv, false), LineCoefficients(*m_model->curves[i], false)),
                 LiftBound(plane, LineCoefficients(*uv, true), LineCoefficients(*m_model->curves[i], true))
             );
-            Certify(bound, m_options.quality.derivedUvMm, "NativeUvErrorBudget", m_plan.edges[i].record);
+            if (auto businessCheck = Certify(bound, m_options.quality.derivedUvMm, "NativeUvErrorBudget", m_plan.edges[i].record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             if (auto operation = Step(m_plan.edges[i].record); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
@@ -657,20 +767,31 @@ private:
             {
                 uv.release();
             }
-            Need(
-                same->GetUVTrimCurvePointer() != nullptr && same->GetMate()->GetUVTrimCurvePointer() == nullptr,
-                "NativeUvStorageSideMismatch",
-                m_plan.edges[i].record
-            );
+            if (auto businessCheck = Need(
+                    same->GetUVTrimCurvePointer() != nullptr && same->GetMate()->GetUVTrimCurvePointer() == nullptr,
+                    "NativeUvStorageSideMismatch",
+                    m_plan.edges[i].record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         return {};
     }
-    std::size_t VerifyTraversal(SmLoopuse* loopuse, const std::vector<UsePlan>& expected, const LoopPlan& loop)
+    [[nodiscard]] Result<std::size_t> VerifyTraversal(SmLoopuse* loopuse, const std::vector<UsePlan>& expected, const LoopPlan& loop)
     {
-        Need(loopuse->GetOrientation() == (loop.outer ? SM_OT_SAME : SM_OT_OPPOSITE), "NativeLoopRoleMismatch", loop.bound);
+        if (auto businessCheck = Need(loopuse->GetOrientation() == (loop.outer ? SM_OT_SAME : SM_OT_OPPOSITE), "NativeLoopRoleMismatch", loop.bound);
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmTArray<SmEdgeuse*> uses;
         loopuse->GetEdgeuses(uses);
-        Need(uses.GetSize() == expected.size(), "NativeLoopUseCount", m_plan.record);
+        if (auto businessCheck = Need(uses.GetSize() == expected.size(), "NativeLoopUseCount", m_plan.record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::optional<std::size_t> matchedOffset;
         for (std::size_t offset = 0; offset < expected.size(); ++offset)
         {
@@ -690,10 +811,13 @@ private:
                 break;
             }
         }
-        Need(matchedOffset.has_value(), "NativeDirectedSourcePathMismatch", m_plan.record);
+        if (auto businessCheck = Need(matchedOffset.has_value(), "NativeDirectedSourcePathMismatch", m_plan.record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         return *matchedOffset;
     }
-    LoopMapping CaptureLoop(const FacePlan& facePlan, const LoopPlan& plan, SmLoopuse* selected, std::size_t offset)
+    [[nodiscard]] Result<LoopMapping> CaptureLoop(const FacePlan& facePlan, const LoopPlan& plan, SmLoopuse* selected, std::size_t offset)
     {
         LoopMapping result{ Id(facePlan.face), Id(plan.bound), Id(plan.loop), plan.outer, plan.sourceOrientation, {} };
         SmTArray<SmEdgeuse*> uses;
@@ -705,16 +829,23 @@ private:
             const auto& edge = m_plan.edges[wanted.edge];
             SmEdgeuse* owner = nullptr;
             const auto uv = use->GetUVTrimCurve(&owner);
-            Need(
-                uv && owner && owner->GetOrientation() == SM_OT_SAME && owner->GetEdge() == use->GetEdge() && uv->GetOwner() == owner &&
-                    uv->GetContext() == m_model->context.get(),
-                "NativeUseUvOwnerMismatch",
-                wanted.orientedEdge
-            );
+            if (auto businessCheck = Need(
+                    uv && owner && owner->GetOrientation() == SM_OT_SAME && owner->GetEdge() == use->GetEdge() && uv->GetOwner() == owner &&
+                        uv->GetContext() == m_model->context.get(),
+                    "NativeUseUvOwnerMismatch",
+                    wanted.orientedEdge
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             SmTArray<SmPoint3d> points;
             SmTArray<double> weights;
             Good(uv->GetControlPolygon(points, weights));
-            Need(points.GetSize() == 2, "NativeUseUvControlShape", wanted.orientedEdge);
+            if (auto businessCheck = Need(points.GetSize() == 2, "NativeUseUvControlShape", wanted.orientedEdge); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const bool forward = use->GetOrientation() == SM_OT_SAME;
             const auto start = points[forward ? 0 : 1], end = points[forward ? 1 : 0];
             result.uses.push_back(
@@ -738,12 +869,16 @@ private:
         m_model->brep->GetFaces(faces);
         m_model->brep->GetVertices(vertices);
         m_model->brep->GetEdges(edges);
-        Need(
-            faces.GetSize() == m_plan.faces.size() && edges.GetSize() == m_plan.edges.size() && vertices.GetSize() == m_plan.vertices.size() &&
-                (m_model->brep->IsManifoldSolid() == (m_plan.closedBoundary ? TRUE : FALSE)),
-            "NativeShapeRoleOrIdentityMismatch",
-            m_plan.record
-        );
+        if (auto businessCheck = Need(
+                faces.GetSize() == m_plan.faces.size() && edges.GetSize() == m_plan.edges.size() && vertices.GetSize() == m_plan.vertices.size() &&
+                    (m_model->brep->IsManifoldSolid() == (m_plan.closedBoundary ? TRUE : FALSE)),
+                "NativeShapeRoleOrIdentityMismatch",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::set<SmFace*> actualFaces, expectedFaces;
         for (ULONG i = 0; i < faces.GetSize(); ++i)
         {
@@ -753,7 +888,10 @@ private:
         {
             expectedFaces.insert(face.face);
         }
-        Need(actualFaces == expectedFaces, "NativeFaceIdentityMismatch", m_plan.record);
+        if (auto businessCheck = Need(actualFaces == expectedFaces, "NativeFaceIdentityMismatch", m_plan.record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         std::set<SmVertex*> actualVertices;
         std::set<SmEdge*> actualEdges;
         for (ULONG i = 0; i < vertices.GetSize(); ++i)
@@ -764,22 +902,30 @@ private:
         {
             actualEdges.insert(edges[i]);
         }
-        Need(
-            actualVertices == std::set<SmVertex*>(m_model->vertices.begin(), m_model->vertices.end()) &&
-                actualEdges == std::set<SmEdge*>(m_model->edges.begin(), m_model->edges.end()),
-            "NativeTopologyIdentityMismatch",
-            m_plan.record
-        );
+        if (auto businessCheck = Need(
+                actualVertices == std::set<SmVertex*>(m_model->vertices.begin(), m_model->vertices.end()) &&
+                    actualEdges == std::set<SmEdge*>(m_model->edges.begin(), m_model->edges.end()),
+                "NativeTopologyIdentityMismatch",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (std::size_t i = 0; i < m_model->edges.size(); ++i)
         {
             const auto edge = m_model->edges[i];
-            Need(
-                edge->GetCurve() == m_model->curves[i] && m_model->curves[i]->GetOwner() == edge && edge->GetContext() == m_model->context.get() &&
-                    m_model->curves[i]->GetContext() == m_model->context.get() && edge->GetInterval().GetMin() == 0 &&
-                    edge->GetInterval().GetMax() == 1,
-                "NativeEdgeIdentityOrIntervalMismatch",
-                m_plan.edges[i].record
-            );
+            if (auto businessCheck = Need(
+                    edge->GetCurve() == m_model->curves[i] && m_model->curves[i]->GetOwner() == edge &&
+                        edge->GetContext() == m_model->context.get() && m_model->curves[i]->GetContext() == m_model->context.get() &&
+                        edge->GetInterval().GetMin() == 0 && edge->GetInterval().GetMax() == 1,
+                    "NativeEdgeIdentityOrIntervalMismatch",
+                    m_plan.edges[i].record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         if (auto operation = VerifyAdjacency(); !operation)
         {
@@ -787,65 +933,108 @@ private:
         }
         for (std::size_t i = 0; i < m_plan.faces.size(); ++i)
         {
-            VerifyFace(m_plan.faces[i], m_model->faces[i]);
+            if (auto businessCheck = VerifyFace(m_plan.faces[i], m_model->faces[i]); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         return {};
     }
-    void VerifyFace(const FacePlan& facePlan, const NativeFaceData& native)
+    [[nodiscard]] Result<void> VerifyFace(const FacePlan& facePlan, const NativeFaceData& native)
     {
-        Need(
-            native.face->GetSurface() == native.plane && native.plane->GetOwner() == native.face &&
-                native.face->GetContext() == m_model->context.get(),
-            "NativeSurfaceOwnershipMismatch",
-            facePlan.face
-        );
+        if (auto businessCheck = Need(
+                native.face->GetSurface() == native.plane && native.plane->GetOwner() == native.face &&
+                    native.face->GetContext() == m_model->context.get(),
+                "NativeSurfaceOwnershipMismatch",
+                facePlan.face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmFaceuse* same = nullptr;
         SmFaceuse* opposite = nullptr;
         native.face->GetFaceuses(same, opposite);
-        Need(
-            same && opposite && same->GetOrientation() == SM_OT_SAME && opposite->GetOrientation() == SM_OT_OPPOSITE,
-            "NativeFaceSideMismatch",
-            facePlan.face
-        );
+        if (auto businessCheck = Need(
+                same && opposite && same->GetOrientation() == SM_OT_SAME && opposite->GetOrientation() == SM_OT_OPPOSITE,
+                "NativeFaceSideMismatch",
+                facePlan.face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (auto side : { same, opposite })
         {
             SmTArray<SmLoopuse*> loops;
             side->GetLoopuses(loops);
-            Need(
-                loops.GetSize() == facePlan.loops.size() && loops[0]->GetLoop() == native.loops[0],
-                "NativeLoopMultiplicityOrOuterIdentity",
-                m_plan.record
-            );
+            if (auto businessCheck = Need(
+                    loops.GetSize() == facePlan.loops.size() && loops[0]->GetLoop() == native.loops[0],
+                    "NativeLoopMultiplicityOrOuterIdentity",
+                    m_plan.record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             std::set<SmLoop*> actual;
             for (ULONG i = 0; i < loops.GetSize(); ++i)
             {
                 actual.insert(loops[i]->GetLoop());
             }
-            Need(actual == std::set<SmLoop*>(native.loops.begin(), native.loops.end()), "NativeLoopIdentityMismatch", facePlan.face);
+            if (auto businessCheck = Need(
+                    actual == std::set<SmLoop*>(native.loops.begin(), native.loops.end()),
+                    "NativeLoopIdentityMismatch",
+                    facePlan.face
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         for (std::size_t i = 0; i < facePlan.loops.size(); ++i)
         {
             const auto primary = native.loops[i]->GetLoopuse();
             const auto mate = primary->GetOtherLoopuse();
-            Need(
-                primary->GetFaceuse() == same && mate->GetFaceuse() == opposite && mate->GetOtherLoopuse() == primary,
-                "NativeLoopSideMismatch",
-                facePlan.loops[i].bound
-            );
-            VerifyTraversal(primary, facePlan.loops[i].primaryUses, facePlan.loops[i]);
+            if (auto businessCheck = Need(
+                    primary->GetFaceuse() == same && mate->GetFaceuse() == opposite && mate->GetOtherLoopuse() == primary,
+                    "NativeLoopSideMismatch",
+                    facePlan.loops[i].bound
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = VerifyTraversal(primary, facePlan.loops[i].primaryUses, facePlan.loops[i]); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto selected = facePlan.faceSameSense ? primary : mate;
-            const auto offset = VerifyTraversal(selected, facePlan.loops[i].selectedUses, facePlan.loops[i]);
-            m_report.loops.push_back(CaptureLoop(facePlan, facePlan.loops[i], selected, offset));
+            auto offset = VerifyTraversal(selected, facePlan.loops[i].selectedUses, facePlan.loops[i]);
+            if (!offset)
+            {
+                return tl::unexpected(std::move(offset.error()));
+            }
+            auto mapping = CaptureLoop(facePlan, facePlan.loops[i], selected, *offset);
+            if (!mapping)
+            {
+                return tl::unexpected(std::move(mapping.error()));
+            }
+            m_report.loops.push_back(std::move(*mapping));
         }
         double definition = 0, consistency = 0, uvError = 0;
         const auto domain = native.plane->GetNaturalUVDomain();
         const auto faceDomain = native.face->GetUVDomain();
-        Need(
-            domain.GetMin().x == faceDomain.GetMin().x && domain.GetMin().y == faceDomain.GetMin().y && domain.GetMax().x == faceDomain.GetMax().x &&
-                domain.GetMax().y == faceDomain.GetMax().y,
-            "NativeFaceDomainMismatch",
-            facePlan.face
-        );
+        if (auto businessCheck = Need(
+                domain.GetMin().x == faceDomain.GetMin().x && domain.GetMin().y == faceDomain.GetMin().y &&
+                    domain.GetMax().x == faceDomain.GetMax().x && domain.GetMax().y == faceDomain.GetMax().y,
+                "NativeFaceDomainMismatch",
+                facePlan.face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (bool polygon : { false, true })
         {
             const auto nativePlane = PlaneCoefficients(*native.plane, polygon);
@@ -868,10 +1057,12 @@ private:
                     );
                     if (!(Dot(jacobian, Cross(sourceX, sourceY)).low > SM_EFF_ZERO * NormUpper(Cross(sourceX, sourceY))))
                     {
-                        throw Failure{ Status::Indeterminate,
-                                       "NativeSurfaceJacobianUnestablished",
-                                       "Actual analytic/NURBS surface orientation is not proved positive over the finite window",
-                                       facePlan.face };
+                        return tl::unexpected(
+                            Failure{ Status::Indeterminate,
+                                     "NativeSurfaceJacobianUnestablished",
+                                     "Actual analytic/NURBS surface orientation is not proved positive over the finite window",
+                                     facePlan.face }
+                        );
                     }
                     const auto exact = Add(Add(sourceOrigin, Times(sourceX, Exact(u))), Times(sourceY, Exact(v)));
                     definition = std::max(definition, NormUpper(Subtract(Evaluate(nativePlane, Exact(u), Exact(v)), exact)));
@@ -879,16 +1070,28 @@ private:
             }
             for (const auto i : facePlan.edges)
             {
-                const auto sameUse = SameUse(i, native);
+                auto sameUseResult = SameUse(i, native);
+                if (!sameUseResult)
+                {
+                    return tl::unexpected(std::move(sameUseResult.error()));
+                }
+                const auto sameUse = *sameUseResult;
                 SmEdgeuse* owner = nullptr;
                 auto uv = sameUse->GetUVTrimCurve(&owner);
-                Need(
-                    owner == sameUse && uv && uv->GetOwner() == sameUse && uv->GetContext() == m_model->context.get(),
-                    "NativeUvOwnerMismatch",
-                    m_plan.edges[i].record
-                );
+                if (auto businessCheck = Need(
+                        owner == sameUse && uv && uv->GetOwner() == sameUse && uv->GetContext() == m_model->context.get(),
+                        "NativeUvOwnerMismatch",
+                        m_plan.edges[i].record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 const auto line = dynamic_cast<const SmLine*>(uv);
-                Need(line != nullptr, "NativeUvNotAffine", m_plan.edges[i].record);
+                if (auto businessCheck = Need(line != nullptr, "NativeUvNotAffine", m_plan.edges[i].record); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 for (bool curvePolygon : { false, true })
                 {
                     const auto curve = LineCoefficients(*m_model->curves[i], curvePolygon);
@@ -912,12 +1115,16 @@ private:
                         uvError = std::max(uvError, LiftBound(nativePlane, trim, curve));
                         for (const auto& endpoint : { trim.origin, Add(trim.origin, trim.delta) })
                         {
-                            Need(
-                                endpoint[0].low >= domain.GetMin().x && endpoint[0].high <= domain.GetMax().x &&
-                                    endpoint[1].low >= domain.GetMin().y && endpoint[1].high <= domain.GetMax().y,
-                                "NativeTrimOutsideWindow",
-                                facePlan.face
-                            );
+                            if (auto businessCheck = Need(
+                                    endpoint[0].low >= domain.GetMin().x && endpoint[0].high <= domain.GetMax().x &&
+                                        endpoint[1].low >= domain.GetMin().y && endpoint[1].high <= domain.GetMax().y,
+                                    "NativeTrimOutsideWindow",
+                                    facePlan.face
+                                );
+                                !businessCheck)
+                            {
+                                return tl::unexpected(std::move(businessCheck.error()));
+                            }
                         }
                     }
                 }
@@ -935,9 +1142,20 @@ private:
                                                                                                                          // bounds edge/plane
                                                                                                                          // consistency.
         m_report.uvBoundMm = std::max(m_report.uvBoundMm.value_or(0), uvError);
-        Certify(definition, m_options.quality.definitionMm, "NativeDefinitionErrorBudget", facePlan.face);
-        Certify(*m_report.consistencyBoundMm, m_options.quality.consistencyMm, "NativeConsistencyErrorBudget", facePlan.face);
-        Certify(uvError, m_options.quality.derivedUvMm, "NativeUvErrorBudget", facePlan.face);
+        if (auto businessCheck = Certify(definition, m_options.quality.definitionMm, "NativeDefinitionErrorBudget", facePlan.face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Certify(*m_report.consistencyBoundMm, m_options.quality.consistencyMm, "NativeConsistencyErrorBudget", facePlan.face);
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Certify(uvError, m_options.quality.derivedUvMm, "NativeUvErrorBudget", facePlan.face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        return {};
     }
     [[nodiscard]] Result<void> MeasureFace(const FacePlan& facePlan, NativeFaceData& native)
     {
@@ -982,20 +1200,46 @@ private:
         info.windowMm = std::array<double, 4>{ domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y };
         const auto expectedArea = SqrtNonnegative(Enclose(facePlan.sourceAreaSquared));
         const auto error = Exact(info.areaMm2) - expectedArea;
-        Certify(std::max(std::abs(error.low), std::abs(error.high)), m_options.quality.areaMm2, "NativeAreaQueryMismatch", facePlan.face);
-        const auto checkVector = [&](const Point& actual, const IntervalPoint& expected, const char* key)
+        if (auto businessCheck = Certify(
+                std::max(std::abs(error.low), std::abs(error.high)),
+                m_options.quality.areaMm2,
+                "NativeAreaQueryMismatch",
+                facePlan.face
+            );
+            !businessCheck)
         {
-            Certify(NormUpper(detail::Subtract(Exact(actual), expected)), m_options.quality.queryMm, key, facePlan.face);
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        const auto checkVector = [&](const Point& actual, const IntervalPoint& expected, const char* key) -> Result<void>
+        {
+            if (auto businessCheck = Certify(NormUpper(detail::Subtract(Exact(actual), expected)), m_options.quality.queryMm, key, facePlan.face);
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            return {};
         };
-        checkVector(info.centroidMm, Enclose(facePlan.sourceCentroid), "NativeCentroidQueryMismatch");
-        checkVector(info.boundsMm[0], Enclose(facePlan.sourceMinimum), "NativeBoundsQueryMismatch");
-        checkVector(info.boundsMm[1], Enclose(facePlan.sourceMaximum), "NativeBoundsQueryMismatch");
+        if (auto businessCheck = checkVector(info.centroidMm, Enclose(facePlan.sourceCentroid), "NativeCentroidQueryMismatch"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = checkVector(info.boundsMm[0], Enclose(facePlan.sourceMinimum), "NativeBoundsQueryMismatch"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = checkVector(info.boundsMm[1], Enclose(facePlan.sourceMaximum), "NativeBoundsQueryMismatch"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto expectedNormal = Cross(Unit(facePlan.x, facePlan.xNormSquared), Unit(facePlan.y, facePlan.yNormSquared));
         if (!facePlan.faceSameSense)
         {
             expectedNormal = Times(expectedNormal, Exact(-1));
         }
-        checkVector(*info.normal, expectedNormal, "NativeNormalMismatch");
+        if (auto businessCheck = checkVector(*info.normal, expectedNormal, "NativeNormalMismatch"); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto expectedLength = Exact(0);
         for (const auto index : facePlan.edges)
         {
@@ -1003,12 +1247,16 @@ private:
             expectedLength = expectedLength + SqrtNonnegative(Enclose(edge.sourceLengthSquared));
         }
         const auto lengthError = Exact(info.boundaryMm) - expectedLength;
-        Certify(
-            std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
-            m_options.quality.queryMm,
-            "NativeLengthQueryMismatch",
-            facePlan.face
-        );
+        if (auto businessCheck = Certify(
+                std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
+                m_options.quality.queryMm,
+                "NativeLengthQueryMismatch",
+                facePlan.face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         native.info = info;
         for (const auto index : facePlan.edges)
         {
@@ -1124,8 +1372,16 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         std::vector<std::pair<SmLine*, Affine>> originals;
         for (const auto e : plan.edges)
         {
-            const auto line = dynamic_cast<SmLine*>(SameUse(e, native)->GetUVTrimCurvePointer());
-            Need(line != nullptr, "NativeMassBoundaryUvMissing", plan.face);
+            auto useResult = SameUse(e, native);
+            if (!useResult)
+            {
+                return tl::unexpected(std::move(useResult.error()));
+            }
+            const auto line = dynamic_cast<SmLine*>((*useResult)->GetUVTrimCurvePointer());
+            if (auto businessCheck = Need(line != nullptr, "NativeMassBoundaryUvMissing", plan.face); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             originals.push_back({ line, CurveEnvelope(*line) });
         }
         OwnedBoundary boundary;
@@ -1135,20 +1391,37 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             return tl::unexpected(std::move(operation.error()));
         }
         Good(native.face->CreateOrientedTrimBoundary(*m_model->context, TRUE, TRUE, counts, boundary.curves));
-        Need(counts.GetSize() == plan.loops.size(), "NativeMassBoundaryLoopMismatch", plan.face);
+        if (auto businessCheck = Need(counts.GetSize() == plan.loops.size(), "NativeMassBoundaryLoopMismatch", plan.face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (std::size_t e = 0; e < plan.edges.size(); ++e)
         {
-            const auto line = dynamic_cast<SmLine*>(SameUse(plan.edges[e], native)->GetUVTrimCurvePointer());
-            Need(line == originals[e].first, "NativeMassBoundaryMutatedUvOwner", plan.face);
+            auto useResult = SameUse(plan.edges[e], native);
+            if (!useResult)
+            {
+                return tl::unexpected(std::move(useResult.error()));
+            }
+            const auto line = dynamic_cast<SmLine*>((*useResult)->GetUVTrimCurvePointer());
+            if (auto businessCheck = Need(line == originals[e].first, "NativeMassBoundaryMutatedUvOwner", plan.face); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             const auto now = CurveEnvelope(*line);
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
-                Need(
-                    now.origin[axis].low == originals[e].second.origin[axis].low && now.origin[axis].high == originals[e].second.origin[axis].high &&
-                        now.delta[axis].low == originals[e].second.delta[axis].low && now.delta[axis].high == originals[e].second.delta[axis].high,
-                    "NativeMassBoundaryMutatedUvGeometry",
-                    plan.face
-                );
+                if (auto businessCheck = Need(
+                        now.origin[axis].low == originals[e].second.origin[axis].low &&
+                            now.origin[axis].high == originals[e].second.origin[axis].high &&
+                            now.delta[axis].low == originals[e].second.delta[axis].low &&
+                            now.delta[axis].high == originals[e].second.delta[axis].high,
+                        "NativeMassBoundaryMutatedUvGeometry",
+                        plan.face
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
         const auto surface = SurfaceEnvelope(*native.plane);
@@ -1159,11 +1432,22 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         for (ULONG loop = 0; loop < counts.GetSize(); ++loop)
         {
             std::vector<Affine> segments;
-            Need(counts[loop] > 0 && counts[loop] <= boundary.curves.GetSize() - offset, "NativeMassBoundaryCurveCount", plan.face);
+            if (auto businessCheck = Need(
+                    counts[loop] > 0 && counts[loop] <= boundary.curves.GetSize() - offset,
+                    "NativeMassBoundaryCurveCount",
+                    plan.face
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (ULONG i = 0; i < counts[loop]; ++i)
             {
                 const auto line = dynamic_cast<const SmLine*>(boundary.curves[static_cast<ULONG>(offset + i)]);
-                Need(line != nullptr, "NativeMassBoundaryNotAffine", plan.face);
+                if (auto businessCheck = Need(line != nullptr, "NativeMassBoundaryNotAffine", plan.face); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 segments.push_back(CurveEnvelope(*line));
             }
             for (std::size_t i = 0; i < segments.size(); ++i)
@@ -1182,22 +1466,30 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
                 gapFlux = Up(gapFlux + AbsoluteBound(correction));
                 const auto physical = NormUpper(Subtract(Evaluate(surface, end[0], end[1]), Evaluate(surface, next[0], next[1])));
                 m_report.volumeJunctionBoundMm = std::max(m_report.volumeJunctionBoundMm.value_or(0), physical);
-                Certify(physical, m_options.quality.consistencyMm, "NativeVolumeGapBudget", plan.face);
+                if (auto businessCheck = Certify(physical, m_options.quality.consistencyMm, "NativeVolumeGapBudget", plan.face); !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
                 for (const auto& endpoint : { segment.origin, end })
                 {
                     if (endpoint[0].low < domain.GetMin().x || endpoint[0].high > domain.GetMax().x || endpoint[1].low < domain.GetMin().y ||
                         endpoint[1].high > domain.GetMax().y)
                     {
-                        throw Failure{ Status::Indeterminate,
-                                       "NativeMassBoundaryOutsideWindow",
-                                       "Actual oriented finite trim exceeds verified window",
-                                       plan.face };
+                        return tl::unexpected(
+                            Failure{ Status::Indeterminate,
+                                     "NativeMassBoundaryOutsideWindow",
+                                     "Actual oriented finite trim exceeds verified window",
+                                     plan.face }
+                        );
                     }
                 }
             }
             offset += counts[loop];
         }
-        Need(offset == boundary.curves.GetSize(), "NativeMassBoundaryExtraCurves", plan.face);
+        if (auto businessCheck = Need(offset == boundary.curves.GetSize(), "NativeMassBoundaryExtraCurves", plan.face); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     m_report.volumeGapFluxBoundMm3 = gapFlux;
     m_report.volumeSkippedFluxBoundMm3 = skippedFlux;
@@ -1208,7 +1500,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
 {
     SmTArray<SmRegion*> regions;
     m_model->brep->GetRegions(regions);
-    Need(regions.GetSize() == (m_plan.closedBoundary ? 2U : 1U), "NativeRegionMultiplicity", m_plan.record);
+    if (auto businessCheck = Need(regions.GetSize() == (m_plan.closedBoundary ? 2U : 1U), "NativeRegionMultiplicity", m_plan.record); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     std::set<SmRegion*> actualRegions;
     for (ULONG i = 0; i < regions.GetSize(); ++i)
     {
@@ -1219,7 +1514,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
     {
         expectedRegions.insert(m_model->bounded);
     }
-    Need(actualRegions == expectedRegions, "NativeRegionIdentityMismatch", m_plan.record);
+    if (auto businessCheck = Need(actualRegions == expectedRegions, "NativeRegionIdentityMismatch", m_plan.record); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     SmTArray<SmShell*> shells;
     m_model->brep->GetShells(shells);
     std::set<SmShell*> actualShells;
@@ -1232,7 +1530,15 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
     {
         expectedShells.insert(m_model->inside);
     }
-    Need(actualShells == expectedShells && shells.GetSize() == expectedShells.size(), "NativeShellIdentityMismatch", m_plan.record);
+    if (auto businessCheck = Need(
+            actualShells == expectedShells && shells.GetSize() == expectedShells.size(),
+            "NativeShellIdentityMismatch",
+            m_plan.record
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     NativeRoleObservation role;
     role.regions = regions.GetSize();
     role.shells = shells.GetSize();
@@ -1248,33 +1554,50 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             ++role.boundedVoidRegions;
         }
     }
-    Need(
-        role.materialRegions == (m_plan.materialSolid ? 1U : 0U) &&
-            role.boundedVoidRegions == (m_plan.closedBoundary && !m_plan.materialSolid ? 1U : 0U) && bool(m_model->material) == m_plan.materialSolid,
-        "NativeMaterialRoleMismatch",
-        m_plan.record
-    );
-    Need(
-        m_model->outside->GetRegion() == m_model->brep->GetInfiniteRegion() && m_model->brep->GetInfiniteRegion()->IsVoid() == TRUE,
-        "NativeInfiniteRegionRole",
-        m_plan.record
-    );
+    if (auto businessCheck = Need(
+            role.materialRegions == (m_plan.materialSolid ? 1U : 0U) &&
+                role.boundedVoidRegions == (m_plan.closedBoundary && !m_plan.materialSolid ? 1U : 0U) &&
+                bool(m_model->material) == m_plan.materialSolid,
+            "NativeMaterialRoleMismatch",
+            m_plan.record
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (auto businessCheck = Need(
+            m_model->outside->GetRegion() == m_model->brep->GetInfiniteRegion() && m_model->brep->GetInfiniteRegion()->IsVoid() == TRUE,
+            "NativeInfiniteRegionRole",
+            m_plan.record
+        );
+        !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     if (m_plan.closedBoundary)
     {
-        Need(
-            m_model->inside && m_model->inside->GetRegion() == m_model->bounded &&
-                m_model->bounded->IsVoid() == (m_plan.materialSolid ? FALSE : TRUE) && m_model->inside->IsClosed() == TRUE &&
-                m_model->outside->IsClosed() == TRUE,
-            m_plan.materialSolid ? "NativeMaterialShellRole" : "NativeBoundedShellRole",
-            m_plan.record
-        );
+        if (auto businessCheck = Need(
+                m_model->inside && m_model->inside->GetRegion() == m_model->bounded &&
+                    m_model->bounded->IsVoid() == (m_plan.materialSolid ? FALSE : TRUE) && m_model->inside->IsClosed() == TRUE &&
+                    m_model->outside->IsClosed() == TRUE,
+                m_plan.materialSolid ? "NativeMaterialShellRole" : "NativeBoundedShellRole",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         SmTArray<SmShell*> boundedShells;
         m_model->bounded->GetShells(boundedShells);
-        Need(
-            boundedShells.GetSize() == 1 && boundedShells[0] == m_model->inside,
-            m_plan.materialSolid ? "NativeMaterialOuterShellIdentity" : "NativeBoundedOuterShellIdentity",
-            m_plan.record
-        );
+        if (auto businessCheck = Need(
+                boundedShells.GetSize() == 1 && boundedShells[0] == m_model->inside,
+                m_plan.materialSolid ? "NativeMaterialOuterShellIdentity" : "NativeBoundedOuterShellIdentity",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     if (m_plan.materialSolid)
     {
@@ -1284,7 +1607,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             return tl::unexpected(std::move(operation.error()));
         }
         Good(SmApiBrepMaterialCensus(m_model->brep.get(), solids, voids));
-        Need(solids == 1 && voids == 0, "NativeMaterialCensusMismatch", m_plan.record);
+        if (auto businessCheck = Need(solids == 1 && voids == 0, "NativeMaterialCensusMismatch", m_plan.record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         m_report.solidRegions = static_cast<std::size_t>(solids);
         m_report.voidCavities = static_cast<std::size_t>(voids);
     }
@@ -1294,12 +1620,16 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         SmFaceuse* opposite = nullptr;
         m_model->faces[f].face->GetFaceuses(same, opposite);
         const auto selected = m_plan.faces[f].faceSameSense ? same : opposite;
-        Need(
-            selected->GetShell() == m_model->outside &&
-                selected->GetMate()->GetShell() == (m_plan.closedBoundary ? m_model->inside : m_model->outside),
-            "NativeOutwardSideMismatch",
-            m_plan.faces[f].face
-        );
+        if (auto businessCheck = Need(
+                selected->GetShell() == m_model->outside &&
+                    selected->GetMate()->GetShell() == (m_plan.closedBoundary ? m_model->inside : m_model->outside),
+                "NativeOutwardSideMismatch",
+                m_plan.faces[f].face
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     std::vector<std::vector<std::size_t>> incidentFaces(m_plan.edges.size());
     for (std::size_t f = 0; f < m_plan.faces.size(); ++f)
@@ -1322,28 +1652,51 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         SmTArray<SmEdgeuse*> uses;
         Good(m_model->edges[e]->GetEdgeuses(uses));
         const bool shared = m_plan.closedBoundary || (m_plan.openSheet && m_plan.openSheet->sharedEdge == e);
-        Need(bool(m_model->edges[e]->IsLamina()) == !shared, "NativeSourceFreeEdgeMismatch", m_plan.edges[e].record);
-        Need(expected.size() == (shared ? 2U : 1U) && uses.GetSize() == 2 * expected.size(), "NativeAdjacencyMultiplicity", m_plan.edges[e].record);
+        if (auto businessCheck = Need(bool(m_model->edges[e]->IsLamina()) == !shared, "NativeSourceFreeEdgeMismatch", m_plan.edges[e].record);
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Need(
+                expected.size() == (shared ? 2U : 1U) && uses.GetSize() == 2 * expected.size(),
+                "NativeAdjacencyMultiplicity",
+                m_plan.edges[e].record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (ULONG i = 0; i < uses.GetSize(); ++i)
         {
             const auto use = uses[i];
             actual.insert(use->GetLoopuse()->GetFaceuse()->GetFace());
-            Need(
-                use->GetEdge() == m_model->edges[e] && use->GetMate()->GetMate() == use && use->GetRadial()->GetRadial() == use &&
-                    use->GetRadial()->GetLoopuse()->GetFaceuse()->GetShell() == use->GetLoopuse()->GetFaceuse()->GetShell(),
-                "NativeRadialOrMateMismatch",
-                m_plan.edges[e].record
-            );
-            if (shared)
-            {
-                Need(
-                    use->GetRadial()->GetLoopuse()->GetFaceuse()->GetFace() != use->GetLoopuse()->GetFaceuse()->GetFace(),
-                    "NativeSharedFaceIdentityMismatch",
+            if (auto businessCheck = Need(
+                    use->GetEdge() == m_model->edges[e] && use->GetMate()->GetMate() == use && use->GetRadial()->GetRadial() == use &&
+                        use->GetRadial()->GetLoopuse()->GetFaceuse()->GetShell() == use->GetLoopuse()->GetFaceuse()->GetShell(),
+                    "NativeRadialOrMateMismatch",
                     m_plan.edges[e].record
                 );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (shared)
+            {
+                if (auto businessCheck = Need(
+                        use->GetRadial()->GetLoopuse()->GetFaceuse()->GetFace() != use->GetLoopuse()->GetFaceuse()->GetFace(),
+                        "NativeSharedFaceIdentityMismatch",
+                        m_plan.edges[e].record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
-        Need(actual == expected, "NativeSourceAdjacencyMismatch", m_plan.edges[e].record);
+        if (auto businessCheck = Need(actual == expected, "NativeSourceAdjacencyMismatch", m_plan.edges[e].record); !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         row.nativeUses = uses.GetSize();
         m_report.adjacency.push_back(std::move(row));
     }
@@ -1402,29 +1755,45 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             const auto integral = std::move(*integralResult);
             if (!(integral.low > 0))
             {
-                throw Failure{ Status::Indeterminate,
-                               "NativeVolumeSignUnestablished",
-                               "Actual finite boundary flux is not proved positive",
-                               m_plan.record };
+                return tl::unexpected(
+                    Failure{ Status::Indeterminate,
+                             "NativeVolumeSignUnestablished",
+                             "Actual finite boundary flux is not proved positive",
+                             m_plan.record }
+                );
             }
             for (const auto error : { integral - Enclose(m_plan.box->volume), Exact(volume) - integral })
             {
                 volumeBound = std::max({ volumeBound, std::abs(error.low), std::abs(error.high) });
             }
             m_report.volumeBoundMm3 = volumeBound;
-            Certify(volumeBound, m_options.quality.volumeMm3, "NativeBoundaryVolumeBudget", m_plan.record);
-            Certify(
-                std::max(std::abs((Exact(volume) - Enclose(m_plan.box->volume)).low), std::abs((Exact(volume) - Enclose(m_plan.box->volume)).high)),
-                m_options.quality.volumeMm3,
-                "NativeVolumeQueryMismatch",
-                m_plan.record
-            );
-            Certify(
-                NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
-                m_options.quality.queryMm,
-                "NativeMassCentroidMismatch",
-                m_plan.record
-            );
+            if (auto businessCheck = Certify(volumeBound, m_options.quality.volumeMm3, "NativeBoundaryVolumeBudget", m_plan.record); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Certify(
+                    std::max(
+                        std::abs((Exact(volume) - Enclose(m_plan.box->volume)).low),
+                        std::abs((Exact(volume) - Enclose(m_plan.box->volume)).high)
+                    ),
+                    m_options.quality.volumeMm3,
+                    "NativeVolumeQueryMismatch",
+                    m_plan.record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            if (auto businessCheck = Certify(
+                    NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
+                    m_options.quality.queryMm,
+                    "NativeMassCentroidMismatch",
+                    m_plan.record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
         }
         else
         {
@@ -1437,23 +1806,31 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
                     info.centroidMm[axis] += face.info.areaMm2 * face.info.centroidMm[axis];
                 }
             }
-            Need(
-                std::isfinite(info.areaMm2) && info.areaMm2 > 0,
-                m_plan.closedBoundary ? "NativeClosedSurfaceAreaInvalid" : "NativeOpenSheetAreaInvalid",
-                m_plan.record
-            );
+            if (auto businessCheck = Need(
+                    std::isfinite(info.areaMm2) && info.areaMm2 > 0,
+                    m_plan.closedBoundary ? "NativeClosedSurfaceAreaInvalid" : "NativeOpenSheetAreaInvalid",
+                    m_plan.record
+                );
+                !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
             for (auto& value : info.centroidMm)
             {
                 value /= info.areaMm2;
             }
             if (m_plan.closedBoundary)
             {
-                Certify(
-                    NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
-                    m_options.quality.queryMm,
-                    "NativeClosedSurfaceCentroidMismatch",
-                    m_plan.record
-                );
+                if (auto businessCheck = Certify(
+                        NormUpper(Subtract(Exact(info.centroidMm), Enclose(m_plan.box->center))),
+                        m_options.quality.queryMm,
+                        "NativeClosedSurfaceCentroidMismatch",
+                        m_plan.record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
             else
             {
@@ -1465,12 +1842,16 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
                     area = area + weight;
                     moment = Add(moment, Times(Enclose(face.sourceCentroid), weight));
                 }
-                Certify(
-                    NormUpper(Subtract(Exact(info.centroidMm), Times(moment, Exact(1) / area))),
-                    m_options.quality.queryMm,
-                    "NativeOpenSheetCentroidMismatch",
-                    m_plan.record
-                );
+                if (auto businessCheck = Certify(
+                        NormUpper(Subtract(Exact(info.centroidMm), Times(moment, Exact(1) / area))),
+                        m_options.quality.queryMm,
+                        "NativeOpenSheetCentroidMismatch",
+                        m_plan.record
+                    );
+                    !businessCheck)
+                {
+                    return tl::unexpected(std::move(businessCheck.error()));
+                }
             }
         }
         SmPoint3d minimum, maximum;
@@ -1482,36 +1863,48 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         info.boundsMm = { PointOf(minimum), PointOf(maximum) };
         const auto& minimumExpected = m_plan.closedBoundary ? m_plan.box->minimum : m_plan.openSheet->minimum;
         const auto& maximumExpected = m_plan.closedBoundary ? m_plan.box->maximum : m_plan.openSheet->maximum;
-        Certify(
-            NormUpper(Subtract(Exact(info.boundsMm[0]), Enclose(minimumExpected))),
-            m_options.quality.queryMm,
-            m_plan.materialSolid  ? "NativeSolidBoundsMismatch" :
-            m_plan.closedBoundary ? "NativeClosedSurfaceBoundsMismatch" :
-                                    "NativeOpenSheetBoundsMismatch",
-            m_plan.record
-        );
-        Certify(
-            NormUpper(Subtract(Exact(info.boundsMm[1]), Enclose(maximumExpected))),
-            m_options.quality.queryMm,
-            m_plan.materialSolid  ? "NativeSolidBoundsMismatch" :
-            m_plan.closedBoundary ? "NativeClosedSurfaceBoundsMismatch" :
-                                    "NativeOpenSheetBoundsMismatch",
-            m_plan.record
-        );
+        if (auto businessCheck = Certify(
+                NormUpper(Subtract(Exact(info.boundsMm[0]), Enclose(minimumExpected))),
+                m_options.quality.queryMm,
+                m_plan.materialSolid  ? "NativeSolidBoundsMismatch" :
+                m_plan.closedBoundary ? "NativeClosedSurfaceBoundsMismatch" :
+                                        "NativeOpenSheetBoundsMismatch",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto businessCheck = Certify(
+                NormUpper(Subtract(Exact(info.boundsMm[1]), Enclose(maximumExpected))),
+                m_options.quality.queryMm,
+                m_plan.materialSolid  ? "NativeSolidBoundsMismatch" :
+                m_plan.closedBoundary ? "NativeClosedSurfaceBoundsMismatch" :
+                                        "NativeOpenSheetBoundsMismatch",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         auto expectedArea = Exact(0), expectedLength = Exact(0);
         for (const auto& face : m_plan.faces)
         {
             expectedArea = expectedArea + SqrtNonnegative(Enclose(face.sourceAreaSquared));
         }
         auto areaError = Exact(info.areaMm2) - expectedArea;
-        Certify(
-            std::max(std::abs(areaError.low), std::abs(areaError.high)),
-            m_options.quality.areaMm2,
-            m_plan.materialSolid  ? "NativeSolidAreaMismatch" :
-            m_plan.closedBoundary ? "NativeClosedSurfaceAreaMismatch" :
-                                    "NativeOpenSheetAreaMismatch",
-            m_plan.record
-        );
+        if (auto businessCheck = Certify(
+                std::max(std::abs(areaError.low), std::abs(areaError.high)),
+                m_options.quality.areaMm2,
+                m_plan.materialSolid  ? "NativeSolidAreaMismatch" :
+                m_plan.closedBoundary ? "NativeClosedSurfaceAreaMismatch" :
+                                        "NativeOpenSheetAreaMismatch",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
         for (std::size_t e = 0; e < m_plan.edges.size(); ++e)
         {
             double length = 0;
@@ -1524,14 +1917,18 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
             expectedLength = expectedLength + SqrtNonnegative(Enclose(m_plan.edges[e].sourceLengthSquared));
         }
         auto lengthError = Exact(info.boundaryMm) - expectedLength;
-        Certify(
-            std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
-            m_options.quality.queryMm,
-            m_plan.materialSolid  ? "NativeSolidEdgeLengthMismatch" :
-            m_plan.closedBoundary ? "NativeClosedSurfaceEdgeLengthMismatch" :
-                                    "NativeOpenSheetEdgeLengthMismatch",
-            m_plan.record
-        );
+        if (auto businessCheck = Certify(
+                std::max(std::abs(lengthError.low), std::abs(lengthError.high)),
+                m_options.quality.queryMm,
+                m_plan.materialSolid  ? "NativeSolidEdgeLengthMismatch" :
+                m_plan.closedBoundary ? "NativeClosedSurfaceEdgeLengthMismatch" :
+                                        "NativeOpenSheetEdgeLengthMismatch",
+                m_plan.record
+            );
+            !businessCheck)
+        {
+            return tl::unexpected(std::move(businessCheck.error()));
+        }
     }
     info.shapeRole = m_plan.source->PartDefinition().shapeRole;
     info.freeBoundaryEdges = 0;
@@ -1543,7 +1940,10 @@ Interval SegmentFlux(const FluxCoefficients& c, const Affine& line, double minim
         }
     }
     const auto expectedFreeEdges = m_plan.closedBoundary ? 0U : m_plan.edges.size() - (m_plan.openSheet ? 1U : 0U);
-    Need(info.freeBoundaryEdges == expectedFreeEdges, "NativeFreeBoundaryMismatch", m_plan.record);
+    if (auto businessCheck = Need(info.freeBoundaryEdges == expectedFreeEdges, "NativeFreeBoundaryMismatch", m_plan.record); !businessCheck)
+    {
+        return tl::unexpected(std::move(businessCheck.error()));
+    }
     m_model->info = info;
     m_report.native = info;
     return {};
