@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
-#include "StepImportPlan.h"
+#include "StepImportResult.h"
 
 namespace step_import::detail
 {
@@ -13,7 +13,7 @@ public:
     ~Execution();
     void Check(Phase phase);
     void ChargeNative(Report& bodyReport, std::size_t sourceRecord); // Shared request budget; local body observations are separate.
-    void Commit(); // Sole success/cancellation arbitration. No allocation or native operation after success.
+    Result<void> Commit(); // Sole success/cancellation arbitration. No allocation or native operation after success.
     std::size_t NativeCalls() const
     {
         return m_report.nativeCalls;
@@ -23,7 +23,7 @@ public:
         return &report == &m_report;
     }
     void ClaimRepairEdits(const std::vector<std::size_t>& indices);
-    void CheckRepairCompletion();
+    Result<void> CheckRepairCompletion();
     std::size_t RepairProofRemaining() const;
     void SpendRepairProof(std::size_t products);
     void ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices);

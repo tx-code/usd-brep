@@ -118,10 +118,14 @@ Result<void> Publication::FinishAccept()
 {
     // Only Execution owns these legacy domain failures. Preserve their order
     // while the publication protocol itself propagates results without throws.
+    auto repairs = m_execution.CheckRepairCompletion();
+    if (!repairs)
+    {
+        return tl::unexpected(std::move(repairs.error()));
+    }
     auto ready = LegacyFailureAdapter(
         [&]
         {
-            m_execution.CheckRepairCompletion();
             m_execution.Check(Phase::NativeReady);
         }
     );
@@ -198,12 +202,7 @@ Result<void> Publication::FinishAccept()
     {
         return tl::unexpected(std::move(finalReport.error()));
     }
-    auto committed = LegacyFailureAdapter(
-        [&]
-        {
-            m_execution.Commit();
-        }
-    );
+    auto committed = m_execution.Commit();
     if (!committed)
     {
         return tl::unexpected(std::move(committed.error()));

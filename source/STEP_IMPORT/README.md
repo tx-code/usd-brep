@@ -1003,8 +1003,9 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 
 定义选择也直接返回 `Result`，保留源顺序、owning 选择收据以及选择前／完成后的检查点。
 Publication 的接纳、报告容量和最终提交检查结果直接传播至入口，由公开 Outcome 的
-拥有者记录诊断及完成失败收尾；不把错误值再抛回异常。尚未迁移的 Execution 调用
-通过明确的 legacy adapter 保留原检查顺序、计费及 observer 异常分类。
+拥有者记录诊断及完成失败收尾；不把错误值再抛回异常。Execution 的 Commit 与修复登记
+完成检查也直接返回结果；其余尚未迁移的调用通过明确的 legacy adapter 保留原检查顺序、
+计费及 observer 异常分类。[执行协议回归](tests/Execution.md) 独立固定最终 guard 与 CAS 的顺序。
 
 迁移目标是消除项目主动创建的异常，以显式结果表达业务、配置及内部失败，
 而非按异常类型名筛选：
