@@ -1,5 +1,28 @@
 # STEP_IMPORT（内部 C++20）
 
+## 显式装配导入 C++ 接口
+
+`StepAssemblyImport.h` 提供 `ImportAssemblyBytes`／`ImportAssemblyFile`。调用者显式设置
+general 模式、质量配置和 `AssemblyLimits`：occurrences、instances 必须为正，深度从根的 0
+开始计数；实例上限包含根。当前 occurrence 上限不得超过源记录预算，instances 和 depth
+实现上限各为 1,000,000。无默认放宽；修复、独立定义选择／源错误隔离暂不组合。
+
+接口对全部声明定义及 usage 根执行源归属、单位／坐标系、原生定义构建、实例展开和
+完整报告检查，沿用两次报告序列化及 `Execution::Commit` 的唯一成功／取消裁决。
+失败先释放未发布模型；报告预算不足不能返回模型。源解释假设保留为
+`AcceptedUnderInterpretation`，不因成功构建升级为已验证协议身份。
+
+成功的 `AssemblyOutcome::assembly` 是 owning 只读快照：`Body(definition, body)` 返回
+定义本地毫米坐标下的已有 `ModelSnapshot`，重复实例共享该定义。`Instance(i)` 返回独立
+数值副本，含定义索引、父实例、源 usage、所属根及到该根坐标系的旋转／平移。
+不同根不存在自动推断的公共世界坐标系。清空 outcome/report 不会丢失来源或变换证据。
+通过 Body 获取的建模副本仍在**定义本地坐标**；没有自动实例化建模副本或装配存档接口。
+
+当前范围为已登记源 profile 的 NAUO/CDSR、直接表示项中的 IDT 三维轴系，以及已有
+单体／材料集合构建能力；surface-model 角色保持原义。源归属不完整、未支持关联几何等
+仍明确拒绝。该 development 接口不授予完整 EXPRESS 或连续 UV／变换误差证明。
+现有自动文件导入、CLI 和 GUI 尚未切换到此入口，须显式调用该 C++ API。
+
 ## 装配变换的内部数值候选
 
 `StepImportAssemblyPlacement.h` 的 `EvaluateAssemblyPlacements` 消费 owning 的
@@ -35,14 +58,14 @@
 定义及实体报告复用现有观察、共享调用预算和失败回收机制；后续成员失败时整个候选丢弃。
 当前候选要求 general 模式、无修复／选择隔离，关联线框和构造几何仍明确拒绝。
 调用者持有原生串行锁并负责最终报告和提交点。本内部返回值不等于已发布导入结果；
-尚未新增公共装配 snapshot、CLI 接纳或实例存档格式。
+公共装配入口在其上完成报告和提交；CLI 接纳与实例存档格式仍待接入。
 
 `CaptureAssemblyEvidence` 把完整候选的定义／形状身份、上下文精确单位证据、局部变换及
 实例父路径提取为只读元数据；不保留任何原生 BRep，所以失败报告不会阻止候选清理。
 `SerializeAssembly` 复用同一个有界报告写入器，输出独立的装配 development 格式和
 逐定义检查范围。源哈希不匹配、成功状态缺少定义检查或字节预算不足时整体失败并清空
-输出；既有非装配报告格式不变。此为最终发布的报告前置能力，尚未新增公开导入入口，
-内部测试中的成功状态序列化不代表已通过请求提交点。
+输出；既有非装配报告格式不变。公共入口在最终提交前完成该报告；仅调用内部序列化
+函数本身仍不代表已通过请求提交点。
 
 ## 角环面／自交环面支撑的原基提取
 

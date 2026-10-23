@@ -41,6 +41,39 @@ Publication::Publication(const Options& options, FileOutcome& outcome, const ste
     : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_fileSink(&outcome.model)
 {
 }
+Publication::Publication(const Options& options, AssemblyOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution)
+    : m_options(options),
+      m_status(outcome.status),
+      m_report(outcome.report),
+      m_source(source),
+      m_execution(execution),
+      m_assemblySink(&outcome.assembly)
+{
+}
+Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candidate)
+{
+    if (!candidate)
+    {
+        return tl::unexpected(std::move(candidate.error()));
+    }
+    if (!m_assemblySink || candidate->definitions.size() != m_report.definitions.size() ||
+        std::any_of(
+            m_report.definitions.begin(),
+            m_report.definitions.end(),
+            [](const auto& d)
+            {
+                return !d.checksPassed;
+            }
+        ))
+    {
+        return tl::unexpected(
+            Failure{ Status::BuildFailure, "CompleteAssemblyPublicationRequired", "Incomplete native assembly cannot be published", {} }
+        );
+    }
+    m_assemblyEvidence = CaptureAssemblyEvidence(*candidate);
+    m_preparedAssembly = AssemblyAccess::Seal(std::move(*candidate), m_assemblyEvidence);
+    return FinishAccept();
+}
 [[nodiscard]] Result<void> Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
 {
     if ((!m_documentSink && !m_fileSink) || !candidate || candidate->PartCount() != m_report.definitions.size() ||
@@ -147,7 +180,8 @@ Publication::Publication(const Options& options, FileOutcome& outcome, const ste
     {
         // Release this temporary source owner before the commit region. The
         // prepared model remains the authoritative owner of both assumptions.
-        const auto semantic = m_preparedDocument   ? m_preparedDocument->Source()->Part(0) :
+        const auto semantic = m_preparedAssembly   ? m_preparedAssembly->Source()->Definition(0) :
+                              m_preparedDocument   ? m_preparedDocument->Source()->Part(0) :
                               m_preparedCollection ? m_preparedCollection->Source() :
                                                      m_prepared->Source();
         interpreted = HasAppliedSourceInterpretation(*semantic);
@@ -210,7 +244,12 @@ Publication::Publication(const Options& options, FileOutcome& outcome, const ste
     // Publication contract: docs/design/step-import.md. After successful
     // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
-    if (m_fileSink)
+    if (m_assemblySink)
+    {
+        static_assert(std::is_nothrow_move_assignable_v<decltype(m_preparedAssembly)>);
+        *m_assemblySink = std::move(m_preparedAssembly);
+    }
+    else if (m_fileSink)
     {
         static_assert(std::is_nothrow_assignable_v<FileModel&, decltype(m_prepared)>);
         static_assert(std::is_nothrow_assignable_v<FileModel&, decltype(m_preparedCollection)>);
@@ -257,6 +296,29 @@ Publication::Publication(const Options& options, FileOutcome& outcome, const ste
 }
 [[nodiscard]] Result<void> Publication::WriteReport()
 {
+    if (m_assemblySink && !m_assemblyEvidence)
+    {
+        return SerializeAssemblyFailure(
+            m_status,
+            m_report,
+            m_options.quality,
+            m_source,
+            std::min(m_options.nativeLimits.reportBytes, m_source.limits.reportBytes),
+            m_report.json
+        );
+    }
+    if (m_assemblyEvidence)
+    {
+        return SerializeAssembly(
+            m_status,
+            m_report,
+            m_options.quality,
+            m_source,
+            *m_assemblyEvidence,
+            std::min(m_options.nativeLimits.reportBytes, m_source.limits.reportBytes),
+            m_report.json
+        );
+    }
     return Serialize(
         m_status,
         m_report,
@@ -275,9 +337,10 @@ void Publication::FinishFailure()
 {
     // Preserve the existing disposal-before-report ordering and any discard
     // evidence already recorded by a builder that failed before handoff.
-    const bool held = bool(m_candidate) || bool(m_prepared) || bool(m_preparedCollection) || bool(m_preparedDocument) ||
+    const bool held = bool(m_preparedAssembly) || bool(m_candidate) || bool(m_prepared) || bool(m_preparedCollection) || bool(m_preparedDocument) ||
                       !m_collectionCandidates.empty();
     m_preparedDocument.reset();
+    m_preparedAssembly.reset();
     m_prepared.reset();
     m_preparedCollection.reset();
     m_collectionCandidates.clear();

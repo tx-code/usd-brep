@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include "StepImportAssemblySnapshot.h"
 #include "StepImportGroupedBuild.h"
 
 namespace step_import::detail
@@ -16,6 +17,8 @@ public:
     Publication(const Options& options, PartOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
     Publication(const Options& options, DocumentOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
     Publication(const Options& options, FileOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
+    Publication(const Options& options, AssemblyOutcome& outcome, const step_source::InspectOutcome& source, Execution& execution);
+    [[nodiscard]] Result<void> AcceptAssembly(Result<AssemblyNativeCandidate> candidate);
     Publication(const Publication&) = delete;
     Publication& operator=(const Publication&) = delete;
 
@@ -44,6 +47,9 @@ private:
     std::shared_ptr<const MaterialCollectionSnapshot>* m_collectionSink = nullptr;
     std::shared_ptr<const DocumentSnapshot>* m_documentSink = nullptr;
     std::shared_ptr<const DocumentSnapshot> m_preparedDocument;
+    std::shared_ptr<const AssemblySnapshot>* m_assemblySink = nullptr;
+    std::shared_ptr<const AssemblySnapshot> m_preparedAssembly;
+    std::shared_ptr<const AssemblyEvidence> m_assemblyEvidence; // Never owns native bodies.
     std::vector<std::shared_ptr<ModelData>> m_collectionCandidates;
     std::shared_ptr<const MaterialCollectionSnapshot> m_preparedCollection;
     std::shared_ptr<ModelData> m_candidate;

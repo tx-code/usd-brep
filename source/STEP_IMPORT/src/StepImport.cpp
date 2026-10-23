@@ -274,7 +274,7 @@ void Validate(const Options& options)
     }
 }
 template <class Result = Outcome, class Capture>
-Result Import(const Options& options, Capture capture)
+Result Import(const Options& options, Capture capture, AssemblyLimits assemblyLimits = {})
 {
     if constexpr (!std::is_same_v<Result, DocumentOutcome> && !std::is_same_v<Result, FileOutcome>)
     {
@@ -382,7 +382,21 @@ Result Import(const Options& options, Capture capture)
         }
         if (options.generalBrep)
         {
-            if constexpr (std::is_same_v<Result, DocumentOutcome> || std::is_same_v<Result, FileOutcome>)
+            std::shared_ptr<const step_semantics::AssemblyDocument> assemblySource;
+            if constexpr (std::is_same_v<Result, AssemblyOutcome>)
+            {
+                auto checked = step_semantics::CheckAssemblySource(
+                    raw,
+                    options.semanticLimits,
+                    options.sourcePolicy,
+                    options.schemaInterpretation,
+                    options.unitInterpretation,
+                    options.complexMappingInterpretation
+                );
+                assemblySource = std::move(checked.document);
+                report.generalSource = std::move(checked.checks);
+            }
+            else if constexpr (std::is_same_v<Result, DocumentOutcome> || std::is_same_v<Result, FileOutcome>)
             {
                 if (options.sourceErrorIsolation)
                 {
@@ -433,7 +447,7 @@ Result Import(const Options& options, Capture capture)
             report.semanticStatus = step_semantics::StatusName(checked.status);
             report.planarStatus = "NotApplicable";
             report.diagnostics = checked.diagnostics;
-            if (!checked.snapshot && !checked.document)
+            if (!checked.snapshot && !checked.document && !assemblySource)
             {
                 // Raw capture failures precede semantic classification. Preserve
                 // I/O, carrier and resource categories, as on the planar path.
@@ -458,7 +472,24 @@ Result Import(const Options& options, Capture capture)
                 publish(std::move(targets));
                 return result;
             }
-            if constexpr (std::is_same_v<Result, DocumentOutcome>)
+            if constexpr (std::is_same_v<Result, AssemblyOutcome>)
+            {
+                auto candidate = [&]
+                {
+                    std::lock_guard lock(detail::NativeMutex());
+                    return detail::BuildAssembly(
+                        assemblySource,
+                        options,
+                        report,
+                        execution,
+                        assemblyLimits.occurrences,
+                        assemblyLimits.instances,
+                        assemblyLimits.depth
+                    );
+                }();
+                publish(publication.AcceptAssembly(std::move(candidate)));
+            }
+            else if constexpr (std::is_same_v<Result, DocumentOutcome>)
             {
                 if (!checked.document)
                 {
@@ -611,6 +642,60 @@ Result Import(const Options& options, Capture capture)
     return result;
 }
 } // namespace
+namespace
+{
+void ValidateAssembly(const Options& options, AssemblyLimits limits)
+{
+    Validate(options);
+    if (!options.generalBrep || options.faceOrientationRepair || options.cylindricalBandRepair || options.definitionSelection ||
+        options.sourceErrorIsolation || !limits.occurrences || limits.occurrences > options.sourceLimits.records || !limits.instances ||
+        limits.instances > 1000000 || limits.depth > 1000000)
+    {
+        throw std::invalid_argument(
+            "Assembly import requires explicit general scope, positive bounded occurrence/instance limits and no repair/selection isolation"
+        );
+    }
+}
+} // namespace
+AssemblyOutcome ImportAssemblyBytes(std::string bytes, const Options& options, AssemblyLimits limits)
+{
+    const Options frozen = options;
+    ValidateAssembly(frozen, limits);
+    return Import<AssemblyOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectBytes(
+                std::move(bytes),
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        },
+        limits
+    );
+}
+AssemblyOutcome ImportAssemblyFile(const std::filesystem::path& path, const Options& options, AssemblyLimits limits)
+{
+    const Options frozen = options;
+    const auto capturedPath = path;
+    ValidateAssembly(frozen, limits);
+    return Import<AssemblyOutcome>(
+        frozen,
+        [&]
+        {
+            return step_source::InspectFile(
+                capturedPath,
+                frozen.sourceLimits,
+                frozen.headerNamePolicy,
+                frozen.dataStringPolicy,
+                frozen.carrierInterpretation
+            );
+        },
+        limits
+    );
+}
 Outcome ImportBytes(std::string bytes, const Options& options)
 {
     const Options frozen = options;

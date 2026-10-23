@@ -732,7 +732,8 @@ void WriteReportJson(
     const Quality& quality,
     const step_source::InspectOutcome& source,
     bool nestedBody = false,
-    const AssemblyEvidence* assembly = nullptr
+    const AssemblyEvidence* assembly = nullptr,
+    bool assemblyRequest = false
 )
 {
     if (report.generalBrep)
@@ -740,7 +741,7 @@ void WriteReportJson(
         // Separate scope: do not serialize unexecuted planar proofs as
         // qualification for analytic/NURBS models or complete AP214 rules.
         w.Add(
-            assembly ?
+            assembly || assemblyRequest ?
                 "{\"format_version\":\"step-assembly-development.v1\",\"scope\":\"AssemblyDevelopment\",\"status\":" :
             nestedBody ?
                 (report.sourceEvidenceScope == "RepairParent" ?
@@ -762,6 +763,10 @@ void WriteReportJson(
         if (assembly)
         {
             AssemblyJson(w, *assembly);
+        }
+        else if (assemblyRequest)
+        {
+            w.Add(",\"assembly\":null");
         }
         if (report.cylindricalBandRepairRequest || report.cylindricalBandRepairs)
         {
@@ -1218,7 +1223,7 @@ void WriteReportJson(
             }
             w.Add("]}");
         }
-        if (report.productDocument || assembly)
+        if (report.productDocument || assembly || assemblyRequest)
         {
             w.Add(",\"product_document\":{\"complete\":");
             w.Bool(IsAcceptedReportStatus(status));
@@ -2044,6 +2049,35 @@ void WriteReportJson(
     {
         return tl::unexpected(
             Failure{ Status::ResourceLimit, "ImportReportByteLimit", "Mandatory import report cannot be published within the byte allowance", {} }
+        );
+    }
+    return {};
+}
+Result<void> SerializeAssemblyFailure(
+    Status status,
+    const Report& report,
+    const Quality& quality,
+    const step_source::InspectOutcome& source,
+    std::size_t limit,
+    std::string& output
+)
+{
+    if (IsAcceptedReportStatus(status))
+    {
+        output.clear();
+        return tl::unexpected(Failure{ Status::BuildFailure, "AssemblyEvidenceMissing", "Accepted assembly requires its complete evidence", {} });
+    }
+    if (!Writer::Publish(
+            limit,
+            output,
+            [&](Writer& writer)
+            {
+                WriteReportJson(writer, status, report, quality, source, false, nullptr, true);
+            }
+        ))
+    {
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "ImportReportByteLimit", "Mandatory assembly failure report exceeds its byte allowance", {} }
         );
     }
     return {};

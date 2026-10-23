@@ -18,6 +18,14 @@ struct AssemblyEvidence
     std::vector<AssemblyDefinitionEvidence> definitions;
 };
 std::shared_ptr<const AssemblyEvidence> CaptureAssemblyEvidence(const AssemblyNativeCandidate& candidate);
+Result<void> SerializeAssemblyFailure(
+    Status status,
+    const Report& report,
+    const Quality& quality,
+    const step_source::InspectOutcome& source,
+    std::size_t limit,
+    std::string& output
+);
 Result<void> SerializeAssembly(
     Status status,
     const Report& report,

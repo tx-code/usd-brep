@@ -2,61 +2,37 @@
 change: feature
 ---
 
-`STEP_SEMANTICS` adds an owning, read-only assembly occurrence binding plan for
-declared NAUO/CDSR/item-defined transformed relationships. It preserves repeated
-usages and parent/child source roles, rejecting ambiguous or incomplete bindings
-without a partial plan.
-Transformation items must belong directly to their declared representation
-endpoints; swapped or missing items are rejected without automatic correction.
-Owning `SourceBindings` views expose existing named type/field/reference bindings
-to subsequent assembly checks without fabricating a qualified part snapshot.
-`InspectAssemblyInputs` adds all-or-nothing parent/child unit-context observations,
-reusing existing unit checks. It retains mixed SI contexts and defers conversion
-arithmetic; successful observation stays `Deferred` without a qualified model.
-The internal native-import planner evaluates right-handed item-defined frame
-matrices using the shared source frame and exact unit routines. Its numeric
-candidates do not grant native assembly import or a geometric error certificate.
-`PlanAssemblyDefinitions` separates definition-local representation scopes from
-occurrence placement links, retaining all directly listed geometry and placement
-items. Scope success is not whole-document ownership or geometry qualification.
-Nominal solid/surface/placement roles and all direct representation memberships
-are retained. Empty leaf geometry and unsupported extra items are not silently
-discarded; a placement-only parent is not represented as an empty material solid.
-Definition scopes retain reachable faces and apply the shared outer-bound source
-predicate, preserving duplicate-outer diagnostics and unmarked-region deferrals.
-Internal numeric instance expansion retains nested/repeated occurrence paths
-under explicit declared roots, with independent node/depth limits and complete
-cancellation failure. It still does not publish a native assembly model.
-`InspectAssemblyDefinitions` reuses existing per-product checks, keeping
-placement-only wrappers separate from material and surface definitions. All
-definition observations remain unqualified until whole-document closure succeeds.
-`CheckAssemblySource` adds whole-document ownership and final metadata approval,
-publishing dedicated owning definition snapshots only when every required source
-check completes. Unowned geometry still blocks publication; native assembly
-construction is not yet exposed by this API.
-An internal native assembly candidate builder reuses existing definition/body
-construction and report accounting. Repeated instances share a definition;
-placement wrappers create no empty body. No public assembly import/publication
-entry point is exposed yet.
-Assembly report evidence now preserves definition/shape identities, exact units,
-local placement provenance and instance paths through the existing bounded writer.
-It retains no native body ownership; truncated or mismatched reports are refused.
+`ImportAssemblyBytes` and `ImportAssemblyFile` add an explicit C++ general-development
+assembly path with owning read-only definition bodies and nested/repeated instance
+placements. All source definitions, ownership, units, native checks and mandatory
+report publication must succeed before the existing cancellation/commit gate transfers
+the complete snapshot. Report overflow or cancellation returns no partial model.
+
+NAUO/CDSR/item-defined axis placements retain source identity and direct representation
+membership; exact context units are applied once. Material and surface roles remain
+distinct, placement wrappers create no empty solids, and unowned geometry is refused.
+The source inspection/binding APIs remain separately qualified prerequisites. Immutable
+source/field storage is shared rather than parsed again. Reports retain instance paths,
+frame lineage, exact unit evidence and definition observations without retaining failed
+native candidates.
 
 ## Scope
 
-[Assembly binding prerequisite](../source/STEP_SEMANTICS/README.md#assembly-occurrence-binding-prerequisite).
-This is not native assembly import or numeric transform qualification.
+[Explicit assembly C++ import](../source/STEP_IMPORT/README.md).
+This is a development subset, not full schema or continuous geometric-error qualification.
+Associated geometry, repairs and source isolation are not combined with this entry yet.
+Existing automatic file import, CLI and GUI routing remain unchanged.
 
 ## Integrator action
 
-Rebuild STEP_SEMANTICS and consumers together: `RepresentationTransformLink`
-now carries direct item membership observations. Keep downstream
-unit, frame, closure and native checks separate from binding success.
+Rebuild SDK and consumers together. Include `StepAssemblyImport.h`, select explicit
+quality/general options and occurrence/instance/depth budgets. Body views and their
+modeling copies remain in definition-local millimetres; apply retained instance transforms
+explicitly. No assembly archive or transformed modeling-copy API is supplied yet.
 
 ## Compatibility
 
-Additive C++20 API with an internal struct layout extension; existing admission,
-report fields and native files are unchanged. Assembly declaration inspection
-charges additional visits for indexed representation-item membership.
-Product structure observations retain the shared typed binding owner; source
-and field storage are reused, not duplicated.
+Additive C++20 entry points; internal semantic struct layout extends. Existing nonassembly
+admission/report fields/native files remain unchanged. New assembly reports use their own
+development format. Source interpretation assumptions and pending numerical obligations
+retain their existing status and provenance.
