@@ -1,0 +1,15 @@
+{
+  "name": "tl::expected",
+  "version": "1.3.1",
+  "license": "CC0-1.0",
+  "source": "https://github.com/TartanLlama/expected",
+  "tag": "v1.3.1",
+  "commit": "1770e3559f2f6ea4a5fb4f577ad22aeb30fbd8e4",
+  "archive_url": "https://codeload.github.com/TartanLlama/expected/zip/1770e3559f2f6ea4a5fb4f577ad22aeb30fbd8e4",
+  "archive_sha256": "2b17a44acf2355a1f814bd68aca633b64ea74cb680c3743011b7b43ec94802bd",
+  "scope": "Unmodified single header and CC0 dedication; private STEP import implementation dependency",
+  "files_sha256": {
+    "include/tl/expected.hpp": "0788f7d544a2fdec1dd7a794e1e9863ad4cc6a8817982b6fd93fd98724b9fa19",
+    "COPYING": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  }
+}

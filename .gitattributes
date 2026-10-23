@@ -19,6 +19,7 @@
 # Preserve the pinned upstream bytes, including license and provenance.
 /third_party/microsoft-gsl/** -text -whitespace
 /third_party/boost-multiprecision/** -text -whitespace
+/third_party/tl-expected/** -text -whitespace
 /tools/step_*_validation/** text eol=lf
 /tools/step_evidence/** text eol=lf
 # Frozen evidence and schema witnesses are content-addressed byte artifacts.
