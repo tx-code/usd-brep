@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImportExecution.h"
+#include "StepImportSourceFrame.h"
+#include "StepImportVectorMath.h"
 
 #include <SmAxis2Placement.h>
 #include <SmBSplineCurve.h>
@@ -14,53 +16,6 @@
 
 namespace step_import::detail::construction
 {
-using Index = std::size_t;
-using V = Point;
-inline V Add(V a, V b)
-{
-    for (Index i = 0; i < 3; ++i)
-    {
-        a[i] += b[i];
-    }
-    return a;
-}
-inline V Sub(V a, V b)
-{
-    for (Index i = 0; i < 3; ++i)
-    {
-        a[i] -= b[i];
-    }
-    return a;
-}
-inline V Mul(V a, double b)
-{
-    for (auto& x : a)
-    {
-        x *= b;
-    }
-    return a;
-}
-inline double Dot(V a, V b)
-{
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-inline V Cross(V a, V b)
-{
-    return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
-}
-inline double Norm(V a)
-{
-    return std::hypot(a[0], a[1], a[2]);
-}
-inline V Unit(V a)
-{
-    const double n = Norm(a);
-    if (!(n > 0) || !std::isfinite(n))
-    {
-        throw std::domain_error("GeneralDegenerateFrame");
-    }
-    return Mul(a, 1 / n);
-}
 inline SmPoint3d P(V a)
 {
     return { a[0], a[1], a[2] };
@@ -112,11 +67,12 @@ class GeometryConstruction
 protected:
 
     GeometryConstruction(std::shared_ptr<const step_semantics::Snapshot> source, const Options& options, Report& report, Execution& execution)
-        : m_source(std::move(source)), m_options(options), m_report(report), m_execution(execution)
+        : m_source(std::move(source)), m_fields(m_source->Bindings()), m_options(options), m_report(report), m_execution(execution)
     {
     }
     GeometryConstruction(const GeometryConstruction&) = default;
     std::shared_ptr<const step_semantics::Snapshot> m_source;
+    step_semantics::SourceBindings m_fields;
     const Options& m_options;
     Report& m_report;
     Execution& m_execution;
@@ -167,70 +123,30 @@ protected:
     {
         return F(a, name).text == "T";
     }
-    double Number(const step_source::Value& v) const
+    double Number(const step_source::Value& value) const
     {
-        std::string_view t = v.text;
-        if (t.starts_with('+'))
-        {
-            t.remove_prefix(1);
-        }
-        double n = 0;
-        auto parsed = std::from_chars(t.data(), t.data() + t.size(), n, std::chars_format::general);
-        if (parsed.ec != std::errc{} || parsed.ptr != t.data() + t.size() || !std::isfinite(n))
-        {
-            throw std::domain_error("GeneralNumericRangeUnestablished");
-        }
-        return n; // Source lexemes remain owned by the immutable snapshot.
+        return ReadSourceNumber(value);
     }
     double N(Index a, std::string_view name) const
     {
         return Number(F(a, name));
     }
-    V Triple(const step_source::Value& v) const
+    V Triple(const step_source::Value& value) const
     {
-        if (v.children.size() != 3)
-        {
-            throw std::domain_error("GeneralRequires3DGeometry");
-        }
-        return { Number(v.children[0]), Number(v.children[1]), Number(v.children[2]) };
+        return ReadSourceTriple(value);
     }
     V Position(Index a) const
     {
-        const auto point = Mul(Triple(F(a, "coordinates")), scale);
-        for (const auto value : point)
-        {
-            if (!std::isfinite(value))
-            {
-                throw std::domain_error("GeneralLengthRangeUnestablished");
-            }
-        }
-        return point;
+        return ReadSourcePoint(m_fields, a, scale);
     }
     V Direction(Index a) const
     {
-        return Unit(Triple(F(a, "direction_ratios")));
+        return ReadSourceDirection(m_fields, a);
     }
     Frame Placement(Index a) const
     {
-        Frame f;
-        f.o = Position(Ref(a, "location"));
-        f.z = F(a, "axis").kind == step_source::ValueKind::Unset ? V{ 0, 0, 1 } : Direction(Ref(a, "axis"));
-        V x;
-        if (F(a, "ref_direction").kind != step_source::ValueKind::Unset)
-        {
-            x = Direction(Ref(a, "ref_direction"));
-        }
-        else
-        {
-            x = f.z[1] != 0 || f.z[2] != 0 ? V{ 1, 0, 0 } : V{ 0, 1, 0 };
-        }
-        // STEP build_axes projects the reference direction onto the normal
-        // plane. Ratios are dimensionless; arbitrary source magnitudes are not scales.
-        // AP214E3_2010.exp FIRST_PROJ_AXIS defaults to X unless exactly
-        // parallel to it. The double cross avoids cancellation near parallel.
-        f.x = Unit(Cross(f.z, Cross(x, f.z)));
-        f.y = Unit(Cross(f.z, f.x));
-        return f;
+        const auto frame = ReadSourceFrame(m_fields, a, scale);
+        return { frame.origin, frame.axes[0], frame.axes[1], frame.axes[2] };
     }
     struct ConicTrim
     {

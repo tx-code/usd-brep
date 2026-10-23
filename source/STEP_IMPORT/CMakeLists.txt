@@ -35,6 +35,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportCylindricalBandRepair.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportRingSegmentation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportObservation.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp)
 target_include_directories(STEP_IMPORT PUBLIC inc)
 target_include_directories(STEP_IMPORT SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
 target_link_libraries(STEP_IMPORT PUBLIC STEP_PLANAR PRIVATE SM_API SMLib usd_brep_gsl usd_brep_multiprecision usd_brep_expected)
@@ -62,6 +63,11 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_assembly_placement_tests tests/StepImportAssemblyPlacementTests.cpp)
+    target_include_directories(step_import_assembly_placement_tests PRIVATE src)
+    target_link_libraries(step_import_assembly_placement_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    add_test(NAME step_import_assembly_placement_contracts COMMAND step_import_assembly_placement_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../STEP_SEMANTICS/tests/fixtures/assembly_repeated_box.step")
     add_executable(step_import_business_failure_tests tests/StepImportBusinessFailureTests.cpp)
     target_include_directories(step_import_business_failure_tests PRIVATE src)
     target_link_libraries(step_import_business_failure_tests PRIVATE STEP_IMPORT usd_brep_expected)
@@ -325,7 +331,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_import_business_failure_tests step_import_execution_tests step_import_observation_tests step_import_nested_observation_tests step_import_toroidal_support_tests step_import_ring_segmentation_tests step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_import_assembly_placement_tests step_import_business_failure_tests step_import_execution_tests step_import_observation_tests step_import_nested_observation_tests step_import_toroidal_support_tests step_import_ring_segmentation_tests step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

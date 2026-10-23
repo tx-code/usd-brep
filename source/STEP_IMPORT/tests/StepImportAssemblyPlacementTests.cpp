@@ -1,0 +1,259 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+#include "StepImportAssemblyPlacement.h"
+
+#include <cmath>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <stdexcept>
+
+namespace
+{
+using namespace step_import;
+using namespace step_import::detail;
+void Require(bool value, const char* message)
+{
+    if (!value)
+    {
+        throw std::runtime_error(message);
+    }
+}
+std::string Replace(std::string text, const std::string& from, const std::string& to)
+{
+    const auto at = text.find(from);
+    Require(at != std::string::npos, "synthetic mutation target");
+    text.replace(at, from.size(), to);
+    return text;
+}
+std::shared_ptr<const step_semantics::AssemblyInputs> Inputs(const std::string& text)
+{
+    auto source = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
+    auto result = step_semantics::InspectAssemblyInputs(source, {}, step_semantics::SourcePolicy::Strict);
+    Require(
+        result.checks.status == step_semantics::Status::Deferred && result.inputs && !result.checks.snapshot && !result.checks.document,
+        "complete context observations without native/source qualification"
+    );
+    return result.inputs;
+}
+Point Apply(const AssemblyOccurrencePlacement& transform, Point point)
+{
+    Point result = transform.translationMm;
+    for (std::size_t i = 0; i < 3; ++i)
+    {
+        for (std::size_t j = 0; j < 3; ++j)
+        {
+            result[i] += transform.rotation[i][j] * point[j];
+        }
+    }
+    return result;
+}
+void Near(Point actual, Point expected)
+{
+    for (std::size_t i = 0; i < 3; ++i)
+    {
+        Require(std::isfinite(actual[i]) && std::abs(actual[i] - expected[i]) < 1e-10, "independent placement coordinate oracle");
+    }
+}
+AssemblyPlacementCandidate Evaluate(const std::string& text)
+{
+    auto result = EvaluateAssemblyPlacements(
+        Inputs(text),
+        2,
+        []() -> Result<void>
+        {
+            return {};
+        }
+    );
+    Require(bool(result), "assembly placement evaluation");
+    return std::move(*result);
+}
+void BaseOracle(const AssemblyPlacementCandidate& candidate)
+{
+    Require(candidate.occurrences.size() == 2 && candidate.contexts.size() == 2, "two instances, two owned unit contexts");
+    // Independent A(x,y,z)=(100-y,200+x,300+z), B(x,y,z)=(x-40,y,z).
+    // Check all eight source box corners, not just the frame origin.
+    for (double x : { 2., 12. })
+    {
+        for (double y : { -3., 17. })
+        {
+            for (double z : { 5., 35. })
+            {
+                Near(Apply(candidate.occurrences[0], { x, y, z }), { 100 - y, 200 + x, 300 + z });
+                Near(Apply(candidate.occurrences[1], { x, y, z }), { x - 40, y, z });
+            }
+        }
+    }
+}
+} // namespace
+int main(int argc, char** argv)
+{
+    try
+    {
+        Require(argc == 2, "pass repeated box fixture");
+        std::ifstream stream(argv[1], std::ios::binary);
+        Require(bool(stream), "fixture exists");
+        const std::string text{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        auto candidate = Evaluate(text);
+        BaseOracle(candidate);
+        auto reversed = Replace(
+            Replace(text, "REPRESENTATION_RELATIONSHIP('',$,#20,#920)", "REPRESENTATION_RELATIONSHIP('',$,#920,#20)"),
+            "ITEM_DEFINED_TRANSFORMATION('',$,#931,#933)",
+            "ITEM_DEFINED_TRANSFORMATION('',$,#933,#931)"
+        );
+        BaseOracle(Evaluate(reversed));
+        auto rescaled = Replace(
+            Replace(text, "#936=DIRECTION('',(0.,0.,1.))", "#936=DIRECTION('',(0.,0.,2.))"),
+            "#938=DIRECTION('',(0.,1.,0.))",
+            "#938=DIRECTION('',(0.,5.,0.))"
+        );
+        BaseOracle(Evaluate(rescaled));
+        auto mixed = Replace(
+            Replace(
+                text,
+                "#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11))",
+                "#921=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#939,#11))"
+            ),
+            "ENDSEC;\nEND-ISO",
+            "#939=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));\nENDSEC;\nEND-ISO"
+        );
+        auto equivalent = Replace(
+            Replace(mixed, "#932=CARTESIAN_POINT('',(100.,200.,300.))", "#932=CARTESIAN_POINT('',(0.1,0.2,0.3))"),
+            "#934=CARTESIAN_POINT('',(-40.,0.,0.))",
+            "#934=CARTESIAN_POINT('',(-0.04,0.,0.))"
+        );
+        BaseOracle(Evaluate(equivalent));
+        auto sharedItem = Replace(
+            Replace(
+                Replace(mixed, "#930=CARTESIAN_POINT('',(0.,0.,0.))", "#930=CARTESIAN_POINT('',(1.,2.,3.))"),
+                "'parent',(#933,#935),#921",
+                "'parent',(#933,#935,#931),#921"
+            ),
+            "#925=ITEM_DEFINED_TRANSFORMATION('',$,#931,#935)",
+            "#925=ITEM_DEFINED_TRANSFORMATION('',$,#931,#931)"
+        );
+        auto sharedFrame = Evaluate(sharedItem);
+        Near(Apply(sharedFrame.occurrences[1], { 2, -3, 5 }), { 1001, 1995, 3002 });
+        auto converted = Replace(
+            mixed,
+            "#939=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.));",
+            "#939=(CONVERSION_BASED_UNIT('synthetic inch',#940) LENGTH_UNIT() NAMED_UNIT(*));\n"
+            "#940=MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#10);"
+        );
+        auto inches = Evaluate(converted);
+        Near(Apply(inches.occurrences[0], { 2, -3, 5 }), { 2543, 5082, 7625 });
+        Near(Apply(inches.occurrences[1], { 2, -3, 5 }), { -1014, -3, 5 });
+        bool exact = false;
+        for (const auto& context : inches.contexts)
+        {
+            exact |= context.length.scaleMm == Fraction(127, 5) && context.length.definitions.size() == 1;
+        }
+        Require(exact, "exact source conversion ratio and chain retained");
+        auto shifted = Evaluate(Replace(text, "#930=CARTESIAN_POINT('',(0.,0.,0.))", "#930=CARTESIAN_POINT('',(1.,2.,3.))"));
+        Near(Apply(shifted.occurrences[0], { 2, -3, 5 }), { 105, 201, 302 });
+        Near(Apply(shifted.occurrences[1], { 2, -3, 5 }), { -39, -5, 2 });
+        auto defaults = Evaluate(Replace(text, "#933=AXIS2_PLACEMENT_3D('',#932,#936,#938)", "#933=AXIS2_PLACEMENT_3D('',#932,$,$)"));
+        Near(Apply(defaults.occurrences[0], { 2, -3, 5 }), { 102, 197, 305 });
+        auto parallelDefault = Evaluate(Replace(text, "#933=AXIS2_PLACEMENT_3D('',#932,#936,#938)", "#933=AXIS2_PLACEMENT_3D('',#932,#937,$)"));
+        Near(Apply(parallelDefault.occurrences[0], { 2, -3, 5 }), { 105, 202, 297 });
+        auto inputs = Inputs(text);
+        std::size_t checkpoints = 0;
+        auto completed = EvaluateAssemblyPlacements(
+            inputs,
+            2,
+            [&]() -> Result<void>
+            {
+                ++checkpoints;
+                return {};
+            }
+        );
+        Require(bool(completed) && checkpoints > 8, "unit arithmetic/frame/commit checkpoints run");
+        for (std::size_t stop = 1; stop <= checkpoints; ++stop)
+        {
+            std::size_t visits = 0;
+            auto cancelled = EvaluateAssemblyPlacements(
+                inputs,
+                2,
+                [&]() -> Result<void>
+                {
+                    if (++visits == stop)
+                    {
+                        return tl::unexpected(Failure{ Status::Cancelled, "SyntheticAssemblyCancel", "cancelled", {}, "AssemblyPlacement" });
+                    }
+                    return {};
+                }
+            );
+            Require(
+                !cancelled && cancelled.error().status == Status::Cancelled && cancelled.error().key == "SyntheticAssemblyCancel",
+                "every cancellation boundary withholds all candidate placements"
+            );
+        }
+        auto limited = EvaluateAssemblyPlacements(
+            inputs,
+            1,
+            []() -> Result<void>
+            {
+                return {};
+            }
+        );
+        Require(!limited && limited.error().status == Status::ResourceLimit, "occurrence limit never yields partial instance set");
+        auto unrelated = ResolveLengthScale(
+            *inputs,
+            inputs->Bindings().occurrences[0].usage,
+            []() -> Result<void>
+            {
+                return {};
+            }
+        );
+        Require(!unrelated && unrelated.error().key == "AssemblyUnitContextUnestablished", "unowned context cannot borrow another scale");
+        auto negativeScale = EvaluateAssemblyPlacements(
+            Inputs(Replace(converted, "LENGTH_MEASURE(25.4)", "LENGTH_MEASURE(-25.4)")),
+            2,
+            []() -> Result<void>
+            {
+                return {};
+            }
+        );
+        Require(
+            !negativeScale && negativeScale.error().key == "GeneralUnitScaleNotPositive",
+            "negative scale is refused without taking absolute value"
+        );
+        auto pointItem = Replace(
+            Replace(text, "'parent',(#933,#935),#921", "'parent',(#933,#935,#932),#921"),
+            "#915=ITEM_DEFINED_TRANSFORMATION('',$,#931,#933)",
+            "#915=ITEM_DEFINED_TRANSFORMATION('',$,#931,#932)"
+        );
+        auto unsupported = EvaluateAssemblyPlacements(
+            Inputs(pointItem),
+            2,
+            []() -> Result<void>
+            {
+                return {};
+            }
+        );
+        Require(!unsupported && unsupported.error().key == "AssemblyFrameTypeUnsupported", "a bound generic item is not a guessed coordinate frame");
+        auto huge = Replace(
+            Replace(text, "#930=CARTESIAN_POINT('',(0.,0.,0.))", "#930=CARTESIAN_POINT('',(1.E308,1.E308,1.E308))"),
+            "#932=CARTESIAN_POINT('',(100.,200.,300.))",
+            "#932=CARTESIAN_POINT('',(1.E308,1.E308,1.E308))"
+        );
+        auto overflow = EvaluateAssemblyPlacements(
+            Inputs(huge),
+            2,
+            []() -> Result<void>
+            {
+                return {};
+            }
+        );
+        Require(!overflow && overflow.error().status == Status::Indeterminate, "nonfinite composed placement is not published or clamped");
+        inputs.reset();
+        Require(completed->source->SourceFields().Source().Bytes() == text, "candidate owns immutable source context receipt");
+        std::cout << "Assembly placement numeric contracts passed; no native assembly qualification\n";
+        return 0;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+        return 1;
+    }
+}

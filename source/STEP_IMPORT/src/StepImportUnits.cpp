@@ -202,8 +202,9 @@ Fraction NativeRatio(const WideRatio& value)
     return Failure{ status, key, message, record, "GeneralBrep" };
 }
 } // namespace
-[[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(
-    const step_semantics::Snapshot& source,
+static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
+    const step_semantics::SourceBindings& source,
+    const step_semantics::Units& units,
     std::size_t root,
     const ExecutionCheckpoint& boundary
 )
@@ -219,7 +220,7 @@ Fraction NativeRatio(const WideRatio& value)
     // graph. Avoid O(chain length * all SI definitions), recursion, and label-
     // based selection. SI entries are borrowed from the owning source snapshot.
     std::vector<const step_semantics::SiUnit*> si(count, nullptr);
-    for (const auto& definition : source.UnitContext().siDefinitions)
+    for (const auto& definition : units.siDefinitions)
     {
         if (auto operation = boundary(); !operation)
         {
@@ -339,5 +340,24 @@ Fraction NativeRatio(const WideRatio& value)
         return tl::unexpected(std::move(operation.error()));
     }
     return result;
+}
+Result<ResolvedLengthScale> ResolveLengthScale(const step_semantics::Snapshot& source, std::size_t root, const ExecutionCheckpoint& boundary)
+{
+    return ResolveLengthScaleImpl(source.Bindings(), source.UnitContext(), root, boundary);
+}
+Result<ResolvedLengthScale> ResolveLengthScale(const step_semantics::AssemblyInputs& inputs, std::size_t context, const ExecutionCheckpoint& boundary)
+{
+    Expects(bool(boundary));
+    if (auto operation = boundary(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    if (const auto* entry = inputs.FindContext(context))
+    {
+        return ResolveLengthScaleImpl(inputs.SourceFields(), entry->units, entry->units.lengthUnit, boundary);
+    }
+    return tl::unexpected(
+        Refuse(Status::Unsupported, "AssemblyUnitContextUnestablished", context, "Context is not owned by the checked assembly input receipt")
+    );
 }
 } // namespace step_import::detail

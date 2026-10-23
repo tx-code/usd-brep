@@ -22,6 +22,7 @@ public:
     const AssemblyBindingPlan& Bindings() const;
     const SourceBindings& SourceFields() const;
     std::span<const AssemblyContextUnits> Contexts() const;
+    const AssemblyContextUnits* FindContext(std::size_t context) const; // Null for an unrelated source context.
 
 private:
 

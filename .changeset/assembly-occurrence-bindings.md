@@ -13,6 +13,9 @@ to subsequent assembly checks without fabricating a qualified part snapshot.
 `InspectAssemblyInputs` adds all-or-nothing parent/child unit-context observations,
 reusing existing unit checks. It retains mixed SI contexts and defers conversion
 arithmetic; successful observation stays `Deferred` without a qualified model.
+The internal native-import planner evaluates right-handed item-defined frame
+matrices using the shared source frame and exact unit routines. Its numeric
+candidates do not grant native assembly import or a geometric error certificate.
 
 ## Scope
 

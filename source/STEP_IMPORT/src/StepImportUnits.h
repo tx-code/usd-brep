@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include "StepAssemblyInputs.h"
 #include "StepImport.h"
 #include "StepImportExecutionCallbacks.h"
 
@@ -24,6 +25,13 @@ struct ResolvedLengthScale
 [[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(
     const step_semantics::Snapshot& source,
     std::size_t root,
+    const ExecutionCheckpoint& boundary
+);
+// Context identity must belong to this owning, checked assembly input receipt.
+// Uses the same exact conversion engine as qualified single-part normalization.
+[[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(
+    const step_semantics::AssemblyInputs& inputs,
+    std::size_t context,
     const ExecutionCheckpoint& boundary
 );
 } // namespace step_import::detail

@@ -3,11 +3,14 @@
 #pragma once
 #include "StepAssemblyInputs.h"
 
+#include <unordered_map>
+
 namespace step_semantics
 {
 struct AssemblyInputData
 {
     std::shared_ptr<const AssemblyBindingPlan> bindings;
     std::vector<AssemblyContextUnits> contexts;
+    std::unordered_map<std::size_t, std::size_t> contextIndices;
 };
 } // namespace step_semantics

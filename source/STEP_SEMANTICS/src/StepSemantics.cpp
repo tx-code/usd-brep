@@ -352,6 +352,7 @@ public:
                         // The same dependency walk and nominal-unit rules used for
                         // independent definitions apply to a placement-only parent.
                         // No fake material part or inherited child units are created.
+                        candidate->contextIndices.emplace(context, candidate->contexts.size());
                         candidate->contexts.push_back({ context, UnitsForContext(context, dimensionByRecord) });
                     }
                 }

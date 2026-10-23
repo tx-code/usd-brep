@@ -1,5 +1,25 @@
 # STEP_IMPORT（内部 C++20）
 
+## 装配变换的内部数值候选
+
+`StepImportAssemblyPlacement.h` 的 `EvaluateAssemblyPlacements` 消费 owning 的
+`AssemblyInputs`，按其已检查的上下文身份复用既有精确长度换算器。每个换算链的原始因子、
+精确比例和单位身份保留；不接受调用者随意提供的尺度，也不借用另一个上下文的单位。
+当前仅求值已绑定的 `ITEM_DEFINED_TRANSFORMATION` 两端 `AXIS2_PLACEMENT_3D`。
+与已有几何构建共用源数值解析、范围检查及 `build_axes/FIRST_PROJ_AXIS` 实现。
+
+两端原点各自换算为毫米，方向比保持无量纲。输出是 **child-mm → parent-mm** 的行矩阵
+`R_parent * transpose(R_child)` 和平移 `o_parent_mm - R * o_child_mm`；不是世界变换，
+不能再乘一次单位比例。源关系反向由绑定身份决定，重复 usage 保留为不同记录。
+坐标系缓存同时使用 item 与 context 身份，避免同一 item 在不同单位上下文间串用。
+
+内部候选保留源输入所有权、精确单位证据及每个 usage 的数值矩阵。有限性和旋转正交残差
+只提供浮点算术检查，不是毫米验收预算或连续几何误差证书；不会把矩阵拟合回旋转。
+不支持的 frame 类型、非正换算、范围溢出、实例数限制或任一合作取消都丢弃整个候选。
+该步骤不执行原生调用、不展开嵌套实例、不批准 pending 元数据、不建立完整定义归属，
+也不授予装配导入成功或新增 CLI 接纳路径。完整源闭包、定义几何、嵌套实例、原生验证
+及最终发布仍须分别完成。
+
 ## 角环面／自交环面支撑的原基提取
 
 通用开发导入可显式选择已有 `restrictUnusedSupportDomains`（CLI／查看器
