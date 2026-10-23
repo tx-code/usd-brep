@@ -3,7 +3,9 @@
 #include "StepImportPublication.h"
 
 #include "StepImportExecution.h"
+#include "StepImportLegacyFailure.h"
 #include "StepImportNativeData.h"
+#include "StepImportReport.h"
 
 #include <algorithm>
 
@@ -39,7 +41,7 @@ Publication::Publication(const Options& options, FileOutcome& outcome, const ste
     : m_options(options), m_status(outcome.status), m_report(outcome.report), m_source(source), m_execution(execution), m_fileSink(&outcome.model)
 {
 }
-void Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
+Result<void> Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate)
 {
     if ((!m_documentSink && !m_fileSink) || !candidate || candidate->PartCount() != m_report.definitions.size() ||
         std::any_of(
@@ -51,26 +53,26 @@ void Publication::AcceptDocument(std::shared_ptr<const DocumentSnapshot> candida
             }
         ))
     {
-        throw std::logic_error("CompleteDocumentPublicationRequired");
+        return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "CompleteDocumentPublicationRequired", {} });
     }
     m_preparedDocument = std::move(candidate);
-    FinishAccept();
+    return FinishAccept();
 }
-void Publication::Accept(std::shared_ptr<ModelData> candidate)
+Result<void> Publication::Accept(std::shared_ptr<ModelData> candidate)
 {
     m_candidate = std::move(candidate);
     if (!m_modelSink && !m_partSink && !m_fileSink)
     {
-        throw std::logic_error("SinglePublicationTargetRequired");
+        return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "SinglePublicationTargetRequired", {} });
     }
     m_prepared = Access::Snapshot(std::move(m_candidate));
-    FinishAccept();
+    return FinishAccept();
 }
-void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates)
+Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates)
 {
     if (!m_collectionSink && !m_partSink && !m_fileSink)
     {
-        throw std::logic_error("CollectionPublicationTargetRequired");
+        return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "CollectionPublicationTargetRequired", {} });
     }
     if (candidates.size() != m_report.bodies.size() || std::any_of(
                                                            m_report.bodies.begin(),
@@ -82,7 +84,7 @@ void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapsho
                                                        ))
     {
         m_report.candidateDiscarded = m_report.nativeCalls > 0;
-        throw std::logic_error("UncheckedMaterialCollection");
+        return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "UncheckedMaterialCollection", {} });
     }
     m_collectionCandidates = std::move(candidates);
     try
@@ -94,32 +96,39 @@ void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapsho
         m_report.candidateDiscarded = m_report.nativeCalls > 0;
         throw;
     }
-    FinishAccept();
+    return FinishAccept();
 }
-void Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates)
+Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates)
 {
     if (!candidates)
     {
-        Fail(candidates.error());
-        FinishFailure();
-        return;
+        return tl::unexpected(std::move(candidates.error()));
     }
-    AcceptCollection(std::move(source), std::move(*candidates));
+    return AcceptCollection(std::move(source), std::move(*candidates));
 }
-void Publication::AcceptDocument(Result<DocumentCandidate> candidate)
+Result<void> Publication::AcceptDocument(Result<DocumentCandidate> candidate)
 {
     if (!candidate)
     {
-        Fail(candidate.error());
-        FinishFailure();
-        return;
+        return tl::unexpected(std::move(candidate.error()));
     }
-    AcceptDocument(std::move(*candidate));
+    return AcceptDocument(std::move(*candidate));
 }
-void Publication::FinishAccept()
+Result<void> Publication::FinishAccept()
 {
-    m_execution.CheckRepairCompletion();
-    m_execution.Check(Phase::NativeReady);
+    // Only Execution owns these legacy domain failures. Preserve their order
+    // while the publication protocol itself propagates results without throws.
+    auto ready = LegacyFailureAdapter(
+        [&]
+        {
+            m_execution.CheckRepairCompletion();
+            m_execution.Check(Phase::NativeReady);
+        }
+    );
+    if (!ready)
+    {
+        return tl::unexpected(std::move(ready.error()));
+    }
     // Complete checks do not authenticate an assumed source schema or carrier.
     // Choose this result before either report and final arbitration; after
     // Commit the sole remaining action remains the owning transfer.
@@ -156,14 +165,49 @@ void Publication::FinishAccept()
                isolated    ? Status::AcceptedWithSourceIsolation :
                interpreted ? Status::AcceptedUnderInterpretation :
                              Status::Accepted;
-    m_execution.Check(Phase::BeforeReport);
-    WriteReport();
-    m_execution.Check(Phase::ReportReady);
-    m_execution.Check(Phase::BeforeCommit);
+    auto beforeReport = LegacyFailureAdapter(
+        [&]
+        {
+            m_execution.Check(Phase::BeforeReport);
+        }
+    );
+    if (!beforeReport)
+    {
+        return tl::unexpected(std::move(beforeReport.error()));
+    }
+    auto firstReport = WriteReport();
+    if (!firstReport)
+    {
+        return tl::unexpected(std::move(firstReport.error()));
+    }
+    auto beforeCommit = LegacyFailureAdapter(
+        [&]
+        {
+            m_execution.Check(Phase::ReportReady);
+            m_execution.Check(Phase::BeforeCommit);
+        }
+    );
+    if (!beforeCommit)
+    {
+        return tl::unexpected(std::move(beforeCommit.error()));
+    }
     // Checkpoints update report observations. Preserve both serializations and
     // their budget/failure points, then arbitrate against late cancellation.
-    WriteReport();
-    m_execution.Commit();
+    auto finalReport = WriteReport();
+    if (!finalReport)
+    {
+        return tl::unexpected(std::move(finalReport.error()));
+    }
+    auto committed = LegacyFailureAdapter(
+        [&]
+        {
+            m_execution.Commit();
+        }
+    );
+    if (!committed)
+    {
+        return tl::unexpected(std::move(committed.error()));
+    }
     // Publication contract: docs/design/step-import.md. After successful
     // arbitration, no allocation, callback or native operation is allowed.
     // The only remaining action is owner transfer.
@@ -210,10 +254,11 @@ void Publication::FinishAccept()
     {
         *m_modelSink = std::move(m_prepared);
     }
+    return {};
 }
-void Publication::WriteReport()
+Result<void> Publication::WriteReport()
 {
-    Serialize(
+    return Serialize(
         m_status,
         m_report,
         m_options.quality,
@@ -264,12 +309,10 @@ void Publication::FinishFailure()
     }
     auto& report = m_report;
     report.candidateDiscarded = report.candidateDiscarded || held;
-    try
+    auto written = WriteReport();
+    if (!written)
     {
-        WriteReport();
-    }
-    catch (const Failure& failure)
-    {
+        const auto& failure = written.error();
         // A bounded report failure cannot undo observed cancellation, and no
         // partial JSON may escape even when the failure report also overflows.
         if (m_status != Status::Cancelled)

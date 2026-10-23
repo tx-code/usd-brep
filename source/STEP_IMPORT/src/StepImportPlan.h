@@ -92,12 +92,4 @@ struct Access
     );
     static std::shared_ptr<const DocumentSnapshot> Document(std::shared_ptr<DocumentData> data);
 };
-void Serialize(
-    Status status,
-    const Report& report,
-    const Quality& quality,
-    const step_source::InspectOutcome& source,
-    std::size_t limit,
-    std::string& output
-);
 } // namespace step_import::detail

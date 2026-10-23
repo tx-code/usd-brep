@@ -1000,3 +1000,16 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 依赖从仓库内固定版本构建，无配置期下载；来源及校验和见
 [tl-expected 清单](../../third_party/tl-expected/UPSTREAM.json)。
 回归范围及定向变异方法见 [嵌套观察测试](tests/NestedObservation.md)。
+
+定义选择也直接返回 `Result`，保留源顺序、owning 选择收据以及选择前／完成后的检查点。
+Publication 的接纳、报告容量和最终提交检查结果直接传播至入口，由公开 Outcome 的
+拥有者记录诊断及完成失败收尾；不把错误值再抛回异常。尚未迁移的 Execution 调用
+通过明确的 legacy adapter 保留原检查顺序、计费及 observer 异常分类。
+
+迁移目标是消除项目主动创建的异常，以显式结果表达业务、配置及内部失败，
+而非按异常类型名筛选：
+项目显式抛出的 `std::invalid_argument`／数值错误同样属于待迁移范围。
+当前公开配置异常合同、底层数值与修复控制流、共享 JSON writer 内部超限终止仍未迁移；
+其中方向修复须保留候选及 witness，不可简化成无上下文错误码。
+STL／运行时实际产生的异常及外部回调异常另有传播或边界转换合同；
+不能用全局 `noexcept` 或禁用异常编译选项代替逐层迁移和验收。

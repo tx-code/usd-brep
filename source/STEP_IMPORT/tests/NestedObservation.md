@@ -54,5 +54,14 @@ source copies, raw receipts and timing data under ignored local work directories
 Performance acceptance measures complete public document imports and candidate release,
 using the same input, options, compiler and runtime. Warm both executables and alternate
 their order across paired batches; collect process CPU and wall time separately.
+When the baseline itself drifts, use same-version A/A controls and same-core
+ABBA/BAAB ordering before assigning a small difference to the implementation.
 The goal for this internal refactor is absence of a stable regression within the measured
 scope, without changing numerical precision or claiming a new geometric capability.
+
+Selection and publication result migrations additionally retain the existing source-isolation
+and lifecycle contracts. Directed controls should detect ignored selection checkpoints or
+owning-receipt refusal, ignored report capacity or publication errors, continuing after the
+first report fails, omitted final serialization/commit, and replacement of cancellation
+by a failure-report capacity error. Compare the generated report/progress bytes as well
+as process status: a later failure must not conceal changed refusal checkpoints.

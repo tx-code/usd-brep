@@ -19,11 +19,11 @@ public:
     Publication(const Publication&) = delete;
     Publication& operator=(const Publication&) = delete;
 
-    void Accept(std::shared_ptr<ModelData> candidate);
-    void AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates);
-    void AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate);
-    void AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates);
-    void AcceptDocument(Result<DocumentCandidate> candidate);
+    Result<void> Accept(std::shared_ptr<ModelData> candidate);
+    Result<void> AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, std::vector<std::shared_ptr<ModelData>> candidates);
+    Result<void> AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate);
+    Result<void> AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates);
+    Result<void> AcceptDocument(Result<DocumentCandidate> candidate);
     void Fail(const Failure& failure);
     void FinishFailure();
 
@@ -45,8 +45,8 @@ private:
     std::shared_ptr<ModelData> m_candidate;
     std::shared_ptr<const ModelSnapshot> m_prepared;
 
-    void FinishAccept();
-    void WriteReport();
+    Result<void> FinishAccept();
+    Result<void> WriteReport();
     void Diagnostic(const Failure& failure);
 };
 } // namespace step_import::detail
