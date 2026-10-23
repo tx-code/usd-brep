@@ -20,6 +20,8 @@ installation or development checkout.
 .\brep-view.exe "D:\Models\part.step"
 .\brep-view.exe "D:\Models\mesh.stl" --edges
 .\brep-view.exe --help
+.\brep-view.exe "D:\Models\assembly.step" --assembly
+.\brep-view.exe "D:\Models\assembly.step" --assembly --unreferenced-placement-policy RetainDisconnected
 .\brep-view.exe --scan "D:\Models" --output "D:\LocalScan\run-001" --thumbnails
 ```
 
@@ -48,6 +50,30 @@ as invalid, authorize repair or imply a broken pointer; mixed/unknown findings
 keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
+
+`--assembly` explicitly selects the public native assembly importer for one STEP
+file. It preserves repeated/nested instance identities and uses transformed private
+display copies in the single source root's millimetre frame. Hover and selection
+retain instance ownership; face areas, edge lengths and vertex coordinates come
+from those native display copies. Meshes are appended without welding coincident
+instances. Parent placement wrappers and retained unused declarations create no
+display geometry. The HUD shows instance nodes and displayed shape instances.
+
+The optional `--unreferenced-placement-policy RetainDisconnected` preserves only
+source declarations admitted by the core's complete disconnected-placement proof.
+Default `Reject` remains. Requested policy and applied source evidence must match
+before scene adoption. The native report, all definitions, paths, instances and
+body payloads are checked before any scene is displayed; later corruption or
+cancellation keeps the prior complete scene. Assembly core receipt parsing has an
+explicit 64 MiB display limit independent of native acceptance.
+
+Current viewer scope is one usage root, at most 100,000 usage declarations,
+10,000 expanded nodes and depth 128, plus the existing complete-display budgets.
+Multiple-root native results receive a display refusal instead of a fabricated
+common frame or omitted root. Repair/independent selection/isolation plans and
+directory scans are not combined with this explicit assembly mode yet. Existing
+ordinary-file routing remains unchanged; no automatic retry or source-policy
+selection occurs after a failure.
 
 STEP/STP uses the native importer with an explicitly selected development preview
 configuration; see the [import contract](../../source/STEP_IMPORT/README.md).
@@ -342,8 +368,8 @@ Scans/receipts retain the complete imported/exported inventory and explicitly
 record `DefinitionLocal` display scope and initial definition index 0. A single
 thumbnail shows that initial definition, not every definition or an assembly.
 Missing/corrupt later payloads, cancellation and display failure retain the
-previous accepted scene. Native assembly placement and document-level associated
-geometry outside the qualified material subset remain explicit unsupported cases.
+previous accepted scene. Document-level associated geometry outside the qualified
+material subset remains unsupported. Assembly placement uses explicit `--assembly`.
 
 
 `--carrier-interpretation BlankLevelAsCorrectedEncoding` explicitly handles only

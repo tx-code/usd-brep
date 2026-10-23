@@ -228,6 +228,10 @@ class ViewerWindow(QtWidgets.QMainWindow):
             role = roles.get(metadata.get("role"), "BRep")
             if metadata.get('role') == 'MaterialSolidCollection':
                 role = f"实体集合 · {metadata['body_count']} 件"
+            if metadata.get('role') == 'Assembly':
+                role = f"装配 · {metadata['instance_count']} 个节点 / {metadata['body_count']} 个形状实例"
+                if metadata.get('retained_source_record_count'):
+                    role += f"\n保留 {metadata['retained_source_record_count']} 条未引用源声明"
             if metadata.get('_definitions'):
                 role = f"定义 {metadata['definition_index'] + 1}/{metadata['definition_count']} · 本地坐标\n" + role
             unit = "mm" if metadata.get("units") == "mm" else "单位未声明"
@@ -403,7 +407,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
             prefix = "选中" if (hit.kind, hit.id) in self.selected else "悬停"
             local_id = info.local_id if info.local_id is not None else hit.id
             if info.local_id is not None:
-                prefix += f" 实体 {info.body + 1} ·"
+                origins = self.metadata['_topology'].bodies
+                origin = origins[info.body] if info.body < len(origins) else None
+                if origin is not None and origin.instance_index is not None:
+                    prefix += f" 实例 {origin.instance_index + 1} ·"
+                else:
+                    prefix += f" 实体 {info.body + 1} ·"
             if hit.kind == "vertex":
                 value = " · ".join(f"{coordinate:.7g}" for coordinate in info.point_mm)
                 lines.append(f"{prefix} 点 {local_id}：({value}) mm")
@@ -561,7 +570,9 @@ def run(options):
                               maximum_band_repair_faces=getattr(options, 'maximum_band_repair_faces', 0),
                               maximum_band_bound_edits=getattr(options, 'maximum_band_bound_edits', 0),
                               maximum_band_proof_operations=getattr(options, 'maximum_band_proof_operations', 0),
-                              cylindrical_band_repairs=tuple(getattr(options, 'cylindrical_band_repairs', ())))
+                              cylindrical_band_repairs=tuple(getattr(options, 'cylindrical_band_repairs', ())),
+                              assembly=getattr(options, 'assembly', False),
+                              unreferenced_placement_policy=getattr(options, 'unreferenced_placement_policy', 'Reject'))
     window = ViewerWindow(settings, edges=options.edges, wireframe=options.wireframe)
     result = [1 if options.quit_after_load else 0]
     cancelled = [False]

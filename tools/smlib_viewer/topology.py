@@ -57,6 +57,9 @@ class BodyInfo:
     edge_count: int
     vertex_start: int
     vertex_count: int
+    instance_index: int | None = None
+    definition_index: int | None = None
+    source_definition_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

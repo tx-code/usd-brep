@@ -21,7 +21,8 @@ general 模式、质量配置和 `AssemblyLimits`：occurrences、instances 必�
 当前范围为已登记源 profile 的 NAUO/CDSR、直接表示项中的 IDT 三维轴系，以及已有
 单体／材料集合构建能力；surface-model 角色保持原义。源归属不完整、未支持关联几何等
 仍明确拒绝。该 development 接口不授予完整 EXPRESS 或连续 UV／变换误差证明。
-现有自动文件导入、CLI 和 GUI 尚未切换到此入口，须显式调用该 C++ API。
+现有自动文件导入不切换到此入口。独立查看器可显式传 `--assembly`，并按需显式选择
+`--unreferenced-placement-policy RetainDisconnected`；其显示范围与资源限制见查看器 README。
 
 两个入口的最后一个参数可显式选择
 `step_semantics::UnreferencedPlacementPolicy::RetainDisconnected`；默认 `Reject`。

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 // Isolated display worker: no native handle crosses the process boundary.
+#include "StepAssemblyArguments.h"
 #include "StepComplexMappingArguments.h"
 #include "StepCylindricalBandArguments.h"
 #include "StepImport.h"
@@ -199,6 +200,7 @@ struct BodyScene
     std::size_t triangles = 0, points = 0;
     std::size_t definition = 0;
     std::string sourceDefinitionId;
+    std::size_t instance = 0, definitionBody = 0;
 };
 std::pair<std::size_t, bool> RepairSummary(const step_import::Report& report)
 {
@@ -241,7 +243,9 @@ void Publish(
     bool asciiApplied = false,
     const std::vector<BodyScene>* bodyScenes = nullptr,
     std::string_view unitInterpretation = "DeclaredOnly",
-    std::size_t definitionCount = 0
+    std::size_t definitionCount = 0,
+    const step_import::AssemblySnapshot* assembly = nullptr,
+    const step_import_app::AssemblyArguments& assemblyRequest = {}
 )
 {
     std::string json;
@@ -252,12 +256,70 @@ void Publish(
             [&](Writer& w)
             {
                 w.Add(
-                    definitionCount ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
-                    bodyScenes      ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
-                    info            ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
-                                      "{\"format\":\"brep-view-scene.v1\",\"status\":"
+                    assemblyRequest.enabled ? "{\"format\":\"brep-view-scene.v6\",\"status\":" :
+                    definitionCount         ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
+                    bodyScenes              ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
+                    info                    ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
+                                              "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
+                if (assemblyRequest.enabled)
+                {
+                    w.Add(",\"requested_unreferenced_placement_policy\":");
+                    w.String(
+                        assemblyRequest.placements == step_semantics::UnreferencedPlacementPolicy::RetainDisconnected ? "RetainDisconnected" :
+                                                                                                                        "Reject"
+                    );
+                    if (assembly)
+                    {
+                        w.Add(",\"coordinate_scope\":\"AssemblyRoot\",\"root_count\":1,\"instance_count\":");
+                        w.Number(assembly->InstanceCount());
+                        w.Add(",\"definition_count\":");
+                        w.Number(assembly->DefinitionCount());
+                        w.Add(",\"retained_source_record_count\":");
+                        w.Number(assembly->Source()->RetainedPlacements() ? assembly->Source()->RetainedPlacements()->records.size() : 0);
+                        w.Add(",\"instances\":[");
+                        for (std::size_t i = 0; i < assembly->InstanceCount(); ++i)
+                        {
+                            if (i)
+                            {
+                                w.Add(",");
+                            }
+                            const auto node = assembly->Instance(i);
+                            w.Add("{\"index\":");
+                            w.Number(i);
+                            w.Add(",\"definition\":");
+                            w.Number(node.definitionIndex);
+                            w.Add(",\"source_definition_id\":");
+                            w.String(assembly->SourceDefinitionId(node.definitionIndex));
+                            w.Add(",\"body_count\":");
+                            w.Number(assembly->BodyCount(node.definitionIndex));
+                            w.Add(",\"role\":");
+                            w.String(assembly->DefinitionRole(node.definitionIndex));
+                            w.Add(",\"parent\":");
+                            if (node.parentIndex)
+                            {
+                                w.Number(*node.parentIndex);
+                            }
+                            else
+                            {
+                                w.Add("null");
+                            }
+                            w.Add(",\"usage\":");
+                            if (node.sourceUsageId)
+                            {
+                                w.String(*node.sourceUsageId);
+                            }
+                            else
+                            {
+                                w.Add("null");
+                            }
+                            w.Add("}");
+                        }
+                        w.Add("]");
+                    }
+                }
+
                 w.Add(",\"native_import_status\":");
                 w.String(nativeStatus);
                 if (report.definitionSelection && (info || nativeStatus == "AcceptedWithSourceIsolation"))
@@ -306,7 +368,8 @@ void Publish(
                 }
                 w.Add(",\"requested_unit_interpretation\":");
                 w.String(unitInterpretation);
-                const auto sourceView = report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
+                const auto sourceView = assembly             ? assembly->Source()->Definition(0) :
+                                        report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
                                                                 report.generalSource->document ? report.generalSource->document->Part(0) :
                                                                                                  nullptr) :
                                                                nullptr;
@@ -383,7 +446,7 @@ void Publish(
                     }
                     else
                     {
-                        if (definitionCount)
+                        if (definitionCount && !assemblyRequest.enabled)
                         {
                             // These are inventory totals, not assembled-space
                             // metrics. Source definitions have separate frames.
@@ -410,6 +473,13 @@ void Publish(
                                 w.Number(body.definition);
                                 w.Add(",\"source_definition_id\":");
                                 w.String(body.sourceDefinitionId);
+                            }
+                            if (assemblyRequest.enabled)
+                            {
+                                w.Add(",\"instance\":");
+                                w.Number(body.instance);
+                                w.Add(",\"definition_body\":");
+                                w.Number(body.definitionBody);
                             }
                             w.Add(",\"role\":");
                             w.String(body.info.shapeRole);
@@ -482,7 +552,8 @@ int Run(
     const std::optional<step_import::DefinitionSelectionRequest>& selection = {},
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
     const std::optional<step_import::CylindricalBandRepairRequest>& bandRepair = {},
-    const std::optional<step_import::SourceErrorIsolationLimits>& sourceIsolation = {}
+    const std::optional<step_import::SourceErrorIsolationLimits>& sourceIsolation = {},
+    const step_import_app::AssemblyArguments& assemblyRequest = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -497,6 +568,11 @@ int Run(
                                                           256;
     Good(!strict || !fileNameText, "FileNameTextRequiresInteroperability");
     Good(!strict || !asciiInvariant, "AsciiInvariantDataRequiresInteroperability");
+    Good(
+        assemblyRequest.enabled || assemblyRequest.placements == step_semantics::UnreferencedPlacementPolicy::Reject,
+        "PlacementRetentionRequiresAssembly"
+    );
+    Good(!assemblyRequest.enabled || (!repair && !selection && !bandRepair && !sourceIsolation), "AssemblyPlanCombinationUnsupported");
     bool asciiApplied = false;
     step_import::FileOutcome result;
     std::string nativeStatus; // Empty until the core actually returns an outcome.
@@ -628,6 +704,127 @@ int Run(
         // capacity stay identical. Dispatch is based on the one checked source,
         // not a second read or a retry after single-body failure.
         options.reportEncoding = step_import::ReportEncoding::CompactV2;
+        if (assemblyRequest.enabled)
+        {
+            // Application-selected preview resources, separate from geometric
+            // quality. The explicit assembly API never retries a failed import.
+            auto loaded = step_import::ImportAssemblyFile(input, options, { 100000, 10000, 128 }, assemblyRequest.placements);
+            result.status = loaded.status;
+            result.report = std::move(loaded.report);
+            nativeStatus = step_import::StatusName(result.status);
+            std::ofstream report(output / "import-report.json", std::ios::binary);
+            report << result.report.json;
+            report.close();
+            Good(bool(report), "ImportReportWriteFailed");
+            if (!loaded.assembly)
+            {
+                Publish(
+                    output,
+                    nativeStatus,
+                    "ImportFailed",
+                    result.report,
+                    nullptr,
+                    0,
+                    0,
+                    false,
+                    nativeStatus,
+                    schema,
+                    carrier,
+                    reportMiB,
+                    fileNameText,
+                    asciiInvariant,
+                    false,
+                    nullptr,
+                    unitInterpretation,
+                    0,
+                    nullptr,
+                    assemblyRequest
+                );
+                return 1;
+            }
+            auto model = loaded.assembly;
+            Good(model->Source()->Inputs().Bindings().structure->Roots().size() == 1, "AssemblyDisplayRequiresSingleRoot");
+            asciiApplied = model->Source()->Inputs().SourceFields().Source().HasAsciiInvariantDataAssumption();
+            step_view::DisplayBudget budget;
+            std::vector<BodyScene> scenes;
+            step_import::Statistics total;
+            total.shapeRole = "Assembly";
+            std::size_t bodyInstances = 0;
+            for (std::size_t i = 0; i < model->InstanceCount(); ++i)
+            {
+                const auto count = model->BodyCount(model->Instance(i).definitionIndex);
+                Good(count <= 100000 - bodyInstances, "AssemblyDisplayBodyLimit");
+                bodyInstances += count;
+            }
+            for (std::size_t i = 0; i < model->InstanceCount(); ++i)
+            {
+                const auto node = model->Instance(i);
+                for (std::size_t j = 0; j < model->BodyCount(node.definitionIndex); ++j)
+                {
+                    Progress("bodies", scenes.size(), bodyInstances);
+                    auto body = model->Body(node.definitionIndex, j);
+                    BodyScene scene;
+                    scene.directory = "body-" + std::to_string(scenes.size());
+                    scene.info = body->Info();
+                    scene.definition = node.definitionIndex;
+                    scene.sourceDefinitionId = model->SourceDefinitionId(node.definitionIndex);
+                    scene.instance = i;
+                    scene.definitionBody = j;
+                    const auto part = model->Source()->Definition(node.definitionIndex);
+                    scene.sourceShapeId = part->Source().Records().at(part->PartDefinition().shapes.at(j).shape).id;
+                    const auto directory = output / scene.directory;
+                    Good(std::filesystem::create_directory(directory), "DisplayBodyDirectoryFailed");
+                    auto copy = body->CopyBrepForModeling();
+                    Good(copy.status == step_import::Status::Accepted && bool(copy.model), "DisplayCopyFailed");
+                    copy.model->Edit(
+                        [&](SmBrep& native)
+                        {
+                            const auto& r = node.rotationToRoot;
+                            const auto& t = node.translationToRootMm;
+                            // SmAxis2Placement stores X/Y basis columns; the public
+                            // assembly matrix is row-major. Transform only this
+                            // disposable display copy, keeping stored tolerances.
+                            const SmAxis2Placement transform(
+                                SmPoint3d(t[0], t[1], t[2]),
+                                SmVector3d(r[0][0], r[1][0], r[2][0]),
+                                SmVector3d(r[0][1], r[1][1], r[2][1])
+                            );
+                            Good(native.Transform(transform, nullptr, FALSE) == SM_SUCCESS, "AssemblyDisplayTransformFailed");
+                            Mesh(native, directory, scene.triangles, scene.points, &budget);
+                        }
+                    );
+                    total.faces += scene.info.faces;
+                    total.edges += scene.info.edges;
+                    total.vertices += scene.info.vertices;
+                    scenes.push_back(std::move(scene));
+                }
+            }
+            Good(!scenes.empty(), "AssemblyDisplayGeometryMissing");
+            Progress("bodies", bodyInstances, bodyInstances);
+            Publish(
+                output,
+                "Ready",
+                "",
+                result.report,
+                &total,
+                budget.meshCells,
+                budget.meshPoints,
+                false,
+                nativeStatus,
+                schema,
+                carrier,
+                reportMiB,
+                fileNameText,
+                asciiInvariant,
+                asciiApplied,
+                &scenes,
+                unitInterpretation,
+                model->DefinitionCount(),
+                model.get(),
+                assemblyRequest
+            );
+            return 0;
+        }
         result = step_import::ImportModelFile(input, options);
         const auto singleAlternative = std::get_if<std::shared_ptr<const step_import::ModelSnapshot>>(&result.model);
         const auto collectionAlternative = std::get_if<std::shared_ptr<const step_import::MaterialCollectionSnapshot>>(&result.model);
@@ -789,7 +986,10 @@ int Run(
                 asciiInvariant,
                 asciiApplied,
                 nullptr,
-                unitInterpretation
+                unitInterpretation,
+                0,
+                nullptr,
+                assemblyRequest
             );
         }
         return 1;
@@ -822,15 +1022,22 @@ int wmain(int argc, wchar_t** argv)
             Good(std::wstring_view(argv[11]) == L"0" || std::wstring_view(argv[11]) == L"1", "InvalidDataFlag");
         }
         step_import::Options request;
+        step_import_app::AssemblyArguments assemblyRequest;
         step_import_app::SelectionArgumentState selectionArguments;
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::CylindricalBandArgument(
+                step_import_app::AssemblyArgument(
                     std::filesystem::path(argv[i]).string(),
                     std::filesystem::path(argv[i + 1]).string(),
-                    request
-                ) || step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                    assemblyRequest
+                ) ||
+                    step_import_app::CylindricalBandArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        request
+                    ) ||
+                    step_import_app::RepairArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
                     step_import_app::SelectionArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -863,7 +1070,8 @@ int wmain(int argc, wchar_t** argv)
             request.definitionSelection,
             request.complexMappingInterpretation,
             request.cylindricalBandRepair,
-            request.sourceErrorIsolation
+            request.sourceErrorIsolation,
+            assemblyRequest
         );
     }
     catch (...)
@@ -895,11 +1103,16 @@ int main(int argc, char** argv)
             Good(std::string_view(argv[11]) == "0" || std::string_view(argv[11]) == "1", "InvalidDataFlag");
         }
         step_import::Options request;
+        step_import_app::AssemblyArguments assemblyRequest;
         step_import_app::SelectionArgumentState selectionArguments;
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
+                step_import_app::AssemblyArgument(
+                    std::filesystem::path(argv[i]).string(),
+                    std::filesystem::path(argv[i + 1]).string(),
+                    assemblyRequest
+                ) || step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::RepairArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::SelectionArgument(argv[i], argv[i + 1], request, selectionArguments) ||
                     step_import_app::ComplexMappingArgument(argv[i], argv[i + 1], request),
@@ -924,7 +1137,8 @@ int main(int argc, char** argv)
             request.definitionSelection,
             request.complexMappingInterpretation,
             request.cylindricalBandRepair,
-            request.sourceErrorIsolation
+            request.sourceErrorIsolation,
+            assemblyRequest
         );
     }
     catch (...)

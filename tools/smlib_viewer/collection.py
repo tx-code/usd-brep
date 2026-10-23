@@ -10,12 +10,12 @@ from .topology import (BodyInfo, TopologyData, read_topology, MAX_FACES, MAX_EDG
 from .definition_selection import validate_manifest as validate_selection
 
 
-def read_collection(directory, manifest, resolve, *, _allow_single=False):
+def read_collection(directory, manifest, resolve, *, _allow_single=False, _assembly=False):
     bodies = manifest.get('body_scenes')
     count = manifest.get('body_count')
     if (type(count) is not int or count < (1 if _allow_single else 2) or count > MAX_FACES or
             not isinstance(bodies, list) or len(bodies) != count or
-            manifest.get('units') != 'mm' or manifest.get('role') != 'MaterialSolidCollection' or
+            manifest.get('units') != 'mm' or manifest.get('role') != ('Assembly' if _assembly else 'MaterialSolidCollection') or
             manifest.get('auxiliary_required') is not False or 'auxiliary' in manifest):
         raise ValueError('InvalidCollectionManifest')
     limits = dict(faces=MAX_FACES, edges=MAX_EDGES, vertices=MAX_VERTICES,
@@ -27,9 +27,9 @@ def read_collection(directory, manifest, resolve, *, _allow_single=False):
                 body.get('format') != 'brep-view-scene.v3' or body.get('auxiliary_required') is not False or
                 'auxiliary' in body or not isinstance(body.get('source_shape_id'), str) or
                 not re.fullmatch(r'0|[1-9][0-9]*', body['source_shape_id']) or
-                body['source_shape_id'] in shape_ids):
+                ((body.get('instance'), body.get('definition_body')) if _assembly else body['source_shape_id']) in shape_ids):
             raise ValueError('InvalidCollectionBody')
-        shape_ids.add(body['source_shape_id'])
+        shape_ids.add((body.get('instance'), body.get('definition_body')) if _assembly else body['source_shape_id'])
         for key, limit in limits.items():
             value = body.get(key)
             if type(value) is not int or value < 0:
@@ -64,7 +64,10 @@ def read_collection(directory, manifest, resolve, *, _allow_single=False):
             raise ValueError('InconsistentCollectionMeasurements')
         f, e, v = len(faces), len(edges), len(vertices)
         ownership.append(BodyInfo(ordinal, body['source_shape_id'], f, len(data.faces),
-                                  e, len(data.edges), v, len(data.vertices)))
+                                  e, len(data.edges), v, len(data.vertices),
+                                  instance_index=body.get('instance') if _assembly else None,
+                                  definition_index=body.get('definition') if _assembly else None,
+                                  source_definition_id=body.get('source_definition_id') if _assembly else None))
         faces.extend(replace(info, id=f + info.id, body=ordinal, local_id=info.id) for info in data.faces)
         edges.extend(replace(info, id=e + info.id, body=ordinal, local_id=info.id) for info in data.edges)
         vertices.extend(replace(info, id=v + info.id, body=ordinal, local_id=info.id) for info in data.vertices)

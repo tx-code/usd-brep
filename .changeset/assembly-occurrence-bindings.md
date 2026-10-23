@@ -28,7 +28,10 @@ policy argument, so rebuild SDK and callers together.
 [Explicit assembly C++ import](../source/STEP_IMPORT/README.md).
 This is a development subset, not full schema or continuous geometric-error qualification.
 Associated geometry, repairs and source isolation are not combined with this entry yet.
-Existing automatic file import, CLI and GUI routing remain unchanged.
+The standalone viewer adds explicit single-file `--assembly` mode and transports
+instance-owned transformed topology and native measurements. Default automatic
+file routing remains unchanged; multiple-root display and assembly scans are not
+yet supported.
 
 ## Integrator action
 

@@ -34,6 +34,9 @@ def main(argv=None):
     parser.add_argument("--report-budget-mib", type=int, choices=(16, 32, 64, 128, 256), default=16,
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
+    parser.add_argument('--assembly', action='store_true', help='显式装配导入；保留实例及根坐标')
+    parser.add_argument('--unreferenced-placement-policy', choices=('Reject', 'RetainDisconnected'), default='Reject',
+                        help='显式保留经证明完全断开的源坐标系声明；仅装配模式')
     parser.add_argument('--repair-source-sha256', default='')
     parser.add_argument('--band-repair-source-sha256', default='')
     parser.add_argument('--max-band-repair-faces', type=int, default=0, dest='maximum_band_repair_faces')
@@ -62,7 +65,13 @@ def main(argv=None):
     parser.add_argument("--timeout", type=float, default=150, help="扫描单文件完整查看流程的秒数上限（默认 150）")
     parser.add_argument("--scan-child", action="store_true", help=argparse.SUPPRESS)
     options = parser.parse_args(args)
+    if options.unreferenced_placement_policy != 'Reject' and not options.assembly:
+        parser.error('保留未引用坐标系需要 --assembly')
+    if options.assembly and (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
+        parser.error('--assembly 当前需要一个显式 STEP 文件')
     try:
+        from .assembly import arguments as assembly_arguments
+        assembly_arguments(options)
         from .repair import arguments as repair_arguments
         repair = repair_arguments(options)
         from .definition_selection import arguments as selection_arguments

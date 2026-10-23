@@ -16,6 +16,7 @@ from .process_guard import ProcessGuard
 from .interpretation import validate, complex_mapping_arguments, validate_complex_mapping_receipt
 from .repair import arguments as repair_arguments
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
+from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -50,6 +51,8 @@ class ImportSettings:
     maximum_band_bound_edits: int = 0
     maximum_band_proof_operations: int = 0
     cylindrical_band_repairs: tuple[str, ...] = ()
+    assembly: bool = False
+    unreferenced_placement_policy: str = 'Reject'
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
@@ -59,6 +62,7 @@ class ImportSettings:
                  self.complex_mapping_interpretation)
         repair_arguments(self)
         selection_arguments(self)
+        assembly_arguments(self)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -144,7 +148,7 @@ class SceneLoader(QtCore.QObject):
                 if self.settings.unit_interpretation != "DeclaredOnly":
                     arguments.append(self.settings.unit_interpretation)
             intent = (repair_arguments(self.settings) + selection_arguments(self.settings) +
-                      complex_mapping_arguments(self.settings))
+                      complex_mapping_arguments(self.settings) + assembly_arguments(self.settings))
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -243,7 +247,7 @@ class SceneLoader(QtCore.QObject):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             if (not isinstance(manifest, dict)
                     or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3",
-                                                      "brep-view-scene.v4", "brep-view-scene.v5"}):
+                                                      "brep-view-scene.v4", "brep-view-scene.v5", "brep-view-scene.v6"}):
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -258,8 +262,20 @@ class SceneLoader(QtCore.QObject):
             validate_selection(manifest, self.settings)
             if job['path'].suffix.lower() in CAD_EXTENSIONS:
                 validate_complex_mapping_receipt(manifest, self.settings)
+                validate_assembly_request(manifest, self.settings)
             import pyvista as pv
             import numpy as np
+            if manifest['format'] == 'brep-view-scene.v6':
+                mesh, boundary, topology = read_assembly(directory, manifest, scene_file)
+                metadata = dict(manifest, _topology=topology)
+                self.worker_result['topology_inventory'] = dict(faces=len(topology.faces), edges=len(topology.edges),
+                    vertices=len(topology.vertices), bodies=len(topology.bodies), instances=manifest['instance_count'],
+                    definitions=manifest['definition_count'], face_labels_complete=topology.face_labels_complete)
+                self.worker_result['display_scope'] = 'AssemblyRoot'
+                self.progress.emit(Progress('render'))
+                if generation == self.generation and not job['stopped']:
+                    self.loaded.emit(str(job['path']), mesh, boundary, metadata)
+                return
             if manifest['format'] == 'brep-view-scene.v5':
                 from .collection import read_document
                 definitions = read_document(directory, manifest, scene_file)
