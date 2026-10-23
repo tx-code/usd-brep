@@ -361,6 +361,11 @@ public:
         );
         if (checkDefinitions)
         {
+            // Continue the part phase after context observations. Preserve()
+            // requires an active phase even when a guarded exception is retained.
+            Expects(!m_phase && State(Phase::Part) == Progress::Passed);
+            m_phase = Phase::Part;
+            State(Phase::Part) = Progress::Running;
             try
             {
                 m_assemblyDefinitionChecks = true;
@@ -407,10 +412,13 @@ public:
                     candidate->definitionChecks.push_back(std::move(m_data->part));
                 }
                 m_data->part = {};
+                State(Phase::Part) = Progress::Passed;
+                m_phase.reset();
             }
             catch (Failure& failure)
             {
                 State(Phase::Part) = FailureProgress(failure.status);
+                m_phase.reset();
                 throw;
             }
         }
@@ -422,6 +430,97 @@ public:
         }
         m_outcome.unitInterpretationDiagnostics = m_data->unitInterpretationDiagnostics;
         return std::make_shared<const AssemblyInputs>(std::move(candidate));
+    }
+    void FinalizeAssemblySource(const AssemblyInputs& inputs)
+    {
+        Expects(m_assemblyDefinitionChecks && inputs.DefinitionChecks().size() == m_outcome.productStructure->Definitions().size());
+        Expects(!m_phase && State(Phase::Part) == Progress::Passed);
+        m_phase = Phase::Part;
+        State(Phase::Part) = Progress::Running;
+        try
+        {
+            std::unordered_map<std::size_t, std::size_t> owners;
+            for (const auto& part : inputs.DefinitionChecks())
+            {
+                std::optional<std::size_t> context, definition;
+                for (const auto& role : part.roles)
+                {
+                    if (role.name == "unit_context")
+                    {
+                        context = role.recordIndex;
+                    }
+                    if (role.name == "definition")
+                    {
+                        definition = role.recordIndex;
+                    }
+                }
+                Expects(context && definition && inputs.FindContext(*context));
+                owners.emplace(*definition, m_data->independentParts.size());
+                m_data->independentParts.push_back({ part, inputs.FindContext(*context)->units });
+            }
+            AggregateDefinitionParts();
+            m_data->part.shapeRole = "AssemblyDefinitions";
+            // Occurrence ownership was explicitly bound; retain every link as
+            // a source root. This is not a generic "all records are owned" seed.
+            // CDSR reaches its usage PDS and transformed relation/IDT; usages
+            // reach the actual parent/child definitions without cloning them.
+            for (const auto& usage : m_outcome.productStructure->Usages())
+            {
+                Visit(Record(usage.usage).span);
+                m_data->part.roles.push_back({ "assembly_usage", usage.usage });
+            }
+            for (const auto& link : m_outcome.productStructure->ContextDependentShapes())
+            {
+                Visit(Record(link.link).span);
+                m_data->part.roles.push_back({ "assembly_shape_link", link.link });
+            }
+            // Preserve global unit evidence for final metadata approval while
+            // each definition view continues to own its context-specific units.
+            Units summary;
+            std::unordered_set<std::size_t> si, dimensions;
+            for (const auto& context : inputs.Contexts())
+            {
+                for (const auto& unit : context.units.siDefinitions)
+                {
+                    if (si.insert(unit.recordIndex).second)
+                    {
+                        summary.siDefinitions.push_back(unit);
+                    }
+                }
+                for (const auto& dimension : context.units.dimensionDefinitions)
+                {
+                    if (dimensions.insert(dimension.recordIndex).second)
+                    {
+                        summary.dimensionDefinitions.push_back(dimension);
+                    }
+                }
+            }
+            m_data->units = std::move(summary);
+            Closure();
+            for (const auto& attachment : m_data->part.propertyAttachments)
+            {
+                m_data->independentParts.at(owners.at(attachment.productDefinition)).part.propertyAttachments.push_back(attachment);
+            }
+            State(Phase::Part) = Progress::Passed;
+            m_phase.reset();
+        }
+        catch (Failure& failure)
+        {
+            State(Phase::Part) = FailureProgress(failure.status);
+            m_phase.reset();
+            throw;
+        }
+        if (Interoperability())
+        {
+            RunPhase(
+                Phase::Interoperability,
+                [&]
+                {
+                    ApprovePreservedMetadata();
+                }
+            );
+        }
+        m_outcome.unapprovedDiagnostics.clear();
     }
     void InspectDefinitions()
     {
@@ -934,6 +1033,10 @@ private:
             }
             m_data->independentParts.push_back({ std::move(m_data->part), {} });
         }
+        AggregateDefinitionParts();
+    }
+    void AggregateDefinitionParts()
+    {
         m_scopedPopulations = nullptr;
         m_data->part = {};
         m_data->part.shapeRole = "IndependentProductDefinitions";
@@ -5495,7 +5598,8 @@ static Outcome CheckImpl(
     bool inspectDefinitions = false,
     const SelectedSourceRequest* selection = nullptr,
     std::shared_ptr<const AssemblyInputs>* assemblyInputs = nullptr,
-    bool assemblyDefinitionChecks = false
+    bool assemblyDefinitionChecks = false,
+    std::shared_ptr<const AssemblyDocument>* assemblyDocument = nullptr
 )
 {
     if (!cylindricalBandRepairs.empty() && (scope != GeometryScope::GeneralBrep || cylindricalBandRepairs.size() > source.limits.records))
@@ -5623,6 +5727,7 @@ static Outcome CheckImpl(
         data->selectedSourceRequest = *selection;
     }
     Checker checker(data, result, independentRequest);
+    std::shared_ptr<const AssemblyInputs> assemblyCandidate;
     try
     {
         if (assemblyInputs)
@@ -5654,7 +5759,15 @@ static Outcome CheckImpl(
             checker.PublishProgress();
             return result;
         }
-        checker.Run();
+        if (assemblyDocument)
+        {
+            assemblyCandidate = checker.InspectAssemblyContextInputs(true);
+            checker.FinalizeAssemblySource(*assemblyCandidate);
+        }
+        else
+        {
+            checker.Run();
+        }
         if (independentRequest && data->independentParts.empty())
         {
             data->independentParts.push_back({ data->part, data->units });
@@ -5692,7 +5805,13 @@ static Outcome CheckImpl(
         {
             result.status = Status::CheckedSelectedDefinitions;
         }
-        if (data->independentParts.empty())
+        if (assemblyDocument)
+        {
+            *assemblyDocument = std::make_shared<const AssemblyDocument>(
+                std::make_shared<const AssemblyDocumentData>(AssemblyDocumentData{ data, std::move(assemblyCandidate) })
+            );
+        }
+        else if (data->independentParts.empty())
         {
             result.snapshot = std::make_shared<const Snapshot>(std::move(data));
         }
@@ -5759,6 +5878,34 @@ AssemblyInputOutcome InspectAssemblyDefinitions(
         nullptr,
         &result.inputs,
         true
+    );
+    return result;
+}
+AssemblySourceOutcome CheckAssemblySource(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation,
+    UnitInterpretation unitInterpretation,
+    ComplexMappingInterpretation complexMappingInterpretation
+)
+{
+    AssemblySourceOutcome result;
+    result.checks = CheckImpl(
+        source,
+        limits,
+        policy,
+        GeometryScope::GeneralBrep,
+        interpretation,
+        unitInterpretation,
+        complexMappingInterpretation,
+        {},
+        false,
+        false,
+        nullptr,
+        nullptr,
+        false,
+        &result.document
     );
     return result;
 }

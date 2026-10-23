@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAssemblyInputsInternal.h"
+#include "StepCatalog.h"
 
 #include <stdexcept>
 #include <utility>
@@ -34,5 +35,25 @@ const AssemblyContextUnits* AssemblyInputs::FindContext(std::size_t context) con
 std::span<const Part> AssemblyInputs::DefinitionChecks() const
 {
     return m_data->definitionChecks;
+}
+AssemblyDocument::AssemblyDocument(std::shared_ptr<const AssemblyDocumentData> data) : m_data(std::move(data))
+{
+    if (!m_data || !m_data->semantic || !m_data->inputs || m_data->semantic->independentParts.empty() ||
+        m_data->semantic->independentParts.size() != m_data->inputs->DefinitionChecks().size())
+    {
+        throw std::invalid_argument("Assembly document requires complete source definitions and ownership");
+    }
+}
+const AssemblyInputs& AssemblyDocument::Inputs() const
+{
+    return *m_data->inputs;
+}
+std::size_t AssemblyDocument::DefinitionCount() const
+{
+    return m_data->semantic->independentParts.size();
+}
+std::shared_ptr<const Snapshot> AssemblyDocument::Definition(std::size_t index) const
+{
+    return std::shared_ptr<const Snapshot>(new Snapshot(m_data->semantic, index));
 }
 } // namespace step_semantics

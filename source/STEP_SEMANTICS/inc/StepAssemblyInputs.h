@@ -50,4 +50,33 @@ AssemblyInputOutcome InspectAssemblyDefinitions(
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
+struct AssemblyDocumentData;
+// Complete source ownership under the selected implementation, not native
+// geometry qualification. Wrapper definitions retain zero shapes explicitly.
+class AssemblyDocument
+{
+public:
+
+    explicit AssemblyDocument(std::shared_ptr<const AssemblyDocumentData> data);
+    const AssemblyInputs& Inputs() const;
+    std::size_t DefinitionCount() const;
+    std::shared_ptr<const Snapshot> Definition(std::size_t index) const;
+
+private:
+
+    std::shared_ptr<const AssemblyDocumentData> m_data;
+};
+struct AssemblySourceOutcome
+{
+    Outcome checks; // No legacy single-part snapshot/independent document.
+    std::shared_ptr<const AssemblyDocument> document;
+};
+AssemblySourceOutcome CheckAssemblySource(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
+    ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
+);
 } // namespace step_semantics

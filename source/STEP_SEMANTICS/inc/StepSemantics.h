@@ -404,6 +404,7 @@ public:
 private:
 
     friend class ProductDocument;
+    friend class AssemblyDocument;
     Snapshot(std::shared_ptr<const SemanticData> data, std::size_t partIndex);
     std::shared_ptr<const SemanticData> m_data;
     std::optional<std::size_t> m_partIndex;

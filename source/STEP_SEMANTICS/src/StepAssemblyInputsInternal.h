@@ -14,4 +14,9 @@ struct AssemblyInputData
     std::unordered_map<std::size_t, std::size_t> contextIndices;
     std::vector<Part> definitionChecks;
 };
+struct AssemblyDocumentData
+{
+    std::shared_ptr<const SemanticData> semantic;
+    std::shared_ptr<const AssemblyInputs> inputs;
+};
 } // namespace step_semantics

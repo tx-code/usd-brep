@@ -30,6 +30,10 @@ cancellation failure. It still does not publish a native assembly model.
 `InspectAssemblyDefinitions` reuses existing per-product checks, keeping
 placement-only wrappers separate from material and surface definitions. All
 definition observations remain unqualified until whole-document closure succeeds.
+`CheckAssemblySource` adds whole-document ownership and final metadata approval,
+publishing dedicated owning definition snapshots only when every required source
+check completes. Unowned geometry still blocks publication; native assembly
+construction is not yet exposed by this API.
 
 ## Scope
 

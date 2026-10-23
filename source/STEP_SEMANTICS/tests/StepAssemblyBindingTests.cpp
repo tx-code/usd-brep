@@ -306,6 +306,68 @@ void DefinitionChecks(const std::string& source)
         "owning checks survive outcome release"
     );
 }
+void CompleteSource(const std::string& source)
+{
+    using namespace step_semantics;
+    auto check = [](const std::string& text, Limits limits = {}, SourcePolicy policy = SourcePolicy::Strict)
+    {
+        auto raw = step_source::InspectBytes(text, step_source::Limits::PlanarFixtures());
+        return CheckAssemblySource(raw, limits, policy);
+    };
+    auto complete = check(source);
+    Require(
+        complete.document && complete.checks.status == Status::Checked && !complete.checks.snapshot && !complete.checks.document,
+        "complete assembly source has its own owning publication interface"
+    );
+    Require(complete.document->DefinitionCount() == 2, "all source definitions published");
+    auto child = complete.document->Definition(0), parent = complete.document->Definition(1);
+    Require(
+        child->PartDefinition().shapeRole == "MaterialSolid" && parent->PartDefinition().shapeRole == "AssemblyPlacementWrapper" &&
+            parent->PartDefinition().shapes.empty(),
+        "qualified wrapper has no invented material body"
+    );
+    auto orphan = check(Replace(source, "ENDSEC;\nEND-ISO", "#950=DIRECTION('',(1.,0.,0.));\nENDSEC;\nEND-ISO"));
+    Require(
+        !orphan.document && orphan.checks.diagnostics.back().source.key == "UnownedOrOrphanProfileContent",
+        "global closure refuses unowned geometric content despite good definitions"
+    );
+    auto metadata = check(Replace(
+        source,
+        "ENDSEC;\nEND-ISO",
+        "#950=PROPERTY_DEFINITION('synthetic',$,#7);\n#951=REPRESENTATION('property',(#952),#12);\n"
+        "#952=DESCRIPTIVE_REPRESENTATION_ITEM('synthetic','value');\n#953=PROPERTY_DEFINITION_REPRESENTATION(#950,#951);\nENDSEC;\nEND-ISO"
+    ));
+    Require(
+        metadata.document && !metadata.document->Definition(0)->PartDefinition().propertyAttachments.empty() &&
+            metadata.document->Definition(1)->PartDefinition().propertyAttachments.empty(),
+        "inverse property attachment retained only on owning definition"
+    );
+    auto labels = Replace(source, "PRODUCT_DEFINITION_CONTEXT('part definition'", "PRODUCT_DEFINITION_CONTEXT('nonstandard label'");
+    auto pendingOrphan = check(
+        Replace(labels, "ENDSEC;\nEND-ISO", "#950=DIRECTION('',(1.,0.,0.));\nENDSEC;\nEND-ISO"),
+        {},
+        SourcePolicy::PreserveNonGeometric
+    );
+    Require(
+        !pendingOrphan.document && pendingOrphan.checks.part == "Unsupported" && pendingOrphan.checks.siUnits == "Passed",
+        "pending metadata does not corrupt completed unit state when closure fails"
+    );
+    Require(!check(labels).document, "strict definition label refusal retained");
+    auto interoperable = check(labels, {}, SourcePolicy::PreserveNonGeometric);
+    Require(
+        interoperable.document && interoperable.checks.status == Status::CheckedWithDiagnostics &&
+            !interoperable.checks.preservedDiagnostics.empty() && interoperable.checks.unapprovedDiagnostics.empty(),
+        "nongeometric exceptions only approved after whole-document ownership"
+    );
+    Limits limits;
+    limits.dependencyVisits = complete.checks.dependencyVisits;
+    Require(bool(check(source, limits).document), "exact full assembly semantic budget");
+    --limits.dependencyVisits;
+    auto stopped = check(source, limits);
+    Require(!stopped.document && stopped.checks.status == Status::ResourceLimit, "late global closure exhaustion withholds all definitions");
+    complete = {};
+    Require(child->Source().Bytes() == source && &child->Source() == &parent->Source(), "qualified definition views retain shared original capture");
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -318,6 +380,7 @@ int main(int argc, char** argv)
         ContextInputs(source);
         DefinitionScopes(source);
         DefinitionChecks(source);
+        CompleteSource(source);
         auto graph = Graph(source);
         auto result = step_semantics::BindAssemblyOccurrences(graph, {});
         Require(

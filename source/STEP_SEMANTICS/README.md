@@ -1278,6 +1278,29 @@ whole-source inverse ownership, metadata exception approval, full geometry/nativ
 validation and final publication have not run. An all-green definition observation
 must not be used as a qualified source snapshot or partial native import.
 
+## Complete assembly source ownership
+
+`CheckAssemblySource` runs the same complete input/definition prerequisites, then
+aggregates definition roles together with explicitly bound usage/CDSR roots and
+executes the existing whole-document closure and final interoperability approval.
+It does not seed every source record or discard unowned geometric declarations.
+Inverse property attachments are distributed to their owning definition; physical
+reach includes placement-only parents as well as geometry definitions.
+
+Successful checks return a dedicated owning `AssemblyDocument`, with per-definition
+`Snapshot` views retaining context-specific units and original identities. Legacy
+single-part/independent document outputs remain null. Wrappers expose the explicit
+`AssemblyPlacementWrapper` role and no invented material shapes. Views retain the
+same source after the document/outcome is released. Any closure, approval or budget
+failure returns no document or surviving definitions.
+
+Qualification follows existing source subset semantics: conversion or unmarked
+regions may leave the status `Deferred` and must still be resolved downstream.
+This is not full EXPRESS conformance, native BRep validity, numeric placement
+qualification, selected-root isolation or a new CLI import mode. All declared
+definitions participate; source-only observations on `Inputs()` keep their narrower
+meaning even when the document's definition snapshots have passed closure.
+
 ## Qualified independent definitions
 
 `CheckIndependentProducts` / CLI `--independent-products` explicitly requests all
