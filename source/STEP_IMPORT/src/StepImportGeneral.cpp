@@ -2579,21 +2579,21 @@ private:
                     cp.Add(P(Position(m_source->ReferenceTarget(ref))));
                 }
             }
-            SmTArray<ULONG> um;
-            if (auto checked = Multiplicities(g, "u_multiplicities", um); !checked)
+            auto um = Multiplicities(g, "u_multiplicities");
+            if (!um)
             {
-                return tl::unexpected(std::move(checked.error()));
+                return tl::unexpected(std::move(um.error()));
             }
-            SmTArray<ULONG> vm;
-            if (auto checked = Multiplicities(g, "v_multiplicities", vm); !checked)
+            auto vm = Multiplicities(g, "v_multiplicities");
+            if (!vm)
             {
-                return tl::unexpected(std::move(checked.error()));
+                return tl::unexpected(std::move(vm.error()));
             }
             auto uk = Numbers(g, "u_knots"), vk = Numbers(g, "v_knots");
-            SmTArray<double> weights;
-            if (auto checked = SplineWeights(g, true, cp, weights); !checked)
+            auto weights = SplineWeights(g, true, cp);
+            if (!weights)
             {
-                return tl::unexpected(std::move(checked.error()));
+                return tl::unexpected(std::move(weights.error()));
             }
             SmBSplineSurface* surface = nullptr;
             if (auto operation = Step(g); !operation)
@@ -2617,18 +2617,18 @@ private:
                     *vDegree,
                     cp,
                     SM_SF_UNSPECIFIED,
-                    um,
-                    vm,
+                    *um,
+                    *vm,
                     uk,
                     vk,
                     SM_KT_UNSPECIFIED,
-                    weights.GetSize() ? &weights : nullptr,
+                    weights->GetSize() ? &*weights : nullptr,
                     nullptr,
                     surface
                 )
             );
             std::unique_ptr<SmSurface> owned(surface);
-            if (weights.GetSize())
+            if (weights->GetSize())
             {
                 if (auto businessCheck = Need(bool(surface), "GeneralSurfaceAllocation", g); !businessCheck)
                 {
@@ -2646,7 +2646,7 @@ private:
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
-                if (auto businessCheck = VerifyRationalNet(g, f.record, cp, weights, net, u * v, surface->IsRational()); !businessCheck)
+                if (auto businessCheck = VerifyRationalNet(g, f.record, cp, *weights, net, u * v, surface->IsRational()); !businessCheck)
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
