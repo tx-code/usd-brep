@@ -553,6 +553,7 @@ def run(options):
     settings = ImportSettings(options.profile, options.normalize_periodic_faces,
                               options.restrict_unused_support_domains, options.strict_source,
                               schema_interpretation=options.schema_interpretation,
+                              schema_source_sha256=getattr(options, 'schema_source_sha256', ''),
                               carrier_interpretation=options.carrier_interpretation,
                               report_budget_mib=options.report_budget_mib,
                               preserve_opaque_file_name_text=options.preserve_opaque_file_name_text,

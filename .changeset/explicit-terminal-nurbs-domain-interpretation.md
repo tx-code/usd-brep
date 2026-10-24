@@ -59,6 +59,13 @@ with separately declared usage, instance and depth limits. All roots and repeate
 instances remain in the report; incompatible singular-query/archive modes refuse
 before capture rather than flattening or dropping definitions.
 
+The standalone viewer can transport the core's existing original-hash-bound
+fixed AP214 schema interpretation for one explicit STEP file, including assembly
+display. Scene adoption binds the requested/applied policy, immutable capture
+identity and conditional qualification. Missing, mismatched, unused or strict
+requests refuse without replacing the previous scene; scans cannot reuse a
+single-original choice. No source, geometry or quality exception is added.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).

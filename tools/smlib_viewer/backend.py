@@ -14,6 +14,7 @@ from PySide6 import QtCore
 from .progress import Progress, ProgressReader
 from .process_guard import ProcessGuard
 from .interpretation import validate, complex_mapping_arguments, validate_complex_mapping_receipt
+from .interpretation import source_identity_arguments, validate_source_identity_receipt
 from .repair import arguments as repair_arguments, validate_vertex_manifest
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
@@ -60,17 +61,19 @@ class ImportSettings:
     assembly: bool = False
     unreferenced_placement_policy: str = 'Reject'
     integration_relative_accuracy: float | None = None
+    schema_source_sha256: str = ''
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
                  self.preserve_opaque_file_name_text, self.assume_ascii_invariant_data, self.unit_interpretation,
-                 self.complex_mapping_interpretation)
+                 self.complex_mapping_interpretation, self.schema_source_sha256)
         repair_arguments(self)
         selection_arguments(self)
         assembly_arguments(self)
         integration_arguments(self)
+        source_identity_arguments(self)
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -128,6 +131,9 @@ class SceneLoader(QtCore.QObject):
         if selection_arguments(self.settings) and path.suffix.lower() not in CAD_EXTENSIONS:
             self.failed.emit("选择零件需要 STEP 文件", "选择请求不能用于网格文件。")
             return
+        if source_identity_arguments(self.settings) and path.suffix.lower() not in CAD_EXTENSIONS:
+            self.failed.emit("原件协议解释需要 STEP 文件", "绑定请求不能用于其他文件格式。")
+            return
         generation = self.generation
         directory = tempfile.TemporaryDirectory(prefix="brep-view-")
         process = QtCore.QProcess(self)
@@ -157,7 +163,7 @@ class SceneLoader(QtCore.QObject):
                     arguments.append(self.settings.unit_interpretation)
             intent = (repair_arguments(self.settings) + selection_arguments(self.settings) +
                       complex_mapping_arguments(self.settings) + assembly_arguments(self.settings) +
-                      integration_arguments(self.settings))
+                      integration_arguments(self.settings) + source_identity_arguments(self.settings))
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -271,6 +277,7 @@ class SceneLoader(QtCore.QObject):
                 return
             validate_selection(manifest, self.settings)
             if job['path'].suffix.lower() in CAD_EXTENSIONS:
+                validate_source_identity_receipt(manifest, self.settings)
                 validate_integration_receipt(manifest, self.settings)
                 validate_complex_mapping_receipt(manifest, self.settings)
                 validate_assembly_request(manifest, self.settings)

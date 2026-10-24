@@ -75,6 +75,11 @@ if(STEP_BUILD_TOOLS)
     target_include_directories(step_view_export SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
     target_compile_definitions(step_view_export PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    if(MSVC)
+        # The debug worker's complete scene writer exceeds ordinary COFF's
+        # section count. This changes the object container, not kernel layout.
+        target_compile_options(step_view_export PRIVATE $<$<CONFIG:Debug>:/bigobj>)
+    endif()
 endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)

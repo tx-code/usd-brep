@@ -159,6 +159,19 @@ trigger an automatic retry. When the core applies an assumption, the HUD marks
 the source interpretation and receipts retain `AcceptedUnderInterpretation`.
 Requested settings are distinct from the returned native status; rendering
 remains only viewer-pipeline evidence, not formal STEP qualification.
+
+For one explicitly named STEP file, `--schema-interpretation SourceBoundAp214As2010
+--schema-source-sha256 HASH` transports the core's existing original-bound, fixed
+AP214 interpretation. The lowercase SHA-256 must match the immutable source
+captured by the importer; the viewer never calculates or guesses this choice.
+The scene must return the same request, applied policy, source identity and
+conditional native status before adoption. Source bytes and original binding
+diagnostics remain intact. Already registered inputs, mismatched identities and
+strict-source requests refuse; no fallback or retry occurs. This option also
+works with explicit assembly display, but cannot be used for scans or non-STEP
+files. Failure retains the previous complete scene. This transports a schema
+choice only; native geometry, quality and publication checks remain unchanged.
+
 `--preserve-opaque-file-name-text` additionally opts into lossless preservation of
 unknown-encoding FILE_NAME administrative strings. It is independent of schema
 and carrier assumptions, cannot accompany `--strict-source`, and is recorded in

@@ -24,6 +24,7 @@ def main(argv=None):
     parser.add_argument("--restrict-unused-support-domains", action="store_true")
     parser.add_argument("--strict-source", action="store_true", help="禁用非几何互操作；默认保留已证明无关的原诊断")
     parser.add_argument("--schema-interpretation", choices=SCHEMA_POLICIES, default="DeclaredOnly")
+    parser.add_argument('--schema-source-sha256', default='', help='原件限定协议解释的完整 SHA256；只用于一个显式 STEP 文件')
     parser.add_argument("--unit-interpretation", choices=UNIT_POLICIES, default="DeclaredOnly")
     parser.add_argument('--complex-mapping-interpretation', choices=COMPLEX_MAPPING_POLICIES, default='DeclaredOnly',
                         help='显式按已登记组成项名称解释非标准复合实体顺序；保留原文与诊断')
@@ -78,6 +79,9 @@ def main(argv=None):
     if options.assembly and (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
         parser.error('--assembly 当前需要一个显式 STEP 文件')
     try:
+        if (options.schema_interpretation == 'SourceBoundAp214As2010' and
+                (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'})):
+            raise ValueError('SourceBoundSchemaRequiresOneExplicitStepFile')
         from .integration import arguments as integration_arguments
         integration_arguments(options)
         from .assembly import arguments as assembly_arguments
@@ -92,7 +96,7 @@ def main(argv=None):
             raise ValueError('RepairPlanRequiresOneExplicitFile')
         validate(options.schema_interpretation, options.carrier_interpretation, options.strict_source,
                  options.preserve_opaque_file_name_text, options.assume_ascii_invariant_data,
-                 options.unit_interpretation, options.complex_mapping_interpretation)
+                 options.unit_interpretation, options.complex_mapping_interpretation, options.schema_source_sha256)
     except ValueError as error:
         parser.error(str(error))
     if options.scan:

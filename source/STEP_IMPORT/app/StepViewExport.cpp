@@ -8,6 +8,7 @@
 #include "StepIntegrationArguments.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
+#include "StepSourceIdentityArguments.h"
 #include "StepSourceReport.h"
 #include "StepViewAuxiliary.h"
 #include "StepViewTopology.h"
@@ -448,6 +449,17 @@ void Publish(
                 w.String(report.encoding == step_import::ReportEncoding::CompactV2 ? "CompactV2" : "ExpandedV1");
                 w.Add(",\"requested_schema_interpretation\":");
                 w.String(schema);
+                if (schema == "SourceBoundAp214As2010")
+                {
+                    w.Add(",\"applied_schema_interpretation\":");
+                    w.String(
+                        step_semantics::SchemaInterpretationName(
+                            sourceView          ? sourceView->AppliedInterpretation() :
+                            report.sourceSchema ? report.sourceSchema->appliedInterpretation.policy :
+                                                  step_semantics::SchemaInterpretation::DeclaredOnly
+                        )
+                    );
+                }
                 w.Add(",\"requested_carrier_interpretation\":");
                 w.String(carrier);
                 w.Add(",\"report_budget_mib\":");
@@ -620,7 +632,8 @@ int Run(
     const std::optional<step_import::CylindricalBandRepairRequest>& bandRepair = {},
     const std::optional<step_import::SourceErrorIsolationLimits>& sourceIsolation = {},
     const step_import_app::AssemblyArguments& assemblyRequest = {},
-    const std::optional<step_import::NumericalIntegrationSettings>& numericalIntegration = {}
+    const std::optional<step_import::NumericalIntegrationSettings>& numericalIntegration = {},
+    const std::string& schemaSourceIdentity = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -635,6 +648,7 @@ int Run(
                                                           256;
     Good(!strict || !fileNameText, "FileNameTextRequiresInteroperability");
     Good(!strict || !asciiInvariant, "AsciiInvariantDataRequiresInteroperability");
+    Good((schema == "SourceBoundAp214As2010") == !schemaSourceIdentity.empty(), "SourceBoundSchemaRequiresExactOriginalIdentity");
     Good(
         assemblyRequest.enabled || assemblyRequest.placements == step_semantics::UnreferencedPlacementPolicy::Reject,
         "PlacementRetentionRequiresAssembly"
@@ -739,7 +753,11 @@ int Run(
         {
             Good(unitInterpretation == "DeclaredOnly", "UnknownUnitInterpretation");
         }
-        if (schema == "Ap214NameOnlyAs2010")
+        if (schema == "SourceBoundAp214As2010")
+        {
+            options.schemaInterpretation = { step_semantics::SchemaInterpretation::SourceBoundAp214As2010, schemaSourceIdentity };
+        }
+        else if (schema == "Ap214NameOnlyAs2010")
         {
             options.schemaInterpretation = step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010;
         }
@@ -781,6 +799,10 @@ int Run(
             result.status = loaded.status;
             result.report = std::move(loaded.report);
             nativeStatus = step_import::StatusName(result.status);
+            if (loaded.assembly && !schemaSourceIdentity.empty())
+            {
+                Good(result.report.sourceSha256 == schemaSourceIdentity, "SourceBoundSchemaResultIdentityMismatch");
+            }
             std::ofstream report(output / "import-report.json", std::ios::binary);
             report << result.report.json;
             report.close();
@@ -907,6 +929,10 @@ int Run(
                        (collection && collection->Source()->Source().HasAsciiInvariantDataAssumption()) ||
                        (document && document->Source()->Source().HasAsciiInvariantDataAssumption());
         nativeStatus = step_import::StatusName(result.status);
+        if ((model || collection || document) && !schemaSourceIdentity.empty())
+        {
+            Good(result.report.sourceSha256 == schemaSourceIdentity, "SourceBoundSchemaResultIdentityMismatch");
+        }
         std::ofstream report(output / "import-report.json", std::ios::binary);
         report << result.report.json;
         report.close();
@@ -1102,7 +1128,16 @@ int wmain(int argc, wchar_t** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::IntegrationArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request) ||
+                step_import_app::SourceIdentityArgument(
+                    std::filesystem::path(argv[i]).string(),
+                    std::filesystem::path(argv[i + 1]).string(),
+                    request
+                ) ||
+                    step_import_app::IntegrationArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        request
+                    ) ||
                     step_import_app::AssemblyArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -1148,7 +1183,8 @@ int wmain(int argc, wchar_t** argv)
             request.cylindricalBandRepair,
             request.sourceErrorIsolation,
             assemblyRequest,
-            request.numericalIntegration
+            request.numericalIntegration,
+            request.schemaInterpretation.sourceSha256
         );
     }
     catch (...)
@@ -1185,7 +1221,8 @@ int main(int argc, char** argv)
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::IntegrationArgument(argv[i], argv[i + 1], request) ||
+                step_import_app::SourceIdentityArgument(argv[i], argv[i + 1], request) ||
+                    step_import_app::IntegrationArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::AssemblyArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -1218,7 +1255,8 @@ int main(int argc, char** argv)
             request.cylindricalBandRepair,
             request.sourceErrorIsolation,
             assemblyRequest,
-            request.numericalIntegration
+            request.numericalIntegration,
+            request.schemaInterpretation.sourceSha256
         );
     }
     catch (...)

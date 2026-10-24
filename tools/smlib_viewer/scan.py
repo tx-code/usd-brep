@@ -194,6 +194,9 @@ def run_case(path, directory, options, caption):
 
 
 def run_scan(options):
+    if (getattr(options, 'schema_source_sha256', '') or
+            getattr(options, 'schema_interpretation', 'DeclaredOnly') == 'SourceBoundAp214As2010'):
+        raise ValueError('SourceBoundSchemaRequiresOneExplicitStepFile')
     roots = list(dict.fromkeys(path.expanduser().resolve() for path in options.scan))
     output = options.output.expanduser().resolve()
     if not math.isfinite(options.timeout) or options.timeout <= 0:
