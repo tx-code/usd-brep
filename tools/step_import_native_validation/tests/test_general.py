@@ -183,10 +183,13 @@ class GeneralTests(unittest.TestCase):
 
     def test_surface_role_is_not_promoted_to_material(self):
         run, result = self.invoke("S203-P01")
-        self.assertEqual(2, run.returncode)
-        self.assertIsNone(result["model"])
-        self.assertEqual(0, result["native_calls"])
-        self.assertEqual("GeneralRequiresMaterialSolid", result["diagnostics"][-1]["key"])
+        self.assertEqual(0, run.returncode, result["diagnostics"])
+        self.assertEqual("NotApplicable", result["model"]["material_volume"])
+        self.assertEqual(0, result["native_role"]["material_regions"])
+        self.assertEqual(0, result["native_role"]["bounded_void_regions"])
+        self.assertFalse(result["native_role"]["manifold_solid_predicate"])
+        self.assertEqual("NotApplicable", result["material_census"]["applicability"])
+        self.assertEqual({"pointer_reports": 0, "level2_reports": 0}, result["validations"])
 
     def test_wrong_face_sense_reports_orientation_without_changing_the_refusal_contract(self):
         raw = (CORPUS / "S203-P04/input.step").read_bytes()

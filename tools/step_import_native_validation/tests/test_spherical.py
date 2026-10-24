@@ -351,9 +351,12 @@ class SphericalImportTests(unittest.TestCase):
         data = source.replace(b'ADVANCED_BREP_SHAPE_REPRESENTATION', b'MANIFOLD_SURFACE_SHAPE_REPRESENTATION')
         data = data.replace(b"MANIFOLD_SOLID_BREP('',#22)", b"SHELL_BASED_SURFACE_MODEL('',(#22))")
         run, report = self.invoke_bytes(data)
-        self.assertNotEqual(0, run.returncode)
-        self.assertIsNone(report['model'])
-        self.assertEqual(0, report['native_calls'])
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertEqual('NotApplicable', report['model']['material_volume'])
+        self.assertEqual(0, report['native_role']['material_regions'])
+        self.assertEqual(1, report['native_role']['bounded_void_regions'])
+        self.assertEqual('NotApplicable', report['material_census']['applicability'])
+        self.assertEqual({'pointer_reports': 0, 'level2_reports': 0}, report['validations'])
 
 
     def test_unused_periodic_request_preserves_existing_pole_origins(self):
