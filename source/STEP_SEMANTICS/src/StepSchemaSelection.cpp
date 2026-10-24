@@ -190,10 +190,12 @@ const char* SchemaInterpretationName(SchemaInterpretation interpretation)
             return "UnregisteredAp214As2010";
         case SchemaInterpretation::Ap214NameOnlyAs2010:
             return "Ap214NameOnlyAs2010";
+        case SchemaInterpretation::SourceBoundAp214As2010:
+            return "SourceBoundAp214As2010";
     }
     return "Unknown";
 }
-std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaSelection& selection, SchemaInterpretation interpretation)
+std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaSelection& selection, const SchemaInterpretationRequest& interpretation)
 {
     if (selection.qualified || selection.identifiers.size() != 1)
     {
@@ -204,17 +206,25 @@ std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaS
                           identity.oid == Words("1 0 10303 214 3 1 1 1");
     const bool nameOnly = interpretation == SchemaInterpretation::Ap214NameOnlyAs2010 && identity.match == SchemaMatch::NameOnly &&
                           identity.oid.empty();
-    if (identity.name != "AUTOMOTIVE_DESIGN" || (!eightArc && !nameOnly))
+    const bool sourceBound = interpretation == SchemaInterpretation::SourceBoundAp214As2010;
+    if (identity.name != "AUTOMOTIVE_DESIGN" || (!eightArc && !nameOnly && !sourceBound))
     {
         return {};
     }
     // The pinned AP214E3_2010.exp (71ab140f...) identifies seven arcs; no
     // authority establishes either an eight-arc literal or a bare family name
-    // as this particular edition. The two explicit policies have disjoint
-    // eligibility: neither is a general unknown-schema override. The
-    // caller explicitly selects the already audited implementation, including
+    // as this particular edition. These two existing policies retain their
+    // disjoint, exact eligibility; they do not acquire the source-bound policy's
+    // separate application permission. The caller selects the audited implementation, including
     // its separately proved compatibility transport. Keep HEADER identity,
     // original unsupported-binding diagnostic and assumption qualification.
-    return QualifiedSchemaProfile{ "ap214-mbx-2010", Ap214MbxSourceProfile, Ap214SchemaSha256, ProfileKind::Ap214MbxSource };
+    // The source-bound request was checked against the immutable capture before
+    // Binding. It chooses this pinned implementation, not an inferred edition,
+    // corrected OID or registered publisher identity. Its malformed/unregistered
+    // HEADER and original refusal remain separate, owning observations.
+    return QualifiedSchemaProfile{ sourceBound ? "ap214-explicit-source-bound-2010" : "ap214-mbx-2010",
+                                   Ap214MbxSourceProfile,
+                                   Ap214SchemaSha256,
+                                   ProfileKind::Ap214MbxSource };
 }
 } // namespace step_semantics

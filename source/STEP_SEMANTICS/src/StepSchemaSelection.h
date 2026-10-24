@@ -10,5 +10,8 @@ namespace step_semantics
 SchemaSelection SelectSchema(const step_source::SourceSnapshot& source, GeometryScope scope);
 // Explicit application interpretation only; never modifies HEADER recognition
 // or registers an unverified OID as a publisher/ISO binding.
-std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(const SchemaSelection& selection, SchemaInterpretation interpretation);
+std::optional<QualifiedSchemaProfile> SelectExplicitInterpretation(
+    const SchemaSelection& selection,
+    const SchemaInterpretationRequest& interpretation
+);
 } // namespace step_semantics

@@ -205,6 +205,14 @@ int main(int argc, char** argv)
                 }
                 options.numericalIntegration = step_import::NumericalIntegrationSettings{ value };
             }
+            else if (arg == "--interpret-ap214-for-source-sha256")
+            {
+                if (i + 1 == argc || options.schemaInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly)
+                {
+                    throw std::invalid_argument("Choose one source-bound schema interpretation and provide its input SHA256");
+                }
+                options.schemaInterpretation = { step_semantics::SchemaInterpretation::SourceBoundAp214As2010, argv[++i] };
+            }
             else if (arg == "--interpret-ap214-name-only-as-2010")
             {
                 if (options.schemaInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&

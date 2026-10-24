@@ -294,7 +294,8 @@ void Validate(const Options& options)
     }
     if (options.schemaInterpretation != step_semantics::SchemaInterpretation::DeclaredOnly &&
         ((options.schemaInterpretation != step_semantics::SchemaInterpretation::UnregisteredAp214As2010 &&
-          options.schemaInterpretation != step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010) ||
+          options.schemaInterpretation != step_semantics::SchemaInterpretation::Ap214NameOnlyAs2010 &&
+          options.schemaInterpretation != step_semantics::SchemaInterpretation::SourceBoundAp214As2010) ||
          !options.generalBrep || options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
     {
         throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");

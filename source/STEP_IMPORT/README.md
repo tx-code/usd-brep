@@ -468,6 +468,19 @@ CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex／CLI
 八段标识解释互不替代，也不能覆盖其他协议、多 schema 或任意未知 OID；CLI 不允许冲突选择。
 已登记标识不因请求该选项而获得假设；类型、单位、几何、限额、取消和发布检查不放宽。
 
+单个未绑定的 `AUTOMOTIVE_DESIGN` 声明可另行显式选择
+`SchemaInterpretationRequest{SourceBoundAp214As2010, originalSha256}`／原生 CLI
+`--interpret-ap214-for-source-sha256 HASH`。它按调用者指定的固定 2010 源实现解释这一份原件，
+不猜测、不修正 malformed OID，也不将声明认证为该版本。规范小写 SHA256 必须与 owning
+源快照及真实读取收据同时匹配；错误、缺失或不一致身份拒绝，不能套用到其他文件。
+多个 schema、其他协议族或已经绑定的源配置不适用。旧选项范围不变。
+
+请求须配合显式通用质量与非几何互操作策略；该解释本身不是非几何例外或修复。
+原错误诊断、源身份、字节、数值与单位由 owning 快照保留；后续必要内容不支持、检查失败、
+报告不足或取消仍不发布模型。完整成功仍为 `AcceptedUnderInterpretation`／CLI 11，结果单列。
+source／native C++ 参数及 request 布局已扩充，必须共同重编库与消费者；旧 enum 请求在
+源代码层仍可转换。内核布局及存档格式不变。当前查看器和 benchmark 尚未暴露此新请求。
+
 通用开发请求可独立选择 `Options.carrierInterpretation=Level1AsCorrectedEncoding`／CLI
 `--interpret-level1-as-corrected`，并须同时显式选择通用质量与非几何互操作策略。
 它只让声明 `1` 在未验证的修正版编码假设下进入现有读取链路，保留原始声明、字节、

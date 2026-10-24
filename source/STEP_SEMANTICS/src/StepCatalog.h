@@ -302,7 +302,7 @@ struct SemanticData
     std::optional<SourceSelectionEvidence> sourceSelection;
     std::vector<IsolatedSourceFailure> isolatedSourceFailures;
     std::size_t sourceInfluenceVisits = 0;
-    SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
+    SchemaInterpretationRequest appliedInterpretation = SchemaInterpretation::DeclaredOnly;
     std::vector<Diagnostic> interpretationDiagnostics;
     std::vector<std::size_t> unattachedNonGeometric; // Proven nongeometric residue, never a selected-part ownership root.
     std::shared_ptr<const step_source::SourceSnapshot> source;

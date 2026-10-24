@@ -302,7 +302,7 @@ struct Options
     step_source::HeaderNamePolicy headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
     step_source::DataStringPolicy dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
     step_semantics::UnitInterpretation unitInterpretation = step_semantics::UnitInterpretation::DeclaredOnly;
-    step_semantics::SchemaInterpretation schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
+    step_semantics::SchemaInterpretationRequest schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
     bool restrictUnusedSupportDomains = false; // Explicit equivalent target representation; general development path only.
     step_source::CarrierInterpretation carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
     std::optional<NumericalIntegrationSettings> numericalIntegration; // Explicit general-only control; absent retains legacy 1e-4.

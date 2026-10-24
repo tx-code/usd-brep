@@ -110,6 +110,32 @@ General geometry and nongeometric interoperability are required. The existing
 eight-arc policy has disjoint eligibility and is unchanged; neither option is a
 general unknown-schema override. Conflicting CLI policies are refused.
 
+`SchemaInterpretationRequest{SchemaInterpretation::SourceBoundAp214As2010,
+originalSha256}` / `--interpret-ap214-for-source-sha256 HASH` is a separate
+explicit development request. It selects the same pinned source implementation
+only for a single unbound `AUTOMOTIVE_DESIGN` declaration. It may retain a
+malformed OID; it never repairs that identifier, guesses its intended edition,
+or authenticates it as AP214 2010. Already bound profiles, other families and
+multiple identifiers are ineligible. Existing policies do not gain this scope.
+
+The canonical lowercase SHA256 must match the immutable capture and its actual
+inspection receipt. A malformed request or inconsistent hash/capture returns
+`InvalidSchemaInterpretationRequest` / `SourceInterpretationInputMismatch`
+without a qualified source. The owning request travels through ordinary,
+independent, selected and assembly checking; `Snapshot::AppliedInterpretationRequest()`
+survives disposal of caller options, inspection and report. Original binding
+diagnostics and the malformed/unregistered HEADER identity stay intact.
+Interpretation evidence records `source_sha256`; no source fields are rewritten.
+The request requires general interoperability and does not waive subsequent
+types, units, dependencies, ownership, geometry or publication checks. C++
+consumers must rebuild for the extended request layouts and parameter types;
+old enum requests remain accepted at source level. The native contract defines
+actual model qualification; source success alone creates no BRep.
+Fields now hold an owning `SchemaInterpretationRequest`; use `.policy` when an
+enum is needed. Whole-request equality includes input identity, whereas an enum
+comparison tests policy only. No implicit conversion back to enum discards a
+source binding.
+
 Source-only exploration may use the explicit
 `--interpret-level1-as-corrected --general-brep-source --interop-nongeometric`
 combination. See the [carrier qualification contract](../STEP_SOURCE/README.md).

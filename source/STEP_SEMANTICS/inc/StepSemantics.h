@@ -10,6 +10,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace step_semantics
@@ -55,9 +56,32 @@ enum class SchemaInterpretation
     // Application assumption for exactly one unregistered AP214 identifier.
     // This chooses a fixed implementation; it does not authenticate the HEADER.
     UnregisteredAp214As2010,
-    Ap214NameOnlyAs2010 // Exact bare AUTOMOTIVE_DESIGN; caller selects the fixed 2010 compatibility subset.
+    Ap214NameOnlyAs2010, // Exact bare AUTOMOTIVE_DESIGN; caller selects the fixed 2010 compatibility subset.
+    SourceBoundAp214As2010 // Explicit fixed-artifact interpretation of one unbound AP214 declaration, bound to original bytes.
 };
 const char* SchemaInterpretationName(SchemaInterpretation interpretation);
+
+struct SchemaInterpretationRequest
+{
+    SchemaInterpretation policy;
+    std::string sourceSha256;
+    // The existing policies remain source-compatible enum requests. The new
+    // source-bound policy additionally requires the immutable original SHA256;
+    // validation rejects a missing/mismatching identity, never guessing an OID.
+    SchemaInterpretationRequest(SchemaInterpretation value = SchemaInterpretation::DeclaredOnly, std::string identity = {})
+        : policy(value), sourceSha256(std::move(identity))
+    {
+    }
+    bool operator==(const SchemaInterpretationRequest&) const = default;
+    friend bool operator==(const SchemaInterpretationRequest& request, SchemaInterpretation value)
+    {
+        return request.policy == value;
+    }
+};
+inline const char* SchemaInterpretationName(const SchemaInterpretationRequest& request)
+{
+    return SchemaInterpretationName(request.policy);
+}
 
 enum class UnitInterpretation
 {
@@ -122,7 +146,7 @@ struct SchemaSelection
 {
     std::vector<SchemaIdentifier> identifiers; // Complete HEADER order; owning observations survive failed binding.
     std::optional<QualifiedSchemaProfile> qualified; // Absent for known versions without an implemented profile.
-    SchemaInterpretation appliedInterpretation = SchemaInterpretation::DeclaredOnly;
+    SchemaInterpretationRequest appliedInterpretation = SchemaInterpretation::DeclaredOnly;
 };
 
 struct AggregateDimension
@@ -262,7 +286,7 @@ struct ProductRepresentationRelationship
 struct ProductStructureBasis
 {
     QualifiedSchemaProfile profile;
-    SchemaInterpretation schemaInterpretation = SchemaInterpretation::DeclaredOnly;
+    SchemaInterpretationRequest schemaInterpretation = SchemaInterpretation::DeclaredOnly;
     SourcePolicy sourcePolicy = SourcePolicy::Strict;
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly;
     std::vector<Diagnostic> complexMappingDiagnostics; // Owning type-binding evidence only, not complete source/model qualification.
@@ -373,6 +397,7 @@ public:
     const QualifiedSchemaProfile& SelectedProfile() const;
     const SchemaIdentifier& SchemaIdentity() const;
     SchemaInterpretation AppliedInterpretation() const;
+    const SchemaInterpretationRequest& AppliedInterpretationRequest() const;
     const std::vector<Diagnostic>& InterpretationDiagnostics() const;
     UnitInterpretation AppliedUnitInterpretation() const;
     const std::vector<UnitDimensionAssumption>& UnitDimensionAssumptions() const;
@@ -484,7 +509,7 @@ struct Outcome
     Status status = Status::SourceFailure;
     SourcePolicy policy = SourcePolicy::Strict;
     GeometryScope geometryScope = GeometryScope::ExplicitOuterBounds;
-    SchemaInterpretation requestedInterpretation = SchemaInterpretation::DeclaredOnly;
+    SchemaInterpretationRequest requestedInterpretation = SchemaInterpretation::DeclaredOnly;
     UnitInterpretation requestedUnitInterpretation = UnitInterpretation::DeclaredOnly;
     ComplexMappingInterpretation requestedComplexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly;
     std::shared_ptr<const Snapshot> snapshot;
@@ -521,13 +546,19 @@ struct Outcome
 
 Outcome Check(const step_source::InspectOutcome& source, Limits limits);
 Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope = GeometryScope::ExplicitOuterBounds);
-Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope, SchemaInterpretation interpretation);
 Outcome Check(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
     GeometryScope scope,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation
+);
+Outcome Check(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    GeometryScope scope,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs = {}
@@ -537,7 +568,7 @@ Outcome CheckIndependentProducts(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    const SchemaInterpretationRequest& interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs = {}
@@ -549,7 +580,7 @@ Outcome InspectIndependentDefinitions(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    const SchemaInterpretationRequest& interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
@@ -558,7 +589,7 @@ Outcome CheckSelectedIndependentProducts(
     Limits limits,
     SourcePolicy policy,
     const SelectedSourceRequest& selection,
-    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    const SchemaInterpretationRequest& interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );

@@ -1466,6 +1466,50 @@ void InterpretationContract(const std::filesystem::path& fixture)
     result = {};
     source.reset();
     Require(view.AppliedSourceInterpretation() == SchemaInterpretation::Ap214NameOnlyAs2010, "owning name-only view lifetime");
+
+    const auto bare = text.find("AUTOMOTIVE_DESIGN");
+    Require(bare != std::string::npos, "public source-bound fixture");
+    text.replace(bare, std::string("AUTOMOTIVE_DESIGN").size(), "AUTOMOTIVE_DESIGN {1 0 10303 214 -1 1 1 1}");
+    const auto captured = step_source::InspectBytes(text, options.sourceLimits);
+    Require(bool(captured.source), "public source-bound capture");
+    options.schemaInterpretation = { SchemaInterpretation::SourceBoundAp214As2010, captured.source->Sha256() };
+    result = step_import::ImportBytes(text, options);
+    Require(result.status == step_import::Status::AcceptedUnderInterpretation && result.model, "source-bound native model publication");
+    const auto model = result.model;
+    const auto reportBytes = result.report.json.size();
+    result = {};
+    Require(
+        model->Source()->AppliedInterpretationRequest() == options.schemaInterpretation && model->Source()->Source().Bytes() == text &&
+            model->Source()->SchemaIdentity().match == step_semantics::SchemaMatch::Malformed &&
+            model->Source()->InterpretationDiagnostics().at(0).source.key == "UnsupportedSchemaBinding",
+        "owning native snapshot retains original malformed declaration and input-bound request"
+    );
+    Near(*model->MaterialVolumeMm3(), 6000, 1e-5, "source-bound analytic material truth");
+    for (const auto phase :
+         { step_import::Phase::NativeReady, step_import::Phase::BeforeReport, step_import::Phase::ReportReady, step_import::Phase::BeforeCommit })
+    {
+        auto cancelled = options;
+        cancelled.execution.control = std::make_shared<step_import::ImportControl>();
+        cancelled.execution.progress = [&](step_import::Progress progress)
+        {
+            if (progress.phase == phase)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        const auto stopped = step_import::ImportBytes(text, cancelled);
+        Require(
+            stopped.status == step_import::Status::Cancelled && !stopped.model && stopped.report.candidateDiscarded && !stopped.report.json.empty(),
+            "source-bound interpretation retains atomic cancellation and candidate cleanup"
+        );
+    }
+    auto capped = options;
+    capped.nativeLimits.reportBytes = reportBytes - 1;
+    const auto overflow = step_import::ImportBytes(text, capped);
+    Require(
+        overflow.status == step_import::Status::ResourceLimit && !overflow.model && overflow.report.candidateDiscarded,
+        "source-bound interpretation cannot bypass mandatory report publication"
+    );
 }
 void DevelopmentContract(
     const std::filesystem::path& source,

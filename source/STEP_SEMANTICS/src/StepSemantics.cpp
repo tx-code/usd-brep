@@ -8,6 +8,7 @@
 #include "StepGeometryDependencies.h"
 #include "StepIndependentProducts.h"
 #include "StepProductStructure.h"
+#include "StepSchemaInterpretationInput.h"
 #include "StepSchemaSelection.h"
 #include "StepSourceIsolation.h"
 #include "StepSourceNumber.h"
@@ -1381,6 +1382,16 @@ private:
         }
         // Header recognition alone cannot select an arbitrary type/rule implementation.
         const auto& literal = identifiers[0].text;
+        if (m_outcome.requestedInterpretation == SchemaInterpretation::SourceBoundAp214As2010 && m_outcome.schemaSelection->qualified)
+        {
+            Fail(
+                "SourceInterpretationNotApplicable",
+                "D2",
+                "Source-bound AP214 interpretation requires an unbound source declaration",
+                identifiers[0].span,
+                Status::Unsupported
+            );
+        }
         if (!m_outcome.schemaSelection->qualified)
         {
             try
@@ -5506,6 +5517,10 @@ const SchemaIdentifier& Snapshot::SchemaIdentity() const
 }
 SchemaInterpretation Snapshot::AppliedInterpretation() const
 {
+    return m_data->appliedInterpretation.policy;
+}
+const SchemaInterpretationRequest& Snapshot::AppliedInterpretationRequest() const
+{
     return m_data->appliedInterpretation;
 }
 const std::vector<Diagnostic>& Snapshot::InterpretationDiagnostics() const
@@ -5644,7 +5659,13 @@ Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePo
 {
     return Check(source, limits, policy, scope, SchemaInterpretation::DeclaredOnly);
 }
-Outcome Check(const step_source::InspectOutcome& source, Limits limits, SourcePolicy policy, GeometryScope scope, SchemaInterpretation interpretation)
+Outcome Check(
+    const step_source::InspectOutcome& source,
+    Limits limits,
+    SourcePolicy policy,
+    GeometryScope scope,
+    const SchemaInterpretationRequest& interpretation
+)
 {
     return Check(source, limits, policy, scope, interpretation, UnitInterpretation::DeclaredOnly);
 }
@@ -5653,7 +5674,7 @@ static Outcome CheckImpl(
     Limits limits,
     SourcePolicy policy,
     GeometryScope scope,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs,
@@ -5688,7 +5709,8 @@ static Outcome CheckImpl(
         throw std::invalid_argument("Unknown source checking policy or geometry scope");
     }
     if (interpretation != SchemaInterpretation::DeclaredOnly &&
-        ((interpretation != SchemaInterpretation::UnregisteredAp214As2010 && interpretation != SchemaInterpretation::Ap214NameOnlyAs2010) ||
+        ((interpretation != SchemaInterpretation::UnregisteredAp214As2010 && interpretation != SchemaInterpretation::Ap214NameOnlyAs2010 &&
+          interpretation != SchemaInterpretation::SourceBoundAp214As2010) ||
          policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
     {
         throw std::invalid_argument("Unverified schema interpretation requires explicit general interoperability");
@@ -5741,6 +5763,12 @@ static Outcome CheckImpl(
     result.requestedUnitInterpretation = unitInterpretation;
     result.requestedComplexMappingInterpretation = complexMappingInterpretation;
     result.definitionInspectionRequested = inspectDefinitions;
+    if (auto input = ValidateSchemaInterpretationInput(source, interpretation); !input)
+    {
+        result.status = Status::Unsupported;
+        result.diagnostics.push_back(std::move(input.error()));
+        return result;
+    }
     if (!source.source || source.status != step_source::Status::Inspected)
     {
         for (const auto& diagnostic : source.diagnostics)
@@ -5896,7 +5924,7 @@ AssemblyInputOutcome InspectAssemblyInputs(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation
 )
@@ -5922,7 +5950,7 @@ AssemblyInputOutcome InspectAssemblyDefinitions(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation
 )
@@ -5949,7 +5977,7 @@ AssemblySourceOutcome CheckAssemblySource(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation,
     UnreferencedPlacementPolicy placementPolicy
@@ -5984,7 +6012,7 @@ Outcome Check(
     Limits limits,
     SourcePolicy policy,
     GeometryScope scope,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs
@@ -5996,7 +6024,7 @@ Outcome CheckIndependentProducts(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation,
     std::span<const CylindricalBandRepairDeferral> cylindricalBandRepairs
@@ -6018,7 +6046,7 @@ Outcome InspectIndependentDefinitions(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation
 )
@@ -6041,7 +6069,7 @@ Outcome CheckSelectedIndependentProducts(
     Limits limits,
     SourcePolicy policy,
     const SelectedSourceRequest& selection,
-    SchemaInterpretation interpretation,
+    const SchemaInterpretationRequest& interpretation,
     UnitInterpretation unitInterpretation,
     ComplexMappingInterpretation complexMappingInterpretation
 )

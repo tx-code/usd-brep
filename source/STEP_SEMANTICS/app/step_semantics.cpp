@@ -33,7 +33,7 @@ int main(int argc, char** argv)
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
         auto unitInterpretation = step_semantics::UnitInterpretation::DeclaredOnly;
         auto complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly;
-        auto interpretation = step_semantics::SchemaInterpretation::DeclaredOnly;
+        step_semantics::SchemaInterpretationRequest interpretation;
         auto carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
         const std::unordered_map<std::string_view, std::size_t*> options = { { "--max-input-bytes", &limits.inputBytes },
                                                                              { "--max-records", &limits.records },
@@ -82,6 +82,14 @@ int main(int argc, char** argv)
                     throw std::invalid_argument("Choose one schema interpretation");
                 }
                 interpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
+            }
+            else if (arg == "--interpret-ap214-for-source-sha256")
+            {
+                if (i + 1 == argc || interpretation != step_semantics::SchemaInterpretation::DeclaredOnly)
+                {
+                    throw std::invalid_argument("Choose one source-bound schema interpretation and provide its input SHA256");
+                }
+                interpretation = { step_semantics::SchemaInterpretation::SourceBoundAp214As2010, argv[++i] };
             }
             else if (arg == "--interpret-ap214-name-only-as-2010")
             {

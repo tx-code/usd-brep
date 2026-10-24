@@ -48,7 +48,7 @@ AssemblyInputOutcome InspectAssemblyInputs(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    const SchemaInterpretationRequest& interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
@@ -56,7 +56,7 @@ AssemblyInputOutcome InspectAssemblyDefinitions(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    const SchemaInterpretationRequest& interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly
 );
@@ -86,7 +86,7 @@ AssemblySourceOutcome CheckAssemblySource(
     const step_source::InspectOutcome& source,
     Limits limits,
     SourcePolicy policy,
-    SchemaInterpretation interpretation = SchemaInterpretation::DeclaredOnly,
+    const SchemaInterpretationRequest& interpretation = SchemaInterpretation::DeclaredOnly,
     UnitInterpretation unitInterpretation = UnitInterpretation::DeclaredOnly,
     ComplexMappingInterpretation complexMappingInterpretation = ComplexMappingInterpretation::DeclaredOnly,
     UnreferencedPlacementPolicy placementPolicy = UnreferencedPlacementPolicy::Reject

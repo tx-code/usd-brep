@@ -280,6 +280,11 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_include_directories(step_import_general_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
     target_compile_definitions(step_import_general_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    if(MSVC)
+        # Debug contract instantiations exceed classic COFF's section limit.
+        # Match the SDK's large-object support without changing CRT or layout.
+        target_compile_options(step_import_general_tests PRIVATE $<$<CONFIG:Debug>:/bigobj>)
+    endif()
     add_test(NAME step_import_general_contracts COMMAND step_import_general_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step"
         "${CMAKE_CURRENT_BINARY_DIR}/general-contract-output")

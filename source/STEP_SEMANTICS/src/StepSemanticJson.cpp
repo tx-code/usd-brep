@@ -338,6 +338,11 @@ void report::WriteSchemaSelection(Writer& out, const std::optional<SchemaSelecti
         if (selection->appliedInterpretation != SchemaInterpretation::DeclaredOnly)
         {
             out.Add(",\"binding_basis\":\"ExplicitApplicationInterpretation\",\"header_identity_verified\":false");
+            if (selection->appliedInterpretation == SchemaInterpretation::SourceBoundAp214As2010)
+            {
+                out.Add(",\"interpretation_source_sha256\":");
+                out.String(selection->appliedInterpretation.sourceSha256);
+            }
         }
         if (selection->qualified->kind == ProfileKind::Ap203N916Source)
         {
@@ -389,6 +394,11 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         out.String(basis.profile.expressSha256);
         out.Add(",\"schema_interpretation\":");
         out.String(SchemaInterpretationName(basis.schemaInterpretation));
+        if (basis.schemaInterpretation == SchemaInterpretation::SourceBoundAp214As2010)
+        {
+            out.Add(",\"interpretation_source_sha256\":");
+            out.String(basis.schemaInterpretation.sourceSha256);
+        }
         if (basis.complexMappingInterpretation != ComplexMappingInterpretation::DeclaredOnly)
         {
             out.Add(",\"complex_mapping_interpretation\":{\"applied\":");
@@ -787,6 +797,11 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         const bool applied = result.schemaSelection && result.schemaSelection->appliedInterpretation != SchemaInterpretation::DeclaredOnly;
         out.Add(",\"schema_interpretation\":{\"requested\":");
         out.String(SchemaInterpretationName(result.requestedInterpretation));
+        if (result.requestedInterpretation == SchemaInterpretation::SourceBoundAp214As2010)
+        {
+            out.Add(",\"source_sha256\":");
+            out.String(result.requestedInterpretation.sourceSha256);
+        }
         out.Add(",\"applied\":");
         out.Add(applied ? "true" : "false");
         if (applied)
