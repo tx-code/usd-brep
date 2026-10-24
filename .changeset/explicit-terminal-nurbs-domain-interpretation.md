@@ -49,6 +49,16 @@ keep their selected budgets. All plan entries and final native checks must finis
 before complete publication as `AcceptedUnderInterpretation`; default source
 priority and strict auxiliary checks remain unchanged.
 
+The native import CLI transports that same explicit original/use-bound request,
+including the original master and complete ordered pcurve list. Identity and use
+budgets are required; malformed, mismatched and unused plans never publish.
+Combined terminal-domain requests retain separate receipts. Conditional success
+keeps exit code 11 and does not become ordinary source-priority acceptance.
+The CLI's explicit assembly mode calls the same complete native assembly API
+with separately declared usage, instance and depth limits. All roots and repeated
+instances remain in the report; incompatible singular-query/archive modes refuse
+before capture rather than flattening or dropping definitions.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).

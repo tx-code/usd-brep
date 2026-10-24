@@ -74,6 +74,23 @@ owning 解释记录中，后续关联失败、取消或资源不足也不丢失�
 只读请求记录，清空调用者 options/report 后仍有效。它是请求范围证据；建模副本／原生
 存档不继承原件解释资格。内部 C++ 布局增加字段，库及 native 消费者须匹配重建。
 
+正式导入 CLI 用 `--surface-curve-3d-source-sha256 HASH` 绑定原件，并显式给出
+`--max-surface-curve-3d-uses N`；每条计划使用
+`--surface-curve-3d-use DEFINITION:SHAPE:EDGE:SURFACE_CURVE:CURVE_3D:PCURVE_S1:PCURVE1`，
+若原关联 LIST 有两项则再接 `:PCURVE2`，原声明为 S2 时填写 `PCURVE_S2`。
+标签不带 `#`；重复身份仍写两次，不去重或推断。参数顺序不决定匹配、曲线优先级或执行顺序。
+缺失身份／预算、重复使用、计划绑定错误及未完成计划均不交付模型。
+可同时传入已显式支持的末段域解释，各自保留独立 owning 回执；其余组合限制由核心统一检查。
+成功的 CLI 退出码为 11，JSON 仍为 `AcceptedUnderInterpretation`；没有新增源语义例外、
+质量默认值或自动重试，普通请求与默认源优先行为保持不变。
+
+整份装配的正式 CLI 请求另显式设置 `--assembly`，并给出非零的
+`--max-assembly-usages`、`--max-assembly-instances`、`--max-assembly-depth`。
+它调用同一 `ImportAssemblyFile`，保留所有根、定义、重复实例和各自变换；可组合上述
+原件限定解释。`--unreferenced-placement-policy` 仍只接受 `Reject`／`RetainDisconnected`。
+当前该 CLI 模式交付完整装配 JSON 回执，不和独立零件选择、单体查询、材料集合或
+单体原生存档输出混用，不通过扁平化或丢件伪造这些操作；显示导出使用专门的 worker。
+
 ## 原生边界极点的区域准入
 
 通用 development 路径可检查有限 B 样条生成线的单周期、未交换 U/V 的旋转面图。

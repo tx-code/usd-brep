@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepAssemblyImport.h"
 #include "StepComplexMappingArguments.h"
 #include "StepCylindricalBandArguments.h"
 #include "StepImport.h"
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
 #include "StepSourceReport.h"
+#include "StepSurfaceCurveArguments.h"
 #include "StepTerminalDomainArguments.h"
 
 #include <charconv>
@@ -95,16 +97,56 @@ int main(int argc, char** argv)
     {
         bool materialCollection = false;
         bool productDocument = false;
+        bool assemblyMode = false;
+        step_import::AssemblyLimits assemblyLimits;
+        auto placementPolicy = step_semantics::UnreferencedPlacementPolicy::Reject;
         auto options = step_import::Options::PlanarFixture();
         std::optional<step_import::Point> query;
         std::string file;
         std::optional<std::filesystem::path> nativeOutput;
         bool limits = false, quality = false;
         step_import_app::SelectionArgumentState selectionArguments;
+        step_import_app::SurfaceCurve3dArguments surfaceCurveArguments;
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
-            if (step_import_app::IsTerminalDomainArgument(arg))
+            if (arg == "--assembly")
+            {
+                if (assemblyMode)
+                {
+                    throw std::invalid_argument("Duplicate assembly request");
+                }
+                assemblyMode = true;
+            }
+            else if (arg == "--unreferenced-placement-policy")
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Placement policy required");
+                }
+                const std::string_view value(argv[++i]);
+                if (value == "Reject")
+                {
+                    placementPolicy = step_semantics::UnreferencedPlacementPolicy::Reject;
+                }
+                else if (value == "RetainDisconnected")
+                {
+                    placementPolicy = step_semantics::UnreferencedPlacementPolicy::RetainDisconnected;
+                }
+                else
+                {
+                    throw std::invalid_argument("Unknown placement policy");
+                }
+            }
+            else if (step_import_app::IsSurfaceCurve3dArgument(arg))
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Surface-curve argument value required");
+                }
+                surfaceCurveArguments.Parse(arg, argv[++i]);
+            }
+            else if (step_import_app::IsTerminalDomainArgument(arg))
             {
                 if (i + 1 == argc)
                 {
@@ -309,6 +351,9 @@ int main(int argc, char** argv)
                     throw std::invalid_argument("Unsigned limit required");
                 }
                 const std::pair<std::string_view, std::size_t*> counters[] = { { "--max-native-calls", &options.nativeLimits.nativeCalls },
+                                                                               { "--max-assembly-usages", &assemblyLimits.occurrences },
+                                                                               { "--max-assembly-instances", &assemblyLimits.instances },
+                                                                               { "--max-assembly-depth", &assemblyLimits.depth },
                                                                                { "--max-exact-work-units", &options.nativeLimits.exactWorkUnits },
                                                                                { "--max-report-bytes", &options.nativeLimits.reportBytes },
                                                                                { "--max-input-bytes", &options.sourceLimits.inputBytes },
@@ -368,6 +413,7 @@ int main(int argc, char** argv)
             }
         }
         step_import_app::ValidateSelectionArguments(options, selectionArguments);
+        options.surfaceCurve3dInterpretation = surfaceCurveArguments.Request();
         if (!limits || !quality || file.empty())
         {
             throw std::invalid_argument("Use --fixture-limits --quality Q-P0-mm-01 input.step [--query x y z]");
@@ -377,6 +423,30 @@ int main(int argc, char** argv)
             // The general report embeds the full owning source inspection.
             // One explicit CLI report cap must bound both nested and outer output.
             options.sourceLimits.reportBytes = options.nativeLimits.reportBytes;
+        }
+        if (!assemblyMode && (assemblyLimits.occurrences || assemblyLimits.instances || assemblyLimits.depth ||
+                              placementPolicy != step_semantics::UnreferencedPlacementPolicy::Reject))
+        {
+            throw std::invalid_argument("Assembly limits and placement policy require --assembly");
+        }
+        if (assemblyMode)
+        {
+            // The assembly API preserves definitions, roots and instances. A
+            // singular body query/archive would lose that scope, so reject it
+            // before capture instead of flattening or selecting a first part.
+            if (!options.generalBrep || materialCollection || productDocument || options.definitionSelection || query || nativeOutput ||
+                !assemblyLimits.occurrences || !assemblyLimits.instances || !assemblyLimits.depth)
+            {
+                throw std::invalid_argument("Assembly requires explicit general limits and no singular query/archive or alternate selection mode");
+            }
+            auto assembly = step_import::ImportAssemblyFile(file, options, assemblyLimits, placementPolicy);
+            if (assembly.report.json.empty())
+            {
+                std::cerr << "Mandatory import report was not published\n";
+                return 5;
+            }
+            std::cout << assembly.report.json;
+            return Exit(assembly.status);
         }
         if (productDocument || options.definitionSelection)
         {
