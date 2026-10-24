@@ -82,10 +82,10 @@ class ReleaseTests(unittest.TestCase):
         )
         self.assertEqual(self.cut, self.git("rev-parse", "HEAD"))
         self.assertEqual("", self.git("tag"))
-        manifest = json.loads((self.root / "RELEASE_MANIFEST.json").read_text())
-        self.assertEqual("prepared", manifest["state"])
-        self.assertEqual(2, len(manifest["consumed"]))
+        self.assertFalse((self.root / "RELEASE_MANIFEST.json").exists())
+        self.assertIn("Prepared 2026-10-24", (self.root / "RELEASE_NOTES.md").read_text())
         self.assertIn("2.0.0-alpha.1", release.check(self.root))
+        self.assertIn("2 consumed", release.check(self.root, plan))
 
     def test_changed_selected_note_refuses_without_any_writes(self):
         plan = self.plan()
@@ -141,6 +141,7 @@ class ReleaseTests(unittest.TestCase):
         release.prepare(self.root, plan)
         self.assertTrue((self.root / entry["notes"][0]).exists())
         self.assertIn("2.0.0-alpha.1", release.check(self.root))
+        self.assertIn("1 deferred", release.check(self.root, plan))
 
     def test_fenced_markdown_examples_do_not_truncate_note_descriptions(self):
         example = "```md\n## Scope\nExample heading, not a note section.\n```"
@@ -162,6 +163,36 @@ class ReleaseTests(unittest.TestCase):
         self.write("RELEASE_NOTES.md", "truncated\n")
         with self.assertRaises(release.ReleaseError):
             release.check(self.root)
+
+    def test_markdown_check_detects_inconsistent_release_records_without_json(self):
+        plan = self.plan()
+        release.prepare(self.root, plan)
+        paths = ("VERSION", "CHANGELOG.md", "RELEASE_NOTES.md")
+        original = {name: (self.root / name).read_text() for name in paths}
+        cases = (
+            ("VERSION", "2.0.0-alpha.2\n"),
+            ("RELEASE_NOTES.md", original["RELEASE_NOTES.md"].replace("Prepared 2026-10-24", "Prepared 2026-10-23")),
+            ("RELEASE_NOTES.md", original["RELEASE_NOTES.md"].replace("## Qualification limits", "## Other limits")),
+            ("CHANGELOG.md", original["CHANGELOG.md"].replace("Upstream history stays intact.", "Edited old history.")),
+            ("CHANGELOG.md", original["CHANGELOG.md"].replace(f"{self.base}..{self.cut}", f"{self.base}..{self.base}")),
+        )
+        for name, modified in cases:
+            with self.subTest(name=name):
+                self.write(name, modified)
+                with self.assertRaises(release.ReleaseError):
+                    release.check(self.root)
+                self.write(name, original[name])
+        self.assertIn("records consistent", release.check(self.root))
+
+    def test_optional_local_plan_checks_exact_rendering_without_persisted_ledger(self):
+        plan = self.plan()
+        release.prepare(self.root, plan)
+        notes = (self.root / "RELEASE_NOTES.md").read_text()
+        self.write("RELEASE_NOTES.md", notes.replace(plan["summary"], "Reviewed Markdown correction."))
+        self.assertIn("records consistent", release.check(self.root))
+        with self.assertRaisesRegex(release.ReleaseError, "record changed"):
+            release.check(self.root, plan)
+        self.assertFalse((self.root / "RELEASE_MANIFEST.json").exists())
 
     def test_failed_file_replacement_restores_owned_release_inputs(self):
         plan = self.plan()
@@ -208,6 +239,7 @@ class ReleaseTests(unittest.TestCase):
         )
         subprocess.run([*command, "prepare", "--plan", str(path)], check=True, capture_output=True)
         subprocess.run([*command, "check"], check=True, capture_output=True)
+        subprocess.run([*command, "check", "--plan", str(path)], check=True, capture_output=True)
         self.assertEqual(self.cut, self.git("rev-parse", "HEAD"))
         self.assertEqual("", self.git("tag"))
 

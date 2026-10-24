@@ -125,6 +125,7 @@ a focused local pass establishes its stated scope, not a full CI or production q
   Remove a `KNOWN_ISSUES.md` entry when the change fixes it. For upstream synchronization, use
   [the merge skill](.agents/skills/usd-brep-merge-upstream/SKILL.md); fork policy and release routing live in
   [FORK_MAINTENANCE.md](FORK_MAINTENANCE.md).
-- Include a [changeset](.changeset/README.md) with caller-visible fixes, features, or compatibility changes;
-  internal refactors and documentation-only edits need none. Use the
+- Group [changesets](.changeset/README.md) by unreleased caller-facing capability or coherent release topic across
+  commits. Before creating a note, read the guide and reuse the matching pending topic. Tests, internal refactors,
+  documentation-only edits and contract-preserving micro-optimizations need no separate note. Use the
   [release process](docs/release/RELEASE_PROCESS.md) when preparing release records or a version update.

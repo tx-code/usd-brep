@@ -2,11 +2,11 @@
 
 ## During development
 
-Each caller-visible fix, feature, or compatibility change carries a
-[pending release note](../../.changeset/README.md) in the same change as its code.
-API/usage documentation and scoped validation remain with the implementation.
-Purely internal refactors and documentation-only edits need no note. Reverting
-an unreleased change also removes its pending note.
+Maintain [pending release notes](../../.changeset/README.md) by unreleased
+capability or coherent consumer-facing topic across commits. Consult that guide
+before adding a note and extend a matching topic as implementation and related
+fixes converge. API/usage documentation and scoped validation remain with the
+code; the note describes the integrated outcome rather than the commit sequence.
 
 Daily changes leave published entries in [CHANGELOG.md](../../CHANGELOG.md)
 intact. A changeset records observable behavior, integrator action, and contract
@@ -53,6 +53,8 @@ or tag for `--base`; later fork releases normally use their previous fork cut.
 
 Review and consolidate `entries` in the JSON plan. Each has a unique ID, title,
 changelog category, summary, integrator action, compatibility text and note paths.
+Keep this temporary plan under ignored `.local/`; do not commit it as another
+release record. The version and Markdown records are the durable release output.
 Every selected note must belong to exactly one entry or to `deferred` with a
 reason. Correct obsolete intermediate descriptions when a later integrated change
 supersedes them. Review the implementation range for missing caller-visible
@@ -63,15 +65,15 @@ interpretations, development options, numerical evidence and unsupported cases.
 ```shell
 python tools/agent/release.py prepare --plan .local/release-plan.json
 python tools/agent/release.py check
+python tools/agent/release.py check --plan .local/release-plan.json
 python tools/agent/changesets.py check
 ```
 
 Preparation requires HEAD and all selected inputs to match the plan. It updates
 `VERSION`, prepends the consolidated `CHANGELOG.md` entry without rewriting
-historical entries, writes consumer-facing `RELEASE_NOTES.md`, and writes
-`RELEASE_MANIFEST.json`. The manifest records the source cut, summaries and exact
-consumption mapping; it is a durable release input record, not a machine test
-receipt. Only consumed notes are deleted. Deferred notes and newly added notes
+historical entries, and writes consumer-facing `RELEASE_NOTES.md`. The Markdown
+records retain the source cut and comparison baseline; Git retains the consumed
+notes. Only consumed notes are deleted. Deferred notes and newly added notes
 remain pending. Changed selected notes refuse preparation before writes.
 
 A repository-local lock prevents simultaneous preparation commands. Preflight
@@ -80,11 +82,13 @@ failures attempt to restore the changed release files and consumed notes. This
 does not promise a crash-safe filesystem transaction: preserve file ownership
 between sessions and inspect Git after an interrupted preparation.
 
-`check` compares the records and their hashes with the pinned Git inputs, verifies
-the full/core/wheel version mapping and consumed/deferred notes, then runs the
-pending-note checker. It is read-only. Validation-enabled CTest registers the
-version and preparation contract suites, and checks the actual release records
-when a manifest is present. Release validation still needs the affected native,
+`check` verifies the version, dates, source range, required release-note sections
+and unchanged prior changelog history, then runs the pending-note checker. With
+`--plan`, it additionally compares the exact rendered records and consumed/deferred
+notes against the local reviewed plan. It is read-only and needs no persisted
+machine-readable release ledger. Validation-enabled CTest registers the version
+and preparation contract suites and checks the actual Markdown release records
+when release notes are present. Release validation still needs the affected native,
 Python, ABI, serialization and STEP checks on a matching build as applicable.
 Per-run toolchains, counts, logs and remaining qualification gaps stay local.
 
@@ -94,5 +98,5 @@ keep unintegrated changes out of the prepared release. Do not duplicate version
 records under `docs/`.
 
 These tools never commit, create/push tags, build or publish packages. A prepared
-record is labelled `prepared`, including a stable-version preparation; publishing
+record states that it is prepared locally, including a stable-version preparation; publishing
 remains a separate action requiring the user's authorization.

@@ -1,10 +1,26 @@
 # Pending release notes
 
-Add one descriptive kebab-case `.md` file here with each logical caller-visible
-fix, feature, or compatibility change. Include it with the code and update the
-affected API or usage guide. Purely internal refactors and documentation-only
-edits need no changeset. Remove a pending note when its change is reverted before
-release; keep this README when notes are consumed.
+Use one descriptive kebab-case `.md` file for an unreleased caller-facing
+capability or coherent release topic. A note can cover several commits, modules
+and related fixes. Keep it current as the topic reaches its final integrated
+behavior, together with the affected API or usage guide.
+
+Before adding a note, inspect the pending topics. Update a matching note when
+implementation, follow-up fixes, reporting, bindings or validation belong to the
+same delivered capability. Create a separate note when the change is independently
+useful to explain to consumers or has a distinct migration impact. Commit count,
+test count and implementation size do not decide the boundary.
+
+For example, one STEP interpretation can cover its mathematical module, native
+construction, CLI, owning evidence and follow-up fixes. Related healing error
+propagation can share one note across entrypoints and regressions. Tests, formatting,
+internal refactors and contract-preserving micro-optimizations need no separate
+note; add material caller-visible outcomes to the existing topic when applicable.
+
+Remove a pending note if its entire topic is reverted before release; for a
+partial revert, update its remaining behavior. Keep this README when notes are
+consumed. Published or frozen release history remains in its original context;
+later consumer changes belong to a new pending topic.
 
 Use this format:
 
@@ -65,5 +81,7 @@ consumed notes in that release-record change; Git retains their original text.
 note's hash. Consolidate its entries and explicitly defer anything outside the
 release before running `prepare`. The tool consumes only that reviewed inventory;
 later notes stay pending. Preview releases can consume their delivered changes.
-The release manifest records the mapping; `check` verifies it against Git and the
-rendered records. These commands do not create commits, tags or packages.
+Keep the review plan local. `check` verifies version/date/source consistency in
+the Markdown release records; `check --plan .local/release-plan.json` additionally
+verifies exact rendering and note consumption. Git preserves the consumed notes.
+These commands do not create commits, tags or packages.

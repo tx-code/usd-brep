@@ -151,5 +151,3 @@ Compatibility: A note mapping, another kernel's agreement, a rendered mesh or a 
 ## Release inputs
 
 Integrated source: `6032bdc3ef996c07348869007fab210a9ce8261b`; comparison baseline: `3fd5b9548d19aa8c12c29bc9637a96d42a06f8a5`.
-
-[RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) maps every consumed note to its consolidated entry.

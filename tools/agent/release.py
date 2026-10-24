@@ -24,7 +24,7 @@ from tools.repoman.wheel_version import repository_version
 
 SCHEMA = 1
 INPUTS = (
-    "VERSION", "CHANGELOG.md", "RELEASE_NOTES.md", "RELEASE_MANIFEST.json",
+    "VERSION", "CHANGELOG.md", "RELEASE_NOTES.md",
     ".changeset/README.md", "CMakeLists.txt", "cmake/RepositoryVersion.cmake",
     "tools/repoman/wheel_version.py",
 )
@@ -269,8 +269,7 @@ def _release_notes(data):
     lines += ["", "## Qualification limits", ""]
     lines += [f"- {_links(item)}" for item in data["limitations"]]
     lines += ["", "## Release inputs", "",
-              f"Integrated source: `{data['source_commit']}`; comparison baseline: `{data['base_commit']}`.", "",
-              "[RELEASE_MANIFEST.json](RELEASE_MANIFEST.json) maps every consumed note to its consolidated entry.", ""]
+              f"Integrated source: `{data['source_commit']}`; comparison baseline: `{data['base_commit']}`.", ""]
     return "\n".join(lines).encode("utf-8")
 
 
@@ -321,14 +320,6 @@ def prepare(root, data):
         }
         deferred = {item["path"] for item in data["deferred"]}
         consumed = [{key: note[key] for key in NOTE_KEYS} for note in notes if note["path"] not in deferred]
-        recorded_plan = dict(data)
-        recorded_plan["notes"] = [{key: note[key] for key in NOTE_KEYS} for note in notes]
-        manifest = {
-            "schema": SCHEMA, "state": "prepared", "version": data["version"],
-            "consumed": consumed, "plan": recorded_plan,
-            "records_sha256": {name: _sha(value) for name, value in outputs.items()},
-        }
-        outputs["RELEASE_MANIFEST.json"] = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         names = [*outputs, *(note["path"] for note in consumed)]
         before = {name: _current(root, name) for name in names}
         changed = []
@@ -354,50 +345,85 @@ def prepare(root, data):
             raise
     finally:
         lock.unlink(missing_ok=True)
-    return manifest
+    return {"version": data["version"], "consumed": consumed, "deferred": data["deferred"]}
 
 
-def check(root):
+def check(root, data=None):
+    """Check the Markdown records; a local plan enables exact consumption checks."""
     root = _repository_root(root)
-    path = _path(root, "RELEASE_MANIFEST.json")
-    if not path.exists():
-        raise ReleaseError("No prepared release manifest")
-    manifest = json.loads(path.read_text(encoding="utf-8"))
-    if manifest.get("schema") != SCHEMA or manifest.get("state") != "prepared":
-        raise ReleaseError("Unsupported release record")
-    data = manifest["plan"]
-    notes = _validate(root, data, current=False)
-    _git(root, "merge-base", "--is-ancestor", data["source_commit"], _commit(root, "HEAD"))
-    current_version = _current(root, "VERSION")
-    if current_version is None:
-        raise ReleaseError("Prepared VERSION is missing")
-    if (manifest["version"] != data["version"] or
-            repository_version(current_version.decode()).version != data["version"]):
-        raise ReleaseError("Prepared version representations disagree")
-    deferred = {item["path"] for item in data["deferred"]}
-    consumed = [{key: note[key] for key in NOTE_KEYS} for note in notes if note["path"] not in deferred]
-    if manifest["consumed"] != consumed:
-        raise ReleaseError("Consumed-note mapping disagrees with the pinned plan")
-    expected = {
-        "VERSION": _sha((data["version"] + "\n").encode()),
-        "CHANGELOG.md": _sha(_changelog(root, data)),
-        "RELEASE_NOTES.md": _sha(_release_notes(data)),
-    }
-    if manifest["records_sha256"] != expected:
-        raise ReleaseError("Release record hashes disagree with the reviewed summaries")
-    for name, digest in expected.items():
-        if _sha(_clean(_current(root, name))) != digest:
-            raise ReleaseError(f"Prepared release record changed: {name}")
-    for note in consumed:
-        if _path(root, note["path"]).exists():
-            raise ReleaseError(f"Consumed note is still pending: {note['path']}")
-    for name in deferred:
-        if not _path(root, name).exists():
-            raise ReleaseError(f"Deferred note disappeared: {name}")
+    records = {name: _clean(_current(root, name)) for name in ("VERSION", "CHANGELOG.md", "RELEASE_NOTES.md")}
+    if any(value is None for value in records.values()):
+        raise ReleaseError("VERSION, CHANGELOG.md and RELEASE_NOTES.md are required")
+    version = repository_version(records["VERSION"].decode())
+    changelog = records["CHANGELOG.md"].decode("utf-8")
+    lines = changelog.splitlines()
+    headings = changesets.headings(lines)
+    if not changelog.startswith("# Changelog\n") or not headings:
+        raise ReleaseError("The changelog heading or latest release entry is missing")
+    latest = re.fullmatch(r"\[([^]]+)\] - (\d{4}-\d{2}-\d{2})", headings[0][1])
+    if latest is None or latest[1] != version.version:
+        raise ReleaseError("Latest changelog version disagrees with VERSION")
+    date = latest[2]
+    datetime.date.fromisoformat(date)
+    stop = headings[1][0] if len(headings) > 1 else len(lines)
+    entry = "\n".join(lines[headings[0][0] + 1:stop])
+    notes_text = records["RELEASE_NOTES.md"].decode("utf-8")
+    if not notes_text.startswith(f"# SDK {version.version}\n") or f"Prepared {date} as a " not in notes_text:
+        raise ReleaseError("Release-note version/date disagrees with the changelog")
+    note_lines = notes_text.splitlines()
+    sections = changesets.headings(note_lines)
+    content = {}
+    for index, (start, title) in enumerate(sections):
+        if title in content:
+            raise ReleaseError(f"Duplicate release-note section: {title}")
+        end = sections[index + 1][0] if index + 1 < len(sections) else len(note_lines)
+        content[title] = "\n".join(note_lines[start + 1:end]).strip()
+    for title in ("Delivered changes", "Compatibility and migration", "Qualification limits", "Release inputs"):
+        _text(content.get(title), title)
+    sources = re.findall(
+        r"^Integrated source: `([0-9a-f]{40,64})`; comparison baseline: `([0-9a-f]{40,64})`\.$",
+        content["Release inputs"], re.M,
+    )
+    if len(sources) != 1:
+        raise ReleaseError("One immutable source cut and comparison baseline are required")
+    source, base = sources[0]
+    if _commit(root, source) != source or _commit(root, base) != base:
+        raise ReleaseError("Release input references must be full commit IDs")
+    _git(root, "merge-base", "--is-ancestor", base, source)
+    _git(root, "merge-base", "--is-ancestor", source, _commit(root, "HEAD"))
+    if re.findall(r"^Source range: `([^`]+)`\.$", entry, re.M) != [f"{base}..{source}"]:
+        raise ReleaseError("Changelog and release notes disagree about the source cut")
+    old = _at(root, source, "CHANGELOG.md")
+    old_version = _at(root, source, "VERSION")
+    if old is None or not records["CHANGELOG.md"].endswith(old.removeprefix(b"# Changelog\n")):
+        raise ReleaseError("The pinned changelog history changed")
+    if old_version is None or _version_order(version.version) <= _version_order(old_version.decode()):
+        raise ReleaseError("Prepared version must advance the source cut's VERSION")
+    consumption = ""
+    if data is not None:
+        notes = _validate(root, data, current=False)
+        if (data["version"], data["date"], data["source_commit"], data["base_commit"]) != (
+            version.version, date, source, base
+        ):
+            raise ReleaseError("Local plan disagrees with the prepared records")
+        expected = {"CHANGELOG.md": _changelog(root, data), "RELEASE_NOTES.md": _release_notes(data)}
+        for name, value in expected.items():
+            if records[name] != value:
+                raise ReleaseError(f"Prepared release record changed: {name}")
+        deferred = {item["path"] for item in data["deferred"]}
+        consumed = [note["path"] for note in notes if note["path"] not in deferred]
+        for name in consumed:
+            if _path(root, name).exists():
+                raise ReleaseError(f"Consumed note is still pending: {name}")
+        for name in deferred:
+            if not _path(root, name).exists():
+                raise ReleaseError(f"Deferred note disappeared: {name}")
+        consumption = f", {len(consumed)} consumed, {len(deferred)} deferred"
     status, message = changesets.report(root)
     if status:
         raise ReleaseError(message)
-    return f"release check: {data['version']}, {len(consumed)} consumed, {len(deferred)} deferred; prepared only"
+    pending = sum(path.name != "README.md" for path in (root / ".changeset").glob("*.md") if path.is_file())
+    return f"release check: {version.version}, records consistent{consumption}, {pending} pending; prepared only"
 
 
 def main(argv=None):
@@ -412,7 +438,8 @@ def main(argv=None):
     planning.add_argument("--output", type=Path)
     preparing = commands.add_parser("prepare", help="apply the reviewed plan; no Git publication actions")
     preparing.add_argument("--plan", type=Path, required=True)
-    commands.add_parser("check", help="verify prepared records, version and consumption")
+    checking = commands.add_parser("check", help="verify release records and optionally exact local-plan consumption")
+    checking.add_argument("--plan", type=Path, help="optional local reviewed plan; no persisted manifest is required")
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -426,13 +453,14 @@ def main(argv=None):
                 print(rendered, end="")
         elif args.command == "prepare":
             data = json.loads(args.plan.read_text(encoding="utf-8"))
-            manifest = prepare(args.root, data)
+            result = prepare(args.root, data)
             print(
-                f"release prepared: {manifest['version']}; {len(manifest['consumed'])} notes consumed; "
+                f"release prepared: {result['version']}; {len(result['consumed'])} notes consumed; "
                 "no tag or package published"
             )
         else:
-            print(check(args.root))
+            data = json.loads(args.plan.read_text(encoding="utf-8")) if args.plan else None
+            print(check(args.root, data))
     except (ReleaseError, changesets.FormatError, OSError, UnicodeError, ValueError, KeyError, TypeError) as error:
         print(f"release: {error}", file=sys.stderr)
         return 1

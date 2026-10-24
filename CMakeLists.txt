@@ -167,7 +167,7 @@ if(SMLIB_BUILD_VALIDATION)
         -m unittest tools.agent.tests.test_release -v)
     set_tests_properties(changesets changesets_contracts release_version_contracts release_preparation_contracts
         PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-    if(EXISTS "${CMAKE_SOURCE_DIR}/RELEASE_MANIFEST.json")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/RELEASE_NOTES.md")
         add_test(NAME release_records COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/agent/release.py" check)
         set_tests_properties(release_records PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
