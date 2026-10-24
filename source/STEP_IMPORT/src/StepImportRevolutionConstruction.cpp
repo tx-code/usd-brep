@@ -3,6 +3,7 @@
 #include "StepImportRevolutionConstruction.h"
 
 #include "StepImportGeometryConstruction.h"
+#include "StepImportSourceParameterUnits.h"
 
 #include <SmSurfOfRevolution.h>
 #include <vector>
@@ -19,8 +20,12 @@ public:
     {
     }
 
-    Result<std::unique_ptr<SmSurface>> Make(Index geometry, Index use)
+    Result<std::unique_ptr<SmSurface>> Make(Index geometry, Index use, double angularStart)
     {
+        if (!std::isfinite(angularStart) || angularStart < -360 || angularStart > 0)
+        {
+            return tl::unexpected(Fail("GeneralRevolutionAngularChartUnestablished", geometry, Status::Unsupported));
+        }
         const auto generatorRecord = Ref(geometry, "swept_curve");
         if (!Is(generatorRecord, "B_SPLINE_CURVE_WITH_KNOTS"))
         {
@@ -45,14 +50,7 @@ public:
             }
             axis = *direction;
         }
-        std::optional<double> angleToRadians;
-        for (const auto& unit : m_source->UnitContext().siDefinitions)
-        {
-            if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
-            {
-                angleToRadians = std::pow(10., unit.canonicalPower10);
-            }
-        }
+        const auto angleToRadians = SourceSiAngleToRadians(m_source->UnitContext());
         // ISO 10303-42 surface_of_revolution: numerical angular parameters use
         // basis-surface plane-angle units. Reuse the qualified SI angle policy
         // of TrimmedConic; PCURVE's parameter context cannot supply that scale.
@@ -153,6 +151,25 @@ public:
             return tl::unexpected(Fail("GeneralRevolutionGeneratorOwnership", geometry));
         }
 
+        if (angularStart != 0)
+        {
+            // Select a full periodic computational chart for source pcurves.
+            // V remains the complete original generator interval. The native
+            // adjust operation can touch its generator, so the checks below
+            // must still prove all generator coefficients/knots/domains equal.
+            if (auto operation = Step(geometry); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto good = Good(
+                    surface->AdjustSTEPUVDomain(SmExtent2d(angularStart, stepInterval.GetMin(), angularStart + 360, stepInterval.GetMax()))
+                );
+                !good)
+            {
+                return tl::unexpected(std::move(good.error()));
+            }
+        }
+
         SmBSplineCurve* retained = nullptr;
         SmPoint3d actualOrigin;
         SmVector3d actualAxis;
@@ -168,7 +185,7 @@ public:
             return tl::unexpected(Fail("GeneralRevolutionGeneratorParametersChanged", geometry));
         }
         const auto stepDomain = surface->GetSTEPUVDomain();
-        if (stepDomain.GetUInterval().GetMin() != 0 || stepDomain.GetUInterval().GetMax() != 360 ||
+        if (stepDomain.GetUInterval().GetMin() != angularStart || stepDomain.GetUInterval().GetMax() != angularStart + 360 ||
             stepDomain.GetVInterval().GetMin() != stepInterval.GetMin() || stepDomain.GetVInterval().GetMax() != stepInterval.GetMax())
         {
             return tl::unexpected(Fail("GeneralRevolutionSurfaceParametersChanged", geometry));
@@ -223,6 +240,7 @@ public:
             "source revolution u in qualified basis-surface angle units -> native STEP u degrees; source v -> unchanged generator STEP parameter; ordinary native UV is rational, not angle";
         mapping.parameters = { { "generator_source_parameter_interval", { stepInterval.GetMin(), stepInterval.GetMax() } },
                                { "source_angle_to_native_degrees", { *angleToRadians * 180 / std::numbers::pi } },
+                               { "native_angular_chart_degrees", { angularStart, angularStart + 360 } },
                                { "axis_origin_mm", { origin.begin(), origin.end() } },
                                { "axis_unit_direction", { axis.begin(), axis.end() } },
                                { "native_axis_roundtrip_bound_mm", { errorBound } } };
@@ -231,8 +249,8 @@ public:
     }
 };
 } // namespace
-Result<std::unique_ptr<SmSurface>> MakeSourceRevolution(const GeometryConstruction& inputs, std::size_t surface, std::size_t use)
+Result<std::unique_ptr<SmSurface>> MakeSourceRevolution(const GeometryConstruction& inputs, std::size_t surface, std::size_t use, double angularStart)
 {
-    return RevolutionBuilder(inputs).Make(surface, use);
+    return RevolutionBuilder(inputs).Make(surface, use, angularStart);
 }
 } // namespace step_import::detail::construction

@@ -11,10 +11,13 @@
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
 #include "StepImportOrientationRepair.h"
+#include "StepImportPcurveConstruction.h"
 #include "StepImportPeriodicDiagnosis.h"
 #include "StepImportPeriodicNormalization.h"
 #include "StepImportRevolutionConstruction.h"
 #include "StepImportRingSegmentation.h"
+#include "StepImportSourceParameterUnits.h"
+#include "StepImportSplineSurfaceConstruction.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
 #include "StepImportUnits.h"
@@ -1115,7 +1118,101 @@ private:
         mapping.sourceGeometryId = Id(g);
         mapping.sourceUseId = Id(c.record);
         mapping.targetEdgeIndex = ei.at(c.record);
-        if (Is(g, "LINE"))
+        std::vector<Curve> comparisons;
+        const bool lifted = Is(g, "SURFACE_CURVE");
+        if (lifted)
+        {
+            const auto preference = F(g, "master_representation").text;
+            if (preference != "PCURVE_S1" && preference != "PCURVE_S2")
+            {
+                return tl::unexpected(Fail("GeneralSurfaceCurveMasterUnsupported", g, Status::Unsupported));
+            }
+            const auto associated = Refs(g, "associated_geometry");
+            const Index selected = preference == "PCURVE_S1" ? 0 : 1;
+            const auto auxiliary = Ref(g, "curve_3d");
+            // Keep this construction bounded and reuse the same 3D factory.
+            // Nested surface-curve auxiliary definitions need a separate DAG
+            // construction contract, rather than recursive native allocation.
+            if (Is(auxiliary, "SURFACE_CURVE"))
+            {
+                return tl::unexpected(Fail("GeneralSurfaceCurveAuxiliaryUnsupported", auxiliary, Status::Unsupported));
+            }
+            Curve comparison;
+            comparison.record = c.record;
+            comparison.geometry = auxiliary;
+            comparison.v0 = c.v0;
+            comparison.v1 = c.v1;
+            comparison.same = c.same;
+            const auto auxiliaryMappingsBegin = m_report.parameterMappings.size();
+            if (auto made = MakeCurve(comparison); !made)
+            {
+                if (made.error().key == "GeneralLineParameterOrder" || made.error().key == "GeneralSplineParameterOrder")
+                {
+                    return tl::unexpected(Fail("GeneralSurfaceCurveAuxiliarySenseConflict", auxiliary));
+                }
+                return tl::unexpected(std::move(made.error()));
+            }
+            // This private comparison definition is not the published edge.
+            // Its own native parameter may differ from the selected master.
+            for (Index i = auxiliaryMappingsBegin; i < m_report.parameterMappings.size(); ++i)
+            {
+                auto& evidence = m_report.parameterMappings[i];
+                evidence.targetEdgeIndex.reset();
+                evidence.kind = "SurfaceCurveAuxiliary3d" + evidence.kind;
+                evidence.equation = "private comparison definition, no target-edge parameter identity: " + evidence.equation;
+            }
+            comparisons.push_back(std::move(comparison));
+            for (Index i = 0; i < associated.size(); ++i)
+            {
+                if (!Is(associated[i], "PCURVE"))
+                {
+                    return tl::unexpected(Fail("GeneralSurfaceCurveAssociationUnsupported", associated[i], Status::Unsupported));
+                }
+                auto made = MakeSourcePcurve(*this, associated[i], c.record);
+                if (!made)
+                {
+                    return tl::unexpected(std::move(made.error()));
+                }
+                if (i == selected)
+                {
+                    c.native = std::move(made->curve);
+                    c.bounds = made->conservativeBoundsMm;
+                    m_report.parameterMappings.back().targetEdgeIndex = ei.at(c.record);
+                }
+                else
+                {
+                    Curve alternative;
+                    alternative.record = associated[i];
+                    alternative.geometry = associated[i];
+                    alternative.native = std::move(made->curve);
+                    const auto domain = alternative.native->GetNaturalInterval();
+                    auto first = CurveParameter(*alternative.native, a, domain.GetMin(), associated[i]);
+                    if (!first)
+                    {
+                        return tl::unexpected(std::move(first.error()));
+                    }
+                    auto last = CurveParameter(*alternative.native, b, domain.GetMax(), associated[i]);
+                    if (!last)
+                    {
+                        return tl::unexpected(std::move(last.error()));
+                    }
+                    alternative.t0 = *first;
+                    alternative.t1 = *last;
+                    if (!(alternative.t1 > alternative.t0))
+                    {
+                        // A different parameterization does not grant opposite
+                        // source sense. Never sort away this representation
+                        // conflict to make image-distance checks pass.
+                        return tl::unexpected(Fail("GeneralSurfaceCurveAssociationSenseConflict", associated[i]));
+                    }
+                    comparisons.push_back(std::move(alternative));
+                }
+            }
+            mapping.kind = "SurfaceCurveMasterPcurve";
+            mapping.equation = "source_t=native_t of selected " + preference + "; auxiliary images observed independently, not assumed to share t";
+            mapping.parameters = { { "selected_source_pcurve_occurrence", { double(selected + 1) } } };
+        }
+        else if (Is(g, "LINE"))
         {
             auto originResult = Position(Ref(g, "pnt"));
             if (!originResult)
@@ -1345,12 +1442,15 @@ private:
         const auto domain = c.native->GetNaturalInterval();
         c.t0 = domain.GetMin();
         c.t1 = domain.GetMax();
-        if (Is(g, "B_SPLINE_CURVE_WITH_KNOTS"))
+        if (Is(g, "B_SPLINE_CURVE_WITH_KNOTS") || lifted)
         {
             // Source topology trims the defining spline. Inversion chooses
             // parameters only; the original spline coefficients are unchanged.
-            mapping.kind = "SplineIdentityWithInvertedTrim";
-            mapping.equation = "source_t=native_t; endpoint_inversion_only; defining_coefficients_unchanged";
+            if (!lifted)
+            {
+                mapping.kind = "SplineIdentityWithInvertedTrim";
+                mapping.equation = "source_t=native_t; endpoint_inversion_only; defining_coefficients_unchanged";
+            }
             auto nativeValue5 = CurveParameter(*c.native, a, c.t0, g);
             if (!nativeValue5)
             {
@@ -1398,6 +1498,19 @@ private:
                 return tl::unexpected(std::move(businessCheck.error()));
             }
         }
+        if (lifted)
+        {
+            for (const auto& comparison : comparisons)
+            {
+                if (auto observed = ObserveCurveImages(c, comparison, g); !observed)
+                {
+                    return tl::unexpected(std::move(observed.error()));
+                }
+            }
+            // Already bounded by a complete positive surface control net.
+            // SmCrvOnSurf's cached approximate 3D bbox is not a coverage proof.
+            return {};
+        }
         SmExtent3d box;
         if (auto operation = Step(g); !operation)
         {
@@ -1408,6 +1521,136 @@ private:
             return tl::unexpected(std::move(nativeStatusCheck.error()));
         }
         c.bounds = { P(box.GetMin()), P(box.GetMax()) };
+        return {};
+    }
+    [[nodiscard]] Result<void> ObserveCurveImages(const Curve& master, const Curve& other, Index record)
+    {
+        double maximum = 0;
+        double minimumDot = 1;
+        std::size_t directionPairs = 0;
+        const auto observe = [&](const Curve& from, const Curve& to) -> Result<void>
+        {
+            SmTArray<double> knots;
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto good = Good(from.native->GetKnots(knots)); !good)
+            {
+                return tl::unexpected(std::move(good.error()));
+            }
+            std::vector<double> cuts{ from.t0, from.t1 };
+            for (ULONG i = 0; i < knots.GetSize(); ++i)
+            {
+                if (knots[i] > from.t0 && knots[i] < from.t1)
+                {
+                    cuts.push_back(knots[i]);
+                }
+            }
+            std::sort(cuts.begin(), cuts.end());
+            cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+            for (Index span = 1; span < cuts.size(); ++span)
+            {
+                for (unsigned sample = 0; sample <= 8; ++sample)
+                {
+                    if (auto operation = Step(record); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
+                    SmVector3d fromValues[2], toValues[2];
+                    if (auto good = Good(from.native->Evaluate(std::lerp(cuts[span - 1], cuts[span], sample / 8.), 1, TRUE, fromValues)); !good)
+                    {
+                        return tl::unexpected(std::move(good.error()));
+                    }
+                    const SmPoint3d point(fromValues[0].x, fromValues[0].y, fromValues[0].z);
+                    if (auto operation = Step(record); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
+                    SmBoolean success = FALSE;
+                    double parameter = 0, distance = 0;
+                    if (auto good = Good(
+                            to.native
+                                ->DropPoint(SmExtent1d(to.t0, to.t1), point, nullptr, m_model->queryTolerance, nullptr, success, parameter, distance)
+                        );
+                        !good)
+                    {
+                        return tl::unexpected(std::move(good.error()));
+                    }
+                    if (!success || !std::isfinite(parameter) || parameter < to.t0 || parameter > to.t1)
+                    {
+                        return tl::unexpected(Fail("GeneralSurfaceCurveImageInversionUnestablished", record, Status::Indeterminate));
+                    }
+                    if (auto operation = Step(record); !operation)
+                    {
+                        return tl::unexpected(std::move(operation.error()));
+                    }
+                    if (auto good = Good(to.native->Evaluate(parameter, 1, TRUE, toValues)); !good)
+                    {
+                        return tl::unexpected(std::move(good.error()));
+                    }
+                    const SmPoint3d nearest(toValues[0].x, toValues[0].y, toValues[0].z);
+                    const double gap = point.DistanceBetween(nearest);
+                    if (!std::isfinite(gap))
+                    {
+                        return tl::unexpected(Fail("GeneralSurfaceCurveImageInversionUnestablished", record, Status::Indeterminate));
+                    }
+                    maximum = std::max(maximum, gap);
+                    if (gap > Q(m_options.quality.consistencyMm))
+                    {
+                        return tl::unexpected(Fail("GeneralSurfaceCurveRepresentationsConflict", record));
+                    }
+                    if (sample != 0 && sample != 8 && parameter > to.t0 && parameter < to.t1)
+                    {
+                        const auto& a = fromValues[1];
+                        const auto& b = toValues[1];
+                        const double lengthA = std::hypot(a.x, a.y, a.z), lengthB = std::hypot(b.x, b.y, b.z);
+                        if (!std::isfinite(lengthA) || !std::isfinite(lengthB) || !(lengthA > 0) || !(lengthB > 0))
+                        {
+                            return tl::unexpected(Fail("GeneralSurfaceCurveDirectionUnestablished", record, Status::Indeterminate));
+                        }
+                        const double dot = (a.x / lengthA) * (b.x / lengthB) + (a.y / lengthA) * (b.y / lengthB) + (a.z / lengthA) * (b.z / lengthB);
+                        if (!std::isfinite(dot))
+                        {
+                            return tl::unexpected(Fail("GeneralSurfaceCurveDirectionUnestablished", record, Status::Indeterminate));
+                        }
+                        if (!(dot > 0))
+                        {
+                            return tl::unexpected(Fail("GeneralSurfaceCurveDirectionsConflict", record));
+                        }
+                        minimumDot = std::min(minimumDot, dot);
+                        ++directionPairs;
+                    }
+                }
+            }
+            return {};
+        };
+        // Source master chooses the definition, not permission to ignore a
+        // conflicting auxiliary. Different representations need not share t.
+        // This is the existing development level of numerical observation:
+        // bidirectional knot-span samples, never a continuous agreement bound.
+        if (auto observed = observe(master, other); !observed)
+        {
+            return tl::unexpected(std::move(observed.error()));
+        }
+        if (auto observed = observe(other, master); !observed)
+        {
+            return tl::unexpected(std::move(observed.error()));
+        }
+        m_report.tolerances.push_back({ "SourceSurfaceCurveImages", "BidirectionalKnotSpanSampleMaximum", Id(record), maximum });
+        if (!directionPairs)
+        {
+            return tl::unexpected(Fail("GeneralSurfaceCurveDirectionUnestablished", record, Status::Indeterminate));
+        }
+        ParameterMapping direction;
+        direction.kind = "SurfaceCurveDirectionObservation";
+        direction.sourceGeometryId = Id(record);
+        direction.sourceBasisGeometryId = Id(other.geometry);
+        direction.sourceUseId = Id(master.record);
+        direction.targetEdgeIndex = ei.at(master.record);
+        direction.equation = "normalized tangents at bidirectional interior image samples; parameters may differ; not a continuous sense proof";
+        direction.parameters = { { "sampled_tangent_pairs", { double(directionPairs) } }, { "minimum_unit_tangent_dot", { minimumDot } } };
+        m_report.parameterMappings.push_back(std::move(direction));
         return {};
     }
     [[nodiscard]] Result<double> CurveParameter(SmCurve& curve, V point, double endpoint, Index record)
@@ -2059,6 +2302,41 @@ private:
         m_report.topologyNormalization = info;
         return {};
     }
+    std::optional<Index> SourceMeridianParameterCurve(const Curve& curve, const Face& face) const
+    {
+        if (!Is(curve.geometry, "SURFACE_CURVE"))
+        {
+            return std::nullopt;
+        }
+        const auto preference = F(curve.geometry, "master_representation").text;
+        if (preference != "PCURVE_S1" && preference != "PCURVE_S2")
+        {
+            return std::nullopt;
+        }
+        const auto pcurve = Refs(curve.geometry, "associated_geometry").at(preference == "PCURVE_S1" ? 0 : 1);
+        if (!Is(pcurve, "PCURVE") || Ref(pcurve, "basis_surface") != face.surface)
+        {
+            return std::nullopt;
+        }
+        const auto parameter = Refs(Ref(pcurve, "reference_to_curve"), "items").at(0);
+        if (!Is(parameter, "B_SPLINE_CURVE_WITH_KNOTS") || Is(parameter, "RATIONAL_B_SPLINE_CURVE"))
+        {
+            return std::nullopt;
+        }
+        const auto controls = Refs(parameter, "control_points_list");
+        const auto& first = F(controls.at(0), "coordinates").children.at(0).text;
+        // Literal equality is a sufficient exact source proof of constant U.
+        // Endpoints alone cannot prove a meridian; distinct decimals that round
+        // to one binary64 must not acquire this chart-selection qualification.
+        for (const auto point : controls)
+        {
+            if (F(point, "coordinates").children.at(0).text != first)
+            {
+                return std::nullopt;
+            }
+        }
+        return parameter;
+    }
     [[nodiscard]] Result<std::array<double, 2>> AngularWindow(const Face& f, const Frame& frame)
     {
         constexpr double tau = 2 * std::numbers::pi;
@@ -2086,7 +2364,7 @@ private:
         for (const auto& [edge, count] : useCounts)
         {
             const auto& c = curves[edge];
-            if (count == 2 && Is(c.geometry, "LINE"))
+            if (count == 2 && (Is(c.geometry, "LINE") || SourceMeridianParameterCurve(c, f)))
             {
                 const auto a = Sub(c.p0, frame.o), b = Sub(c.p1, frame.o);
                 const double t0 = std::atan2(Dot(a, frame.y), Dot(a, frame.x));
@@ -2918,7 +3196,50 @@ private:
         const auto g = f.surface;
         if (Is(g, "SURFACE_OF_REVOLUTION"))
         {
-            auto surface = MakeSourceRevolution(*this, g, f.record);
+            double start = 0;
+            std::map<Index, Index> uses;
+            for (const auto& loop : f.loops)
+            {
+                for (const auto& use : loop.uses)
+                {
+                    ++uses[use.edge];
+                }
+            }
+            for (const auto& [edge, count] : uses)
+            {
+                if (count != 2)
+                {
+                    continue;
+                }
+                const auto parameter = SourceMeridianParameterCurve(curves[edge], f);
+                if (!parameter)
+                {
+                    continue;
+                }
+                const auto& value = F(Refs(*parameter, "control_points_list").at(0), "coordinates").children.at(0);
+                auto number = Number(value);
+                if (!number)
+                {
+                    return tl::unexpected(std::move(number.error()));
+                }
+                const auto radians = SourceSiAngleToRadians(m_source->UnitContext());
+                if (!radians)
+                {
+                    return tl::unexpected(Fail("GeneralRevolutionAngleUnitUnestablished", g, Status::Unsupported));
+                }
+                const double degrees = *number * *radians * 180 / std::numbers::pi;
+                if (!std::isfinite(degrees) || std::abs(degrees) > 360000000)
+                {
+                    return tl::unexpected(Fail("GeneralRevolutionAngularChartUnestablished", g, Status::Unsupported));
+                }
+                start = std::fmod(degrees, 360.);
+                if (start > 0)
+                {
+                    start -= 360;
+                }
+                break;
+            }
+            auto surface = MakeSourceRevolution(*this, g, f.record, start);
             if (surface)
             {
                 // Construction has not inserted this face yet. Bind the pure
@@ -2929,108 +3250,7 @@ private:
         }
         if (Is(g, "B_SPLINE_SURFACE_WITH_KNOTS"))
         {
-            SmTArray<SmPoint3d> cp;
-            // Source rows are U, entries V. SMLib uses the same U-major layout.
-            for (const auto& row : F(g, "control_points_list").children)
-            {
-                for (const auto& ref : row.children)
-                {
-                    auto pointResult = Position(m_source->ReferenceTarget(ref));
-                    if (!pointResult)
-                    {
-                        return tl::unexpected(std::move(pointResult.error()));
-                    }
-                    const auto& point = *pointResult;
-                    cp.Add(P(point));
-                }
-            }
-            auto um = Multiplicities(g, "u_multiplicities");
-            if (!um)
-            {
-                return tl::unexpected(std::move(um.error()));
-            }
-            auto vm = Multiplicities(g, "v_multiplicities");
-            if (!vm)
-            {
-                return tl::unexpected(std::move(vm.error()));
-            }
-            auto ukResult = Numbers(g, "u_knots");
-            if (!ukResult)
-            {
-                return tl::unexpected(std::move(ukResult.error()));
-            }
-            auto vkResult = Numbers(g, "v_knots");
-            if (!vkResult)
-            {
-                return tl::unexpected(std::move(vkResult.error()));
-            }
-            auto weights = SplineWeights(g, true, cp);
-            if (!weights)
-            {
-                return tl::unexpected(std::move(weights.error()));
-            }
-            SmBSplineSurface* surface = nullptr;
-            if (auto operation = Step(g); !operation)
-            {
-                return tl::unexpected(std::move(operation.error()));
-            }
-            auto vDegree = Degree(g, "v_degree");
-            if (!vDegree)
-            {
-                return tl::unexpected(std::move(vDegree.error()));
-            }
-            auto uDegree = Degree(g, "u_degree");
-            if (!uDegree)
-            {
-                return tl::unexpected(std::move(uDegree.error()));
-            }
-            const auto createdStatus = SmBSplineSurface::CreateCanonical(
-                *m_model->context,
-                *uDegree,
-                *vDegree,
-                cp,
-                SM_SF_UNSPECIFIED,
-                *um,
-                *vm,
-                *ukResult,
-                *vkResult,
-                SM_KT_UNSPECIFIED,
-                weights->GetSize() ? &*weights : nullptr,
-                nullptr,
-                surface
-            );
-            std::unique_ptr<SmSurface> owned(surface);
-            if (auto nativeStatusCheck = Good(createdStatus); !nativeStatusCheck)
-            {
-                return tl::unexpected(std::move(nativeStatusCheck.error()));
-            }
-            if (weights->GetSize())
-            {
-                if (auto businessCheck = Need(bool(surface), "GeneralSurfaceAllocation", g); !businessCheck)
-                {
-                    return tl::unexpected(std::move(businessCheck.error()));
-                }
-                ULONG u = 0, v = 0;
-                double* net = nullptr;
-                if (auto nativeStatusCheck = Good(surface->GetControlPointsPointer(u, v, net)); !nativeStatusCheck)
-                {
-                    return tl::unexpected(std::move(nativeStatusCheck.error()));
-                }
-                if (auto businessCheck = Need(
-                        u == F(g, "control_points_list").children.size() && v == F(g, "control_points_list").children[0].children.size(),
-                        "GeneralRationalNetShapeChanged",
-                        g
-                    );
-                    !businessCheck)
-                {
-                    return tl::unexpected(std::move(businessCheck.error()));
-                }
-                if (auto businessCheck = VerifyRationalNet(g, f.record, cp, *weights, net, u * v, surface->IsRational()); !businessCheck)
-                {
-                    return tl::unexpected(std::move(businessCheck.error()));
-                }
-            }
-            return owned;
+            return MakeSourceSplineSurface(*this, g, f.record);
         }
         auto frameResult = Placement(Ref(g, "position"));
         if (!frameResult)
@@ -4038,7 +4258,8 @@ private:
                     const bool closed = !m_ringSubdivisions.empty() ? edge->GetStartVertex() == edge->GetEndVertex() :
                                                                       curves[index].v0 == curves[index].v1;
                     if ((closed && !toroidalProjection) ||
-                        !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS")))
+                        !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ||
+                          Is(curves[index].geometry, "SURFACE_CURVE")))
                     {
                         continue;
                     }
@@ -4055,7 +4276,11 @@ private:
                         {
                             return Step(f.record);
                         },
-                        toroidalProjection
+                        // Implicit master curves can have nonaffine physical
+                        // parameters even on a cylinder. Project onto the same
+                        // checked NURBS basis instead of assuming an analytic
+                        // line's parameter map. All paired gap guards remain.
+                        toroidalProjection || Is(curves[index].geometry, "SURFACE_CURVE")
                     );
                     if (!projectedResult)
                     {
@@ -4091,7 +4316,8 @@ private:
                     // Preserve the defining curve and its native parameter t.
                     // Face closure/seam handling and final paired measurements
                     // still run below, followed by global topology/tolerance checks.
-                    const char* kind = toroidalProjection                                      ? "ControlledToroidalCurveUvProjection" :
+                    const char* kind = Is(curves[index].geometry, "SURFACE_CURVE")             ? "ControlledSourcePcurveUvProjection" :
+                                       toroidalProjection                                      ? "ControlledToroidalCurveUvProjection" :
                                        splineProjection                                        ? "ControlledSplineSurfaceUvProjection" :
                                        coneProjection                                          ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
@@ -4182,8 +4408,9 @@ private:
                 }
                 if (measured->maximumMm > Q(m_options.quality.derivedUvMm))
                 {
-                    // This general source subset has no admitted source pcurve;
-                    // the failed data is derived UV, not defining 3D geometry.
+                    // The installed face trim is derived UV. For source-master
+                    // pcurves, the defining S(C(t)) and its original parameters
+                    // remain unchanged while this target trim is regenerated.
                     // Keep the usual path/cost unchanged for an adequate trim.
                     auto rebuiltResult = RebuildDerivedUv(
                         *uses[k],

@@ -28,7 +28,7 @@ public:
         scale = 1;
     }
 };
-void Verify(SmSurface& surface)
+void Verify(SmSurface& surface, double angularStart = 0)
 {
     auto* revolution = dynamic_cast<SmSurfOfRevolution*>(&surface);
     Require(revolution, "source revolution is not fitted or reclassified");
@@ -55,8 +55,9 @@ void Verify(SmSurface& surface)
     {
         const auto s = (v + 2) / 10;
         const auto z = 14 * s / (1 + s);
-        for (const double degrees : { 0., 45., 90., 180., 270., 360. })
+        for (const double offset : { 0., 45., 90., 180., 270., 360. })
         {
+            const double degrees = angularStart + offset;
             SmPoint3d actual;
             Require(revolution->EvaluateSTEPPoint(SmPoint2d(degrees, v), actual) == SM_SUCCESS, "native STEP evaluator");
             const auto radians = degrees * std::numbers::pi / 180;
@@ -171,6 +172,9 @@ int main(int argc, char** argv)
         Verify(*copy);
         built->reset();
         Verify(*copy); // Source generator lifetime is independent of the discarded original.
+        auto shifted = MakeSourceRevolution(input, record("142"), record("182"), -90);
+        Require(bool(shifted), shifted ? "shifted full-period computational chart" : shifted.error().key.c_str());
+        Verify(**shifted, -90);
         std::filesystem::create_directories(argv[2]);
         for (const auto format : { SM_BINARY, SM_ASCII })
         {
@@ -179,6 +183,7 @@ int main(int argc, char** argv)
             SmTArray<long> trees;
             SmTArray<SmBrep*> breps;
             surfaces.Add(copy.get()); // Borrowed inventory; copy remains its sole owner.
+            surfaces.Add(shifted->get());
             const auto path = std::filesystem::path(argv[2]) / (format == SM_BINARY ? "revolution.smb" : "revolution.smt");
             Require(
                 SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, format, TRUE, FALSE) == SM_SUCCESS,
@@ -194,10 +199,11 @@ int main(int argc, char** argv)
             SmObjsDelete<SmBrep*> db(&readBreps);
             Require(
                 SmNativeArchive::ReadPartFromFile(readContext, path.c_str(), readCurves, readSurfaces, readTrees, readBreps, format) == SM_SUCCESS &&
-                    readSurfaces.GetSize() == 1 && readCurves.GetSize() == 0 && readBreps.GetSize() == 0,
+                    readSurfaces.GetSize() == 2 && readCurves.GetSize() == 0 && readBreps.GetSize() == 0,
                 "complete revolution archive inventory"
             );
             Verify(*readSurfaces[0]);
+            Verify(*readSurfaces[1], -90);
         }
 
         auto limited = options;
