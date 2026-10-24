@@ -15,6 +15,7 @@
 #include "StepImportPcurveConstruction.h"
 #include "StepImportPeriodicDiagnosis.h"
 #include "StepImportPeriodicNormalization.h"
+#include "StepImportRevolutionChart.h"
 #include "StepImportRevolutionConstruction.h"
 #include "StepImportRingSegmentation.h"
 #include "StepImportSourceParameterUnits.h"
@@ -545,6 +546,20 @@ public:
         {
             return tl::unexpected(std::move(operation.error()));
         }
+        for (const auto& [record, verify] : m_revolutionChartChecks)
+        {
+            // Queries/validators can materialize or refine derived data. The
+            // exact chart witness must still hold after every native consumer,
+            // in addition to the independently repeated physical lift check.
+            if (auto operation = Step(record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (!verify())
+            {
+                return tl::unexpected(Fail("GeneralRevolutionChartIdentityLost", record, Status::PostcheckFailure));
+            }
+        }
         return m_model;
     }
 
@@ -567,6 +582,7 @@ private:
     std::vector<Face> faces;
     double consistency = 0, uvGap = 0;
     bool m_rebuiltUv = false;
+    std::vector<std::pair<Index, std::function<bool()>>> m_revolutionChartChecks;
     bool m_captureRepairFailure = false;
     FaceSenseOverrides m_faceSenseOverrides;
     struct RingVertex
@@ -4927,7 +4943,105 @@ private:
         m_report.deepReports = deep.GetSize();
         if (!valid || deep.GetSize() != 0)
         {
-            return tl::unexpected(AssertFailure(deep, "GeneralLevel2Validation"));
+            // A complete small-radius finding set on DERIVED revolution UV may
+            // admit one exact target-chart conditioning trial. Defining source
+            // curves, mixed failures, topology normalization and repair refuse.
+            // Capture the original refusal before replacing trims: its native
+            // owner pointers will be stale afterwards, even on later failure.
+            auto originalFailure = AssertFailure(deep, "GeneralLevel2Validation");
+            const auto candidates = RevolutionChartFaces(deep);
+            if (!candidates || m_model->topologyNormalization || m_options.faceOrientationRepair || m_options.cylindricalBandRepair)
+            {
+                return tl::unexpected(std::move(originalFailure));
+            }
+            std::map<const SmFace*, std::size_t> originalCounts;
+            for (ULONG report = 0; report < deep.GetSize(); ++report)
+            {
+                const auto* uv = static_cast<const SmBSplineCurve*>(deep[report]->GetOwner());
+                ++originalCounts[static_cast<SmEdgeuse*>(uv->GetOwner())->GetFace()];
+            }
+            for (auto* candidate : *candidates)
+            {
+                const auto it = std::find_if(
+                    m_model->faces.begin(),
+                    m_model->faces.end(),
+                    [&](const NativeFaceData& f)
+                    {
+                        return f.face == candidate;
+                    }
+                );
+                if (it == m_model->faces.end())
+                {
+                    return tl::unexpected(std::move(originalFailure));
+                }
+                const auto index = static_cast<Index>(it - m_model->faces.begin());
+                const auto& source = faces[SourceFaceIndex(index)];
+                auto changed = ConditionRevolutionChart(
+                    *candidate,
+                    m_options.sourceLimits.values,
+                    [&]
+                    {
+                        return Step(source.record);
+                    }
+                );
+                if (!changed)
+                {
+                    return tl::unexpected(std::move(changed.error()));
+                }
+                if (!*changed)
+                {
+                    return tl::unexpected(std::move(originalFailure));
+                }
+                auto& change = **changed;
+                RevolutionChartInfo info;
+                info.sourceFaceId = Id(source.record);
+                info.sourceSurfaceId = Id(source.surface);
+                info.targetFaceIndex = index;
+                info.uBinaryExponent = change.exponent;
+                info.originalNativeDomain = change.before;
+                info.normalizedNativeDomain = change.after;
+                info.nativeStepDomain = change.step;
+                info.centerConditionBefore = change.conditionBefore;
+                info.centerConditionAfter = change.conditionAfter;
+                info.exactStoredValues = change.exactValues;
+                info.distinctDerivedTrims = change.trims;
+                // The original findings may no longer be dereferenced. The
+                // complete admitted set was all test 13; retain its count.
+                info.originalSmallRadiusReports = originalCounts.at(candidate);
+                m_model->retainedSupportDefinitions.push_back(std::move(change.original));
+                m_revolutionChartChecks.emplace_back(source.record, std::move(change.verifyStoredIdentity));
+                m_model->revolutionCharts.push_back(info);
+                m_report.revolutionCharts.push_back(std::move(info));
+                m_rebuiltUv = true;
+                if (auto classified = ClassifyRegion(source, *it); !classified)
+                {
+                    return tl::unexpected(std::move(classified.error()));
+                }
+            }
+            // No repeated tuning or selective error suppression. Re-run both
+            // validators over the entire private graph after the one trial,
+            // then retain all original final UV/role/tolerance/publication gates.
+            SmAssertArray finalPointers, finalDeep;
+            if (auto operation = Step(shape); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            const auto pointerStatus = m_model->brep->ValidatePointers(&finalPointers);
+            m_report.pointerReports = finalPointers.GetSize();
+            if (pointerStatus != SM_SUCCESS || finalPointers.GetSize())
+            {
+                return tl::unexpected(AssertFailure(finalPointers, "GeneralPointerValidation"));
+            }
+            if (auto operation = Step(shape); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            const bool finalValid = m_model->brep->AssertValid(&finalDeep, SM_LEVEL_2, SM_WALK) != FALSE;
+            m_report.deepReports = finalDeep.GetSize();
+            if (!finalValid || finalDeep.GetSize())
+            {
+                return tl::unexpected(AssertFailure(finalDeep, "GeneralLevel2Validation"));
+            }
         }
         if (auto operation = VerifyPoleInventory(); !operation)
         {

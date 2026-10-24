@@ -176,6 +176,19 @@ struct SurfaceNormalizationInfo
     double minimumAbsoluteGeneratorRadiusMm = 0, continuousDifferenceUpperMm = 0;
     std::size_t tensorPatches = 0;
 };
+struct RevolutionChartInfo
+{
+    std::string sourceFaceId, sourceSurfaceId;
+    std::size_t targetFaceIndex = 0;
+    int uBinaryExponent = 0; // Positive affine chart map new_u=ldexp(old_u,k), new_v=old_v; NOT source STEP UV.
+    std::array<double, 4> originalNativeDomain{}, normalizedNativeDomain{};
+    std::array<double, 4> nativeStepDomain{}; // Native STEP adapter: U degrees, V generator t; NOT the raw file's UV/unit values.
+    double centerConditionBefore = 0, centerConditionAfter = 0; // Numerical metric observation, not a global condition bound.
+    std::size_t exactStoredValues = 0, distinctDerivedTrims = 0, originalSmallRadiusReports = 0;
+    // Full stored-net affine identities establish the rational B-spline
+    // representation equivalence. Final physical error and native checks are
+    // still required; no rounding-error or continuous trim certificate implied.
+};
 struct TopologyNormalizationInfo
 {
     std::vector<TargetFaceOrigin> faces;
@@ -518,7 +531,8 @@ public:
     UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
     std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis support extraction, separate from repair/topology
-                                                                         // changes.
+    std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
+                                                               // changes.
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const;
@@ -684,6 +698,7 @@ struct Report
     std::vector<RepresentationNormalization> normalizations;
     std::vector<ParameterMapping> parameterMappings; // Derived native maps; never changes source parameters or entities.
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
+    std::vector<RevolutionChartInfo> revolutionCharts;
     std::vector<WireframeInfo> wireframes; // Owning values/source identities only, never native owners.
     std::vector<SupportingGeometryInfo> supportingGeometry;
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;

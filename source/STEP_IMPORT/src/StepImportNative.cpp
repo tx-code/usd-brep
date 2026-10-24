@@ -2279,6 +2279,10 @@ std::vector<SurfaceNormalizationInfo> ModelSnapshot::SurfaceNormalizations() con
 {
     return m_data->surfaceNormalizations;
 }
+std::vector<RevolutionChartInfo> ModelSnapshot::RevolutionCharts() const
+{
+    return m_data->revolutionCharts;
+}
 std::optional<FaceOrientationRepairHistory> ModelSnapshot::Repairs() const
 {
     return m_data->repairs;

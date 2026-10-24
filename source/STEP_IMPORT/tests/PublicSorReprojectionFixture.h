@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Public synthetic input only. No CAD-library data or fitted defining geometry.
 #pragma once
-#include <SmSurface.h> // SmCrvOnSurf requires the complete base type.
-
+// Legacy SmCrvOnSurf inline accessors need its surface type before that header.
+// clang-format off
+#include <SmSurface.h>
+// clang-format on
+#include <SmBSplineCurve.h>
 #include <SmBrep.h>
 #include <SmBrepData.h>
-#include <SmBSplineCurve.h>
 #include <SmContext.h>
 #include <SmCrvOnSurf.h>
 #include <SmEdge.h>
@@ -14,10 +16,11 @@
 #include <SmSTEPSurface.h>
 #include <SmSurfOfRevolution.h>
 #include <SmVertex.h>
-#include <nurbs.h>
 #include <array>
 #include <cmath>
 #include <memory>
+#include <nurbs.h>
+#include <optional>
 #include <stdexcept>
 
 namespace public_sor_repro
@@ -71,7 +74,7 @@ inline std::unique_ptr<SmCrvOnSurf> SourceEdge(
     return curve;
 }
 
-inline Fixture Create(SmContext& context, bool shiftedParameters = true, bool modeledWindow = true)
+inline Fixture Create(SmContext& context, bool shiftedParameters = true, bool modeledWindow = true, std::optional<SmExtent1d> nativeU = {})
 {
     gw_CPOINT points[] = { { 0, 3, 0, 1 }, { 0, 8, 3, 2 }, { 0, 3, 7, 1 } };
     double knots[] = { -2, -2, -2, 8, 8, 8 };
@@ -86,6 +89,13 @@ inline Fixture Create(SmContext& context, bool shiftedParameters = true, bool mo
     }
     RequireStatus(status);
     Require(bool(surface), "Public SOR support");
+    if (nativeU)
+    {
+        // Deliberately ill-scaled TARGET chart, independent of STEP degrees,
+        // source UV and generator t. A nonzero origin catches offset scaling.
+        const auto v = surface->GetNaturalUVDomain().GetVInterval();
+        RequireStatus(surface->Reparameterize(SmExtent2d(nativeU->GetMin(), v.GetMin(), nativeU->GetMax(), v.GetMax())));
+    }
     SmBrepConstructor constructor;
     Fixture result;
     result.brep.reset(constructor.StartBrep(context));

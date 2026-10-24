@@ -58,6 +58,13 @@ public:
     // The copy owns an independent exact base surface even if this wrapper borrows its base.
     virtual SmStatus Copy(const SmContext & crContext, SmSurface *& rpNewSurface) const override;
 
+    // Borrowed, read-only dependency view for translation alias audits. Its
+    // lifetime follows this wrapper; this getter transfers no ownership.
+    const SmSurface* GetBaseSurface() const
+    {
+        return m_pSurface;
+    }
+
     virtual SmStatus EvaluatePoint
     (
       const SmPoint2d & crUV,         ///< [in ]:        <br>

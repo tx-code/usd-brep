@@ -1843,6 +1843,56 @@ void WriteReportJson(
             }
             w.Add("]");
         }
+        if (!report.revolutionCharts.empty())
+        {
+            w.Add(",\"revolution_charts\":[");
+            for (std::size_t i = 0; i < report.revolutionCharts.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& info = report.revolutionCharts[i];
+                w.Add("{\"source_face_id\":");
+                w.String(info.sourceFaceId);
+                w.Add(",\"source_surface_id\":");
+                w.String(info.sourceSurfaceId);
+                w.Add(",\"target_face_index\":");
+                w.Number(info.targetFaceIndex);
+                w.Add(",\"u_binary_exponent\":");
+                Number(w, double(info.uBinaryExponent));
+                const auto domain = [&](std::string_view key, const auto& values)
+                {
+                    w.Add(",");
+                    w.String(key);
+                    w.Add(":[");
+                    for (std::size_t j = 0; j < values.size(); ++j)
+                    {
+                        if (j)
+                        {
+                            w.Add(",");
+                        }
+                        Number(w, values[j]);
+                    }
+                    w.Add("]");
+                };
+                domain("original_native_domain", info.originalNativeDomain);
+                domain("normalized_native_domain", info.normalizedNativeDomain);
+                domain("native_step_domain_degrees_and_generator_t", info.nativeStepDomain);
+                w.Add(",\"center_condition_before\":");
+                Number(w, info.centerConditionBefore);
+                w.Add(",\"center_condition_after\":");
+                Number(w, info.centerConditionAfter);
+                w.Add(",\"exact_stored_values\":");
+                w.Number(info.exactStoredValues);
+                w.Add(",\"distinct_derived_trims\":");
+                w.Number(info.distinctDerivedTrims);
+                w.Add(",\"original_small_radius_reports\":");
+                w.Number(info.originalSmallRadiusReports);
+                w.Add(",\"map\":\"new_u=ldexp(old_u,k);new_v=old_v\",\"source_rewritten\":false}");
+            }
+            w.Add("]");
+        }
         w.Add(",\"representation_normalizations\":[");
         for (std::size_t i = 0; i < report.normalizations.size(); ++i)
         {

@@ -20,6 +20,13 @@ regions can be classified without rewriting source outer-bound declarations.
 Independent modeling copies containing STEP-parameterized composed edges forward
 supported transforms through their owned support; borrowed bases are refused.
 
+Complete derived-UV small-radius findings on eligible revolution faces can use
+one independently selected binary U-chart conditioning trial. Full stored-net
+identities, source-dependency alias rejection and explicit old-chart cache
+invalidation preserve source definitions, generator STEP parameters and physical
+budgets. Snapshot-owned chart correspondence survives report release; all native,
+region, final-lift and final-identity checks still gate complete publication.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).

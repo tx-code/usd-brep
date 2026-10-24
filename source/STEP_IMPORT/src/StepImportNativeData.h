@@ -55,6 +55,7 @@ struct ModelData
     // Detached original analytic/native UV definitions; clear under NativeMutex before context.
     std::vector<std::unique_ptr<SmSurface>> retainedSupportDefinitions;
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
+    std::vector<RevolutionChartInfo> revolutionCharts;
     SmRegion* material = nullptr;
     SmRegion* bounded = nullptr;
     SmShell* outside = nullptr;
