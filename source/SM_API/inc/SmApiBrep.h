@@ -199,8 +199,10 @@ SMAPI_EXPORT SmApiStatus SmApiStitch(
 );
 
 SMAPI_EXPORT SmApiStatus SmApiStitch(
-    SmBrep* pBrep,                          ///< [in ]: Pointer to brep                                             <br>
-    SmFace* pFaceToStitch                  ///< [in ]: Pointer to curve to project                                 <br>
+    SmBrep* pBrep,                          ///< [in/out]: Brep to stitch in place using its existing default tolerances <br>
+    SmFace* pFaceToStitch                  ///< [in ]: Borrowed seed face already owned by pBrep; reacquire views after  <br>
+                                          ///<        mutation. NULL arguments or a face from another Brep return    <br>
+                                          ///<        SM_ERR_INVALID_INPUT. No ownership transfer.                   <br>
 );
 
 // Family of Sweep Functions

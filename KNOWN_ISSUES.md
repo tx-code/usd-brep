@@ -41,12 +41,6 @@ Shelling `TestFiles/pt_TestFiles/Shell/problemShell4.smb` outward by 5.08 with f
 
 **Workaround:** for the filleted box, use the default `extended_offset=True`.
 
-### `stitch_brep_with_face` crashes
-
-`stitch_brep_with_face` (`SmApiStitch` with a face) crashes the process on every input tried: a face of a `create_box` box, and the face of a `create_plane` sheet.
-
-**Workaround:** stitch the whole Brep with `stitch_brep`, `stitch_into_shell` or `stitch_into_solid`.
-
 ## Measurement
 
 ### `brep_relationship` can report a shallow overlap as touching

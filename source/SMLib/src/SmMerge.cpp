@@ -122,27 +122,38 @@ static constexpr int siWhichTol = 3;
       SmEdge *pE1 = NULL, *pE2 = NULL; // unused
       double dEdge1Size = 0.0, dEdge2Size = 0.0;
       pBrep->GetMinEdgeBBoxSize(dEdge1Size, pE1);
-      pOtherBrep->GetMinEdgeBBoxSize(dEdge2Size, pE2);
+      if (pOtherBrep != NULL)
+      {
+        pOtherBrep->GetMinEdgeBBoxSize(dEdge2Size, pE2);
+      }
+      else
+      {
+        // MergeAddedFace/Topology operate on one Brep. Use its existing bounds
+        // and tolerance for the same default calculation, while leaving the
+        // intersector's other operand null. No second Boolean input is created.
+        dEdge2Size = dEdge1Size;
+      }
       double dEdgeSize = smos_Min(dEdge1Size, dEdge2Size);
+      const SmBrep *pToleranceOther = pOtherBrep != NULL ? pOtherBrep : pBrep;
 
       // Get the Brep tol value to use.
       double dBrepTol;
       switch ( siWhichTol )
       {
         case 0:
-          dBrepTol = 4.0 * smos_Max( pBrep->GetTolerance(), pOtherBrep->GetTolerance() );
+          dBrepTol = 4.0 * smos_Max( pBrep->GetTolerance(), pToleranceOther->GetTolerance() );
           break;
 
         case 1:
-          dBrepTol = 4.0 * ( pBrep->GetTolerance() + pOtherBrep->GetTolerance() );
+          dBrepTol = 4.0 * ( pBrep->GetTolerance() + pToleranceOther->GetTolerance() );
           break;
 
         case 2:
-          dBrepTol =       ( pBrep->GetTolerance() + pOtherBrep->GetTolerance() );
+          dBrepTol =       ( pBrep->GetTolerance() + pToleranceOther->GetTolerance() );
           break;
 
         default:
-          dBrepTol = 0.5 * smos_Min( pBrep->GetTolerance(), pOtherBrep->GetTolerance() );
+          dBrepTol = 0.5 * smos_Min( pBrep->GetTolerance(), pToleranceOther->GetTolerance() );
           break;
       }
 

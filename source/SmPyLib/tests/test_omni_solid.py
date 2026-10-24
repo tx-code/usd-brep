@@ -3959,6 +3959,35 @@ print("source %d %.6f %d" % (box.face_count(), box.volume(), box.is_manifold_sol
 #  Stitching
 # -----------------------------------------------------------------------
 class TestStitching(unittest.TestCase):
+    def test_stitch_brep_with_box_face(self):
+        box = sm.create_box((0, 0, 0), 10, 20, 30)
+        bounds = box.bounding_box()
+        face = box.faces()[0]
+        self.assertIs(sm.stitch_brep_with_face(box, face), box)
+        del face  # Reacquire topology views after a mutating operation.
+        self.assertEqual((box.face_count(), box.edge_count(), box.vertex_count()), (6, 12, 8))
+        self.assertEqual(box.bounding_box(), bounds)
+        self.assertAlmostEqual(box.volume(), 6000.0, places=7)
+        self.assertTrue(box.is_manifold_solid())
+
+    def test_stitch_brep_with_sheet_face(self):
+        sheet = sm.create_plane((0, 0, 0), 10, 20)
+        bounds = sheet.bounding_box()
+        face = sheet.faces()[0]
+        self.assertIs(sm.stitch_brep_with_face(sheet, face), sheet)
+        del face
+        self.assertEqual((sheet.face_count(), sheet.edge_count(), sheet.vertex_count()), (1, 4, 4))
+        self.assertEqual(sheet.bounding_box(), bounds)
+        self.assertFalse(sheet.is_manifold_solid())
+
+    def test_stitch_brep_rejects_foreign_face(self):
+        box = sm.create_box((0, 0, 0), 10, 20, 30)
+        sheet = sm.create_plane((0, 0, 0), 10, 20)
+        with self.assertRaisesRegex(RuntimeError, "SM_ERR_INVALID_INPUT"):
+            sm.stitch_brep_with_face(box, sheet.faces()[0])
+        self.assertEqual((box.face_count(), sheet.face_count()), (6, 1))
+        self.assertAlmostEqual(box.volume(), 6000.0, places=7)
+
     def test_stitch_into_solid(self):
         box = sm.create_box((0, 0, 0), 10, 10, 10)
         box, is_solid, stitched, vert_gap, edge_gap = sm.stitch_into_solid(box)

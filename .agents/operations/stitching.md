@@ -115,3 +115,14 @@ result = sm.stitch_advanced(brep, tol_3d=0.01,
 - **`stitch_brep(brep)`** — one-call whole-Brep stitch with default tolerances and no diagnostic return values (wraps `SmApiStitch`).
 - **`stitch_brep_with_face(brep, face)`** — stitch using a single face's lamina edges as the seed (wraps the `SmApiStitch` Brep+Face overload).
 - **`simple_face_stitch(brep, faces_to_keep, faces_to_delete)`** — glue paired faces (delete onto keep) and report `(stitched_edges, max_vertex_gap, max_edge_gap)` (wraps `SmApiSimpleFaceStitch`). Requires `Face` handles obtained from topology traversal.
+
+The face overload mutates and returns the same Brep handle. Its seed face must
+already belong to that Brep; a face from another Brep is rejected with
+`SM_ERR_INVALID_INPUT`. It does not transfer the face from a separate owner.
+Reacquire borrowed topology views after a successful mutation. An isolated sheet
+or a closed solid with no matching lamina edges is a valid no-op. When a newly
+added face has a coincident boundary, stitching can share those edges and vertices.
+Default working tolerance is derived from the target Brep's existing tolerance
+and edge sizes; this does not grant STEP repair permission or establish import
+qualification. Use the explicit stitching variants for their documented controls
+and diagnostics.
