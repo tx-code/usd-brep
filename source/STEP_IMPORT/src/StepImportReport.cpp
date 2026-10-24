@@ -1345,7 +1345,7 @@ void WriteReportJson(
             w.String(d.source.recordId);
             w.Add(",\"stage\":");
             w.String(d.source.stage);
-            if (d.classification == "NativeFaceLoopOrientationFailure")
+            if (d.classification == "NativeFaceLoopOrientationFailure" || d.classification == "NativePeriodicSourceVertexNearMiss")
             {
                 w.Add(",\"classification\":");
                 w.String(d.classification);

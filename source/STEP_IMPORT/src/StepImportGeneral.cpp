@@ -10,6 +10,7 @@
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
 #include "StepImportOrientationRepair.h"
+#include "StepImportPeriodicDiagnosis.h"
 #include "StepImportPeriodicNormalization.h"
 #include "StepImportRingSegmentation.h"
 #include "StepImportSupportDomain.h"
@@ -4388,16 +4389,20 @@ private:
         }
         if (periodicSupport)
         {
-            if (auto businessCheck = Need(
-                    properties.m_eBadMissingSeam == SM_SP_NEITHER && properties.m_eBadCrossedSeam == SM_SP_NEITHER &&
-                        properties.m_eBadNearMissSeam == SM_SP_NEITHER && properties.m_bBadUnpairedNoArea_Loop == FALSE &&
-                        properties.m_lBadMissingPoles == 0,
-                    "GeneralRegionSeamUnestablished",
-                    f.record
-                );
-                !businessCheck)
+            if (!(properties.m_eBadMissingSeam == SM_SP_NEITHER && properties.m_eBadCrossedSeam == SM_SP_NEITHER &&
+                  properties.m_eBadNearMissSeam == SM_SP_NEITHER && properties.m_bBadUnpairedNoArea_Loop == FALSE &&
+                  properties.m_lBadMissingPoles == 0))
             {
-                return tl::unexpected(std::move(businessCheck.error()));
+                auto failure = Fail("GeneralRegionSeamUnestablished", f.record);
+                // Preserve the exact refusal and billing. Only classify the
+                // complete retained-source-vertex observation; never move a
+                // vertex or reinterpret a mixed native failure as this case.
+                const auto count = std::min(vertices.size(), m_model->vertices.size());
+                if (IsPeriodicSourceVertexNearMiss(properties, { m_model->vertices.data(), count }))
+                {
+                    failure.nativeKind = NativeFailureKind::PeriodicSourceVertexNearMiss;
+                }
+                return tl::unexpected(std::move(failure));
             }
         }
         if (auto businessCheck = Need(

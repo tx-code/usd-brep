@@ -258,6 +258,7 @@ class TopologyAdoptionTests(unittest.TestCase):
         self.loader._adopt(generation, 0)
         previous = self.loaded[-1]
         for classification, title in (('NativeFaceLoopOrientationFailure', '面环方向检查未通过'),
+                                      ('NativePeriodicSourceVertexNearMiss', '源顶点周期连接检查未通过'),
                                       (None, '模型未能载入')):
             generation, path, manifest = self.request()
             manifest.update(status='PostcheckFailure', key='ImportFailed', diagnostics=[dict(
@@ -269,6 +270,16 @@ class TopologyAdoptionTests(unittest.TestCase):
             self.assertIs(previous, self.loaded[-1])
             self.assertEqual(1, len(self.loaded))
             self.assertFalse(path.exists())
+
+        generation, path, manifest = self.request()
+        manifest.update(status='PostcheckFailure', key='ImportFailed', diagnostics=[
+            dict(key='GeneralRegionSeamUnestablished', message='Synthetic near miss',
+                 classification='NativePeriodicSourceVertexNearMiss'),
+            dict(key='GeneralDerivedUvGap', message='Synthetic additional failure')])
+        self.write_manifest(path, manifest)
+        self.loader._adopt(generation, 1)
+        self.assertEqual('模型未能载入', self.failed[-1][0], 'mixed findings must keep the generic caption')
+        self.assertIs(previous, self.loaded[-1])
 
     def test_legacy_v1_and_required_auxiliary_v2_remain_compatible(self):
         for version, auxiliary in (("v1", False), ("v2", True)):

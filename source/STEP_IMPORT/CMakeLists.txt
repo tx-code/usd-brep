@@ -29,6 +29,7 @@ add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp sr
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
 target_sources(STEP_IMPORT PRIVATE src/StepImportUnits.cpp src/StepImportCollection.cpp src/StepImportDocument.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportPeriodicNormalization.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportPeriodicDiagnosis.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportOrientationRepair.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportDefinitionSelection.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportCylindricalBandRepair.cpp)

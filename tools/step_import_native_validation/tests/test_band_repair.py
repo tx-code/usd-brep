@@ -96,3 +96,18 @@ class BandRepairTests(unittest.TestCase):
         self.assertEqual('Indeterminate', result['status'])
         self.assertEqual(0, result['native_calls'])
         self.assertIn('CylindricalBandWholeCircleRequired', process.stdout.decode('utf-8'))
+
+    def test_role_only_repair_does_not_silently_project_a_source_vertex(self):
+        # Exact source circle radius=3, whereas this vertex has radius=3.0001.
+        # Its 0.0001 mm offset is below the development consistency budget;
+        # the scoped boundary-role plan still grants zero vertex displacement.
+        data = FIXTURE.read_bytes().replace(b"#102=CARTESIAN_POINT('',(0.,3.,0.))",
+                                            b"#102=CARTESIAN_POINT('',(0.,3.0001,0.))", 1)
+        process, result = self.invoke(data, recipe(data))
+        self.assertNotEqual(12, process.returncode)
+        self.assertEqual('PostcheckFailure', result['status'])
+        self.assertIsNone(result['model'])
+        self.assertTrue(result['candidate_discarded'])
+        diagnostic = next(d for d in result['diagnostics'] if d['key'] == 'GeneralRegionSeamUnestablished')
+        self.assertEqual('NativePeriodicSourceVertexNearMiss', diagnostic['classification'])
+        self.assertEqual(data.decode('ascii'), result['source_inspection']['source']['input']['raw'])

@@ -260,6 +260,7 @@ class SceneLoader(QtCore.QObject):
                 messages = [f"{d['key']}: {d['message']}" for d in manifest.get("diagnostics", [])]
                 classifications = {d.get('classification') for d in manifest.get('diagnostics', [])}
                 title = ("面环方向检查未通过" if classifications == {'NativeFaceLoopOrientationFailure'}
+                         else "源顶点周期连接检查未通过" if classifications == {'NativePeriodicSourceVertexNearMiss'}
                          else "模型未能载入")
                 self.failed.emit(title, "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))
                 return

@@ -3,13 +3,15 @@
 """The band repair is a one-file intent with a distinct, nonoverlapping HUD label."""
 from dataclasses import replace
 import hashlib
+from pathlib import Path
+import tempfile
 import unittest
 
 from . import test_topology
 from tools.step_import_native_validation.tests.test_band_repair import FIXTURE
 from tools.smlib_viewer.backend import ImportSettings, SceneLoader, native_worker
 from tools.smlib_viewer.repair import arguments
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 
 def settings(data):
@@ -60,3 +62,33 @@ class BandRepairWorkerTests(unittest.TestCase):
             self.assertIsNotNone(window.picker.resolve('face', 0))
         finally:
             window.close()
+
+    def test_source_vertex_near_miss_is_visible_without_adopting_a_partial_scene(self):
+        # This source defect is distinct from the already requested FACE.WR2
+        # marker correction. The worker must preserve its ordinary refusal.
+        data = FIXTURE.read_bytes().replace(b"#102=CARTESIAN_POINT('',(0.,3.,0.))",
+                                            b"#102=CARTESIAN_POINT('',(0.,3.0001,0.))", 1)
+        self.loader.settings = settings(data)
+        errors, loaded = [], []
+        loop = QtCore.QEventLoop()
+        self.loader.failed.connect(lambda *args: (errors.append(args), loop.quit()))
+        self.loader.loaded.connect(lambda *args: (loaded.append(args), loop.quit()))
+        timer = QtCore.QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(loop.quit)
+        with tempfile.TemporaryDirectory(prefix='public-source-vertex-') as folder:
+            path = Path(folder) / 'source.step'
+            path.write_bytes(data)
+            timer.start(30000)
+            try:
+                self.loader.load(str(path))
+                if not errors and not loaded:
+                    loop.exec()
+            finally:
+                timer.stop()
+            self.assertEqual(data, path.read_bytes())
+        self.assertFalse(loaded)
+        self.assertTrue(errors, 'expected a complete structured refusal')
+        self.assertEqual('源顶点周期连接检查未通过', errors[0][0])
+        self.assertEqual('PostcheckFailure', self.loader.worker_result['native_import_status'])
+        self.assertIn('GeneralRegionSeamUnestablished', errors[0][1])

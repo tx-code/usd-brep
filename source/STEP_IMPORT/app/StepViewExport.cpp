@@ -534,7 +534,8 @@ void Publish(
                     }
                     w.Add("{\"key\":");
                     w.String(report.diagnostics[i].source.key);
-                    if (report.diagnostics[i].classification == "NativeFaceLoopOrientationFailure")
+                    if (report.diagnostics[i].classification == "NativeFaceLoopOrientationFailure" ||
+                        report.diagnostics[i].classification == "NativePeriodicSourceVertexNearMiss")
                     {
                         w.Add(",\"classification\":");
                         w.String(report.diagnostics[i].classification);

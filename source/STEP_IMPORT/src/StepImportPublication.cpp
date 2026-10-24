@@ -412,6 +412,10 @@ void AddFailureDiagnostic(Report& report, const Failure& failure)
     {
         diagnostic.classification = "NativeFaceLoopOrientationFailure";
     }
+    if (failure.status == Status::PostcheckFailure && failure.nativeKind == NativeFailureKind::PeriodicSourceVertexNearMiss)
+    {
+        diagnostic.classification = "NativePeriodicSourceVertexNearMiss";
+    }
     diagnostic.responsibility = failure.stage == "Execution" ? "in-process cooperative execution" :
                                                                "native candidate preparation/construction/postcheck; Repair=None";
     if (failure.record && report.source)

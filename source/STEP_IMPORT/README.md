@@ -303,6 +303,13 @@ CLI 显式参数为 `--repair-source-sha256 HASH --max-face-orientation-edits N`
 新字段同样计入原有必需报告字节上限；报告不足仍拒绝发布。
 这只是目标检查观察，不能据此断言源错误、授予修复许可或忽略失败。严格路径继续 `Repair=None`。
 
+`GeneralRegionSeamUnestablished` 可附带 `classification=NativePeriodicSourceVertexNearMiss`。
+仅当完整、有界的原生周期分类结果只含保留源顶点的 U 方向 near-miss 时产生该分类；缺缝、
+穿缝、无面积环、极点、边的 near-miss、未知或超出诊断容量的结果仍保持原分类。
+它沿用 `SmCurveClassification::HasNearMisses` 的原生观测谓词，不进行额外投影、不调整容差，
+也不建立源文件非法或允许移点的结论。原状态、入口键、消息、源面位置、执行顺序和计费不变。
+仅有边界角色修复许可时，顶点仍不能被顺带移动；任何后验拒绝仍不发布模型。
+
 通用文件入口 `ImportModelFile/Bytes` 捕获、检查源一次，按已资格化清单返回
 `FileOutcome.model` 的单体、单定义实体集合或独立多定义文档 alternative。
 单定义继续使用既有构建路径，保留其全部附属线框／支撑几何；多定义复用下述文档构建。

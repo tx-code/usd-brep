@@ -17,7 +17,8 @@ enum class NativeFailureKind
     ConstructionOperation,
     // Shared scalar/triple/coordinate conversion also preserves a distinct
     // assembly diagnostic adapter in addition to strict-attempt observation.
-    SourceValueConversion
+    SourceValueConversion,
+    PeriodicSourceVertexNearMiss // Complete native U-near-miss set refers only to retained source vertices.
 };
 struct Failure
 {
