@@ -4744,13 +4744,18 @@ private:
     }
     [[nodiscard]] Result<void> ClassifyRegion(const Face& f, NativeFaceData& native)
     {
-        // Source-unmarked planes, cylinders and cones use curve-intersection
-        // containment after installed-UV validation. An envelope/SET order is
-        // only construction bootstrapping; it cannot identify the outer region.
+        // Source-unmarked regions use curve-intersection containment AFTER
+        // installed-UV validation. Bounds SET order and the initial envelope
+        // only bootstrap construction; neither establishes the outer region.
         const bool cylinder = Is(f.surface, "CYLINDRICAL_SURFACE");
         const bool cone = Is(f.surface, "CONICAL_SURFACE");
+        const bool spline = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
         const bool periodicSupport = cylinder || cone;
-        if (!Is(f.surface, "PLANE") && !periodicSupport)
+        // This development increment uses an ordinary finite spline chart.
+        // F is an admission restriction, not a proof of the source assertion.
+        // Unknown/closed declarations still need their own seam/pole contract.
+        if ((!Is(f.surface, "PLANE") && !periodicSupport && !spline) ||
+            (spline && (F(f.surface, "u_closed").text != "F" || F(f.surface, "v_closed").text != "F" || F(f.surface, "self_intersect").text != "F")))
         {
             return tl::unexpected(Fail("GeneralRegionClassificationPending", f.record, Status::Deferred));
         }
@@ -4765,6 +4770,15 @@ private:
         if (auto nativeStatusCheck = Good(properties.SetProps(SM_PROPSTAGE_3, native.face, 0, SM_HO_FIX_SPLITEDGE_ATSEAM)); !nativeStatusCheck)
         {
             return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
+        // SetProps_Stage2 only computes seam enums for closed surfaces. For
+        // this positively nonclosed chart they remain UNKNOWN/not applicable;
+        // do not mistake that untouched state for a passed periodic test.
+        if (spline && (properties.m_bClosedU != FALSE || properties.m_bClosedV != FALSE || properties.m_lPoles != SM_SS_NONE ||
+                       properties.m_lApproxPoles != SM_SS_NONE || properties.m_bBadCrossedPole != FALSE ||
+                       properties.m_bBadUnpairedNoArea_Loop != FALSE || properties.m_lBadMissingPoles != 0))
+        {
+            return tl::unexpected(Fail("GeneralSplineRegionChartUnestablished", f.record, Status::Deferred));
         }
         if (periodicSupport)
         {
@@ -4835,6 +4849,19 @@ private:
         else
         {
             m_report.classifiedOuterBounds.push_back({ Id(f.record), Id(f.loops[index].bound) });
+            if (spline)
+            {
+                // Derived target region only. Preserve all source FACE_BOUND
+                // types, UV parameters and uses; no source marker is invented.
+                RepresentationNormalization classification;
+                classification.kind = "NativeSplineCurveIntersectionContainment";
+                classification.sourceFaceId = Id(f.record);
+                for (const auto& loop : f.loops)
+                {
+                    classification.sourceBoundIds.push_back(Id(loop.bound));
+                }
+                m_report.normalizations.push_back(std::move(classification));
+            }
         }
         if (it != native.loops.begin())
         {

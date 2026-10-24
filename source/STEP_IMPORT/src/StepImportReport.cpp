@@ -10,6 +10,7 @@
 #include <charconv>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 
 namespace step_import::detail
 {
@@ -1949,6 +1950,14 @@ void WriteReportJson(
         }
         w.Add("]");
         w.Add(",\"classified_outer_bounds\":[");
+        std::unordered_set<std::string_view> splineClassifiedFaces;
+        for (const auto& normalization : report.normalizations)
+        {
+            if (normalization.kind == "NativeSplineCurveIntersectionContainment")
+            {
+                splineClassifiedFaces.insert(normalization.sourceFaceId);
+            }
+        }
         for (std::size_t i = 0; i < report.classifiedOuterBounds.size(); ++i)
         {
             if (i)
@@ -1959,7 +1968,12 @@ void WriteReportJson(
             w.String(report.classifiedOuterBounds[i].first);
             w.Add(",\"source_bound\":");
             w.String(report.classifiedOuterBounds[i].second);
-            w.Add(",\"method\":\"NativePlanarCurveIntersectionContainment\",\"source_rewritten\":false}");
+            w.Add(",\"method\":");
+            w.String(
+                splineClassifiedFaces.contains(report.classifiedOuterBounds[i].first) ? "NativeSplineCurveIntersectionContainment" :
+                                                                                        "NativePlanarCurveIntersectionContainment"
+            );
+            w.Add(",\"source_rewritten\":false}");
         }
         w.Add("]");
         if (!report.wireframes.empty())

@@ -8,6 +8,12 @@ remain immutable; complete new-domain defining geometry evidence shares the
 selected quality budget. Completed results retain an owning interpretation
 receipt and return `AcceptedUnderInterpretation`.
 
+Unmarked nonclosed polynomial and positive-weight rational spline faces use
+checked curve-intersection containment to retain outer/inner regions and source
+shape roles. Native closed/pole charts and unknown source declarations still
+refuse; source bounds are never rewritten. Reports identify the derived spline
+region method and preserve the selected quality and publication gates.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).

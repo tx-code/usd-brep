@@ -1791,6 +1791,43 @@ void DevelopmentContract(
         // Discarding another candidate cannot damage this delivered owner.
         Require(std::isfinite(view.Closest(outside).distanceMm), "published owning face survives failed candidates");
     }
+    const bool unmarkedSpline = std::any_of(
+        result.report.normalizations.begin(),
+        result.report.normalizations.end(),
+        [](const auto& row)
+        {
+            return row.kind == "NativeSplineCurveIntersectionContainment";
+        }
+    );
+    if (unmarkedSpline)
+    {
+        for (const auto phase : { step_import::Phase::NativeReady, step_import::Phase::BeforeCommit })
+        {
+            auto stoppedOptions = options;
+            stoppedOptions.execution.control = std::make_shared<step_import::ImportControl>();
+            stoppedOptions.execution.progress = [&, phase](step_import::Progress progress)
+            {
+                if (progress.phase == phase)
+                {
+                    stoppedOptions.execution.control->RequestCancel();
+                }
+            };
+            const auto stopped = step_import::ImportFile(source, stoppedOptions);
+            Require(
+                stopped.status == step_import::Status::Cancelled && !stopped.model && !stopped.report.classifiedOuterBounds.empty(),
+                "classified spline still obeys final cancellation"
+            );
+        }
+        auto limited = options;
+        limited.nativeLimits.nativeCalls = result.report.nativeCalls - 1;
+        const auto exhausted = step_import::ImportFile(source, limited);
+        Require(exhausted.status == step_import::Status::ResourceLimit && !exhausted.model, "classified spline late native work refusal is atomic");
+        limited = options;
+        limited.nativeLimits.reportBytes = 1;
+        const auto unreported = step_import::ImportFile(source, limited);
+        Require(unreported.status == step_import::Status::ResourceLimit && !unreported.model, "classified spline requires its complete report");
+        Require(std::isfinite(view.Closest(outside).distanceMm), "owning view survives discarded classified candidates");
+    }
     SmPoint3d point;
     double queryDistance = 0;
     Require(
@@ -1800,6 +1837,10 @@ void DevelopmentContract(
     Near(queryDistance, distance, 1e-5, "archive boundary distance preserved");
     std::ofstream checks(directory / "checks.json", std::ios::binary);
     checks << std::setprecision(17) << "{\"status\":\"Passed\"";
+    if (unmarkedSpline)
+    {
+        checks << ",\"unmarked_spline_publication_checked\":true";
+    }
     if (repair)
     {
         checks << ",\"native_status\":\"AcceptedWithRepairs\",\"repaired_faces\":" << result.model->Repairs()->actions.size();

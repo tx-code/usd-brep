@@ -318,6 +318,7 @@ class GeneralTests(unittest.TestCase):
         self.assertNotEqual(0, run.returncode)
         self.assertIsNone(report["model"])
         unsupported = bulged_box_source().replace(b"#516=FACE_OUTER_BOUND", b"#516=FACE_BOUND")
+        unsupported = unsupported.replace(b".UNSPECIFIED.,.F.,.F.,.F.,(3,3)", b".UNSPECIFIED.,.U.,.F.,.F.,(3,3)")
         run, report = self.invoke_bytes(unsupported)
         self.assertEqual(7, run.returncode)
         self.assertEqual("GeneralRegionClassificationPending", report["diagnostics"][-1]["key"])
