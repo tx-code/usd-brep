@@ -10,7 +10,9 @@
 #include <SmEdge.h>
 #include <SmNativeArchive.h>
 #include <SmSTEPSurface.h>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 
 using namespace step_import;
 using namespace step_import::detail;
@@ -79,14 +81,49 @@ void Verify(SmCurve& curve, bool revolution)
         Near(values[2].x, .12, 1e-10, "source second derivative retained through composition");
     }
 }
-void VerifyBrep(SmBrep& brep, bool revolution)
+void Verify3d(SmCurve& curve, bool revolution)
+{
+    Require(curve.GetType() == SmBSplineCurve_TYPE && curve.GetDegree() == 1 && !curve.IsRational(), "original 3D spline, no composed pcurve fit");
+    SmTArray<double> knots;
+    auto& spline = static_cast<SmBSplineCurve&>(curve);
+    Require(spline.GetKnotsAll(knots) == SM_SUCCESS && knots.GetSize() == 4 && knots[0] == 0 && knots[1] == 0 && knots[2] == 1 && knots[3] == 1,
+        "all original 3D basis knots and multiplicities");
+    SmTArray<SmPoint3d> points;
+    SmTArray<double> weights;
+    Require(spline.GetControlPolygon(points, weights) == SM_SUCCESS && points.GetSize() == 2, "original 3D control inventory");
+    for (ULONG i = 0; i < 2; ++i)
+    {
+        Require(
+            points[i].x == (revolution ? 0 : 2 + 10 * i) && points[i].y == (revolution ? 3 : -3) && points[i].z == (revolution ? 7 * i : 5),
+            "all original 3D control values"
+        );
+    }
+    for (double t : { 0., .2, .5, 1. })
+    {
+        SmVector3d values[3];
+        Require(curve.Evaluate(t, 2, TRUE, values) == SM_SUCCESS, "3D master position and derivatives");
+        Near(values[0].x, revolution ? 0 : 2 + 10 * t, 1e-10, "independent original 3D x");
+        Near(values[0].y, revolution ? 3 : -3, 1e-10, "independent original 3D y");
+        Near(values[0].z, revolution ? 7 * t : 5, 1e-10, "independent original 3D z");
+        Near(values[1].x, revolution ? 0 : 10, 1e-10, "original linear 3D first derivative x");
+        Near(values[1].z, revolution ? 7 : 0, 1e-10, "original linear 3D first derivative z");
+        Near(values[2].Length(), 0, 1e-10, "3D master is not replaced by the nonlinear pcurve parameterization");
+    }
+}
+void VerifyBrep(SmBrep& brep, bool revolution, bool master3d = false)
 {
     SmTArray<SmEdge*> edges;
     brep.GetEdges(edges);
     unsigned found = 0;
     for (ULONG i = 0; i < edges.GetSize(); ++i)
     {
-        if (dynamic_cast<SmCrvOnSurf*>(edges[i]->GetCurve()))
+        if (master3d && edges[i]->GetCurve()->GetType() == SmBSplineCurve_TYPE)
+        {
+            Verify3d(*edges[i]->GetCurve(), revolution);
+            Require(edges[i]->GetInterval().GetMin() == 0 && edges[i]->GetInterval().GetMax() == 1, "3D master keeps its own edge interval");
+            ++found;
+        }
+        else if (!master3d && dynamic_cast<SmCrvOnSurf*>(edges[i]->GetCurve()))
         {
             Verify(*edges[i]->GetCurve(), revolution);
             Require(
@@ -99,27 +136,54 @@ void VerifyBrep(SmBrep& brep, bool revolution)
     Require(found == 1, "complete BRep retains one source master definition");
     step_import_test::CheckNativeWorkBudget(brep, .005);
 }
-void Lifecycle(const std::filesystem::path& fixture, const std::filesystem::path& directory, bool revolution)
+void Lifecycle(const std::filesystem::path& fixture, const std::filesystem::path& directory, bool revolution, bool master3d = false)
 {
+    std::ifstream input(fixture, std::ios::binary);
+    std::string source{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    if (master3d)
+    {
+        const std::string old = ".PCURVE_S1.";
+        const auto at = source.find(old);
+        Require(at != std::string::npos && source.find(old, at + old.size()) == std::string::npos, "one public declared priority");
+        source.replace(at, old.size(), ".CURVE_3D.");
+    }
     auto options = Options::PlanarFixture();
     options.generalBrep = true;
     options.quality = Quality::GeneralDevelopment();
     options.numericalIntegration = NumericalIntegrationSettings{ 1e-8 };
-    auto result = ImportFile(fixture, options);
+    const auto import = [&](const Options& settings)
+    {
+        return master3d ? ImportBytes(source, settings) : ImportFile(fixture, settings);
+    };
+    auto result = import(options);
     Require(result.status == Status::Accepted && result.model && !result.report.json.empty(), "complete source master import and report");
     auto model = result.model;
+    Require(model->Source()->Source().Bytes() == source, "original priority, pcurves and source bytes retained by the owning model");
+    if (master3d)
+    {
+        auto exact = options;
+        exact.nativeLimits.reportBytes = result.report.json.size();
+        const auto same = import(exact);
+        Require(
+            same.status == Status::Accepted && same.model && same.report.json == result.report.json,
+            "3D master deterministic mandatory report and exact byte limit"
+        );
+        --exact.nativeLimits.reportBytes;
+        const auto shortReport = import(exact);
+        Require(shortReport.status == Status::ResourceLimit && !shortReport.model, "3D master one-byte-short report cannot publish");
+    }
     Near(*model->MaterialVolumeMm3(), revolution ? 63 * std::numbers::pi : 6000, .001, "independent volume");
     Near(model->Info().areaMm2, revolution ? 60 * std::numbers::pi : 2200, .001, "independent area");
     Near(model->Closest(revolution ? Point{ 5, 0, 3 } : Point{ 20, 7, 20 }).distanceMm, revolution ? 2 : 8, 1e-6, "independent boundary query");
     Require(model->ClassifyMaterial(revolution ? Point{ 0, 0, 3 } : Point{ 7, 7, 20 }) == MaterialPointClass::Inside, "independent material query");
     auto copy = model->CopyForModeling();
     Require(copy.status == Status::Accepted && copy.model, "owning complete modeling copy");
-    const auto verify = [revolution](SmBrep& brep)
+    const auto verify = [revolution, master3d](SmBrep& brep)
     {
-        VerifyBrep(brep, revolution);
+        VerifyBrep(brep, revolution, master3d);
     };
     copy.model->Edit(verify);
-    const auto path = directory / "pcurve-brep.smb";
+    const auto path = directory / (master3d ? "curve3d-brep.smb" : "pcurve-brep.smb");
     model->WriteNative(path);
     SmContext context;
     SmTArray<SmCurve*> curves;
@@ -134,7 +198,7 @@ void Lifecycle(const std::filesystem::path& fixture, const std::filesystem::path
             curves.GetSize() == 0 && surfaces.GetSize() == 0,
         "complete source pcurve archive inventory"
     );
-    VerifyBrep(*breps[0], revolution);
+    VerifyBrep(*breps[0], revolution, master3d);
     model.reset();
     result = {};
     copy.model->Edit(verify); // No borrowed child from the discarded snapshot.
@@ -149,7 +213,7 @@ void Lifecycle(const std::filesystem::path& fixture, const std::filesystem::path
                 stopped.execution.control->RequestCancel();
             }
         };
-        auto cancelled = ImportFile(fixture, stopped);
+        auto cancelled = import(stopped);
         Require(
             cancelled.status == Status::Cancelled && !cancelled.model && !cancelled.report.json.empty(),
             "cancelled master import never publishes"
@@ -157,11 +221,11 @@ void Lifecycle(const std::filesystem::path& fixture, const std::filesystem::path
     }
     auto bounded = options;
     bounded.nativeLimits.nativeCalls = 2;
-    const auto limited = ImportFile(fixture, bounded);
+    const auto limited = import(bounded);
     Require(limited.status == Status::ResourceLimit && !limited.model, "native resource refusal is atomic");
     bounded = options;
     bounded.nativeLimits.reportBytes = 1;
-    const auto noReport = ImportFile(fixture, bounded);
+    const auto noReport = import(bounded);
     Require(noReport.status == Status::ResourceLimit && !noReport.model, "complete required report precedes publication");
 }
 } // namespace
@@ -219,6 +283,7 @@ int main(int argc, char** argv)
             Verify(*readCurves[0], revolution);
         }
         Lifecycle(argv[1], argv[2], revolution);
+        Lifecycle(argv[1], argv[2], revolution, true);
         std::cout << "source master composition/parameters/ownership contracts passed\n";
     }
     catch (const std::exception& error)

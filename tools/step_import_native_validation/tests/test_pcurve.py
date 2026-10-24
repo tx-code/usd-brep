@@ -52,6 +52,32 @@ def axial_pcurve_source(revolution=False, milliradian=False):
     return append_records(data, extra)
 
 
+def surface_curve_trimmed_arc(trim_forward=True, edge_forward=True, master_3d=True, wrong_pcurve_sense=False):
+    # The physical open patch is unchanged. Only the source wrapper/basis/edge
+    # sense composition varies; this is public analytic input, not CAD data.
+    path = Path(__file__).resolve().parents[3] / "source/STEP_IMPORT/tests/fixtures/source_pcurve_revolution_patch.step"
+    data = path.read_bytes()
+    low, high = b"1.8707963267948966", b"2.7707963267948966"
+    if not trim_forward:
+        low, high = high, low
+    data = re.sub(rb"#112=TRIMMED_CURVE[^\n]*", b"#112=TRIMMED_CURVE('',#110,(PARAMETER_VALUE(" + low
+                  + b")),(PARAMETER_VALUE(" + high + b")),." + (b"T" if trim_forward else b"F") + b".,.PARAMETER.);", data)
+    basis_forward = trim_forward == edge_forward
+    start, end = (b"120", b"121") if basis_forward else (b"121", b"120")
+    data = data.replace(b"#130=EDGE_CURVE('',#120,#121,#112,.T.);",
+                        b"#130=EDGE_CURVE('',#" + start + b",#" + end + b",#980,." + (b"T" if edge_forward else b"F") + b".);")
+    data = data.replace(b"#150=ORIENTED_EDGE('',*,*,#130,.T.);",
+                        b"#150=ORIENTED_EDGE('',*,*,#130,." + (b"T" if basis_forward else b"F") + b".);")
+    first, last = (b"0.3", b"1.2") if trim_forward != wrong_pcurve_sense else (b"1.2", b"0.3")
+    extra = b"#980=SURFACE_CURVE('',#112,(#981),." + (b"CURVE_3D" if master_3d else b"PCURVE_S1") + b""".);
+#981=PCURVE('',#142,#982);
+#982=DEFINITIONAL_REPRESENTATION('',(#983),#970);
+#983=B_SPLINE_CURVE_WITH_KNOTS('',1,(#984,#985),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.),.UNSPECIFIED.);
+"""
+    extra += b"#984=CARTESIAN_POINT('',(" + first + b",-2.));\n#985=CARTESIAN_POINT('',(" + last + b",-2.));\n"
+    return append_records(data, extra)
+
+
 class PcurveNativeTests(unittest.TestCase):
     def invoke(self, data):
         with tempfile.TemporaryDirectory(prefix="public-native-pcurve-") as folder:
@@ -181,9 +207,76 @@ class PcurveNativeTests(unittest.TestCase):
 
     def test_curve_3d_master_is_not_silently_replaced_by_a_pcurve(self):
         run, report = self.invoke(spline_pcurve_source().replace(b".PCURVE_S1.", b".CURVE_3D."))
+        self.assertEqual(0, run.returncode, report["diagnostics"])
+        self.assertEqual("Accepted", report["status"])
+        self.assertAlmostEqual(6000, report["model"]["material_volume"]["value_mm3"], delta=.001)
+        mappings = report["parameter_mappings"]
+        master = next(m for m in mappings if m["kind"] == "SurfaceCurveMaster3d")
+        self.assertIsNotNone(master["target_edge_index"])
+        self.assertFalse(any(m["kind"] == "SurfaceCurveMasterPcurve" for m in mappings))
+        comparison = [m for m in mappings if m["kind"].startswith("SurfaceCurveAuxiliaryPcurve")]
+        self.assertTrue(comparison)
+        self.assertTrue(all(m["target_edge_index"] is None for m in comparison))
+
+    def test_curve_3d_master_revolution_keeps_original_3d_parameter(self):
+        data = axial_pcurve_source(revolution=True).replace(b".PCURVE_S1.", b".CURVE_3D.")
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report["diagnostics"])
+        master = next(m for m in report["parameter_mappings"] if m["kind"] == "SurfaceCurveMaster3d")
+        self.assertEqual([0, 1], master["parameters"]["native_edge_interval"])
+        self.assertAlmostEqual(63 * math.pi, report["model"]["material_volume"]["value_mm3"], delta=.001)
+
+    def test_curve_3d_master_does_not_ignore_pcurve_image_conflicts(self):
+        data = spline_pcurve_source().replace(b".PCURVE_S1.", b".CURVE_3D.").replace(b"(0.,2.)", b"(0.1,2.)")
+        run, report = self.invoke(data)
         self.assertNotEqual(0, run.returncode)
-        self.assertEqual("Unsupported", report["status"])
-        self.assertIn("GeneralSurfaceCurveMasterUnsupported", {d["key"] for d in report["diagnostics"]})
+        self.assertIsNone(report["model"])
+        self.assertIn("GeneralSurfaceCurveRepresentationsConflict", {d["key"] for d in report["diagnostics"]})
+
+    def test_curve_3d_master_does_not_sort_opposite_pcurve_sense(self):
+        data = spline_pcurve_source().replace(b".PCURVE_S1.", b".CURVE_3D.")
+        # Reverse the pcurve's source traversal while keeping the same point set.
+        data = data.replace(b"2,(#924,#927,#928)", b"2,(#928,#927,#924)")
+        run, report = self.invoke(data)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["model"])
+        self.assertIn("GeneralSurfaceCurveAssociationSenseConflict", {d["key"] for d in report["diagnostics"]})
+
+    def test_curve_3d_master_preserves_duplicate_association_occurrences(self):
+        data = spline_pcurve_source().replace(b"(#921),.PCURVE_S1.", b"(#921,#921),.CURVE_3D.")
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report["diagnostics"])
+        mappings = [m for m in report["parameter_mappings"] if m["kind"] == "SurfaceCurveAuxiliaryPcurveSourcePcurveComposition"]
+        self.assertEqual([[1], [2]], [m["parameters"]["source_association_occurrence"] for m in mappings])
+        self.assertTrue(all(m["target_edge_index"] is None for m in mappings))
+
+    def test_curve_3d_master_still_checks_the_second_associated_pcurve(self):
+        data = spline_pcurve_source().replace(b"(#921),.PCURVE_S1.", b"(#921,#981),.CURVE_3D.")
+        data = append_records(data, b"""#981=PCURVE('',#504,#982);
+#982=DEFINITIONAL_REPRESENTATION('',(#983),#930);
+#983=B_SPLINE_CURVE_WITH_KNOTS('',2,(#924,#984,#928),.UNSPECIFIED.,.F.,.F.,(3,3),(-2.,8.),.UNSPECIFIED.);
+#984=CARTESIAN_POINT('',(0.1,2.));
+""")
+        run, report = self.invoke(data)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["model"])
+        self.assertIn("GeneralSurfaceCurveRepresentationsConflict", {d["key"] for d in report["diagnostics"]})
+
+    def test_trimmed_surface_curve_composes_wrapper_edge_and_loop_senses(self):
+        for trim in (False, True):
+            for edge in (False, True):
+                for master_3d in (False, True):
+                    with self.subTest(trim=trim, edge=edge, master_3d=master_3d):
+                        run, report = self.invoke(surface_curve_trimmed_arc(trim, edge, master_3d))
+                        self.assertEqual(0, run.returncode, report["diagnostics"])
+                        self.assertEqual("OpenSurfaceModel", report["model"]["shape_role"])
+                        self.assertAlmostEqual(18.9, report["model"]["area_mm2"], delta=.001)
+
+    def test_reverse_trim_cannot_hide_an_unrelated_pcurve_sense_conflict(self):
+        run, report = self.invoke(surface_curve_trimmed_arc(False, True, True, True))
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["model"])
+        self.assertIn("GeneralSurfaceCurveAssociationSenseConflict", {d["key"] for d in report["diagnostics"]})
 
     def test_opposite_auxiliary_sense_is_not_sorted_or_flipped_away(self):
         data = spline_pcurve_source().replace(b"('',1,(#100,#101),", b"('',1,(#101,#100),")

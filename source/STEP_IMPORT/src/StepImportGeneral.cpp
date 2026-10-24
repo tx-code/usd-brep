@@ -75,6 +75,8 @@ struct Curve
     double t0 = 0, t1 = 0;
     Bounds bounds{};
     V p0{}, p1{}; // Evaluated endpoints of the defining curve, not the possibly gapped topology vertices.
+    bool forwardForComparison = true; // Private direction label: equal flags mean increasing t follows the same physical sense.
+    std::size_t associationOccurrence = 0; // 1-based LIST position; zero denotes the separate curve_3d comparison.
 };
 struct Use
 {
@@ -734,7 +736,12 @@ private:
         // from trim_1, opposing its basis when sense_agreement is FALSE.
         // Native conics increase along the BASIS, so compose this extra sense
         // with EC and subsequently OE; never change the immutable source flags.
-        const bool same = Is(geometry, "TRIMMED_CURVE") ? B(a, "same_sense") == B(geometry, "sense_agreement") : B(a, "same_sense");
+        const auto parameterGeometry = Is(geometry, "SURFACE_CURVE") && F(geometry, "master_representation").text == "CURVE_3D" ?
+                                           Ref(geometry, "curve_3d") :
+                                           geometry;
+        // CURVE_3D carries the defining trimmed curve's sense through its
+        // surface-curve wrapper. Compose it before OE/loop uses are prepared.
+        const bool same = Is(parameterGeometry, "TRIMMED_CURVE") ? B(a, "same_sense") == B(parameterGeometry, "sense_agreement") : B(a, "same_sense");
         const auto start = Ref(a, "edge_start"), end = Ref(a, "edge_end");
         auto firstResult = Vertex(same ? start : end);
         if (!firstResult)
@@ -1183,6 +1190,105 @@ private:
         }
         return {};
     }
+    [[nodiscard]] Result<void> MakeSurfaceCurve3d(Curve& c, Index geometry)
+    {
+        // Declared CURVE_3D only: retain that original defining curve, not an
+        // approximation lifted from a pcurve. Source pcurves remain required
+        // independent comparisons under the same selected consistency budget.
+        // STEP_IMPORT/README.md, source-priority surface-curve construction.
+        const auto auxiliary = Ref(geometry, "curve_3d");
+        if (Is(auxiliary, "SURFACE_CURVE"))
+        {
+            return tl::unexpected(Fail("GeneralSurfaceCurveAuxiliaryUnsupported", auxiliary, Status::Unsupported));
+        }
+        Curve master;
+        master.record = c.record;
+        master.geometry = auxiliary;
+        master.v0 = c.v0;
+        master.v1 = c.v1;
+        master.same = c.same;
+        if (auto made = MakeCurve(master); !made)
+        {
+            return tl::unexpected(std::move(made.error()));
+        }
+        const auto associated = Refs(geometry, "associated_geometry");
+        const bool sourceForward = !Is(auxiliary, "TRIMMED_CURVE") || B(auxiliary, "sense_agreement");
+        for (Index occurrence = 0; occurrence < associated.size(); ++occurrence)
+        {
+            const auto record = associated[occurrence];
+            if (!Is(record, "PCURVE"))
+            {
+                return tl::unexpected(Fail("GeneralSurfaceCurveAssociationUnsupported", record, Status::Unsupported));
+            }
+            const auto mappingBegin = m_report.parameterMappings.size();
+            auto made = MakeSourcePcurve(*this, record, c.record);
+            if (!made)
+            {
+                return tl::unexpected(std::move(made.error()));
+            }
+            Curve comparison;
+            comparison.record = record;
+            comparison.geometry = record;
+            comparison.native = std::move(made->curve);
+            comparison.bounds = made->conservativeBoundsMm;
+            comparison.associationOccurrence = occurrence + 1;
+            const auto domain = comparison.native->GetNaturalInterval();
+            auto first = CurveParameter(*comparison.native, points[c.v0], domain.GetMin(), record);
+            if (!first)
+            {
+                return tl::unexpected(std::move(first.error()));
+            }
+            auto last = CurveParameter(*comparison.native, points[c.v1], domain.GetMax(), record);
+            if (!last)
+            {
+                return tl::unexpected(std::move(last.error()));
+            }
+            // A reverse trimmed 3D master decreases in its basis parameter,
+            // while its pcurve increases in the wrapper's source sense. Keep
+            // both exact definitions; represent that known relation explicitly.
+            comparison.t0 = sourceForward ? *first : *last;
+            comparison.t1 = sourceForward ? *last : *first;
+            comparison.forwardForComparison = sourceForward;
+            if (!(comparison.t1 > comparison.t0))
+            {
+                return tl::unexpected(Fail("GeneralSurfaceCurveAssociationSenseConflict", record));
+            }
+            for (Index i = mappingBegin; i < m_report.parameterMappings.size(); ++i)
+            {
+                auto& mapping = m_report.parameterMappings[i];
+                mapping.targetEdgeIndex.reset();
+                mapping.kind = "SurfaceCurveAuxiliaryPcurve" + mapping.kind;
+                mapping.equation = "private comparison definition, no target-edge parameter identity: " + mapping.equation;
+                mapping.parameters.push_back({ "increasing_parameter_follows_native_master", { sourceForward ? 1. : 0. } });
+                mapping.parameters.push_back({ "source_association_occurrence", { double(occurrence + 1) } });
+            }
+            // Do not assume equal parameters or silently drop an inaccurate
+            // auxiliary. Shared source definitions and LIST occurrences retain
+            // their original identities, order and direction checks.
+            if (auto observed = ObserveCurveImages(master, comparison, geometry); !observed)
+            {
+                return tl::unexpected(std::move(observed.error()));
+            }
+        }
+        c.native = std::move(master.native);
+        c.bounds = master.bounds;
+        c.t0 = master.t0;
+        c.t1 = master.t1;
+        c.p0 = master.p0;
+        c.p1 = master.p1;
+        ParameterMapping mapping;
+        mapping.kind = "SurfaceCurveMaster3d";
+        mapping.sourceGeometryId = Id(geometry);
+        mapping.sourceBasisGeometryId = Id(auxiliary);
+        mapping.sourceUseId = Id(c.record);
+        mapping.targetEdgeIndex = ei.at(c.record);
+        mapping
+            .equation = "declared CURVE_3D uses the original 3D defining curve; source/native parameter conversion is recorded by its basis mapping";
+        mapping.parameters = { { "native_natural_interval", { c.native->GetNaturalInterval().GetMin(), c.native->GetNaturalInterval().GetMax() } },
+                               { "native_edge_interval", { c.t0, c.t1 } } };
+        m_report.parameterMappings.push_back(std::move(mapping));
+        return {};
+    }
     [[nodiscard]] Result<void> MakeCurve(Curve& c)
     {
         const bool trimmed = Is(c.geometry, "TRIMMED_CURVE");
@@ -1201,6 +1307,10 @@ private:
         if (lifted)
         {
             const auto preference = F(g, "master_representation").text;
+            if (preference == "CURVE_3D")
+            {
+                return MakeSurfaceCurve3d(c, g);
+            }
             if (preference != "PCURVE_S1" && preference != "PCURVE_S2")
             {
                 return tl::unexpected(Fail("GeneralSurfaceCurveMasterUnsupported", g, Status::Unsupported));
@@ -1221,6 +1331,15 @@ private:
             comparison.v0 = c.v0;
             comparison.v1 = c.v1;
             comparison.same = c.same;
+            // The auxiliary's trimmed wrapper may oppose its native conic
+            // basis. This is an established source sense, not a fitted flip to
+            // make disagreeing representations pass a geometric comparison.
+            if (Is(auxiliary, "TRIMMED_CURVE") && !B(auxiliary, "sense_agreement"))
+            {
+                std::swap(comparison.v0, comparison.v1);
+                comparison.same = !comparison.same;
+                comparison.forwardForComparison = false;
+            }
             const auto auxiliaryMappingsBegin = m_report.parameterMappings.size();
             if (auto made = MakeCurve(comparison); !made)
             {
@@ -1238,6 +1357,10 @@ private:
                 evidence.targetEdgeIndex.reset();
                 evidence.kind = "SurfaceCurveAuxiliary3d" + evidence.kind;
                 evidence.equation = "private comparison definition, no target-edge parameter identity: " + evidence.equation;
+                if (!comparison.forwardForComparison)
+                {
+                    evidence.parameters.push_back({ "increasing_parameter_follows_native_master", { 0. } });
+                }
             }
             comparisons.push_back(std::move(comparison));
             for (Index i = 0; i < associated.size(); ++i)
@@ -1262,6 +1385,7 @@ private:
                     Curve alternative;
                     alternative.record = associated[i];
                     alternative.geometry = associated[i];
+                    alternative.associationOccurrence = i + 1;
                     alternative.native = std::move(made->curve);
                     const auto domain = alternative.native->GetNaturalInterval();
                     auto first = CurveParameter(*alternative.native, a, domain.GetMin(), associated[i]);
@@ -1687,7 +1811,9 @@ private:
                         {
                             return tl::unexpected(Fail("GeneralSurfaceCurveDirectionUnestablished", record, Status::Indeterminate));
                         }
-                        const double dot = (a.x / lengthA) * (b.x / lengthB) + (a.y / lengthA) * (b.y / lengthB) + (a.z / lengthA) * (b.z / lengthB);
+                        const double rawDot = (a.x / lengthA) * (b.x / lengthB) + (a.y / lengthA) * (b.y / lengthB) +
+                                              (a.z / lengthA) * (b.z / lengthB);
+                        const double dot = from.forwardForComparison == to.forwardForComparison ? rawDot : -rawDot;
                         if (!std::isfinite(dot))
                         {
                             return tl::unexpected(Fail("GeneralSurfaceCurveDirectionUnestablished", record, Status::Indeterminate));
@@ -1726,8 +1852,15 @@ private:
         direction.sourceBasisGeometryId = Id(other.geometry);
         direction.sourceUseId = Id(master.record);
         direction.targetEdgeIndex = ei.at(master.record);
-        direction.equation = "normalized tangents at bidirectional interior image samples; parameters may differ; not a continuous sense proof";
+        direction.equation =
+            master.forwardForComparison == other.forwardForComparison ?
+                "normalized tangents at bidirectional interior image samples; parameters may differ; not a continuous sense proof" :
+                "normalized tangents mapped through declared wrapper/basis sense at bidirectional interior image samples; parameters may differ; not a continuous sense proof";
         direction.parameters = { { "sampled_tangent_pairs", { double(directionPairs) } }, { "minimum_unit_tangent_dot", { minimumDot } } };
+        if (other.associationOccurrence)
+        {
+            direction.parameters.push_back({ "source_association_occurrence", { double(other.associationOccurrence) } });
+        }
         m_report.parameterMappings.push_back(std::move(direction));
         return {};
     }

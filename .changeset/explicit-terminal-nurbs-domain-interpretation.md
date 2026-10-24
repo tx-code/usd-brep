@@ -27,6 +27,13 @@ invalidation preserve source definitions, generator STEP parameters and physical
 budgets. Snapshot-owned chart correspondence survives report release; all native,
 region, final-lift and final-identity checks still gate complete publication.
 
+Normally declared `CURVE_3D` surface curves retain their original 3D defining
+geometry and parameter conversion. Every associated pcurve still undergoes
+endpoint, direction and bidirectional image checks. Reverse trimmed curves
+compose wrapper/basis and edge/loop senses explicitly. No source-priority
+override or auxiliary-conflict exception is introduced by this declared path.
+Reports distinguish the driving 3D curve from retained auxiliary parameters.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).
