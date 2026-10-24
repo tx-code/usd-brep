@@ -125,8 +125,7 @@ int main(int argc, char** argv)
         // native builder. Preserve the surface role and refuse native publication;
         // a geometrically closed shell must never be promoted to a material solid.
         Require(
-            surface.status == Status::PostcheckFailure && !surface.document && surface.report.generalSource &&
-                surface.report.generalSource->document &&
+            surface.status == Status::Unsupported && !surface.document && surface.report.generalSource && surface.report.generalSource->document &&
                 surface.report.generalSource->document->Part(0)->PartDefinition().shapeRole == "ClosedSurfaceModel" &&
                 !surface.report.diagnostics.empty() && surface.report.diagnostics.back().source.key == "GeneralRequiresMaterialSolid",
             "selected closed surface retains its source role without material promotion"

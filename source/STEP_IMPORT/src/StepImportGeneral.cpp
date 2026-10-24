@@ -763,10 +763,15 @@ private:
         }
         else
         {
-            if (auto businessCheck = Need(m_source->PartDefinition().shapeRole == "MaterialSolid", "GeneralRequiresMaterialSolid", Role("shape"));
-                !businessCheck)
+            const auto& role = m_source->PartDefinition().shapeRole;
+            if (role != "MaterialSolid")
             {
-                return tl::unexpected(std::move(businessCheck.error()));
+                // A checked surface model is a legitimate source role. This
+                // builder currently constructs closed material regions only;
+                // refuse its unsupported scope before native allocation, never
+                // retag the surface as material or call this a failed postcheck.
+                const auto status = role == "OpenSurfaceModel" || role == "ClosedSurfaceModel" ? Status::Unsupported : Status::PostcheckFailure;
+                return tl::unexpected(Fail("GeneralRequiresMaterialSolid", Role("shape"), status));
             }
             shape = Role("shape");
             shell = Role("shell");

@@ -183,7 +183,7 @@ class GeneralTests(unittest.TestCase):
 
     def test_surface_role_is_not_promoted_to_material(self):
         run, result = self.invoke("S203-P01")
-        self.assertEqual(9, run.returncode)
+        self.assertEqual(2, run.returncode)
         self.assertIsNone(result["model"])
         self.assertEqual(0, result["native_calls"])
         self.assertEqual("GeneralRequiresMaterialSolid", result["diagnostics"][-1]["key"])

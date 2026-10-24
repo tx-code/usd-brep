@@ -15,6 +15,7 @@
 #include "StepDateTimeCatalogData.h"
 #include "StepProductCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
+#include "StepSurfaceCurveCatalogData.h"
 #include "StepWireframeCatalogData.h"
 
 namespace step_semantics::catalog_build
@@ -546,6 +547,10 @@ constexpr Recipe ProfileRecipe()
         // Preserve every existing catalog identity and complex mapping index.
         // Product-structure declarations are appended after all prior overlays.
         products::AddDeclarations(recipe, Profile);
+    }
+    if constexpr (IsAp214SourceProfile(Profile))
+    {
+        surface_curve::AppendDeclarations(recipe); // Preserve all existing profile IDs and complex signature order.
     }
     return recipe;
 }

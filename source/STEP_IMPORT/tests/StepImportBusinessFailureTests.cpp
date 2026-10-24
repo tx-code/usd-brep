@@ -105,8 +105,8 @@ void GeneralBusinessErrors(const Plan& plan)
     Execution execution(options, report);
     const auto result = BuildGeneral(plan.source, options, report, execution);
     Require(
-        !result && result.error().status == Status::PostcheckFailure && result.error().key == "GeneralRequiresMaterialSolid" &&
-            result.error().record && plan.source->Source().Records()[*result.error().record].id == "21" && result.error().stage == "GeneralBrep",
+        !result && result.error().status == Status::Unsupported && result.error().key == "GeneralRequiresMaterialSolid" && result.error().record &&
+            plan.source->Source().Records()[*result.error().record].id == "21" && result.error().stage == "GeneralBrep",
         "a source surface cannot become a material solid through a thrown business failure"
     );
     Require(report.nativeCalls == 0 && !report.candidateDiscarded, "general profile refusal returns before native work");

@@ -136,10 +136,11 @@ public:
                                 Visit(span);
                             },
                             m_outcome.geometryDependencyChecks
-                        ))
+                        );
+                        !issue)
                     {
-                        State(Phase::GeometryDependencies) = Progress::Rejected;
-                        throw Failure{ Status::Rejected, std::move(*issue) };
+                        State(Phase::GeometryDependencies) = FailureProgress(issue.error().status);
+                        throw Failure{ issue.error().status, std::move(issue.error().diagnostic) };
                     }
                 }
             );
@@ -2853,9 +2854,12 @@ private:
             Visit(Record(representation).span);
             // A plain representation is only a metadata candidate here. Closure
             // grants ownership only after proving its property link and part.
+            // A definitional representation is likewise only a candidate: it
+            // has its own parameter context, is not a body/unit root, and must
+            // remain in the complete selected geometry's forward closure.
             if (representation != selected.definition && representation != selected.body && selected.wireframe != representation &&
                 selected.construction != representation && !IsA(*m_data, representation, "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION") &&
-                !IsPlainRepresentation(representation))
+                !IsA(*m_data, representation, "DEFINITIONAL_REPRESENTATION") && !IsPlainRepresentation(representation))
             {
                 unsupported(representation, "Additional representation is outside the selected root/body/presentation graph");
             }

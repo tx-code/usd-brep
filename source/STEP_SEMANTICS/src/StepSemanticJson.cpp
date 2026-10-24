@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepSemanticReport.h"
+#include "StepSurfaceCurveDependencies.h"
 
 #include <algorithm>
 #include <map>
@@ -842,6 +843,12 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
     out.String(
         extendedSource && (result.geometryDependencyChecks.typePredicates || result.unitDependencyChecks.typePredicates) ? "Partial" : "NotRun"
     );
+    if (SurfaceCurvePrerequisitesComplete(source, result))
+    {
+        // The full 47-rule suite above remains NotRun. This positive receipt
+        // covers only the new definitions' dependency/dimension footprint.
+        out.Add(",\"scoped_dimension_prerequisites\":\"CheckedSurfaceCurveFootprint\"");
+    }
     out.Add(
         ","
         "\"geometry_consistency\":\"NotRun\",\"conversion_units\":\"NotRun\","
@@ -885,15 +892,27 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
         AttributeDictionary dictionary;
         out.Add("{\"schema\":{\"name\":");
         out.String(data.SchemaIdentity().name);
-        out.Add(",\"oid\":[");
+        const bool sourceBound = data.AppliedInterpretation() == SchemaInterpretation::SourceBoundAp214As2010;
+        // An explicit implementation choice does not authenticate malformed OID
+        // tokens. Names, signs and leading zeroes are source text, not JSON
+        // numbers. Preserve those tokens separately without repairing identity.
+        out.Add(sourceBound ? ",\"oid\":null,\"header_identity_verified\":false,\"oid_tokens\":[" : ",\"oid\":[");
         for (std::size_t i = 0; i < data.SchemaIdentity().oid.size(); ++i)
         {
             if (i)
             {
                 out.Add(",");
             }
-            // A qualified profile has matched an exact compiled numeric OID, never an arbitrary raw token.
-            out.Add(data.SchemaIdentity().oid[i]);
+            if (sourceBound)
+            {
+                out.Utf8String(data.SchemaIdentity().oid[i]);
+            }
+            else
+            {
+                // Existing registered/narrow interpretation paths admit only
+                // their exact numeric tokens (or no OID for a bare name).
+                out.Add(data.SchemaIdentity().oid[i]);
+            }
         }
         out.Add("],\"express_sha256\":");
         out.String(data.SelectedProfile().expressSha256);

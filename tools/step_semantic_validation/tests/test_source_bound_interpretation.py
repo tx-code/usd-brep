@@ -88,6 +88,21 @@ class SourceBoundInterpretationTests(unittest.TestCase):
         self.assertIsNone(result["snapshot"])
         self.assertFalse(result["schema_interpretation"]["applied"])
 
+    def test_malformed_oid_tokens_never_become_unescaped_json_numbers(self):
+        for oid in (b"iso(1) 0 10303 214 3 1 1", b"01 0 10303 214 3 1 1", b"+1 0 10303 214 3 1 1",
+                    b"\\X2\\4E2D\\X0\\ 0 10303 214 3 1 1"):
+            for native in ((False, True) if os.environ.get("STEP_NATIVE_BINARY") else (False,)):
+                with self.subTest(oid=oid, native=native):
+                    data = malformed_box().replace(b"1 0 10303 214 -1 1 1 1", oid)
+                    run, result = self.invoke(data, hashlib.sha256(data).hexdigest(), native=native)
+                    self.assertEqual(11 if native else 0, run.returncode, run.stderr or result["diagnostics"])
+                    semantics = result["source_inspection"] if native else result
+                    identity = semantics["snapshot"]["schema"]
+                    self.assertIsNone(identity["oid"])
+                    expected = oid.decode().replace("\\X2\\4E2D\\X0\\", "中").split()
+                    self.assertEqual(expected, identity["oid_tokens"])
+                    self.assertFalse(identity["header_identity_verified"])
+
     @unittest.skipUnless(os.environ.get("STEP_NATIVE_BINARY"), "Requires matching native CLI")
     def test_native_import_qualifies_only_under_the_explicit_bound_interpretation(self):
         data = malformed_box()

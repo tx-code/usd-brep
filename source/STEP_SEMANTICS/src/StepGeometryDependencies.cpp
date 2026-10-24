@@ -3,6 +3,7 @@
 #include "StepGeometryDependencies.h"
 
 #include "StepSourceNumber.h"
+#include "StepSurfaceCurveDependencies.h"
 
 #include <iterator>
 
@@ -785,7 +786,7 @@ private:
     }
 };
 } // namespace
-std::optional<Diagnostic> CheckAp214GeometryDependencies(
+GeometryDependencyResult CheckAp214GeometryDependencies(
     const SemanticData& data,
     const std::function<void(step_source::Span)>& visit,
     GeometryDependencyCounts& checks
@@ -794,11 +795,11 @@ std::optional<Diagnostic> CheckAp214GeometryDependencies(
     try
     {
         GeometryDependencies(data, visit, checks).Run();
-        return {};
+        return CheckSurfaceCurveDependencies(data, visit, checks);
     }
     catch (Stop& stop)
     {
-        return std::move(stop.diagnostic);
+        return tl::unexpected(GeometryDependencyFailure{ Status::Rejected, std::move(stop.diagnostic) });
     }
 }
 } // namespace step_semantics

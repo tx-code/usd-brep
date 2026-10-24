@@ -1,5 +1,10 @@
 # STEP_IMPORT（内部 C++20）
 
+通用开发构建器当前仍仅构建材料实体；合格的开放／闭合 surface-model 角色以
+`Unsupported`／`GeneralRequiresMaterialSolid` 拒绝，不把能力范围当成原生后验检查失败。
+源层的 pcurve／旋转面必要规则通过不代表这些原生构建路径已实现，也不会使表面模型自动
+获得材料角色或体积。已限定的平面 surface-model 原生路径保留其独立范围。
+
 ## 显式装配导入 C++ 接口
 
 `StepAssemblyImport.h` 提供 `ImportAssemblyBytes`／`ImportAssemblyFile`。调用者显式设置

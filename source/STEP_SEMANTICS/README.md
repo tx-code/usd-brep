@@ -64,6 +64,41 @@ Outcome layout. Public controls are `step_definition_inspection_contracts` and
 
 ## Existing source qualification
 
+The two fixed AP214 catalogs admit ordinary `SURFACE_CURVE`, `PCURVE`,
+`DEFINITIONAL_REPRESENTATION`, `AXIS1_PLACEMENT` and `SURFACE_OF_REVOLUTION`
+with its `SWEPT_SURFACE` ancestor, from AP214E3_2010.exp (`71ab140f...`).
+New identities append after the existing catalogs. Ordered/repeated
+`associated_geometry` LIST occurrences and `CURVE_3D` / `PCURVE_S1` / `PCURVE_S2`
+selection are retained. Derived basis surfaces, axis line and default z direction
+do not create source records or extra transmitted fields. AP203 catalogs,
+unregistered complex signatures and seam/intersection subtypes remain unchanged.
+
+Geometry prerequisites check SURFACE_CURVE.WR1--WR4, PCURVE.WR1--WR3,
+DEFINITIONAL_REPRESENTATION.WR1 and AXIS1_PLACEMENT.WR1. PCURVE itself may have
+dimension three; its referenced parameter-space curve must have dimension two.
+Each representation retains its own context; parameter geometry does not borrow
+the body's context, physical units or numerical scales. Source numbers, knots,
+weights and units remain unconverted. These checks do not establish a source
+to native parameter map or agreement between alternate representations.
+
+On the new definitions' forward dependency footprint, necessary GRI.WR1,
+direction/vector and compatible-dimension/dimensionality predicates run using
+all actual RI/founded-item representation uses. Dimension incompatibility retains
+the original context witness. `scoped_dimension_prerequisites` records completed
+footprint checking; `global_rules_47: NotRun` still means the complete global
+suite has not run. A finite-definition guard traverses curve/surface definitions
+and the explicit pcurve-to-definition bridge, never representation inverse links.
+Shared DAGs use bounded request-local indexing; repeated source uses are charged.
+Unestablished cyclic definitions or dimensions are `Unsupported`, distinct from
+a demonstrated false source predicate. Budget failure publishes no source.
+
+Definitional representations are only graph candidates. Complete selected
+forward ownership must still account for them; they never become independent
+body/unit roots or authorize orphan geometry. Native source-master pcurve,
+revolution and arbitrary surface-model construction remain separate capabilities.
+The [public source controls](../../tools/step_semantic_validation/tests/test_surface_curve.py)
+include analytic source relations, single defects and shared-definition resource behavior.
+
 An explicit general-source cylindrical-band repair deferral can retain a failed
 `FACE.WR2` for the exact requested definition/shape/face/two-bound identities.
 The original source types and failed predicate remain; the result is Deferred
@@ -135,6 +170,10 @@ Fields now hold an owning `SchemaInterpretationRequest`; use `.policy` when an
 enum is needed. Whole-request equality includes input identity, whereas an enum
 comparison tests policy only. No implicit conversion back to enum discards a
 source binding.
+For this source-bound mode, the typed snapshot's `schema` reports `oid: null`,
+the original `oid_tokens` strings and `header_identity_verified: false`.
+Malformed or unregistered tokens cannot be treated as authenticated JSON
+numbers. The complete raw HEADER and schema-selection observations remain.
 
 Source-only exploration may use the explicit
 `--interpret-level1-as-corrected --general-brep-source --interop-nongeometric`
