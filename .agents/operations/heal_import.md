@@ -42,6 +42,13 @@ these failures. Healing is in-place: earlier changes can remain after an error, 
 when the original must be preserved. Some other stages still discard errors; see
 [known issues](../../KNOWN_ISSUES.md).
 
+`SmBrep::HealBrep` and `SmHealData::HealBrep` callers can explicitly request UV-trim creation
+with `bMakeUVTrimCurves=TRUE`.
+If an attempted face generation fails, that stage warns and returns the original status,
+stopping the sequence before reading its gap outputs or recording stage completion.
+The ordinary API uses the default `FALSE`. This does not bring unsupported faces deferred
+by earlier classification back into the repair sequence or establish complete repair.
+
 **Design notes:**
 - For programmatically created geometry (using SM_API primitives and booleans), healing is usually unnecessary — the kernel produces clean geometry.
 - Healing is most valuable for imported geometry from external sources.

@@ -21,3 +21,15 @@ check status, pointer safety and scope restoration; a successful low-level inser
 not establish a fully healed periodic face. The test does not change geometric tolerances,
 promise transaction rollback, or establish complete healing coverage. Remaining defects belong
 in [known issues](../../KNOWN_ISSUES.md).
+
+The `healing_uv_trim_failure`, `healing_uv_trim_disabled` and `healing_uv_trim_control`
+CTest cases cover the optional native UV-trim stage. A real planar face uses a public virtual
+surface solver that returns either nonconvergence or invalid input; projection retries and
+copied-surface recovery preserve that failure. The failure test prepares real properties
+through seam movement, then calls the public `Make_UVTrimCurves` stage with a retained target.
+It checks the exact face error and pointer/scope safety; the disabled stage must not project.
+This avoids mistaking an earlier unsupported-face deferral for a UV-stage failure, and does
+not establish full-pipeline propagation for the injected solver failure. Normal full-entry
+controls exercise `SmBrep::HealBrep` and `SmHealData::HealBrep` with both option and editing
+settings, check requested trims before validation can create them, then check Level 2 validity
+and repeated healing. The ordinary `SmApiHealBrep` has no UV-generation option.

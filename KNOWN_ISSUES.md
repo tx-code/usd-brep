@@ -10,10 +10,10 @@ Known bugs in the SMLib geometry SDK.
 ### `heal_brep` can report success when a repair failed
 
 Failed seam movement/insertion and failed recursive property refresh now propagate through
-`heal_brep` (`SmApiHealBrep`). Other helpers still discard failures, including degenerate-face
-repair, seam-edge splitting and sheet/region repair. The native optional UV-trim creation stage
-also warns and returns success when an individual face fails. These remaining paths need their
-own reproductions and regressions; success does not establish complete repair.
+`heal_brep` (`SmApiHealBrep`). Failed face-level generation in the explicitly requested native
+UV-trim stage also propagates. Other helpers still discard failures, including degenerate-face
+repair, seam-edge splitting and sheet/region repair. These remaining paths need their own
+reproductions and regressions; success does not establish complete repair.
 
 **Workaround:** check the healed Brep with `is_manifold_solid()` and, in development builds, `_smlib_dev.assert_valid()`. These checks cover their respective topology contracts; they do not establish complete geometric validity.
 

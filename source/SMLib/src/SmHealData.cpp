@@ -6619,7 +6619,7 @@ if(bDebugMe)
           SmFaceProps  * pThisFaceProps = rFaceProps[ii] ; 
           const SmFace * pLoopFace          = pThisFaceProps->m_pFace ;
 
-          if(SM_SUCCESS != pLoopFace->CreateUVTrimCurves
+          SmStatus sStatus = pLoopFace->CreateUVTrimCurves
               (TRUE,    // [in] : TRUE = adjust Edge and Vertex tolerances to include measured gaps
                NULL,    // [in] : optional array of UVTrimCurves to assign to Face->Edgeuses cpOptOrientations must be notNULL.
                NULL,    // [in] : associated orientations. If cpOptUVCurves notNULL, then
@@ -6628,7 +6628,8 @@ if(bDebugMe)
                dMeanE,  // [out]: average Vertex/EdgeuseEndPoint distance
                dMaxE,   // [out]: max     Vertex/EdgeuseEndPoint distance
                dMeanV,  // [out]: average UVTrimCurve/CCW_UVTrimCurve 2D gap
-               dMaxV))  // [out]: max     UVTrimCurve/CCW_UVTrimCurve 2D gap
+               dMaxV) ; // [out]: max     UVTrimCurve/CCW_UVTrimCurve 2D gap
+          if(sStatus != SM_SUCCESS)
             {
 #ifdef SM_DEBUG_CODE
               if(bDebugMe)
@@ -6649,6 +6650,10 @@ if(bDebugMe)
 
               // inform the public - given previous healing, expect all CreateUVTrimCurve calls to succeed
               WARN(_T("HealBrep: CreateUVTrimCurves() failed on a Face")) ; 
+              // The requested stage failed. Preserve its status and stop before
+              // consuming gap outputs, which are only assigned on success.
+              // Earlier in-place healing edits are not rolled back.
+              SER(sStatus) ;
             }
 
           dMaxAllS   = smos_Max(dMaxAllS, dMaxS);

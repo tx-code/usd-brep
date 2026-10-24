@@ -353,8 +353,10 @@ old-target offsets, property stage, live owning surface/topology, and linked pro
 - `bReportStepProgress` and `bReportErrorFinds` are source-local debug switches, not API options.
   Broad `bDebugMe` blocks can enter graphics loops; avoid enabling them headlessly.
 - Nonempty problem lists can include repaired history; inspect flags. `SM_SUCCESS` can come
-  from a stub or ignored status. `Make_UVTrimCurves` warns on individual creation failures but
-  returns success. The sequence has no mandatory final `AssertValid` or residual-error aggregation.
+  from a stub or ignored status. An attempted face creation failure in `Make_UVTrimCurves`
+  warns and returns its original status before reading gap outputs. Earlier classification can
+  defer an unsupported face so the stage does not attempt it. The sequence has no mandatory
+  final `AssertValid` or residual-error aggregation.
 - Bisect with fresh BRep copies and fresh `SmHealData` sessions, one stop stage per run.
   Repeated `HealTgts` on populated state reruns cache/list construction and can duplicate entries.
 - Validate completed topology separately using the BRep model reference. Healing cannot safely
@@ -367,6 +369,8 @@ sequence, failed catch-up after a real surface replacement, and U/V seam-inserti
 It uses public virtual geometry operations to inject failures while retaining real classification
 and topology operations. Successful full-healer controls also check Level 2 validity; the low-level
 insertion controls establish status and pointer safety, not complete periodic-face repair.
+See the [UV-trim stage contracts](../../../../tests/healing_status/README.md) for the retained-target
+failure seam, unsupported-face deferral caveat, and normal full-entry controls.
 For a new defect, assert the repaired state and the next consumer's required caches, not only
 that an event appeared. Compare debug logs as well as exit status; use test-selection guidance
 for focused and broader suites.
