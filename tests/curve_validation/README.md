@@ -63,3 +63,18 @@ force precise arithmetic. Other architectures and unsupported environments use
 the original solver. This establishes only these regularity predicates; it does
 not establish an import accuracy bound or replace source/native correspondence
 checks.
+
+
+## Property scalar/parameter identity
+
+Local min/max property results must pair the scalar with the returned parameter,
+which can differ from Brent's cached current iterate. The property seam now
+re-evaluates that parameter before returning a witness; an unevaluable or
+nonfinite candidate cannot supply a scalar. This does not prove global minimality
+or change validation thresholds.
+
+Public deterministic monotone-X cubic splines compare each returned radius with
+`|C′|^3/|C′ x C″|` evaluated independently at that parameter. A five-pole case
+fails against the pre-fix runtime and passes after the fix. Additional straight,
+inflection and explicitly refused evaluator cases retain ordinary no-result/error
+behavior, while the existing small-radius ellipse controls still reject.

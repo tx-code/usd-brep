@@ -27,12 +27,19 @@ public:
 
     using SmBSplineCurve::SmBSplineCurve;
     mutable ULONG higherDerivativeCalls = 0;
+    mutable ULONG deniedDerivativeCalls = 0;
+    double deniedLow = 1, deniedHigh = 0; // Empty by default; test numerical refusal only.
 
     SmStatus Evaluate(double parameter, ULONG derivatives, SmBoolean fromLeft, SmVector3d output[], SmBoolean nonZeroTangents = FALSE) const override
     {
         if (derivatives >= 2)
         {
             ++higherDerivativeCalls;
+        }
+        if (derivatives >= 3 && parameter > deniedLow && parameter < deniedHigh)
+        {
+            ++deniedDerivativeCalls;
+            return SM_ERR;
         }
         return SmBSplineCurve::Evaluate(parameter, derivatives, fromLeft, output, nonZeroTangents);
     }
@@ -70,6 +77,171 @@ bool checkDerivedEvaluator(SmContext& context, ULONG dimension)
         return false;
     }
     return true;
+}
+
+bool checkInflectionProperty(SmContext& context, ULONG dimension)
+{
+    // C(t)=(1.5*(t+1),0,0) is straight with infinite radius at every seed.
+    // This tests the property seam even when curve validation can skip a line.
+    gw_CPOINT linePoints[] = { { 0, 0, 0, NL_NOW }, { 1, 0, 0, NL_NOW }, { 2, 0, 0, NL_NOW }, { 3, 0, 0, NL_NOW } };
+    double knots[] = { -1, -1, -1, -1, 1, 1, 1, 1 };
+    ForwardingCurve line(dimension, 3, 7, 3, linePoints, knots, &context);
+    SmBoolean found = FALSE;
+    SmSolution solution;
+    const auto
+        lineStatus = line.LocalPropertyAnalysis(line.GetNaturalInterval(), SM_CP_MINIMIZE_RADIUS_OF_CURVATURE, 0, nullptr, nullptr, found, solution);
+    if (found)
+    {
+        std::printf("straight dim=%lu status=%d found=%d value=%g\n", dimension, int(lineStatus), int(found), solution.m_vStart.m_dSolutionValue);
+        return false;
+    }
+    // C(t)=(t,t^3,0), -1<=t<=1. Speed never vanishes. At its inflection
+    // radius is infinite; a search may instead return an evaluable neighbour.
+    // All coefficients and independent truth here are public analytic inputs.
+    gw_CPOINT points[] = { { -1, -1, 0, NL_NOW }, { -1. / 3, 1, 0, NL_NOW }, { 1. / 3, -1, 0, NL_NOW }, { 1, 1, 0, NL_NOW } };
+    ForwardingCurve curve(dimension, 3, 7, 3, points, knots, &context);
+    for (const double seed : { 0., .5 })
+    {
+        const auto status =
+            curve.LocalPropertyAnalysis(curve.GetNaturalInterval(), SM_CP_MINIMIZE_RADIUS_OF_CURVATURE, seed, nullptr, nullptr, found, solution);
+        if (status != SM_SUCCESS || (seed == .5 && !found))
+        {
+            return false;
+        }
+        if (!found)
+        {
+            continue;
+        }
+        const double t = solution.m_vStart[0];
+        const double radius = std::pow(1 + 9 * t * t * t * t, 1.5) / std::abs(6 * t);
+        if (!std::isfinite(radius) || std::abs(solution.m_vStart.m_dSolutionValue - radius) > 1e-10 * radius)
+        {
+            std::printf("inflection dim=%lu radius does not match the analytic objective\n", dimension);
+            return false;
+        }
+    }
+    SmAssertArray reports;
+    return curve.AssertValid(&reports, SM_LEVEL_2, SM_NO_WALK) && reports.GetSize() == 0;
+}
+
+bool checkRefusedPropertyEvaluation(SmContext& context, ULONG dimension)
+{
+    // C(t)=(t,t^2,0). Simulate a numerical evaluator refusal without changing
+    // its defining geometry or pretending that failed derivatives are zero.
+    // A returned radius must describe the returned parameter and be evaluable.
+    ULONG denied = 0;
+    for (const double center : { -.5, 0., .5 })
+    {
+        for (const double width : { .01, .1, .4 })
+        {
+            for (const double seed : { -.9, -.3, .2, .8 })
+            {
+                gw_CPOINT points[] = { { -1, 1, 0, NL_NOW }, { 0, -1, 0, NL_NOW }, { 1, 1, 0, NL_NOW } };
+                double knots[] = { -1, -1, -1, 1, 1, 1 };
+                ForwardingCurve curve(dimension, 2, 5, 2, points, knots, &context);
+                curve.deniedLow = center - width;
+                curve.deniedHigh = center + width;
+                SmBoolean found = FALSE;
+                SmSolution solution;
+                const auto status = curve.LocalPropertyAnalysis(
+                    curve.GetNaturalInterval(),
+                    SM_CP_MINIMIZE_RADIUS_OF_CURVATURE,
+                    seed,
+                    nullptr,
+                    nullptr,
+                    found,
+                    solution
+                );
+                denied += curve.deniedDerivativeCalls;
+                if (status != SM_SUCCESS || !found)
+                {
+                    continue;
+                }
+                const double t = solution.m_vStart[0];
+                const double radius = std::pow(1 + 4 * t * t, 1.5) / 2;
+                if ((t > curve.deniedLow && t < curve.deniedHigh) || std::abs(solution.m_vStart.m_dSolutionValue - radius) > 1e-10 * radius)
+                {
+                    std::printf(
+                        "refused objective dim=%lu center=%g width=%g seed=%g t=%g value=%g expected=%g\n",
+                        dimension,
+                        center,
+                        width,
+                        seed,
+                        t,
+                        solution.m_vStart.m_dSolutionValue,
+                        radius
+                    );
+                    return false;
+                }
+            }
+        }
+    }
+    return denied > 0;
+}
+
+bool checkPropertyValueIdentity(SmContext& context, ULONG dimension)
+{
+    // Public deterministic monotone-X splines. Property values must belong
+    // to their returned parameter, even when Brent's last iterate differs.
+    // This does not assert global minimality from finitely many candidates.
+    std::uint32_t state = 0x7331U;
+    ULONG matched = 0;
+    for (unsigned trial = 0; trial < 12; ++trial)
+    {
+        const unsigned count = 4 + trial;
+        std::vector<gw_CPOINT> poles;
+        std::vector<double> knots(4, 0);
+        for (unsigned i = 0; i < count; ++i)
+        {
+            state = 1664525U * state + 1013904223U;
+            const double random = double(state >> 8) / 16777216;
+            poles.push_back({ double(i), .2 * (random - .5), 0, NL_NOW });
+        }
+        for (unsigned i = 1; i < count - 3; ++i)
+        {
+            knots.push_back(double(i) / (count - 3));
+        }
+        knots.insert(knots.end(), 4, 1);
+        SmBSplineCurve curve(dimension, count - 1, ULONG(knots.size() - 1), 3, poles.data(), knots.data(), &context);
+        const auto verify = [&](const SmSolution& solution)
+        {
+            SmVector3d derivatives[3];
+            if (curve.Evaluate(solution.m_vStart[0], 2, TRUE, derivatives) != SM_SUCCESS)
+            {
+                return false;
+            }
+            const double speed = derivatives[1].Length();
+            const double radius = speed * speed * speed / (derivatives[1] * derivatives[2]).Length();
+            const double given = solution.m_vStart.m_dSolutionValue;
+            ++matched;
+            return std::isfinite(given) && given >= 0 && std::isfinite(radius) && std::abs(given - radius) <= 1e-8 * (1 + radius);
+        };
+        for (const double seed : { 0., .01, .1, .3, .5, .8, .99, 1. })
+        {
+            SmBoolean found = FALSE;
+            SmSolution solution;
+            if (curve.LocalPropertyAnalysis(curve.GetNaturalInterval(), SM_CP_MINIMIZE_RADIUS_OF_CURVATURE, seed, nullptr, nullptr, found, solution) ==
+                    SM_SUCCESS &&
+                found && !verify(solution))
+            {
+                return false;
+            }
+        }
+        SmSolutionArray solutions;
+        if (curve.GlobalPropertyAnalysis(curve.GetNaturalInterval(), SM_CP_MINIMIZE_RADIUS_OF_CURVATURE, nullptr, nullptr, .001, solutions) !=
+            SM_SUCCESS)
+        {
+            return false;
+        }
+        for (ULONG i = 0; i < solutions.GetSize(); ++i)
+        {
+            if (!verify(solutions[i]))
+            {
+                return false;
+            }
+        }
+    }
+    return matched > 0;
 }
 
 bool checkEllipse(SmContext& context, ULONG dimension, double minorRadius, double parameterLength, bool expectedValid, bool selectRadius = true)
@@ -268,6 +440,9 @@ int main()
     for (ULONG dimension : { 2UL, 3UL })
     {
         passed &= checkDerivedEvaluator(context, dimension);
+        passed &= checkInflectionProperty(context, dimension);
+        passed &= checkRefusedPropertyEvaluation(context, dimension);
+        passed &= checkPropertyValueIdentity(context, dimension);
         passed &= checkEllipse(context, dimension, 1.0, 1.0, true);
         passed &= checkEllipse(context, dimension, 0.5, 1.0, true);
         passed &= checkEllipse(context, dimension, 0.009, 1.0, false);

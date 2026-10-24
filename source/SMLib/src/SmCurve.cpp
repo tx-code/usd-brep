@@ -30,6 +30,8 @@
 #include <SmAssertArray.h>
 #include <SmTol.h>
 #include <SmPointSet.h>
+#include <cmath>
+#include <limits>
 
 // for persistence
 #include <SmCircle.h>
@@ -15977,7 +15979,7 @@ SmBoolean bDebugMe = FALSE ;
 
   // solution locals
   SmBoolean bFoundSolution;
-  double dFoundT;
+  double dFoundT = std::numeric_limits<double>::quiet_NaN();
 
   // select the solver and the desired accuracy.
   if (   eCurveProperty == SM_CP_MINIMIZE_FIRST_DERIVATIVE
@@ -16022,11 +16024,32 @@ SmBoolean bDebugMe = FALSE ;
         }
     } // end no solution check
 
+  // Brent's returned parameter can differ from the cached current iterate.
+  // That iterate's objective may also be stale after an evaluation refusal.
+  // Neither is a property witness at the returned parameter.
+  // Re-evaluate extremum candidates before exposing their scalar property.
+  // Keep the legacy normal-stop policy, but never publish unevaluable data.
+  double dVerifiedValue = sLS.m_vCurr.m_dFOfT;
+  if (   eCurveProperty == SM_CP_MINIMIZE_FIRST_DERIVATIVE
+      || eCurveProperty == SM_CP_MAXIMIZE_FIRST_DERIVATIVE
+      || eCurveProperty == SM_CP_MINIMIZE_RADIUS_OF_CURVATURE
+      || eCurveProperty == SM_CP_MAXIMIZE_RADIUS_OF_CURVATURE)
+    {
+      double dVerifiedPrime = 0.0;
+      SmBoolean bAtRoot = FALSE;
+      if (   !std::isfinite(dFoundT)
+          || !crInterval.ContainsValue(dFoundT)
+          || SM_SUCCESS != sEFO.Evaluate(dFoundT, dVerifiedValue, dVerifiedPrime, bAtRoot, FALSE)
+          || !std::isfinite(dVerifiedValue)
+          || dVerifiedValue < 0.0)
+        { return SM_SUCCESS; } // rbFoundAnswer stays FALSE, no property witness.
+    }
+
   // else a solution was found - set the outputs
   rbFoundAnswer                       = TRUE;
   rSolution.m_eSolutionType           = SM_ST_SINGLE_VALUE;
   rSolution.m_vStart[0]               = dFoundT;
-  rSolution.m_vStart.m_dSolutionValue = sLS.m_vCurr.m_dFOfT;
+  rSolution.m_vStart.m_dSolutionValue = dVerifiedValue;
 
   // For certain operations we need to adjust the returned solution value.
   // for min directed angle problems
