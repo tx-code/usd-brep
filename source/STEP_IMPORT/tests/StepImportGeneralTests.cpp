@@ -1488,7 +1488,8 @@ void DevelopmentContract(
     bool explicitDimensions = false,
     std::optional<step_import::FaceOrientationRepairRequest> repair = {},
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
-    std::optional<step_import::CylindricalBandRepairRequest> bandRepair = {}
+    std::optional<step_import::CylindricalBandRepairRequest> bandRepair = {},
+    bool fineWorkStudy = false
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1521,6 +1522,11 @@ void DevelopmentContract(
     if (workStudy)
     {
         options.quality = step_import::Quality::GeneralWorkToleranceStudy();
+    }
+    if (fineWorkStudy)
+    {
+        Require(!study && !workStudy, "choose one explicit quality");
+        options.quality = step_import::Quality::GeneralFineWorkToleranceStudy();
     }
     options.restrictUnusedSupportDomains = restrictSupport;
     options.normalizePeriodicFaces = normalizePeriodic;
@@ -1647,6 +1653,10 @@ void DevelopmentContract(
     editable.model->Edit(
         [&](SmBrep& brep)
         {
+            if (fineWorkStudy)
+            {
+                step_import_test::CheckNativeWorkBudget(brep, 0.0001);
+            }
             copiedVolume = VolumeWithImportPolicy(brep, info.boundsMm, integrationAccuracy.value_or(1e-4));
         }
     );
@@ -1687,6 +1697,10 @@ void DevelopmentContract(
         }
     }
     auto loaded = ReloadNative(archive, wireframes, supporting);
+    if (fineWorkStudy)
+    {
+        step_import_test::CheckNativeWorkBudget(*loaded.brep, 0.0001);
+    }
     SmTArray<SmFace*> faces;
     SmTArray<SmEdge*> edges;
     SmTArray<SmVertex*> vertices;
@@ -1927,7 +1941,8 @@ int main(int argc, char** argv)
                 explicitDimensions,
                 repairArguments.faceOrientationRepair,
                 repairArguments.complexMappingInterpretation,
-                repairArguments.cylindricalBandRepair
+                repairArguments.cylindricalBandRepair,
+                std::string_view(argv[4]) == "fine-work-study"
             );
             return 0;
         }

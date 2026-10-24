@@ -101,6 +101,7 @@ struct Quality
     static Quality GeneralDevelopment(); // Explicit development profile; production calibration remains open.
     static Quality GeneralToleranceStudy(); // Explicit 10-micrometre study, not an automatic source-uncertainty policy.
     static Quality GeneralWorkToleranceStudy(); // Same 10um geometry budgets; explicit 10->20um native zone study, never automatic.
+    static Quality GeneralFineWorkToleranceStudy(); // General geometry budgets; fixed 0.1um native zone, explicit study only.
 };
 struct Limits
 {

@@ -227,6 +227,7 @@ std::pair<std::size_t, bool> RepairSummary(const step_import::Report& report)
     return { count, interpreted };
 }
 void Publish(
+    std::string_view profile,
     const std::filesystem::path& output,
     const std::string& status,
     const std::string& key,
@@ -264,6 +265,13 @@ void Publish(
                                               "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
+                if (info && profile == "fine-work-tolerance-study")
+                {
+                    // A ready scene binds this explicit study to the profile
+                    // actually selected for the core call. Default payloads
+                    // retain their existing bytes and need no new receipt.
+                    w.Add(",\"quality_id\":\"Q-AP214-fine-work-tolerance-study-mm-01\"");
+                }
                 if (assemblyRequest.enabled)
                 {
                     w.Add(",\"requested_unreferenced_placement_policy\":");
@@ -645,10 +653,11 @@ int Run(
         options.sourceErrorIsolation = sourceIsolation;
         options.complexMappingInterpretation = complexMappingInterpretation;
         options.cylindricalBandRepair = bandRepair;
-        options.quality = profile == "development"          ? step_import::Quality::GeneralDevelopment() :
-                          profile == "tolerance-study"      ? step_import::Quality::GeneralToleranceStudy() :
-                          profile == "work-tolerance-study" ? step_import::Quality::GeneralWorkToleranceStudy() :
-                                                              throw std::invalid_argument("UnknownViewerProfile");
+        options.quality = profile == "development"               ? step_import::Quality::GeneralDevelopment() :
+                          profile == "fine-work-tolerance-study" ? step_import::Quality::GeneralFineWorkToleranceStudy() :
+                          profile == "tolerance-study"           ? step_import::Quality::GeneralToleranceStudy() :
+                          profile == "work-tolerance-study"      ? step_import::Quality::GeneralWorkToleranceStudy() :
+                                                                   throw std::invalid_argument("UnknownViewerProfile");
         // Application-selected development preview policy, not a production
         // SDK default. Source assumptions require explicit arguments; no retry.
         options.sourceLimits = { 64 * 1024 * 1024, 1000000, 2000000, 2000000, 128, 1024 * 1024, 16 * 1024 * 1024, 16 * 1024 * 1024, 64 };
@@ -779,6 +788,7 @@ int Run(
             if (!loaded.assembly)
             {
                 Publish(
+                    profile,
                     output,
                     nativeStatus,
                     "ImportFailed",
@@ -862,6 +872,7 @@ int Run(
             Good(!scenes.empty(), "AssemblyDisplayGeometryMissing");
             Progress("bodies", bodyInstances, bodyInstances);
             Publish(
+                profile,
                 output,
                 "Ready",
                 "",
@@ -903,6 +914,7 @@ int Run(
         if (!model && !collection && !document)
         {
             Publish(
+                profile,
                 output,
                 step_import::StatusName(result.status),
                 "ImportFailed",
@@ -961,6 +973,7 @@ int Run(
             }
             Progress("bodies", count, count);
             Publish(
+                profile,
                 output,
                 "Ready",
                 "",
@@ -1005,6 +1018,7 @@ int Run(
         );
         Progress("publish");
         Publish(
+            profile,
             output,
             "Ready",
             "",
@@ -1030,6 +1044,7 @@ int Run(
         if (!std::filesystem::exists(output / "scene.json"))
         {
             Publish(
+                profile,
                 output,
                 "DisplayFailure",
                 error.what(),

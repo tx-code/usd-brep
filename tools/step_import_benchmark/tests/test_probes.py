@@ -16,6 +16,18 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_explicit_fine_work_profile_retains_native_budget_evidence(self):
+        from tools.step_import_native_validation.tests.test_fine_work_quality import FINE, thin_box_source
+
+        with tempfile.TemporaryDirectory(prefix='public-fine-work-probe-') as directory:
+            source = Path(directory) / 'source.step'
+            source.write_bytes(thin_box_source())
+            (trial,) = self.invoke('native', 'import', source, '--quality', FINE)['trials']
+            self.assertEqual('Accepted', trial['status'])
+            self.assertTrue(trial['has_model'])
+            self.assertEqual({'maximum_mm': 0.0001, 'growth_mm': 0}, trial['native_work_budget'])
+            self.assertAlmostEqual(0.3, trial['model']['volume_mm3'], delta=1e-5)
+
     def test_explicit_integration_control_is_applied_and_part_of_settings(self):
         from tools.step_import_native_validation.tests.test_integration import bernstein_roof_source
 

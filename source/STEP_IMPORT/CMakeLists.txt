@@ -194,6 +194,15 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_link_libraries(step_import_vertex_projection_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_import_vertex_projection_tests PRIVATE src)
     add_test(NAME step_import_vertex_projection_contracts COMMAND step_import_vertex_projection_tests)
+    add_executable(step_import_fine_work_tests tests/StepImportFineWorkTests.cpp)
+    target_link_libraries(step_import_fine_work_tests PRIVATE STEP_IMPORT)
+    target_include_directories(step_import_fine_work_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_fine_work_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_fine_work_contracts COMMAND step_import_fine_work_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/fine-work-results")
+    set_tests_properties(step_import_fine_work_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_integral_tests tests/StepImportIntegralTests.cpp)
     target_link_libraries(step_import_integral_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_integral_contracts COMMAND step_import_integral_tests

@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 import sys
 from .interpretation import SCHEMA_POLICIES, CARRIER_POLICIES, UNIT_POLICIES, COMPLEX_MAPPING_POLICIES, validate
+from .quality import QUALITY_PROFILES
 
 
 def main(argv=None):
@@ -16,7 +17,7 @@ def main(argv=None):
         return run(*args[1:]) if len(args) == 3 else 2
     parser = argparse.ArgumentParser(prog="brep-view", description="轻量只读模型查看器：STEP / STL / OBJ / PLY / VTP / VTK")
     parser.add_argument("file", nargs="?", help="模型文件；也可在窗口中拖入或打开")
-    parser.add_argument("--profile", choices=["development", "tolerance-study", "work-tolerance-study"],
+    parser.add_argument("--profile", choices=QUALITY_PROFILES,
                         default="development",
                         help="显式开发/研究配置，不自动放宽或重试（默认 development）")
     parser.add_argument("--normalize-periodic-faces", action="store_true")

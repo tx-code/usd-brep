@@ -169,6 +169,17 @@ research configurations. Optional `--normalize-periodic-faces` and
 `--restrict-unused-support-domains` retain their existing verified normalization
 contracts. These options do not grant production or whole-STEP qualification.
 
+`--profile fine-work-tolerance-study` explicitly selects the native
+`Q-AP214-fine-work-tolerance-study-mm-01` configuration. It retains the ordinary
+development profile's source/geometric/query budgets and selects a fixed
+0.0001 mm initial/maximum native work zone with zero growth. It never retries
+an ordinary refusal, derives a tolerance from source uncertainty, or enables
+repair. The native core still performs every applicable check before publication.
+Ready scenes bind this quality ID to the selected worker request; missing or
+mismatched evidence prevents scene adoption. HUD retains the research caption;
+source roles and native face/edge/vertex measurements remain. Scans carry the
+explicit profile to their children and retain it in their settings.
+
 CAD display retains the BRep and all imported associated wireframe/supporting
 groups. Wireframe curves/points are cyan; construction curves/points and plane
 grids are amber, with separate coordinate-frame axes. E toggles only BRep boundary

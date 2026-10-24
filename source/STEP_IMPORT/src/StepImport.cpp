@@ -43,6 +43,16 @@ Quality Quality::GeneralWorkToleranceStudy()
     quality.toleranceGrowthMm = Fraction(1, 100);
     return quality;
 }
+Quality Quality::GeneralFineWorkToleranceStudy()
+{
+    auto quality = GeneralDevelopment();
+    quality.id = "Q-AP214-fine-work-tolerance-study-mm-01";
+    // Work zones determine native coincidence/classification resolution. They
+    // are independent of source uncertainty and geometric acceptance budgets.
+    // Choose this before construction; never retry or retune a failed candidate.
+    quality.initialWorkToleranceMm = quality.maximumWorkToleranceMm = Fraction(1, 10000);
+    return quality;
+}
 Options Options::PlanarFixture()
 {
     return { step_source::Limits::PlanarFixtures(), {}, {}, Quality::PlanarFixture(), {}, {} };
@@ -251,6 +261,7 @@ void Validate(const Options& options)
     if ((q.id == "Q-AP214-development-mm-01" && fields(q) != fields(Quality::GeneralDevelopment())) ||
         (q.id == "Q-AP214-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralToleranceStudy())) ||
         (q.id == "Q-AP214-work-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralWorkToleranceStudy())) ||
+        (q.id == "Q-AP214-fine-work-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralFineWorkToleranceStudy())) ||
         (options.generalBrep && q.id == "Q-P0-mm-01") || (!options.generalBrep && options.sourcePolicy != step_semantics::SourcePolicy::Strict))
     {
         throw std::invalid_argument("Explicit general geometry quality and source policy must match the selected import path");

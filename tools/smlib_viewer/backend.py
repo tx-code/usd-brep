@@ -18,6 +18,7 @@ from .repair import arguments as repair_arguments, validate_vertex_manifest
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
 from .integration import arguments as integration_arguments, validate_receipt as validate_integration_receipt
+from .quality import validate_receipt as validate_quality_receipt
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -274,6 +275,7 @@ class SceneLoader(QtCore.QObject):
                 validate_complex_mapping_receipt(manifest, self.settings)
                 validate_assembly_request(manifest, self.settings)
                 validate_vertex_manifest(manifest, self.settings)
+                validate_quality_receipt(manifest, self.settings)
             import pyvista as pv
             import numpy as np
             if manifest['format'] == 'brep-view-scene.v6':

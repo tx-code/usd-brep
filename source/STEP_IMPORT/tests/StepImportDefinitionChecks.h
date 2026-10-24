@@ -7,6 +7,8 @@
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
+#include <SmTol.h>
+#include <SmVertex.h>
 #include <cmath>
 #include <stdexcept>
 namespace step_import_test
@@ -21,6 +23,35 @@ inline void Require(bool ok, const char* message)
 inline void Near(double value, double expected, double tolerance, const char* message)
 {
     Require(std::isfinite(value) && std::abs(value - expected) <= tolerance, message);
+}
+inline void CheckNativeWorkBudget(SmBrep& native, double maximumMm)
+{
+    // Inspect effective native work zones, not just the selected report label.
+    // Root/face/edge/vertex tolerances govern the imported geometry consumers.
+    const auto check = [maximumMm](const SmObject* object)
+    {
+        const double tolerance = SmTol::GetZoneTol3d(object).val;
+        Require(std::isfinite(tolerance) && tolerance > 0 && tolerance <= maximumMm, "actual native work zone within explicit maximum");
+    };
+    check(&native);
+    SmTArray<SmFace*> faces;
+    SmTArray<SmEdge*> edges;
+    SmTArray<SmVertex*> vertices;
+    native.GetFaces(faces);
+    native.GetEdges(edges);
+    native.GetVertices(vertices);
+    for (ULONG i = 0; i < faces.GetSize(); ++i)
+    {
+        check(faces[i]);
+    }
+    for (ULONG i = 0; i < edges.GetSize(); ++i)
+    {
+        check(edges[i]);
+    }
+    for (ULONG i = 0; i < vertices.GetSize(); ++i)
+    {
+        check(vertices[i]);
+    }
 }
 inline void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b)
 {

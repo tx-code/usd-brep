@@ -97,7 +97,8 @@ inline std::string Memory()
 }
 inline bool GeneralQuality(std::string_view id)
 {
-    return id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" || id == "Q-AP214-work-tolerance-study-mm-01";
+    return id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" || id == "Q-AP214-work-tolerance-study-mm-01" ||
+           id == "Q-AP214-fine-work-tolerance-study-mm-01";
 }
 struct Args
 {

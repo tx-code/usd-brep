@@ -267,10 +267,11 @@ int main(int argc, char** argv)
             auto options = Config();
             options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
             const std::string_view quality(argv[4]);
-            options.quality = quality == "Q-AP214-development-mm-01"          ? Quality::GeneralDevelopment() :
-                              quality == "Q-AP214-tolerance-study-mm-01"      ? Quality::GeneralToleranceStudy() :
-                              quality == "Q-AP214-work-tolerance-study-mm-01" ? Quality::GeneralWorkToleranceStudy() :
-                                                                                throw std::invalid_argument("Unknown quality");
+            options.quality = quality == "Q-AP214-development-mm-01"               ? Quality::GeneralDevelopment() :
+                              quality == "Q-AP214-tolerance-study-mm-01"           ? Quality::GeneralToleranceStudy() :
+                              quality == "Q-AP214-work-tolerance-study-mm-01"      ? Quality::GeneralWorkToleranceStudy() :
+                              quality == "Q-AP214-fine-work-tolerance-study-mm-01" ? Quality::GeneralFineWorkToleranceStudy() :
+                                                                                     throw std::invalid_argument("Unknown quality");
             options.headerNamePolicy = step_source::HeaderNamePolicy::PreserveOpaqueBytes;
             options.dataStringPolicy = step_source::DataStringPolicy::PreserveOpaqueBytes;
             for (int i = 5; i < argc; ++i)
