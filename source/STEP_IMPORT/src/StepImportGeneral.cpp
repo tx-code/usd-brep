@@ -13,6 +13,7 @@
 #include "StepImportOrientationRepair.h"
 #include "StepImportPeriodicDiagnosis.h"
 #include "StepImportPeriodicNormalization.h"
+#include "StepImportRevolutionConstruction.h"
 #include "StepImportRingSegmentation.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportTrimMeasurement.h"
@@ -2915,6 +2916,17 @@ private:
     [[nodiscard]] Result<std::unique_ptr<SmSurface>> Surface(const Face& f)
     {
         const auto g = f.surface;
+        if (Is(g, "SURFACE_OF_REVOLUTION"))
+        {
+            auto surface = MakeSourceRevolution(*this, g, f.record);
+            if (surface)
+            {
+                // Construction has not inserted this face yet. Bind the pure
+                // definition's parameter evidence to its actual native use.
+                m_report.parameterMappings.back().targetFaceIndex = m_model->faces.size();
+            }
+            return surface;
+        }
         if (Is(g, "B_SPLINE_SURFACE_WITH_KNOTS"))
         {
             SmTArray<SmPoint3d> cp;

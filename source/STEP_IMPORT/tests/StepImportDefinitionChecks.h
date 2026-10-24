@@ -11,6 +11,7 @@
 #include <SmVertex.h>
 #include <cmath>
 #include <stdexcept>
+#include <string>
 namespace step_import_test
 {
 inline void Require(bool ok, const char* message)

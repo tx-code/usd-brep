@@ -40,6 +40,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportCylindricalBandRepair.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRingSegmentation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportObservation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp src/StepImportAssemblyInstances.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportAssemblyBuild.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportAssemblyEvidence.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportAssemblySnapshot.cpp)
@@ -70,6 +71,15 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_revolution_tests tests/StepImportRevolutionTests.cpp)
+    target_link_libraries(step_import_revolution_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_include_directories(step_import_revolution_tests PRIVATE src)
+    target_include_directories(step_import_revolution_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_revolution_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_revolution_contracts COMMAND step_import_revolution_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/rational_revolution_cylinder.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/revolution-contract-output")
     add_executable(step_import_assembly_publication_tests tests/StepImportAssemblyPublicationTests.cpp)
     target_link_libraries(step_import_assembly_publication_tests PRIVATE STEP_IMPORT)
     add_test(NAME step_import_assembly_publication_contracts COMMAND step_import_assembly_publication_tests
