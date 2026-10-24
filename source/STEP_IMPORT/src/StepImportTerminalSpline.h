@@ -1,0 +1,133 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+#pragma once
+#include "StepImportResult.h"
+
+#include <array>
+#include <cstddef>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace step_import::detail::terminal_spline
+{
+struct IntegerRatio
+{
+    std::string numerator = "1", denominator = "1";
+};
+struct SourceAxis
+{
+    unsigned degree = 0;
+    std::vector<std::string> knots; // Unique increasing original decimal tokens.
+    std::vector<std::size_t> multiplicities;
+    // Original parameter numbers, not lengths. Absence retains the old interval.
+    // These endpoints must contain the entire original interval; no trimming.
+    std::optional<std::array<std::string, 2>> requested;
+};
+struct Source
+{
+    SourceAxis u;
+    std::optional<SourceAxis> v; // Absent for a curve; its parameter is u here.
+    std::size_t countU = 0, countV = 1;
+    std::vector<std::array<std::string, 3>> controls; // Euclidean, U-major/V-minor.
+    std::vector<std::string> weights; // Empty means exactly one at every pole.
+    IntegerRatio lengthToMm; // Exact positive physical scale, applied once to XYZ.
+};
+struct Limits
+{
+    // Conservative cumulative homogeneous control slots allocated by one call;
+    // verification includes the resident reference. This also bounds peak
+    // storage. No implicit production capacity is supplied by this module.
+    std::size_t controlSlots = 0;
+    std::size_t integerBits = 4096; // Reduced ratios; hard maximum 4096 bits.
+    std::size_t tokenCharacters = 1234;
+};
+// Charge before exact arithmetic, conversion and allocated control slots.
+// Units are implementation work, not native calls or millimetre allowance.
+// The owner accumulates them across ALL calls; its Failure propagates unchanged.
+using Charge = std::function<Result<void>(std::size_t)>;
+
+struct Basis
+{
+    unsigned degreeU = 0, degreeV = 0;
+    std::size_t countU = 0, countV = 1;
+    std::vector<double> knotsU, knotsV; // Expanded; knotsV empty for a curve.
+};
+struct Canonical
+{
+    Basis basis;
+    std::vector<std::array<double, 3>> controlsMm; // Euclidean constructor input.
+    std::vector<double> weights;
+};
+struct BinaryNet
+{
+    Basis basis;
+    // Exact stored binary64 homogeneous XYZW, read AFTER native construction.
+    // For a nonrational native net use stored XYZ and literal W=1. Do not divide
+    // then multiply a native homogeneous pole through rounded Euclidean values.
+    std::vector<std::array<double, 4>> homogeneous;
+};
+class Reference;
+struct Prepared
+{
+    Canonical target;
+    std::shared_ptr<const Reference> reference;
+};
+struct Proof
+{
+    bool established = false;
+    std::optional<double> maximumMm; // Outward upper bound, not an error sample.
+    std::size_t patches = 0;
+};
+
+// Explicit interpreted geometry only. Parse original decimals/scale exactly;
+// extract clamped continuous terminal spans by homogeneous Boehm insertion and
+// extend their rational polynomials at the SAME parameter. Tensor directions
+// use the same operation, including their corner patches. Positive weights are
+// required on the full resulting net. Old-domain equality is an exact algebraic
+// consequence; it is not established by finite samples or a native old-domain
+// restriction. Requested endpoints are enclosed outward in binary64 (exact zero
+// stays zero); the reference also covers this computational envelope.
+//
+// Degrees 1..17, clamped endpoints and interior multiplicity <= degree are
+// admitted. Unestablished geometry/range, arithmetic/storage capacity and caller
+// failure remain distinct. Checked fixed-width exact integer intermediates are
+// bounded; Boost types do not cross this interface. STL allocation exceptions
+// retain their actual meaning. No source, kernel object or global state changes.
+[[nodiscard]] Result<Prepared> Extend(const Source& source, const Limits& limits, const Charge& charge);
+
+// Compare the actual native binary64 definition against the exact interpreted
+// SOURCE reference on the WHOLE actual natural domain. Degrees/domain must match
+// the prepared computational envelope; distinct source/native interior knots
+// are compared through exact common refinement, not assumed to share a basis.
+// Bernstein coefficients of N_ref*W_actual-N_actual*W_ref and strictly positive
+// weight minima bound Euclidean distance via an L1 upper bound on every patch.
+// maximumMm is the ONE remaining exact mm allowance assigned by the request
+// owner, not an additional allowance to spend after source->native conversion.
+// This certifies defining stored geometry, not libm/evaluator error, SOR frame
+// roundtrip, UV conversion, injectivity, topology, source validity or publication.
+[[nodiscard]] Result<Proof> Certify(
+    const std::shared_ptr<const Reference>& reference,
+    const BinaryNet& actual,
+    const IntegerRatio& maximumMm,
+    const Limits& limits,
+    const Charge& charge
+);
+// Exact source hull coverage in original scalar parameters, without tolerance.
+[[nodiscard]] Result<bool> CheckScalarCoverage(
+    const std::array<std::string, 2>& requested,
+    const std::vector<std::string>& controls,
+    const Limits& limits,
+    const Charge& charge
+);
+// Outward L1 error relative to source decimals times the exact length ratio.
+[[nodiscard]] Result<double> SourcePointDifferenceUpper(
+    const std::array<std::string, 3>& source,
+    const IntegerRatio& lengthToMm,
+    const std::array<double, 3>& actual,
+    const Limits& limits,
+    const Charge& charge
+);
+} // namespace step_import::detail::terminal_spline

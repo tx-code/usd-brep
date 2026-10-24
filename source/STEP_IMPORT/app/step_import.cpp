@@ -6,6 +6,7 @@
 #include "StepRepairArguments.h"
 #include "StepSelectionArguments.h"
 #include "StepSourceReport.h"
+#include "StepTerminalDomainArguments.h"
 
 #include <charconv>
 #include <cmath>
@@ -103,7 +104,15 @@ int main(int argc, char** argv)
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
-            if (step_import_app::IsCylindricalBandArgument(arg))
+            if (step_import_app::IsTerminalDomainArgument(arg))
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Terminal-domain argument value required");
+                }
+                step_import_app::TerminalDomainArgument(arg, argv[++i], options);
+            }
+            else if (step_import_app::IsCylindricalBandArgument(arg))
             {
                 if (i + 1 == argc)
                 {

@@ -1,0 +1,1152 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+#include "StepImportTerminalSpline.h"
+
+#include <algorithm>
+#include <bit>
+#include <boost/multiprecision/cpp_int.hpp>
+#include <charconv>
+#include <cstdint>
+#include <limits>
+#include <stdexcept>
+#include <utility>
+namespace step_import::detail::terminal_spline
+{
+namespace
+{
+static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::digits == 53 && sizeof(double) == 8);
+// Reduced ratios have <=4096 bits; fixed checked 8192-bit intermediates bound
+// products and binary64 quantization. Overflow refuses evidence, never wraps.
+using Big = boost::multiprecision::number<
+    boost::multiprecision::cpp_int_backend<8192, 8192, boost::multiprecision::signed_magnitude, boost::multiprecision::checked, void>>;
+struct R
+{
+    Big n = 0, d = 1;
+};
+using H = std::array<R, 4>;
+struct Net
+{
+    unsigned p = 0, q = 0;
+    std::size_t nu = 0, nv = 1;
+    std::vector<R> u, v;
+    std::vector<H> cp;
+};
+Failure Error(const char* key, Status status = Status::Indeterminate)
+{
+    return { status, key, "Exact terminal-spline evidence is unestablished", {}, "TerminalSpline" };
+}
+#define TS_TRY(name, expression)                                                                                                                     \
+    auto name##Result = (expression);                                                                                                                \
+    if (!name##Result)                                                                                                                               \
+        return tl::unexpected(std::move(name##Result.error()));                                                                                      \
+    auto name = std::move(*name##Result)
+#define TS_OK(expression)                                                                                                                            \
+    do                                                                                                                                               \
+    {                                                                                                                                                \
+        auto operation = (expression);                                                                                                               \
+        if (!operation)                                                                                                                              \
+            return tl::unexpected(std::move(operation.error()));                                                                                     \
+    } while (false)
+int Compare(const R& a, const R& b)
+{
+    const Big l = a.n * b.d, r = b.n * a.d;
+    return l < r ? -1 : l > r ? 1 : 0;
+}
+R Negate(R a)
+{
+    a.n = -a.n;
+    return a;
+}
+R Absolute(R a)
+{
+    if (a.n < 0)
+    {
+        a.n = -a.n;
+    }
+    return a;
+}
+class Arithmetic
+{
+public:
+
+    const Limits& limits;
+    const Charge& charge;
+    bool callbackActive = false;
+    std::size_t slots = 0;
+    Arithmetic(const Limits& l, const Charge& c) : limits(l), charge(c)
+    {
+    }
+    Result<void> Spend(std::size_t units = 1)
+    {
+        // If a caller actually throws overflow_error, the outer guard must rethrow it
+        // rather than misclassify it as checked-integer capacity.
+        callbackActive = true;
+        auto result = charge(units);
+        callbackActive = false;
+        return result;
+    }
+    Result<void> Ready()
+    {
+        if (!charge || !limits.controlSlots || !limits.integerBits || limits.integerBits > 4096 || !limits.tokenCharacters)
+        {
+            return tl::unexpected(Error("TerminalSplineCapacityConfiguration", Status::ResourceLimit));
+        }
+        return Spend();
+    }
+    Result<void> Reserve(std::size_t count)
+    {
+        if (count > limits.controlSlots - slots || count > std::vector<H>().max_size())
+        {
+            return tl::unexpected(Error("TerminalSplineControlCapacity", Status::ResourceLimit));
+        }
+        TS_OK(Spend(count ? count : 1));
+        slots += count;
+        return {};
+    }
+    Result<R> Normalize(Big n, Big d)
+    {
+        TS_OK(Spend());
+        if (d == 0)
+        {
+            return tl::unexpected(Error("TerminalSplineExactDivision"));
+        }
+        if (n == 0)
+        {
+            return R{};
+        }
+        if (d < 0)
+        {
+            n = -n;
+            d = -d;
+        }
+        Big x = n < 0 ? -n : n, y = d;
+        while (y != 0)
+        {
+            TS_OK(Spend());
+            Big r = x % y;
+            x = std::move(y);
+            y = std::move(r);
+        }
+        n /= x;
+        d /= x;
+        const Big magnitude = n < 0 ? -n : n;
+        if (boost::multiprecision::msb(magnitude) >= limits.integerBits || boost::multiprecision::msb(d) >= limits.integerBits)
+        {
+            return tl::unexpected(Error("TerminalSplineIntegerCapacity", Status::ResourceLimit));
+        }
+        return R{ std::move(n), std::move(d) };
+    }
+    Result<R> Add(const R& a, const R& b)
+    {
+        TS_OK(Spend());
+        return Normalize(a.n * b.d + b.n * a.d, a.d * b.d);
+    }
+    Result<R> Sub(const R& a, const R& b)
+    {
+        TS_OK(Spend());
+        return Normalize(a.n * b.d - b.n * a.d, a.d * b.d);
+    }
+    Result<R> Mul(const R& a, const R& b)
+    {
+        TS_OK(Spend());
+        return Normalize(a.n * b.n, a.d * b.d);
+    }
+    Result<R> Div(const R& a, const R& b)
+    {
+        TS_OK(Spend());
+        return Normalize(a.n * b.d, a.d * b.n);
+    }
+    Result<R> Decimal(std::string_view text)
+    {
+        TS_OK(Spend());
+        if (text.empty() || text.size() > limits.tokenCharacters)
+        {
+            return tl::unexpected(Error("TerminalSplineDecimalCapacity", Status::ResourceLimit));
+        }
+        bool negative = false;
+        if (text.front() == '-' || text.front() == '+')
+        {
+            negative = text.front() == '-';
+            text.remove_prefix(1);
+        }
+        const auto at = text.find_first_of("Ee");
+        const auto mantissa = text.substr(0, at);
+        std::int64_t exponent = 0;
+        if (at != std::string_view::npos)
+        {
+            auto power = text.substr(at + 1);
+            if (!power.empty() && power.front() == '+')
+            {
+                power.remove_prefix(1);
+            }
+            const auto parsed = std::from_chars(power.data(), power.data() + power.size(), exponent);
+            if (power.empty() || parsed.ec != std::errc{} || parsed.ptr != power.data() + power.size() || exponent < -2466 || exponent > 2466)
+            {
+                return tl::unexpected(Error("TerminalSplineDecimalExponent", Status::ResourceLimit));
+            }
+        }
+        Big n = 0, d = 1;
+        bool dot = false, digit = false;
+        for (char c : mantissa)
+        {
+            TS_OK(Spend());
+            if (c == '.' && !dot)
+            {
+                dot = true;
+                continue;
+            }
+            if (c < '0' || c > '9')
+            {
+                return tl::unexpected(Error("TerminalSplineDecimalSyntax"));
+            }
+            digit = true;
+            n *= 10;
+            n += c - '0';
+            if (dot)
+            {
+                --exponent;
+            }
+        }
+        if (!digit)
+        {
+            return tl::unexpected(Error("TerminalSplineDecimalSyntax"));
+        }
+        if (n == 0)
+        {
+            return R{};
+        }
+        if (exponent < -2466 || exponent > 2466)
+        {
+            return tl::unexpected(Error("TerminalSplineDecimalExponent", Status::ResourceLimit));
+        }
+        Big& expanded = exponent < 0 ? d : n;
+        for (std::int64_t i = 0, count = exponent < 0 ? -exponent : exponent; i < count; ++i)
+        {
+            TS_OK(Spend());
+            expanded *= 10;
+        }
+        if (negative)
+        {
+            n = -n;
+        }
+        return Normalize(std::move(n), std::move(d));
+    }
+    Result<R> Ratio(const IntegerRatio& text)
+    {
+        TS_TRY(n, Decimal(text.numerator));
+        TS_TRY(d, Decimal(text.denominator));
+        if (n.d != 1 || d.d != 1 || n.n <= 0 || d.n <= 0)
+        {
+            return tl::unexpected(Error("TerminalSplinePositiveIntegerRatio"));
+        }
+        return Normalize(std::move(n.n), std::move(d.n));
+    }
+    Result<R> Binary(double value)
+    {
+        TS_OK(Spend());
+        const auto bits = std::bit_cast<std::uint64_t>(value);
+        const auto exponent = unsigned((bits >> 52) & 2047);
+        const auto significand = (bits & 0xfffffffffffffULL) | (exponent ? 0x10000000000000ULL : 0);
+        if (exponent == 2047)
+        {
+            return tl::unexpected(Error("TerminalSplineBinaryRange"));
+        }
+        if (!significand)
+        {
+            return R{};
+        }
+        Big n = significand, d = 1;
+        const int power = exponent ? int(exponent) - 1023 - 52 : -1074;
+        if (power >= 0)
+        {
+            n <<= power;
+        }
+        else
+        {
+            d <<= -power;
+        }
+        if (bits >> 63)
+        {
+            n = -n;
+        }
+        return Normalize(std::move(n), std::move(d));
+    }
+    Result<double> Rounded(const R& value)
+    {
+        TS_OK(Spend());
+        if (value.n == 0)
+        {
+            return 0.;
+        }
+        Big n = value.n < 0 ? -value.n : value.n;
+        int e = int(boost::multiprecision::msb(n)) - int(boost::multiprecision::msb(value.d));
+        if (e >= 0)
+        {
+            if (n < (value.d << e))
+            {
+                --e;
+            }
+        }
+        else if ((n << -e) < value.d)
+        {
+            --e;
+        }
+        if (e > 1023)
+        {
+            return tl::unexpected(Error("TerminalSplineBinaryRange"));
+        }
+        const std::uint64_t sign = value.n < 0 ? 0x8000000000000000ULL : 0;
+        if (e < -1075)
+        {
+            return std::bit_cast<double>(sign);
+        }
+        const int shift = e < -1022 ? 1074 : 52 - e;
+        Big denominator = value.d;
+        if (shift >= 0)
+        {
+            n <<= shift;
+        }
+        else
+        {
+            denominator <<= -shift;
+        }
+        Big q = n / denominator, remainder = n % denominator;
+        if (2 * remainder > denominator || (2 * remainder == denominator && (q & 1) != 0))
+        {
+            ++q;
+        }
+        if (e < -1022)
+        {
+            return std::bit_cast<double>(sign | q.convert_to<std::uint64_t>());
+        }
+        if (q == (Big(1) << 53))
+        {
+            q >>= 1;
+            ++e;
+        }
+        if (e > 1023)
+        {
+            return tl::unexpected(Error("TerminalSplineBinaryRange"));
+        }
+        return std::bit_cast<double>(sign | (std::uint64_t(e + 1023) << 52) | (q.convert_to<std::uint64_t>() - 0x10000000000000ULL));
+    }
+    Result<double> Outward(const R& value, bool upper)
+    {
+        TS_TRY(result, Rounded(value));
+        TS_TRY(exact, Binary(result));
+        const int c = Compare(exact, value);
+        if ((upper && c < 0) || (!upper && c > 0))
+        {
+            auto bits = std::bit_cast<std::uint64_t>(result);
+            if ((bits & 0x7fffffffffffffffULL) == 0)
+            {
+                bits = upper ? 1 : 0x8000000000000001ULL;
+            }
+            else if (bits >> 63)
+            {
+                bits += upper ? std::uint64_t(-1) : 1;
+            }
+            else
+            {
+                bits += upper ? 1 : std::uint64_t(-1);
+            }
+            result = std::bit_cast<double>(bits);
+            TS_TRY(checked, Binary(result));
+            (void)checked;
+        }
+        return result;
+    }
+};
+Result<std::size_t> Product(std::size_t a, std::size_t b, Arithmetic& math)
+{
+    if (!a || !b || a > math.limits.controlSlots / b)
+    {
+        return tl::unexpected(Error("TerminalSplineControlCapacity", Status::ResourceLimit));
+    }
+    return a * b;
+}
+} // namespace
+class Reference
+{
+public:
+
+    Net net;
+};
+namespace
+{
+
+Result<void> ValidateKnots(const std::vector<R>& knots, unsigned degree, std::size_t count, Arithmetic& math)
+{
+    if (count < degree + 1 || count > std::numeric_limits<std::size_t>::max() - degree - 1 || knots.size() != count + degree + 1)
+    {
+        return tl::unexpected(Error("TerminalSplineKnotShape", Status::Unsupported));
+    }
+    if (Compare(knots[degree], knots[count]) >= 0)
+    {
+        return tl::unexpected(Error("TerminalSplineEmptyDomain", Status::Unsupported));
+    }
+    std::size_t i = 0;
+    while (i < knots.size())
+    {
+        TS_OK(math.Spend());
+        std::size_t j = i + 1;
+        while (j < knots.size() && Compare(knots[i], knots[j]) == 0)
+        {
+            ++j;
+        }
+        if ((i == 0 || j == knots.size()) ? j - i != degree + 1 : j - i > degree)
+        {
+            return tl::unexpected(Error("TerminalSplineClampedContinuousBasis", Status::Unsupported));
+        }
+        if (j < knots.size() && Compare(knots[i], knots[j]) >= 0)
+        {
+            return tl::unexpected(Error("TerminalSplineKnotOrder", Status::Unsupported));
+        }
+        i = j;
+    }
+    return {};
+}
+Result<std::vector<R>> SourceKnots(const SourceAxis& axis, std::size_t count, Arithmetic& math)
+{
+    if (axis.degree < 1 || axis.degree > 17 || axis.knots.size() < 2 || axis.knots.size() != axis.multiplicities.size() ||
+        count > math.limits.controlSlots)
+    {
+        return tl::unexpected(Error("TerminalSplineSourceAxis", Status::Unsupported));
+    }
+    std::vector<R> result;
+    for (std::size_t i = 0; i < axis.knots.size(); ++i)
+    {
+        TS_TRY(knot, math.Decimal(axis.knots[i]));
+        const auto mult = axis.multiplicities[i];
+        if (!mult || mult > axis.degree + 1 || result.size() > count + axis.degree + 1 || mult > count + axis.degree + 1 - result.size())
+        {
+            return tl::unexpected(Error("TerminalSplineSourceMultiplicity", Status::Unsupported));
+        }
+        result.insert(result.end(), mult, knot);
+    }
+    TS_OK(ValidateKnots(result, axis.degree, count, math));
+    return result;
+}
+H& At(Net& net, bool uAxis, std::size_t index, std::size_t row)
+{
+    return net.cp[uAxis ? index * net.nv + row : row * net.nv + index];
+}
+const H& At(const Net& net, bool uAxis, std::size_t index, std::size_t row)
+{
+    return net.cp[uAxis ? index * net.nv + row : row * net.nv + index];
+}
+Result<H> Mix(const H& a, const H& b, const R& alpha, const R& other, Arithmetic& math)
+{
+    H out;
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        TS_TRY(left, math.Mul(a[i], other));
+        TS_TRY(right, math.Mul(b[i], alpha));
+        TS_TRY(sum, math.Add(left, right));
+        out[i] = std::move(sum);
+    }
+    return out;
+}
+Result<void> Insert(Net& net, bool uAxis, const R& value, Arithmetic& math)
+{
+    auto& knots = uAxis ? net.u : net.v;
+    const unsigned p = uAxis ? net.p : net.q;
+    const auto upper = std::upper_bound(
+        knots.begin(),
+        knots.end(),
+        value,
+        [](const R& a, const R& b)
+        {
+            return Compare(a, b) < 0;
+        }
+    );
+    if (upper == knots.begin())
+    {
+        return tl::unexpected(Error("TerminalSplineInsertionDomain"));
+    }
+    const std::size_t k = std::size_t(upper - knots.begin() - 1);
+    const std::size_t s = std::size_t(
+        std::count_if(
+            knots.begin(),
+            knots.end(),
+            [&](const R& x)
+            {
+                return Compare(x, value) == 0;
+            }
+        )
+    );
+    const auto count = uAxis ? net.nu : net.nv, rows = uAxis ? net.nv : net.nu;
+    if (s >= p || k < p || k < s || k - s >= count)
+    {
+        return tl::unexpected(Error("TerminalSplineInsertionMultiplicity"));
+    }
+    const auto nu = net.nu + (uAxis ? 1 : 0), nv = net.nv + (uAxis ? 0 : 1);
+    TS_TRY(size, Product(nu, nv, math));
+    TS_OK(math.Reserve(size));
+    std::vector<H> result(size);
+    const auto output = [&](std::size_t i, std::size_t row) -> H&
+    {
+        return result[uAxis ? i * nv + row : row * nv + i];
+    };
+    for (std::size_t row = 0; row < rows; ++row)
+    {
+        TS_OK(math.Spend());
+        for (std::size_t i = 0; i <= k - p; ++i)
+        {
+            output(i, row) = At(net, uAxis, i, row);
+        }
+        for (std::size_t i = k - s; i < count; ++i)
+        {
+            output(i + 1, row) = At(net, uAxis, i, row);
+        }
+        for (std::size_t i = k - p + 1; i <= k - s; ++i)
+        {
+            TS_TRY(numerator, math.Sub(value, knots[i]));
+            TS_TRY(denominator, math.Sub(knots[i + p], knots[i]));
+            TS_TRY(alpha, math.Div(numerator, denominator));
+            TS_TRY(other, math.Sub(R{ 1, 1 }, alpha));
+            TS_TRY(point, Mix(At(net, uAxis, i - 1, row), At(net, uAxis, i, row), alpha, other, math));
+            output(i, row) = std::move(point);
+        }
+    }
+    knots.insert(knots.begin() + std::ptrdiff_t(k + 1), value);
+    net.cp = std::move(result);
+    net.nu = nu;
+    net.nv = nv;
+    return {};
+}
+Result<void> Reverse(Net& net, bool uAxis, Arithmetic& math)
+{
+    auto& knots = uAxis ? net.u : net.v;
+    std::reverse(knots.begin(), knots.end());
+    for (auto& k : knots)
+    {
+        k = Negate(std::move(k));
+    }
+    const auto count = uAxis ? net.nu : net.nv, rows = uAxis ? net.nv : net.nu;
+    for (std::size_t row = 0; row < rows; ++row)
+    {
+        TS_OK(math.Spend());
+        for (std::size_t i = 0; i < count / 2; ++i)
+        {
+            std::swap(At(net, uAxis, i, row), At(net, uAxis, count - 1 - i, row));
+        }
+    }
+    return {};
+}
+Result<void> Right(Net& net, bool uAxis, const R& newEnd, Arithmetic& math)
+{
+    auto& knots = uAxis ? net.u : net.v;
+    const unsigned p = uAxis ? net.p : net.q;
+    const R end = knots[uAxis ? net.nu : net.nv];
+    if (Compare(newEnd, end) == 0)
+    {
+        return {};
+    }
+    if (Compare(newEnd, end) < 0)
+    {
+        return tl::unexpected(Error("TerminalSplineCannotTrim", Status::Unsupported));
+    }
+    auto i = knots.size();
+    while (i && Compare(knots[i - 1], end) == 0)
+    {
+        --i;
+    }
+    if (!i)
+    {
+        return tl::unexpected(Error("TerminalSplineTerminalSpan"));
+    }
+    const R start = knots[i - 1];
+    // Boehm isolates the last positive span before changing its Bezier polygon.
+    // Changing the last original poles without this step can alter earlier spans.
+    while (std::size_t(
+               std::count_if(
+                   knots.begin(),
+                   knots.end(),
+                   [&](const R& x)
+                   {
+                       return Compare(x, start) == 0;
+                   }
+               )
+           ) < p)
+    {
+        TS_OK(Insert(net, uAxis, start, math));
+    }
+    TS_TRY(length, math.Sub(end, start));
+    TS_TRY(expanded, math.Sub(newEnd, start));
+    TS_TRY(alpha, math.Div(expanded, length));
+    TS_TRY(other, math.Sub(R{ 1, 1 }, alpha));
+    const auto count = uAxis ? net.nu : net.nv, rows = uAxis ? net.nv : net.nu;
+    for (std::size_t row = 0; row < rows; ++row)
+    {
+        TS_OK(math.Reserve(p + 1));
+        std::vector<H> work(p + 1);
+        for (unsigned j = 0; j <= p; ++j)
+        {
+            work[j] = At(net, uAxis, count - p - 1 + j, row);
+        }
+        for (unsigned level = 1; level <= p; ++level)
+        {
+            for (unsigned j = 0; j <= p - level; ++j)
+            {
+                TS_TRY(point, Mix(work[j], work[j + 1], alpha, other, math));
+                work[j] = std::move(point);
+            }
+            At(net, uAxis, count - p - 1 + level, row) = work[0];
+        }
+    }
+    for (auto& knot : knots)
+    {
+        if (Compare(knot, end) == 0)
+        {
+            knot = newEnd;
+        }
+    }
+    return {};
+}
+Result<void> ExtendRange(Net& net, bool uAxis, const std::array<R, 2>& ends, Arithmetic& math)
+{
+    const auto& k = uAxis ? net.u : net.v;
+    const unsigned p = uAxis ? net.p : net.q;
+    const auto count = uAxis ? net.nu : net.nv;
+    if (Compare(ends[0], k[p]) > 0 || Compare(ends[1], k[count]) < 0)
+    {
+        return tl::unexpected(Error("TerminalSplineCannotTrim", Status::Unsupported));
+    }
+    if (Compare(ends[0], k[p]) < 0)
+    {
+        TS_OK(Reverse(net, uAxis, math));
+        TS_OK(Right(net, uAxis, Negate(ends[0]), math));
+        TS_OK(Reverse(net, uAxis, math));
+    }
+    return Right(net, uAxis, ends[1], math);
+}
+Result<std::array<R, 2>> Requested(const SourceAxis& source, const std::vector<R>& knots, std::size_t count, Arithmetic& math)
+{
+    std::array<R, 2> range{ knots[source.degree], knots[count] };
+    if (source.requested)
+    {
+        TS_TRY(low, math.Decimal((*source.requested)[0]));
+        TS_TRY(high, math.Decimal((*source.requested)[1]));
+        if (Compare(low, range[0]) > 0 || Compare(high, range[1]) < 0)
+        {
+            return tl::unexpected(Error("TerminalSplineCannotTrim", Status::Unsupported));
+        }
+        range = { std::move(low), std::move(high) };
+    }
+    TS_TRY(low, math.Outward(range[0], false));
+    TS_TRY(high, math.Outward(range[1], true));
+    TS_TRY(a, math.Binary(low));
+    TS_TRY(b, math.Binary(high));
+    return std::array<R, 2>{ std::move(a), std::move(b) };
+}
+Result<Net> ReadSource(const Source& source, Arithmetic& math)
+{
+    if (!source.v && source.countV != 1)
+    {
+        return tl::unexpected(Error("TerminalSplineCurveShape", Status::Unsupported));
+    }
+    TS_TRY(count, Product(source.countU, source.countV, math));
+    if (count != source.controls.size() || (!source.weights.empty() && source.weights.size() != count))
+    {
+        return tl::unexpected(Error("TerminalSplineControlShape", Status::Unsupported));
+    }
+    Net net;
+    net.p = source.u.degree;
+    net.q = source.v ? source.v->degree : 0;
+    net.nu = source.countU;
+    net.nv = source.countV;
+    TS_TRY(u, SourceKnots(source.u, net.nu, math));
+    net.u = std::move(u);
+    if (source.v)
+    {
+        TS_TRY(v, SourceKnots(*source.v, net.nv, math));
+        net.v = std::move(v);
+    }
+    else
+    {
+        net.v = { R{}, R{ 1, 1 } };
+    }
+    TS_TRY(scale, math.Ratio(source.lengthToMm));
+    TS_OK(math.Reserve(count));
+    net.cp.resize(count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        R weight{ 1, 1 };
+        if (!source.weights.empty())
+        {
+            TS_TRY(w, math.Decimal(source.weights[i]));
+            weight = std::move(w);
+        }
+        if (weight.n <= 0)
+        {
+            return tl::unexpected(Error("TerminalSplineSourceWeight", Status::Unsupported));
+        }
+        net.cp[i][3] = weight;
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            TS_TRY(raw, math.Decimal(source.controls[i][axis]));
+            TS_TRY(mm, math.Mul(raw, scale));
+            TS_TRY(h, math.Mul(mm, weight));
+            net.cp[i][axis] = std::move(h);
+        }
+    }
+    TS_TRY(ur, Requested(source.u, net.u, net.nu, math));
+    TS_OK(ExtendRange(net, true, ur, math));
+    if (source.v)
+    {
+        TS_TRY(vr, Requested(*source.v, net.v, net.nv, math));
+        TS_OK(ExtendRange(net, false, vr, math));
+    }
+    for (const auto& point : net.cp)
+    {
+        if (point[3].n <= 0)
+        {
+            return tl::unexpected(Error("TerminalSplineExtendedWeightUnestablished"));
+        }
+    }
+    return net;
+}
+Result<std::vector<double>> RoundKnots(const std::vector<R>& knots, Arithmetic& math)
+{
+    std::vector<double> out;
+    R previous;
+    bool first = true;
+    for (const auto& value : knots)
+    {
+        TS_TRY(rounded, math.Rounded(value));
+        TS_TRY(current, math.Binary(rounded));
+        if (!first && Compare(previous, current) == 0 && Compare(value, knots[out.size() - 1]) != 0)
+        {
+            return tl::unexpected(Error("TerminalSplineRoundedKnotCollision"));
+        }
+        out.push_back(rounded);
+        previous = std::move(current);
+        first = false;
+    }
+    return out;
+}
+Result<Canonical> Emit(const Net& net, Arithmetic& math)
+{
+    Canonical out;
+    out.basis = { net.p, net.q, net.nu, net.nv, {}, {} };
+    TS_TRY(u, RoundKnots(net.u, math));
+    out.basis.knotsU = std::move(u);
+    if (net.q)
+    {
+        TS_TRY(v, RoundKnots(net.v, math));
+        out.basis.knotsV = std::move(v);
+    }
+    out.controlsMm.reserve(net.cp.size());
+    out.weights.reserve(net.cp.size());
+    for (const auto& point : net.cp)
+    {
+        TS_TRY(weight, math.Rounded(point[3]));
+        TS_TRY(w, math.Binary(weight));
+        if (w.n <= 0)
+        {
+            return tl::unexpected(Error("TerminalSplineRoundedWeightUnestablished"));
+        }
+        std::array<double, 3> p{};
+        for (std::size_t j = 0; j < 3; ++j)
+        {
+            TS_TRY(value, math.Div(point[j], point[3]));
+            TS_TRY(rounded, math.Rounded(value));
+            p[j] = rounded;
+        }
+        out.controlsMm.push_back(p);
+        out.weights.push_back(weight);
+    }
+    return out;
+}
+Result<Net> ReadBinary(const BinaryNet& input, Arithmetic& math)
+{
+    const auto& b = input.basis;
+    if (b.degreeU < 1 || b.degreeU > 17 || b.degreeV > 17 || (!b.degreeV && b.countV != 1))
+    {
+        return tl::unexpected(Error("TerminalSplineNativeDegree", Status::Unsupported));
+    }
+    TS_TRY(count, Product(b.countU, b.countV, math));
+    if (input.homogeneous.size() != count)
+    {
+        return tl::unexpected(Error("TerminalSplineNativeShape"));
+    }
+    if (b.knotsU.size() != b.countU + b.degreeU + 1 || (b.degreeV ? b.knotsV.size() != b.countV + b.degreeV + 1 : !b.knotsV.empty()))
+    {
+        return tl::unexpected(Error("TerminalSplineNativeKnotShape"));
+    }
+    Net out;
+    out.p = b.degreeU;
+    out.q = b.degreeV;
+    out.nu = b.countU;
+    out.nv = b.countV;
+    for (double x : b.knotsU)
+    {
+        TS_TRY(k, math.Binary(x));
+        out.u.push_back(std::move(k));
+    }
+    if (out.q)
+    {
+        for (double x : b.knotsV)
+        {
+            TS_TRY(k, math.Binary(x));
+            out.v.push_back(std::move(k));
+        }
+    }
+    else
+    {
+        if (!b.knotsV.empty())
+        {
+            return tl::unexpected(Error("TerminalSplineCurveKnots"));
+        }
+        out.v = { R{}, R{ 1, 1 } };
+    }
+    TS_OK(ValidateKnots(out.u, out.p, out.nu, math));
+    TS_OK(ValidateKnots(out.v, out.q, out.nv, math));
+    TS_OK(math.Reserve(count));
+    out.cp.resize(count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        for (std::size_t j = 0; j < 4; ++j)
+        {
+            TS_TRY(x, math.Binary(input.homogeneous[i][j]));
+            out.cp[i][j] = std::move(x);
+        }
+        if (out.cp[i][3].n <= 0)
+        {
+            return tl::unexpected(Error("TerminalSplineNativeWeight"));
+        }
+    }
+    return out;
+}
+
+Result<std::vector<R>> KnotUnion(const std::vector<R>& a, const std::vector<R>& b, Arithmetic& math)
+{
+    std::vector<R> out;
+    std::size_t i = 0, j = 0;
+    while (i < a.size() || j < b.size())
+    {
+        TS_OK(math.Spend());
+        const bool fromA = j == b.size() || (i < a.size() && Compare(a[i], b[j]) <= 0);
+        const auto& value = fromA ? a[i++] : b[j++];
+        if (out.empty() || Compare(out.back(), value) != 0)
+        {
+            out.push_back(value);
+        }
+    }
+    return out;
+}
+Result<void> Refine(Net& net, bool uAxis, const std::vector<R>& values, Arithmetic& math)
+{
+    const auto& knots = uAxis ? net.u : net.v;
+    const unsigned p = uAxis ? net.p : net.q;
+    for (const auto& value : values)
+    {
+        TS_OK(math.Spend());
+        const auto count = uAxis ? net.nu : net.nv;
+        if (Compare(value, knots[p]) <= 0 || Compare(value, knots[count]) >= 0)
+        {
+            continue;
+        }
+        while (std::size_t(
+                   std::count_if(
+                       knots.begin(),
+                       knots.end(),
+                       [&](const R& x)
+                       {
+                           return Compare(x, value) == 0;
+                       }
+                   )
+               ) < p)
+        {
+            TS_OK(Insert(net, uAxis, value, math));
+        }
+    }
+    return {};
+}
+Result<std::size_t> Span(const std::vector<R>& knots, unsigned p, std::size_t count, const R& low, const R& high, Arithmetic& math)
+{
+    for (std::size_t i = p; i < count; ++i)
+    {
+        TS_OK(math.Spend());
+        if (Compare(knots[i], low) == 0 && Compare(knots[i + 1], high) == 0)
+        {
+            return i;
+        }
+    }
+    return tl::unexpected(Error("TerminalSplineCommonSpan"));
+}
+std::uint64_t Choose(unsigned n, unsigned k)
+{
+    k = std::min(k, n - k);
+    std::uint64_t value = 1;
+    for (unsigned i = 0; i < k; ++i)
+    {
+        value = value * (n - i) / (i + 1);
+    }
+    return value;
+}
+Result<R> Patch(const Net& a, const Net& b, std::size_t au, std::size_t av, std::size_t bu, std::size_t bv, Arithmetic& math)
+{
+    const unsigned p = a.p, q = a.q;
+    const auto pole = [](const Net& n, std::size_t u, std::size_t v, unsigned i, unsigned j) -> const H&
+    {
+        return n.cp[(u - n.p + i) * n.nv + v - n.q + j];
+    };
+    R minA = pole(a, au, av, 0, 0)[3], minB = pole(b, bu, bv, 0, 0)[3];
+    bool polynomial = true;
+    for (unsigned i = 0; i <= p; ++i)
+    {
+        for (unsigned j = 0; j <= q; ++j)
+        {
+            const auto& x = pole(a, au, av, i, j);
+            const auto& y = pole(b, bu, bv, i, j);
+            if (Compare(x[3], minA) < 0)
+            {
+                minA = x[3];
+            }
+            if (Compare(y[3], minB) < 0)
+            {
+                minB = y[3];
+            }
+            polynomial = polynomial && x[3].n == x[3].d && y[3].n == y[3].d;
+        }
+    }
+    if (minA.n <= 0 || minB.n <= 0)
+    {
+        return tl::unexpected(Error("TerminalSplineRefinedWeight"));
+    }
+    std::array<R, 3> maximum{};
+    if (polynomial)
+    {
+        for (unsigned i = 0; i <= p; ++i)
+        {
+            for (unsigned j = 0; j <= q; ++j)
+            {
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    TS_TRY(difference, math.Sub(pole(a, au, av, i, j)[axis], pole(b, bu, bv, i, j)[axis]));
+                    difference = Absolute(std::move(difference));
+                    if (Compare(difference, maximum[axis]) > 0)
+                    {
+                        maximum[axis] = std::move(difference);
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        // Bernstein product coefficients on every common physical parameter patch.
+        // This bounds the cross numerator everywhere, including all new strips and
+        // tensor corners; positive control weights bound the denominator below.
+        for (unsigned r = 0; r <= 2 * p; ++r)
+        {
+            for (unsigned s = 0; s <= 2 * q; ++s)
+            {
+                std::array<R, 3> sum{};
+                for (unsigned i = r > p ? r - p : 0; i <= std::min(p, r); ++i)
+                {
+                    for (unsigned j = s > q ? s - q : 0; j <= std::min(q, s); ++j)
+                    {
+                        const unsigned k = r - i, l = s - j;
+                        TS_TRY(cu, math.Normalize(Big(Choose(p, i)) * Choose(p, k), Big(Choose(2 * p, r))));
+                        TS_TRY(cv, math.Normalize(Big(Choose(q, j)) * Choose(q, l), Big(Choose(2 * q, s))));
+                        TS_TRY(coefficient, math.Mul(cu, cv));
+                        const auto& x = pole(a, au, av, i, j);
+                        const auto& y = pole(b, bu, bv, k, l);
+                        for (std::size_t axis = 0; axis < 3; ++axis)
+                        {
+                            TS_TRY(left, math.Mul(x[axis], y[3]));
+                            TS_TRY(right, math.Mul(y[axis], x[3]));
+                            TS_TRY(cross, math.Sub(left, right));
+                            TS_TRY(term, math.Mul(coefficient, cross));
+                            TS_TRY(next, math.Add(sum[axis], term));
+                            sum[axis] = std::move(next);
+                        }
+                    }
+                }
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    auto magnitude = Absolute(std::move(sum[axis]));
+                    if (Compare(magnitude, maximum[axis]) > 0)
+                    {
+                        maximum[axis] = std::move(magnitude);
+                    }
+                }
+            }
+        }
+    }
+    TS_TRY(xy, math.Add(maximum[0], maximum[1]));
+    TS_TRY(total, math.Add(xy, maximum[2]));
+    if (polynomial)
+    {
+        return total;
+    }
+    TS_TRY(denominator, math.Mul(minA, minB));
+    return math.Div(total, denominator);
+}
+template <class T, class F>
+Result<T> Guard(const Limits& limits, const Charge& charge, F&& body)
+{
+    Arithmetic math(limits, charge);
+    try
+    {
+        TS_OK(math.Ready());
+        return body(math);
+    }
+    catch (const std::overflow_error&)
+    {
+        if (math.callbackActive)
+        {
+            throw; // A real caller exception retains its meaning.
+        }
+        return tl::unexpected(Error("TerminalSplineIntegerCapacity", Status::ResourceLimit));
+    }
+}
+} // namespace
+
+Result<Prepared> Extend(const Source& source, const Limits& limits, const Charge& charge)
+{
+    return Guard<Prepared>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<Prepared>
+        {
+            TS_TRY(net, ReadSource(source, math));
+            TS_TRY(target, Emit(net, math));
+            auto reference = std::make_shared<Reference>();
+            reference->net = std::move(net);
+            return Prepared{ std::move(target), std::move(reference) };
+        }
+    );
+}
+Result<Proof> Certify(
+    const std::shared_ptr<const Reference>& reference,
+    const BinaryNet& actual,
+    const IntegerRatio& maximumMm,
+    const Limits& limits,
+    const Charge& charge
+)
+{
+    return Guard<Proof>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<Proof>
+        {
+            if (!reference)
+            {
+                return tl::unexpected(Error("TerminalSplineReferenceMissing"));
+            }
+            TS_TRY(allowed, math.Ratio(maximumMm));
+            TS_OK(math.Reserve(reference->net.cp.size())); // Already resident immutable reference.
+            TS_OK(math.Reserve(reference->net.cp.size()));
+            Net a = reference->net;
+            TS_TRY(b, ReadBinary(actual, math));
+            if (a.p != b.p || a.q != b.q || Compare(a.u[a.p], b.u[b.p]) || Compare(a.u[a.nu], b.u[b.nu]) || Compare(a.v[a.q], b.v[b.q]) ||
+                Compare(a.v[a.nv], b.v[b.nv]))
+            {
+                return tl::unexpected(Error("TerminalSplineActualDomainOrDegree"));
+            }
+            TS_TRY(u, KnotUnion(a.u, b.u, math));
+            TS_TRY(v, KnotUnion(a.v, b.v, math));
+            TS_OK(Refine(a, true, u, math));
+            TS_OK(Refine(a, false, v, math));
+            TS_OK(Refine(b, true, u, math));
+            TS_OK(Refine(b, false, v, math));
+            Proof proof;
+            R maximum;
+            for (std::size_t i = a.p; i < a.nu; ++i)
+            {
+                if (Compare(a.u[i], a.u[i + 1]) < 0)
+                {
+                    TS_TRY(bu, Span(b.u, b.p, b.nu, a.u[i], a.u[i + 1], math));
+                    for (std::size_t j = a.q; j < a.nv; ++j)
+                    {
+                        if (Compare(a.v[j], a.v[j + 1]) < 0)
+                        {
+                            TS_TRY(bv, Span(b.v, b.q, b.nv, a.v[j], a.v[j + 1], math));
+                            TS_TRY(bound, Patch(a, b, i, j, bu, bv, math));
+                            if (Compare(bound, maximum) > 0)
+                            {
+                                maximum = std::move(bound);
+                            }
+                            ++proof.patches;
+                        }
+                    }
+                }
+            }
+            if (!proof.patches)
+            {
+                return tl::unexpected(Error("TerminalSplineNoPatches"));
+            }
+            TS_TRY(upper, math.Outward(maximum, true));
+            proof.maximumMm = upper;
+            proof.established = Compare(maximum, allowed) <= 0;
+            return proof;
+        }
+    );
+}
+Result<bool> CheckScalarCoverage(
+    const std::array<std::string, 2>& requested,
+    const std::vector<std::string>& controls,
+    const Limits& limits,
+    const Charge& charge
+)
+{
+    return Guard<bool>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<bool>
+        {
+            TS_TRY(low, math.Decimal(requested[0]));
+            TS_TRY(high, math.Decimal(requested[1]));
+            if (Compare(low, high) >= 0)
+            {
+                return tl::unexpected(Error("TerminalSplineRequestedRange"));
+            }
+            if (controls.size() > limits.controlSlots)
+            {
+                return tl::unexpected(Error("TerminalSplineControlCapacity", Status::ResourceLimit));
+            }
+            bool contained = true;
+            for (const auto& text : controls)
+            {
+                TS_TRY(value, math.Decimal(text));
+                contained = contained && Compare(low, value) <= 0 && Compare(value, high) <= 0;
+            }
+            return contained;
+        }
+    );
+}
+Result<double> SourcePointDifferenceUpper(
+    const std::array<std::string, 3>& source,
+    const IntegerRatio& lengthToMm,
+    const std::array<double, 3>& actual,
+    const Limits& limits,
+    const Charge& charge
+)
+{
+    return Guard<double>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<double>
+        {
+            TS_TRY(scale, math.Ratio(lengthToMm));
+            R sum;
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                TS_TRY(raw, math.Decimal(source[axis]));
+                TS_TRY(mm, math.Mul(raw, scale));
+                TS_TRY(native, math.Binary(actual[axis]));
+                TS_TRY(difference, math.Sub(mm, native));
+                TS_TRY(next, math.Add(sum, Absolute(std::move(difference))));
+                sum = std::move(next);
+            }
+            return math.Outward(sum, true);
+        }
+    );
+}
+#undef TS_TRY
+#undef TS_OK
+} // namespace step_import::detail::terminal_spline

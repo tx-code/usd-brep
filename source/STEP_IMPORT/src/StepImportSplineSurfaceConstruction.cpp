@@ -18,6 +18,15 @@ public:
     }
     Result<std::unique_ptr<SmSurface>> Make(Index g, Index use)
     {
+        auto interpreted = TryTerminalDomainSurface(*this, g, use);
+        if (!interpreted)
+        {
+            return tl::unexpected(std::move(interpreted.error()));
+        }
+        if (*interpreted)
+        {
+            return std::move(**interpreted);
+        }
         SmTArray<SmPoint3d> cp;
         // Source rows are U, entries V. SMLib uses the same U-major layout.
         for (const auto& row : F(g, "control_points_list").children)

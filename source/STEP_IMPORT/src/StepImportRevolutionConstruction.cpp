@@ -22,6 +22,15 @@ public:
 
     Result<std::unique_ptr<SmSurface>> Make(Index geometry, Index use, double angularStart)
     {
+        auto interpreted = TryTerminalDomainSurface(*this, geometry, use, angularStart);
+        if (!interpreted)
+        {
+            return tl::unexpected(std::move(interpreted.error()));
+        }
+        if (*interpreted)
+        {
+            return std::move(**interpreted);
+        }
         if (!std::isfinite(angularStart) || angularStart < -360 || angularStart > 0)
         {
             return tl::unexpected(Fail("GeneralRevolutionAngularChartUnestablished", geometry, Status::Unsupported));

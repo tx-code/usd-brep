@@ -289,6 +289,43 @@ struct DefinitionSelectionReceipt
     // qualification. Only explicitly selected definitions acquire native evidence;
     // isolated original failures remain in the owning source selection receipt.
 };
+struct TerminalDomainSurfacePlan
+{
+    std::string surfaceId;
+    std::vector<std::string> pcurveIds;
+    // Explicit source-parameter endpoint lexemes. No millimetre conversion is
+    // applied to B-spline knots or a revolution generator's parameter. SOR only
+    // admits V here; its angular chart remains the separate periodic mapping.
+    std::optional<std::array<std::string, 2>> u, v;
+};
+struct TerminalDomainInterpretationRequest
+{
+    std::string sourceSha256;
+    std::vector<TerminalDomainSurfacePlan> surfaces;
+    std::size_t maximumSurfaces = 0, maximumProofControls = 0, maximumProofWorkUnits = 0;
+};
+struct TerminalDomainInterpretationAction
+{
+    std::string sourceSurfaceId, sourceGeneratorId, sourceUseId, sourceDefinitionId;
+    std::string reference = "ExactSourceTerminalNurbsContinuation";
+    // Preserve the ordinary conservative domain-guard diagnostic when the
+    // named source pcurve hull could not be admitted on its original basis.
+    std::optional<std::string> originalDomainDiagnostic;
+    std::array<std::string, 4> originalSourceDomain;
+    std::array<double, 4> targetNativeDomain{};
+    double wholeNewDomainErrorUpperMm = 0;
+    // The original source defines no domain-exterior shape. This is an explicit
+    // development interpretation, never a zero-displacement claim there.
+    bool outsideSourceSemanticsAssumed = true;
+};
+struct TerminalDomainInterpretationReceipt
+{
+    std::string sourceSha256;
+    std::vector<TerminalDomainSurfacePlan> plans;
+    std::vector<TerminalDomainInterpretationAction> actions;
+    std::size_t maximumSurfaces = 0, maximumProofControls = 0, maximumProofWorkUnits = 0, proofWorkUnits = 0;
+    bool requestComplete = false;
+};
 struct Options
 {
     step_source::Limits sourceLimits{};
@@ -313,6 +350,7 @@ struct Options
     std::optional<SourceErrorIsolationLimits> sourceErrorIsolation; // Requires explicit selection; isolates only proved unselected FACE.WR2 facts.
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly;
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepair;
+    std::optional<TerminalDomainInterpretationRequest> terminalDomainInterpretation; // Explicit file-bound development assumption; no default.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -483,6 +521,7 @@ public:
                                                                          // changes.
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
+    std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const;
     void WriteNative(const std::filesystem::path& path) const; // Native target archive; original STEP/normalization metadata is not encoded.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
@@ -629,6 +668,8 @@ struct Report
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepairRequest;
     std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
     std::shared_ptr<const CircleVertexBudgetReceipt> circleVertexBudget; // Request-wide receipt, never an import-success claim.
+    std::shared_ptr<const TerminalDomainInterpretationReceipt> terminalDomainInterpretation;
+    bool terminalDomainReceiptRoot = false; // Nested reports reference the one request-wide receipt rather than duplicating it.
     std::size_t cylindricalBandProofOperations = 0;
     std::string sourceEvidenceScope;
     std::vector<ProductDefinitionReport> definitions;

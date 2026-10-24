@@ -2287,6 +2287,10 @@ std::optional<CylindricalBandRepairHistory> ModelSnapshot::CylindricalBandRepair
 {
     return m_data->cylindricalBandRepairs;
 }
+std::shared_ptr<const TerminalDomainInterpretationReceipt> ModelSnapshot::TerminalDomainInterpretation() const
+{
+    return m_data->terminalDomainInterpretation;
+}
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());

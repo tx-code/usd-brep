@@ -359,6 +359,10 @@ public:
                                { "source_uv_to_native_step_offset", { uOffset, vOffset } },
                                { "source_parameter_interval", { raw->GetNaturalInterval().GetMin(), raw->GetNaturalInterval().GetMax() } } };
         m_report.parameterMappings.push_back(std::move(mapping));
+        if (auto claimed = m_execution.ClaimTerminalDomainPcurve(Id(pcurve)); !claimed)
+        {
+            return tl::unexpected(std::move(claimed.error()));
+        }
         return PcurveDefinition{ std::move(lifted), box };
     }
 };

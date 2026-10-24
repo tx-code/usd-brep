@@ -8,6 +8,8 @@
 #include "StepImportPublication.h"
 
 #include <algorithm>
+#include <charconv>
+#include <cmath>
 #include <set>
 #include <stdexcept>
 #include <tuple>
@@ -61,6 +63,80 @@ namespace
 {
 void Validate(const Options& options)
 {
+    if (options.terminalDomainInterpretation)
+    {
+        const auto& request = *options.terminalDomainInterpretation;
+        const auto id = [](const std::string& value)
+        {
+            return !value.empty() && value.size() <= 64 && (value.size() == 1 || value[0] != '0') &&
+                   std::all_of(
+                       value.begin(),
+                       value.end(),
+                       [](char c)
+                       {
+                           return c >= '0' && c <= '9';
+                       }
+                   );
+        };
+        const auto number = [](const std::string& value)
+        {
+            if (value.empty() || value.size() > 128 ||
+                !std::all_of(
+                    value.begin(),
+                    value.end(),
+                    [](char c)
+                    {
+                        return (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.' || c == 'E' || c == 'e';
+                    }
+                ))
+            {
+                return false;
+            }
+            double numeric = 0;
+            const auto begin = value.data() + (value.front() == '+' ? 1 : 0);
+            const auto parsed = std::from_chars(begin, value.data() + value.size(), numeric);
+            return parsed.ec == std::errc{} && parsed.ptr == value.data() + value.size() && std::isfinite(numeric);
+        };
+        if (!options.generalBrep || options.faceOrientationRepair || options.cylindricalBandRepair || options.definitionSelection ||
+            options.sourceErrorIsolation || options.restrictUnusedSupportDomains || options.normalizePeriodicFaces ||
+            request.sourceSha256.size() != 64 ||
+            !std::all_of(
+                request.sourceSha256.begin(),
+                request.sourceSha256.end(),
+                [](char c)
+                {
+                    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                }
+            ) ||
+            request.surfaces.empty() || !request.maximumSurfaces || request.surfaces.size() > request.maximumSurfaces ||
+            request.maximumSurfaces > options.sourceLimits.records || !request.maximumProofControls ||
+            request.maximumProofControls > 2000000 || !request.maximumProofWorkUnits || request.maximumProofWorkUnits > 100000000)
+        {
+            throw std::invalid_argument("Terminal-domain interpretation requires an explicit source-bound general plan and resource budgets");
+        }
+        std::set<std::string> surfaces, pcurves;
+        for (const auto& plan : request.surfaces)
+        {
+            if (!id(plan.surfaceId) || !surfaces.insert(plan.surfaceId).second || plan.pcurveIds.empty() || (!plan.u && !plan.v))
+            {
+                throw std::invalid_argument("Terminal-domain surface plans require unique source identities and an explicit parameter range");
+            }
+            for (const auto& pcurve : plan.pcurveIds)
+            {
+                if (!id(pcurve) || !pcurves.insert(pcurve).second)
+                {
+                    throw std::invalid_argument("Terminal-domain pcurve identities must occur exactly once in the explicit plan");
+                }
+            }
+            for (const auto* axis : { &plan.u, &plan.v })
+            {
+                if (*axis && (!number((**axis)[0]) || !number((**axis)[1])))
+                {
+                    throw std::invalid_argument("Terminal-domain bounds require finite decimal parameter lexemes");
+                }
+            }
+        }
+    }
     if (options.cylindricalBandRepair)
     {
         const auto& request = *options.cylindricalBandRepair;
@@ -374,6 +450,14 @@ Result Import(
         report.sourceStatus = step_source::StatusName(raw.status);
         if (raw.status == step_source::Status::Inspected)
         {
+            if (raw.source)
+            {
+                if (auto bound = execution.BindTerminalDomainSource(*raw.source); !bound)
+                {
+                    publish(std::move(bound));
+                    return result;
+                }
+            }
             if (auto boundaryResult = execution.Check(Phase::Captured); !boundaryResult)
             {
                 publish(std::move(boundaryResult));

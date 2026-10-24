@@ -50,6 +50,15 @@ public:
         return m_circleVertexBudget;
     }
     [[nodiscard]] Result<void> TightenCircleVertexProtection(double lowerMm);
+    [[nodiscard]] Result<void> BindTerminalDomainSource(const step_source::SourceSnapshot& source);
+    [[nodiscard]] Result<void> SpendTerminalDomainWork(std::size_t units = 1);
+    [[nodiscard]] Result<void> RecordTerminalDomainAction(std::size_t plan, TerminalDomainInterpretationAction action);
+    [[nodiscard]] Result<void> CheckTerminalDomainCompletion();
+    [[nodiscard]] Result<void> ClaimTerminalDomainPcurve(const std::string& sourceId);
+    std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const
+    {
+        return m_terminalDomainInterpretation;
+    }
 
 private:
 
@@ -65,6 +74,10 @@ private:
     // Private mutation stops before any snapshot can be published. All models
     // own the final const request-wide receipt, including after report release.
     std::shared_ptr<CircleVertexBudgetReceipt> m_circleVertexBudget;
+    std::shared_ptr<TerminalDomainInterpretationReceipt> m_terminalDomainInterpretation;
+    std::vector<bool> m_terminalDomainPlansApplied;
+    std::vector<std::string> m_terminalDomainPcurvesApplied;
+    bool m_terminalDomainSourceBound = false;
     [[nodiscard]] Result<void> Cancel();
 };
 } // namespace step_import::detail

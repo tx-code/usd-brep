@@ -67,6 +67,7 @@ struct ModelData
     std::optional<TopologyNormalizationInfo> topologyNormalization;
     std::optional<FaceOrientationRepairHistory> repairs;
     std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
+    std::shared_ptr<const TerminalDomainInterpretationReceipt> terminalDomainInterpretation;
     std::vector<std::size_t> repairVertexSources, repairEdgeSources; // Only private repair trials retain these comparison inventories.
     std::vector<SmEdge*> targetEdges; // Populated by explicit topology normalization; original source arrays remain separate.
     std::vector<SmVertex*> targetVertices;

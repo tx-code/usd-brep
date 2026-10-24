@@ -167,6 +167,10 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     {
         return tl::unexpected(std::move(repairs.error()));
     }
+    if (auto domains = m_execution.CheckTerminalDomainCompletion(); !domains)
+    {
+        return tl::unexpected(std::move(domains.error()));
+    }
     auto ready = m_execution.Check(Phase::NativeReady);
     if (!ready)
     {
@@ -175,7 +179,7 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     // Complete checks do not authenticate an assumed source schema or carrier.
     // Choose this result before either report and final arbitration; after
     // Commit the sole remaining action remains the owning transfer.
-    bool interpreted = false;
+    bool interpreted = m_report.terminalDomainInterpretation && !m_report.terminalDomainInterpretation->actions.empty();
     bool isolated = false;
     {
         // Release this temporary source owner before the commit region. The
@@ -184,7 +188,7 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
                               m_preparedDocument   ? m_preparedDocument->Source()->Part(0) :
                               m_preparedCollection ? m_preparedCollection->Source() :
                                                      m_prepared->Source();
-        interpreted = HasAppliedSourceInterpretation(*semantic);
+        interpreted = interpreted || HasAppliedSourceInterpretation(*semantic);
         isolated = semantic->SourceSelection() && !semantic->SourceSelection()->failures.empty();
     }
     bool repaired = m_prepared && m_prepared->Repairs().has_value();

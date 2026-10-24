@@ -137,6 +137,8 @@ public:
           m_faceSenseOverrides(std::move(overrides))
     {
         m_model->source = m_source;
+        m_model->terminalDomainInterpretation = m_execution.TerminalDomainInterpretation();
+        m_report.terminalDomainInterpretation = m_model->terminalDomainInterpretation;
         m_model->queryTolerance = Q(m_options.quality.queryMm);
         m_model->definitionToleranceMm = Q(m_options.quality.definitionMm);
         m_model->queryBudget = m_options.quality.queryMm;

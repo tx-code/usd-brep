@@ -47,6 +47,123 @@ void Number(Writer& writer, double value)
     }
     writer.Add(std::string_view(buffer.data(), static_cast<std::size_t>(end.ptr - buffer.data())));
 }
+void TerminalDomainJson(Writer& w, const Report& report)
+{
+    if (!report.terminalDomainInterpretation)
+    {
+        return;
+    }
+    const auto& receipt = *report.terminalDomainInterpretation;
+    w.Add(",\"source_domain_interpretation\":{\"source_sha256\":");
+    w.String(receipt.sourceSha256);
+    if (!report.terminalDomainReceiptRoot)
+    {
+        w.Add(",\"receipt_scope\":\"RequestRoot\"}");
+        return;
+    }
+    w.Add(
+        ",\"interpretation\":\"ExactTerminalNurbsContinuation\",\"strict_original_geometry_qualified\":false,\"source_definitions_rewritten\":false,\"source_uv_rewritten\":false,\"request_complete\":"
+    );
+    w.Bool(receipt.requestComplete);
+    w.Add(",\"maximum_surfaces\":");
+    w.Number(receipt.maximumSurfaces);
+    w.Add(",\"maximum_proof_controls\":");
+    w.Number(receipt.maximumProofControls);
+    w.Add(",\"maximum_proof_work_units\":");
+    w.Number(receipt.maximumProofWorkUnits);
+    w.Add(",\"proof_work_units\":");
+    w.Number(receipt.proofWorkUnits);
+    const auto lexemes = [&](const auto& values)
+    {
+        w.Add("[");
+        for (std::size_t i = 0; i < values.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            w.String(values[i]);
+        }
+        w.Add("]");
+    };
+    w.Add(",\"plans\":[");
+    for (std::size_t i = 0; i < receipt.plans.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& plan = receipt.plans[i];
+        w.Add("{\"source_surface\":");
+        w.String(plan.surfaceId);
+        w.Add(",\"source_pcurves\":");
+        lexemes(plan.pcurveIds);
+        w.Add(",\"u_source_parameter_range\":");
+        if (plan.u)
+        {
+            lexemes(*plan.u);
+        }
+        else
+        {
+            w.Add("null");
+        }
+        w.Add(",\"v_source_parameter_range\":");
+        if (plan.v)
+        {
+            lexemes(*plan.v);
+        }
+        else
+        {
+            w.Add("null");
+        }
+        w.Add("}");
+    }
+    w.Add("],\"actions\":[");
+    for (std::size_t i = 0; i < receipt.actions.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& action = receipt.actions[i];
+        w.Add("{\"source_surface\":");
+        w.String(action.sourceSurfaceId);
+        w.Add(",\"source_generator\":");
+        w.String(action.sourceGeneratorId);
+        w.Add(",\"source_use\":");
+        w.String(action.sourceUseId);
+        w.Add(",\"source_definition\":");
+        w.String(action.sourceDefinitionId);
+        w.Add(",\"reference\":");
+        w.String(action.reference);
+        w.Add(",\"original_domain_diagnostic\":");
+        if (action.originalDomainDiagnostic)
+        {
+            w.String(*action.originalDomainDiagnostic);
+        }
+        else
+        {
+            w.Add("null");
+        }
+        w.Add(",\"original_source_domain\":");
+        lexemes(action.originalSourceDomain);
+        w.Add(",\"target_native_domain\":[");
+        for (std::size_t j = 0; j < 4; ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            Number(w, action.targetNativeDomain[j]);
+        }
+        w.Add("],\"whole_new_domain_error_upper_mm\":");
+        Number(w, action.wholeNewDomainErrorUpperMm);
+        w.Add(",\"outside_source_semantics_assumed\":");
+        w.Bool(action.outsideSourceSemanticsAssumed);
+        w.Add("}");
+    }
+    w.Add("]}");
+}
 void SourceUseSegmentsJson(Writer& w, const std::vector<SourceUseSegmentOrigin>& uses)
 {
     w.Add("[");
@@ -1346,6 +1463,7 @@ void WriteReportJson(
                 w.Add("null");
             }
         }
+        TerminalDomainJson(w, report);
         if (report.supportDomainRestrictionRequested)
         {
             w.Add(",\"support_domain_restriction_requested\":true");

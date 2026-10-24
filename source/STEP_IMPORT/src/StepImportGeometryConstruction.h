@@ -4,6 +4,7 @@
 #include "StepImportExecution.h"
 #include "StepImportNativeStatus.h"
 #include "StepImportSourceFrame.h"
+#include "StepImportTerminalDomainConstruction.h"
 #include "StepImportVectorMath.h"
 
 #include <SmAxis2Placement.h>
@@ -65,7 +66,12 @@ class GeometryConstruction
 protected:
 
     GeometryConstruction(std::shared_ptr<const step_semantics::Snapshot> source, const Options& options, Report& report, Execution& execution)
-        : m_source(std::move(source)), m_fields(m_source->Bindings()), m_options(options), m_report(report), m_execution(execution)
+        : m_source(std::move(source)),
+          m_fields(m_source->Bindings()),
+          m_options(options),
+          m_report(report),
+          m_execution(execution),
+          m_terminalDomainCache(options.terminalDomainInterpretation ? MakeTerminalDomainCache() : nullptr)
     {
     }
     GeometryConstruction(const GeometryConstruction&) = default;
@@ -74,6 +80,7 @@ protected:
     const Options& m_options;
     Report& m_report;
     Execution& m_execution;
+    std::shared_ptr<TerminalDomainCache> m_terminalDomainCache;
     SmContext* m_context = nullptr;
     double scale = 0;
     bool Is(Index a, std::string_view type) const

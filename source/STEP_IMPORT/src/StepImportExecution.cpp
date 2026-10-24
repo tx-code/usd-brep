@@ -75,6 +75,19 @@ Execution::Execution(const Options& options, Report& report)
     m_report.processPrivateLimitBytes = options.nativeLimits.processPrivateBytes;
     m_report.hardMemoryLimitBytes = options.nativeLimits.hardMemoryBytes;
     m_report.deadlineConfigured = bool(options.execution.deadline);
+    if (options.terminalDomainInterpretation)
+    {
+        const auto& request = *options.terminalDomainInterpretation;
+        m_terminalDomainInterpretation = std::make_shared<TerminalDomainInterpretationReceipt>();
+        m_terminalDomainInterpretation->sourceSha256 = request.sourceSha256;
+        m_terminalDomainInterpretation->plans = request.surfaces;
+        m_terminalDomainInterpretation->maximumSurfaces = request.maximumSurfaces;
+        m_terminalDomainInterpretation->maximumProofControls = request.maximumProofControls;
+        m_terminalDomainInterpretation->maximumProofWorkUnits = request.maximumProofWorkUnits;
+        m_terminalDomainPlansApplied.resize(request.surfaces.size(), false);
+        m_report.terminalDomainInterpretation = m_terminalDomainInterpretation;
+        m_report.terminalDomainReceiptRoot = true;
+    }
     if (options.faceOrientationRepair)
     {
         m_repairEditsClaimed.resize(options.faceOrientationRepair->edits.size(), false);
