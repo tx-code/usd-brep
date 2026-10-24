@@ -1,5 +1,79 @@
 # Changelog
 
+## [2.0.0-alpha.1] - 2026-10-24
+
+Fork development preview; release preparation does not imply publication.
+
+The first independently versioned fork preview consolidates the native geometry SDK and explicitly scoped STEP development work. It keeps upstream history as provenance and requires a matching C++20 rebuild; no production or full STEP qualification is implied.
+
+### Added
+
+#### Checked STEP presentation and attached metadata
+
+Source inspection retains checked curve/point styles, predefined colours, scalar kinds, units, product-category hierarchies and visibility instructions. Explicit nongeometric interoperability may preserve audited attached metadata or unavailable text after ownership and physical-dependency exclusion checks. Original values, references and strict diagnostics remain available. Hidden geometry still belongs to complete import.
+
+#### Explicit source and carrier interpretations
+
+Applications can explicitly request the documented schema, carrier, text and registered-facet interpretations, including an input-SHA-bound AP214 interpretation. Immutable bytes, original identity/encoding diagnostics and assumptions remain owned by the source and accepted snapshots. Unverified OID tokens remain strings in valid JSON. Complete interpreted native results retain AcceptedUnderInterpretation separately from ordinary acceptance.
+
+#### Complete definitions, surface roles, collections and assemblies
+
+Explicit native entrypoints preserve independent material bodies, product definitions and assembly occurrences with owning local-coordinate views and placement lineage. General construction also preserves qualified OpenSurfaceModel and ClosedSurfaceModel roles, including free/shared-edge incidence and area centroids; a closed surface stays nonmaterial. Associated wireframe, points and supporting geometry retain separate source roles. Complete selected models and required nested reports share one final cancellation/budget/publication decision. Proven source selection may isolate only the documented unselected errors and returns AcceptedWithSourceIsolation when applied.
+
+#### Analytic, NURBS and source-master pcurve definitions
+
+Qualified general construction retains trimmed conic cuts, spherical and ring-toroidal definitions, finite B-spline revolutions including rational generators, and supported source-master pcurves as surface/curve compositions. Generator knots and source parameters remain meaningful; UV unit conversion follows the basis surface. Auxiliary geometric images are checked without assuming equal parameters between representations.
+
+#### Explicit bounded repairs and support-domain restriction
+
+Source-bound face-orientation and cylindrical-band plans retain their explicit role and displacement allowances, original input and owning repair evidence. Optional unused-support restriction preserves the original basis and parameters, requiring a closed chart and a continuous surface-difference bound on the whole retained rectangle. Regular trimmed horn/spindle toroidal regions additionally require a generator-radius bound away from the axis.
+
+#### Exact units, explicit quality and complete reports
+
+General import resolves supported conversion-based length chains with bounded exact arithmetic, retains unit evidence and applies physical scaling once. Working-tolerance studies remain explicit quality configurations. Complete reports retain failed-candidate tolerance observations and actual integration policy; optional CompactV2 factors repeated source data while preserving original bytes and diagnostics. Material classification retries grazing rays and returns Indeterminate when bounded attempts cannot establish a region.
+
+#### Optional native viewer and workbench
+
+The optional viewer/workbench loads native CAD through cancellable isolated workers, displays complete qualified definitions and associated geometry, and provides face/edge/native-vertex selection and measured queries. Local directory scans deduplicate content and keep per-file outcomes local. Explicit source/report controls are retained in worker evidence and qualification labels. Stale or failed loads preserve the prior accepted scene; lighting and current-hover reuse improve display behavior.
+
+#### Validation evidence and fork release preparation
+
+Synthetic corpus tools retain their frozen design inputs independently of evolving guidance. Independent OCCT volume comparison records adaptive integration at the requested precision and its native estimate. VERSION now drives the CMake numeric core and wheel prerelease identity. Release tooling captures a fixed Git cut, consolidates hashed changesets, preserves new/deferred notes and verifies prepared records without committing, tagging or publishing.
+
+### Changed
+
+#### SDK product and build compatibility
+
+The fork provides a C++20 SMLib/SM_API geometry SDK and Python modeling package for CAM. Default SDK builds use CMake and no longer include OpenUSD, Hydra, BrepArray schemas, scene converters or TBB. Retained shell/Repo commands configure, build and stage the same production SDK layout. The native portions of upstream 1.0.1 are integrated while the fork's source, ownership and publication contracts remain in force.
+
+#### Fixed STEP source profiles and compile-time catalogs
+
+Fixed STEP profiles use immutable C++20 catalogs and checked source bindings. Source inspection retains declared products, all registered material items, composite-curve dependencies, spherical declarations, pcurves and revolution prerequisites. It distinguishes source-rule rejection from unsupported native scope. The explicitly identified modified N916 subset retains its unverified edition and its own necessary clauses rather than inheriting a different profile's rules.
+
+### Fixed
+
+#### Derived UV, periodic correspondence and topology diagnostics
+
+Controlled UV construction preserves paired parameter semantics and avoids retry-driven tolerance growth in the admitted cases. Explicit periodic normalization retains original-basis parameters and rebuilds source-to-target correspondence after topology changes, including ring subdivisions, spherical poles and seam origins. Region checks retain all relevant bounds, and reports distinguish known orientation and source-vertex near-miss predicates from generic native refusal.
+
+#### Face integration and measured properties
+
+Face-property quadrature respects actual B-spline trim knot spans. Selected-group integration supports independent area and volume reference origins; general material imports reuse per-face results for model and reported face properties and avoid unused second moments. Bounds-midpoint origins improve moment conditioning. Explicit tighter integration settings retain requested/applied values and completion in native and viewer evidence.
+
+#### Curve bounds, validation and reusable numerical work
+
+Curve validation consumes curvature results and uses conservative coefficient bounds only for eligible runtime types, retaining numerical fallback. Tight bounds respect requested intervals and stationary turns, including arches after constant spans. Coincident-topology results no longer depend on requested output arrays. Surface coincidence pairs keep their own parameters/distances, torus domain checks use the correct analytic axis, and available point-solver evaluations are reused. Validation-only UV-trim creation preserves working tolerances.
+
+#### Healing and stitching error propagation
+
+Healer failures from degenerate-face squeezing/cleanup, seam movement/insertion and recursive property refresh propagate through the affected native/API paths. The optional native UV-trim stage returns failed face-generation status, and direct seam insertion preserves U/V errors. Single-Brep face stitching derives default tolerance from its actual target instead of crashing.
+
+#### Copy ownership, native archives and array moves
+
+Virtual composed-curve Copy propagates owned-child failures and reclaims unpublished candidates; STEP surface wrappers copy their definitions independently. Explicit native archive readers preserve stored geometry classes, parameter conventions and positive working tolerances instead of reclassifying or version-healing them. Polar caches retain real seam endpoint representatives. SmTArray adds move construction with transferred owned storage, independent borrowed storage and an empty reusable source.
+
+Source range: `3fd5b9548d19aa8c12c29bc9637a96d42a06f8a5..6032bdc3ef996c07348869007fab210a9ce8261b`.
+
 ## [1.0.1] - 2026-10-21
 ### Added
 - `SmApiUsdGeometryValidate.h`: run `SmBrep::AssertValid` on one BrepArray prim without changing the stage; `brep_geometry_validator` uses it.
