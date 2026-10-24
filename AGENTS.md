@@ -110,6 +110,10 @@ a focused local pass establishes its stated scope, not a full CI or production q
 
 - Follow `.clang-format`, `.editorconfig`, and `.gitattributes`: C++20, four-space indentation, UTF-8;
   Python uses PEP 8 with a 120-column limit. Preserve vendored upstream bytes and license/provenance notices.
+- Prefer `tl::expected` for failures requiring diagnostics and `std::optional` for normal absence. Proactively
+  migrate suitable handling encountered during the current C++ task, including necessary callers and focused validation,
+  without separate confirmation or a dedicated migration project. Preserve existing contracts and actual STL exception
+  behavior; propagate returned errors as values.
 - Critical code needs nearby rationale: explain invariants for nontrivial algorithms, schema interpretation,
   tolerances, ownership/mutation, cleanup/cancellation, concurrency, and resource boundaries. State relevant units,
   orientation/parameter conventions, and failure behavior; update stale comments with the code.
