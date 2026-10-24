@@ -93,6 +93,28 @@ void Validate(const Options& options)
                 throw std::invalid_argument("Cylindrical-band repair requires unique explicit face uses and original boundary pairs");
             }
         }
+        if (request.circleVertices)
+        {
+            const auto& vertices = *request.circleVertices;
+            // Geometry motion has separate explicit budgets. The old marker
+            // plan remains zero-displacement when this request is absent.
+            if (!vertices.maximumVertices || vertices.maximumVertices > options.sourceLimits.records || vertices.vertices.empty() ||
+                vertices.vertices.size() > vertices.maximumVertices || vertices.maximumDisplacementMm.Numerator() <= 0 ||
+                vertices.maximumTotalDisplacementMm.Numerator() <= 0 || options.quality.toleranceGrowthMm.Numerator() != 0 ||
+                options.quality.initialWorkToleranceMm != options.quality.maximumWorkToleranceMm)
+            {
+                throw std::invalid_argument("Circle vertex correction requires explicit positive movement budgets and fixed native tolerance");
+            }
+            std::set<std::tuple<std::string, std::string, std::string>> vertexUses;
+            for (const auto& vertex : vertices.vertices)
+            {
+                if (!id(vertex.definitionId) || !id(vertex.shapeId) || !id(vertex.vertexId) || !id(vertex.circleId) ||
+                    !vertexUses.emplace(vertex.definitionId, vertex.shapeId, vertex.vertexId).second)
+                {
+                    throw std::invalid_argument("Circle vertex correction requires unique explicit definition/shape/vertex/circle identities");
+                }
+            }
+        }
     }
     if (options.complexMappingInterpretation != step_semantics::ComplexMappingInterpretation::DeclaredOnly &&
         (options.complexMappingInterpretation != step_semantics::ComplexMappingInterpretation::RegisteredFacetNames || !options.generalBrep ||

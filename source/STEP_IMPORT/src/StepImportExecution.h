@@ -3,6 +3,8 @@
 #pragma once
 #include "StepImportResult.h"
 
+#include <limits>
+
 namespace step_import::detail
 {
 enum class NativeCallAccounting
@@ -39,6 +41,15 @@ public:
     [[nodiscard]] Result<void> SpendRepairProof(std::size_t products);
     [[nodiscard]] Result<void> ClaimCylindricalBandRepairs(const std::vector<std::size_t>& indices);
     [[nodiscard]] Result<void> SpendCylindricalBandProof();
+    [[nodiscard]] Result<void> ClaimCircleVertexCorrections(
+        const std::vector<std::size_t>& indices,
+        const std::vector<CircleVertexCorrectionEvidence>& evidence
+    );
+    std::shared_ptr<const CircleVertexBudgetReceipt> CircleVertexBudget() const
+    {
+        return m_circleVertexBudget;
+    }
+    [[nodiscard]] Result<void> TightenCircleVertexProtection(double lowerMm);
 
 private:
 
@@ -48,6 +59,12 @@ private:
     bool m_committed = false;
     std::vector<bool> m_repairEditsClaimed;
     std::vector<bool> m_cylindricalBandRepairsClaimed;
+    std::vector<bool> m_circleVerticesClaimed;
+    double m_circleVertexMovementUpperMm = 0;
+    double m_circleVertexProtectionLowerMm = std::numeric_limits<double>::infinity();
+    // Private mutation stops before any snapshot can be published. All models
+    // own the final const request-wide receipt, including after report release.
+    std::shared_ptr<CircleVertexBudgetReceipt> m_circleVertexBudget;
     [[nodiscard]] Result<void> Cancel();
 };
 } // namespace step_import::detail

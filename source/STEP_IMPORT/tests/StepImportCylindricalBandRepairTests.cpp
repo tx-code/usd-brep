@@ -136,6 +136,58 @@ int main(int argc, char** argv)
         );
         std::filesystem::create_directories(argv[2]);
         Archive(*model, std::filesystem::path(argv[2]) / "repaired.smb");
+        auto vertexSource = source;
+        Replace(vertexSource, "#102=CARTESIAN_POINT('',(0.,3.,0.))", "#102=CARTESIAN_POINT('',(0.,3.0001,0.))");
+        auto vertexOptions = Config(vertexSource);
+        vertexOptions.cylindricalBandRepair->circleVertices = CircleVertexCorrectionRequest{ 1,
+                                                                                             Fraction{ 1, 1000 },
+                                                                                             Fraction{ 1, 1000 },
+                                                                                             { { "7", "21", "120", "110" } } };
+        auto vertexResult = ImportBytes(vertexSource, vertexOptions);
+        Require(vertexResult.status == Status::AcceptedWithRepairs && vertexResult.model, "explicit circle vertex projection");
+        const auto vertexReportSize = vertexResult.report.json.size();
+        const auto vertexModel = vertexResult.model;
+        vertexResult = {};
+        const auto vertexHistory = vertexModel->CylindricalBandRepairs();
+        Require(
+            vertexHistory && !vertexHistory->definitionsIdentical && vertexHistory->workingTolerancesIdentical &&
+                vertexHistory->curvesAndSurfacesIdentical && vertexHistory->unrequestedVerticesIdentical &&
+                vertexHistory->circleVertices.size() == 1 && vertexHistory->circleVertexBudget &&
+                vertexHistory->circleVertexBudget->requestComplete && vertexHistory->circleVertexBudget->correctedVertices == 1 &&
+                vertexModel->Source()->Source().Bytes() == vertexSource,
+            "owning displaced-vertex evidence survives outcome/report disposal"
+        );
+        const auto& changedVertex = vertexHistory->circleVertices[0];
+        Require(
+            changedVertex.originalMm == Point{ 0, 3.0001, 0 } && changedVertex.sourcePointId == "102" && changedVertex.edit.vertexId == "120" &&
+                changedVertex.projectionErrorUpperMm < 1e-9 && changedVertex.displacementUpperMm > 0.0001 &&
+                changedVertex.displacementUpperMm < 0.000101,
+            "original native point and bounded correction retain source identity"
+        );
+        step_import_test::Near(*vertexModel->MaterialVolumeMm3(), 63 * std::numbers::pi, 1e-4, "repaired analytic cylinder volume");
+        Require(vertexModel->ClassifyMaterial({ 0, 0, 3 }) == MaterialPointClass::Inside, "repaired native material query");
+        Archive(*vertexModel, std::filesystem::path(argv[2]) / "vertex-repaired.smb");
+        auto vertexCap = vertexOptions;
+        vertexCap.nativeLimits.reportBytes = vertexReportSize - 1;
+        const auto vertexOverflow = ImportBytes(vertexSource, vertexCap);
+        Require(
+            vertexOverflow.status == Status::ResourceLimit && !vertexOverflow.model && vertexOverflow.report.candidateDiscarded,
+            "required displacement report cannot be dropped to publish"
+        );
+        for (const auto phase : { Phase::BeforeRepair, Phase::RepairReady, Phase::BeforeReport, Phase::BeforeCommit })
+        {
+            auto cancel = vertexOptions;
+            cancel.execution.control = std::make_shared<ImportControl>();
+            cancel.execution.progress = [&](Progress p)
+            {
+                if (p.phase == phase)
+                {
+                    cancel.execution.control->RequestCancel();
+                }
+            };
+            const auto stopped = ImportBytes(vertexSource, cancel);
+            Require(stopped.status == Status::Cancelled && !stopped.model, "circle vertex cancellation discards the full candidate");
+        }
         auto shared = source;
         shared.insert(
             shared.rfind("ENDSEC;"),
@@ -164,6 +216,36 @@ int main(int argc, char** argv)
                 scoped && scoped->actions.size() == 1 && scoped->originalSourceDiagnostics.size() == 1 &&
                     scoped->actions[0].edit.definitionId == (i == 0 ? "7" : "902"),
                 "shared entity failures remain owning evidence for each scoped action"
+            );
+        }
+        auto sharedVertexSource = shared;
+        Replace(sharedVertexSource, "#102=CARTESIAN_POINT('',(0.,3.,0.))", "#102=CARTESIAN_POINT('',(0.,3.0001,0.))");
+        auto sharedVertexOptions = Config(sharedVertexSource);
+        sharedVertexOptions.cylindricalBandRepair->maximumFaces = 2;
+        sharedVertexOptions.cylindricalBandRepair->maximumBoundEdits = 4;
+        sharedVertexOptions.cylindricalBandRepair->faces.push_back({ "902", "21", "182", { "172", "173" } });
+        sharedVertexOptions.cylindricalBandRepair->circleVertices = CircleVertexCorrectionRequest{ 2,
+                                                                                                   Fraction{ 1, 1000 },
+                                                                                                   Fraction{ 15, 100000 },
+                                                                                                   { { "7", "21", "120", "110" },
+                                                                                                     { "902", "21", "120", "110" } } };
+        const auto sharedVertexFailure = ImportDocumentBytes(sharedVertexSource, sharedVertexOptions);
+        Require(
+            !sharedVertexFailure.document && sharedVertexFailure.report.json.find("CircleVertexCumulativeMovementBudget") != std::string::npos,
+            "later definition cannot restart the original request's cumulative movement budget"
+        );
+        sharedVertexOptions.cylindricalBandRepair->circleVertices->maximumTotalDisplacementMm = Fraction{ 1, 1000 };
+        auto sharedVertexResult = ImportDocumentBytes(sharedVertexSource, sharedVertexOptions);
+        Require(sharedVertexResult.status == Status::AcceptedWithRepairs && sharedVertexResult.document, "complete shared vertex plan");
+        const auto sharedVertexDocument = sharedVertexResult.document;
+        sharedVertexResult = {};
+        for (std::size_t i = 0; i < 2; ++i)
+        {
+            const auto scoped = sharedVertexDocument->Body(i)->CylindricalBandRepairs();
+            Require(
+                scoped && scoped->circleVertices.size() == 1 && scoped->circleVertexBudget && scoped->circleVertexBudget->correctedVertices == 2 &&
+                    scoped->circleVertexBudget->requestComplete && scoped->circleVertexBudget->cumulativeDisplacementUpperMm > 0.0002,
+                "each owning definition retains the final request-wide vertex budget receipt"
             );
         }
         auto nested = source;

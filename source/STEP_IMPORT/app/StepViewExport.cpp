@@ -363,7 +363,43 @@ void Publish(
                     w.Add(",\"repair_applied\":true,\"repaired_face_count\":");
                     w.Number(repair.first);
                     w.Add(",\"repair_kind\":");
-                    w.String(report.cylindricalBandRepairRequest ? "CylindricalBandRoles" : "FaceOrientation");
+                    w.String(
+                        report.cylindricalBandRepairRequest && report.cylindricalBandRepairRequest->circleVertices ?
+                            "CylindricalBandWithCircleVertices" :
+                        report.cylindricalBandRepairRequest ? "CylindricalBandRoles" :
+                                                              "FaceOrientation"
+                    );
+                    if (report.circleVertexBudget)
+                    {
+                        w.Add(",\"repaired_vertex_count\":");
+                        w.Number(report.circleVertexBudget->correctedVertices);
+                        const auto& request = *report.cylindricalBandRepairRequest->circleVertices;
+                        w.Add(",\"circle_vertex_repair\":{\"source_sha256\":");
+                        w.String(report.cylindricalBandRepairRequest->sourceSha256);
+                        w.Add(",\"maximum_vertices\":");
+                        w.Number(request.maximumVertices);
+                        const auto fraction = [&](step_import::Fraction value)
+                        {
+                            w.String(std::to_string(value.Numerator()) + "/" + std::to_string(value.Denominator()));
+                        };
+                        w.Add(",\"maximum_displacement_mm\":");
+                        fraction(request.maximumDisplacementMm);
+                        w.Add(",\"maximum_total_displacement_mm\":");
+                        fraction(request.maximumTotalDisplacementMm);
+                        w.Add(",\"request_complete\":");
+                        w.Bool(report.circleVertexBudget->requestComplete);
+                        w.Add(",\"vertices\":[");
+                        for (std::size_t i = 0; i < request.vertices.size(); ++i)
+                        {
+                            if (i)
+                            {
+                                w.Add(",");
+                            }
+                            const auto& edit = request.vertices[i];
+                            w.String(edit.definitionId + ":" + edit.shapeId + ":" + edit.vertexId + ":" + edit.circleId);
+                        }
+                        w.Add("]}");
+                    }
                     w.Add(",\"source_interpretation_applied\":");
                     w.Bool(repair.second);
                 }

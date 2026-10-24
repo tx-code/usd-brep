@@ -17,6 +17,11 @@ struct CylindricalBandRepairTrial;
     Execution& execution
 );
 bool NeutralizesCylindricalBandBounds(const std::shared_ptr<CylindricalBandRepairTrial>& trial, std::size_t face);
+[[nodiscard]] Result<void> RecordCircleVertexCorrections(
+    const std::shared_ptr<CylindricalBandRepairTrial>& trial,
+    std::vector<CircleVertexCorrectionEvidence> evidence,
+    std::shared_ptr<const CircleVertexBudgetReceipt> budget
+);
 [[nodiscard]] Result<void> CaptureCylindricalBandDefinitions(
     const std::shared_ptr<CylindricalBandRepairTrial>& trial,
     std::shared_ptr<ModelData> model,

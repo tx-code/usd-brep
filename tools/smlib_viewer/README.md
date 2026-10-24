@@ -100,6 +100,18 @@ allow arbitrary region repair, seam splitting or tolerance growth. The fixed
 plan is limited to one explicit file; other repair/selection/normalization plans
 cannot be combined with this pilot. See the native contract for exact scope.
 
+The same explicit plan may add `--max-band-circle-vertices N`,
+`--max-band-vertex-move-mm DECIMAL`, `--max-band-total-vertex-move-mm DECIMAL`,
+and repeated `--project-band-circle-vertex DEFINITION:SHAPE:VERTEX:CIRCLE`.
+This separately authorizes bounded correction of named self-loop circle vertices;
+the ordinary boundary-role plan still allows zero movement. Original source,
+curve/surface definitions and fixed native tolerances remain. Unknown nearest-point,
+thin-feature or cumulative-budget evidence refuses the complete candidate.
+The worker binds the source identity, exact budgets and complete vertex plan to
+the scene; missing/mismatched receipts prevent adoption. HUD shows separate
+boundary-role and vertex counts, and native face/edge/vertex picking remains.
+This is a one-file development repair, with no automatic plan or scan retry.
+
 `--complex-mapping-interpretation RegisteredFacetNames` explicitly permits a
 nonstandard complex-facet order only after complete registered name/field binding
 and all later source/native checks. Original source and diagnostics remain; an

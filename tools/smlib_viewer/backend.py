@@ -14,7 +14,7 @@ from PySide6 import QtCore
 from .progress import Progress, ProgressReader
 from .process_guard import ProcessGuard
 from .interpretation import validate, complex_mapping_arguments, validate_complex_mapping_receipt
-from .repair import arguments as repair_arguments
+from .repair import arguments as repair_arguments, validate_vertex_manifest
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
 from .integration import arguments as integration_arguments, validate_receipt as validate_integration_receipt
@@ -52,6 +52,10 @@ class ImportSettings:
     maximum_band_bound_edits: int = 0
     maximum_band_proof_operations: int = 0
     cylindrical_band_repairs: tuple[str, ...] = ()
+    maximum_band_circle_vertices: int = 0
+    maximum_band_vertex_move_mm: str = ''
+    maximum_band_total_vertex_move_mm: str = ''
+    band_circle_vertices: tuple[str, ...] = ()
     assembly: bool = False
     unreferenced_placement_policy: str = 'Reject'
     integration_relative_accuracy: float | None = None
@@ -269,6 +273,7 @@ class SceneLoader(QtCore.QObject):
                 validate_integration_receipt(manifest, self.settings)
                 validate_complex_mapping_receipt(manifest, self.settings)
                 validate_assembly_request(manifest, self.settings)
+                validate_vertex_manifest(manifest, self.settings)
             import pyvista as pv
             import numpy as np
             if manifest['format'] == 'brep-view-scene.v6':

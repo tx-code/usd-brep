@@ -1597,7 +1597,11 @@ void DevelopmentContract(
         const auto history = result.model->CylindricalBandRepairs();
         Require(
             history && history->sourceSha256 == bandRepair->sourceSha256 && history->actions.size() == bandRepair->faces.size() &&
-                history->definitionsIdentical && history->workingTolerancesIdentical,
+                history->workingTolerancesIdentical &&
+                (bandRepair->circleVertices ?
+                     !history->definitionsIdentical && history->curvesAndSurfacesIdentical && history->unrequestedVerticesIdentical &&
+                         history->circleVertexBudget && history->circleVertexBudget->requestComplete :
+                     history->definitionsIdentical),
             "development cylindrical-band repair evidence"
         );
     }

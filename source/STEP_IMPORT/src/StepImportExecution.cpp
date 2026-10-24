@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
 
+#include "StepImportInterval.h"
+
 #include <algorithm>
 #include <new>
 #ifdef _WIN32
@@ -80,6 +82,16 @@ Execution::Execution(const Options& options, Report& report)
     if (options.cylindricalBandRepair)
     {
         m_cylindricalBandRepairsClaimed.resize(options.cylindricalBandRepair->faces.size(), false);
+        if (options.cylindricalBandRepair->circleVertices)
+        {
+            const auto& request = *options.cylindricalBandRepair->circleVertices;
+            m_circleVerticesClaimed.resize(request.vertices.size(), false);
+            m_circleVertexBudget = std::make_shared<CircleVertexBudgetReceipt>();
+            m_circleVertexBudget->maximumVertices = request.maximumVertices;
+            m_circleVertexBudget->maximumDisplacementMm = request.maximumDisplacementMm;
+            m_circleVertexBudget->maximumTotalDisplacementMm = request.maximumTotalDisplacementMm;
+            m_report.circleVertexBudget = m_circleVertexBudget;
+        }
     }
 }
 [[nodiscard]] Result<void> Execution::ClaimRepairEdits(const std::vector<std::size_t>& indices)
@@ -128,8 +140,102 @@ Execution::Execution(const Options& options, Report& report)
     }
     return {};
 }
+Result<void> Execution::ClaimCircleVertexCorrections(
+    const std::vector<std::size_t>& indices,
+    const std::vector<CircleVertexCorrectionEvidence>& evidence
+)
+{
+    if (m_committed || indices.empty() || indices.size() != evidence.size() || !m_options.cylindricalBandRepair ||
+        !m_options.cylindricalBandRepair->circleVertices)
+    {
+        return tl::unexpected(
+            Failure{ Status::Unsupported, "CircleVertexCorrectionScopeConflict", "Complete scoped vertex evidence required", {}, "Repair" }
+        );
+    }
+    const auto& request = *m_options.cylindricalBandRepair->circleVertices;
+    double total = m_circleVertexMovementUpperMm, protection = m_circleVertexProtectionLowerMm;
+    try
+    {
+        for (std::size_t i = 0; i < indices.size(); ++i)
+        {
+            if (indices[i] >= m_circleVerticesClaimed.size() || m_circleVerticesClaimed[indices[i]] || (i && indices[i] <= indices[i - 1]) ||
+                !(evidence[i].displacementUpperMm > 0) || !std::isfinite(evidence[i].displacementUpperMm) ||
+                !(evidence[i].localProtectionLowerMm > 0) || !std::isfinite(evidence[i].localProtectionLowerMm))
+            {
+                return tl::unexpected(
+                    Failure{ Status::Unsupported, "CircleVertexCorrectionScopeConflict", "Every planned vertex use applies once", {}, "Repair" }
+                );
+            }
+            total = Up(total + evidence[i].displacementUpperMm);
+            protection = std::min(protection, evidence[i].localProtectionLowerMm);
+        }
+        const double localLimit = Down(protection / 100.);
+        if (total > Enclose(request.maximumTotalDisplacementMm).low || total > localLimit)
+        {
+            return tl::unexpected(
+                Failure{ Status::Indeterminate,
+                         "CircleVertexCumulativeMovementBudget",
+                         "Original-model cumulative movement/protection budget exceeded",
+                         {},
+                         "Repair" }
+            );
+        }
+    }
+    catch (const std::overflow_error&)
+    {
+        return tl::unexpected(
+            Failure{ Status::Indeterminate, "CircleVertexCumulativeNumericUnestablished", "Finite cumulative vertex evidence required", {}, "Repair" }
+        );
+    }
+    catch (const std::domain_error&)
+    {
+        return tl::unexpected(
+            Failure{ Status::Indeterminate, "CircleVertexCumulativeNumericUnestablished", "Finite cumulative vertex evidence required", {}, "Repair" }
+        );
+    }
+    for (const auto index : indices)
+    {
+        m_circleVerticesClaimed[index] = true;
+    }
+    m_circleVertexMovementUpperMm = total;
+    m_circleVertexProtectionLowerMm = protection;
+    m_circleVertexBudget->correctedVertices += evidence.size();
+    m_circleVertexBudget->cumulativeDisplacementUpperMm = total;
+    m_circleVertexBudget->minimumProtectionLowerMm = protection;
+    return {};
+}
+[[nodiscard]] Result<void> Execution::TightenCircleVertexProtection(double lowerMm)
+{
+    if (m_committed || !m_circleVertexBudget || !(lowerMm > 0) || !std::isfinite(lowerMm) || m_circleVertexMovementUpperMm > Down(lowerMm / 100.))
+    {
+        return tl::unexpected(
+            Failure{ Status::Indeterminate,
+                     "CircleVertexSurfaceProtectionUnestablished",
+                     "Nonparticipating surface clearance must protect cumulative original-model movement",
+                     {},
+                     "Repair" }
+        );
+    }
+    m_circleVertexProtectionLowerMm = std::min(m_circleVertexProtectionLowerMm, lowerMm);
+    m_circleVertexBudget->minimumProtectionLowerMm = m_circleVertexProtectionLowerMm;
+    return {};
+}
 [[nodiscard]] Result<void> Execution::CheckRepairCompletion()
 {
+    if (std::find(m_circleVerticesClaimed.begin(), m_circleVerticesClaimed.end(), false) != m_circleVerticesClaimed.end())
+    {
+        return tl::unexpected(
+            Failure{ Status::Unsupported,
+                     "CircleVertexCorrectionNotApplied",
+                     "The complete selected request must apply every vertex correction",
+                     {},
+                     "Repair" }
+        );
+    }
+    if (m_circleVertexBudget)
+    {
+        m_circleVertexBudget->requestComplete = true;
+    }
     if (std::find(m_repairEditsClaimed.begin(), m_repairEditsClaimed.end(), false) != m_repairEditsClaimed.end())
     {
         return tl::unexpected(

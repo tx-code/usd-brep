@@ -842,9 +842,23 @@ void WriteReportJson(
         }
         if (report.cylindricalBandRepairRequest || report.cylindricalBandRepairs)
         {
+            const auto vertexRequest = report.cylindricalBandRepairRequest && report.cylindricalBandRepairRequest->circleVertices ?
+                                           &*report.cylindricalBandRepairRequest->circleVertices :
+                                           nullptr;
+            w.Add(",\"cylindrical_band_repair\":{\"configuration\":");
+            w.String(vertexRequest ? "ExactOrientedCylindricalBandWithCircleVertices-0.1" : "ExactOrientedCylindricalBand-0.1");
             w.Add(
-                ",\"cylindrical_band_repair\":{\"configuration\":\"ExactOrientedCylindricalBand-0.1\",\"source_region_proof\":\"ExactCoaxialEqualRadiusOrientedWholeCircles\",\"effective_outer_markers\":\"None\",\"geometry_displacement_allowance_mm\":0,\"tolerance_growth_allowance_mm\":0"
+                ",\"source_region_proof\":\"ExactCoaxialEqualRadiusOrientedWholeCircles\",\"effective_outer_markers\":\"None\",\"geometry_displacement_allowance_mm\":"
             );
+            if (vertexRequest)
+            {
+                FractionJson(w, vertexRequest->maximumDisplacementMm);
+            }
+            else
+            {
+                w.Add("0");
+            }
+            w.Add(",\"tolerance_growth_allowance_mm\":0");
             if (report.cylindricalBandRepairRequest)
             {
                 const auto& request = *report.cylindricalBandRepairRequest;
@@ -858,6 +872,55 @@ void WriteReportJson(
                 w.Number(request.maximumProofOperations);
                 w.Add(",\"proof_operations_spent\":");
                 w.Number(report.cylindricalBandProofOperations);
+                if (vertexRequest)
+                {
+                    w.Add(",\"circle_vertex_request\":{\"maximum_vertices\":");
+                    w.Number(vertexRequest->maximumVertices);
+                    w.Add(",\"maximum_displacement_mm\":");
+                    FractionJson(w, vertexRequest->maximumDisplacementMm);
+                    w.Add(",\"maximum_total_displacement_mm\":");
+                    FractionJson(w, vertexRequest->maximumTotalDisplacementMm);
+                    w.Add(",\"local_protection_ratio\":\"1/100\",\"vertices\":[");
+                    for (std::size_t i = 0; i < vertexRequest->vertices.size(); ++i)
+                    {
+                        if (i)
+                        {
+                            w.Add(",");
+                        }
+                        const auto& e = vertexRequest->vertices[i];
+                        w.Add("{\"definition_id\":");
+                        w.String(e.definitionId);
+                        w.Add(",\"shape_id\":");
+                        w.String(e.shapeId);
+                        w.Add(",\"vertex_id\":");
+                        w.String(e.vertexId);
+                        w.Add(",\"circle_id\":");
+                        w.String(e.circleId);
+                        w.Add("}");
+                    }
+                    w.Add("]}");
+                }
+            }
+            const auto receipt = report.circleVertexBudget     ? report.circleVertexBudget :
+                                 report.cylindricalBandRepairs ? report.cylindricalBandRepairs->circleVertexBudget :
+                                                                 nullptr;
+            if (receipt)
+            {
+                w.Add(",\"circle_vertex_budget\":{\"maximum_vertices\":");
+                w.Number(receipt->maximumVertices);
+                w.Add(",\"corrected_vertices\":");
+                w.Number(receipt->correctedVertices);
+                w.Add(",\"maximum_displacement_mm\":");
+                FractionJson(w, receipt->maximumDisplacementMm);
+                w.Add(",\"maximum_total_displacement_mm\":");
+                FractionJson(w, receipt->maximumTotalDisplacementMm);
+                w.Add(",\"cumulative_displacement_upper_mm\":");
+                Number(w, receipt->cumulativeDisplacementUpperMm);
+                w.Add(",\"minimum_protection_lower_mm\":");
+                Number(w, receipt->minimumProtectionLowerMm);
+                w.Add(",\"request_complete\":");
+                w.Bool(receipt->requestComplete);
+                w.Add("}");
             }
             w.Add(",\"evidence\":");
             if (report.cylindricalBandRepairs)
@@ -871,6 +934,60 @@ void WriteReportJson(
                 w.Bool(history.workingTolerancesIdentical);
                 w.Add(",\"source_interpretation_applied\":");
                 w.Bool(history.sourceInterpretationApplied);
+                if (!history.circleVertices.empty())
+                {
+                    w.Add(",\"native_curves_and_surfaces_identical\":");
+                    w.Bool(history.curvesAndSurfacesIdentical);
+                    w.Add(",\"unrequested_vertices_identical\":");
+                    w.Bool(history.unrequestedVerticesIdentical);
+                    w.Add(",\"circle_vertices\":[");
+                    for (std::size_t i = 0; i < history.circleVertices.size(); ++i)
+                    {
+                        if (i)
+                        {
+                            w.Add(",");
+                        }
+                        const auto& e = history.circleVertices[i];
+                        w.Add("{\"definition_id\":");
+                        w.String(e.edit.definitionId);
+                        w.Add(",\"shape_id\":");
+                        w.String(e.edit.shapeId);
+                        w.Add(",\"vertex_id\":");
+                        w.String(e.edit.vertexId);
+                        w.Add(",\"circle_id\":");
+                        w.String(e.edit.circleId);
+                        w.Add(",\"source_point_id\":");
+                        w.String(e.sourcePointId);
+                        w.Add(",\"original_native_mm\":[");
+                        for (std::size_t axis = 0; axis < 3; ++axis)
+                        {
+                            if (axis)
+                            {
+                                w.Add(",");
+                            }
+                            Number(w, e.originalMm[axis]);
+                        }
+                        w.Add("],\"corrected_mm\":[");
+                        for (std::size_t axis = 0; axis < 3; ++axis)
+                        {
+                            if (axis)
+                            {
+                                w.Add(",");
+                            }
+                            Number(w, e.correctedMm[axis]);
+                        }
+                        w.Add("],\"displacement_upper_mm\":");
+                        Number(w, e.displacementUpperMm);
+                        w.Add(",\"projection_error_upper_mm\":");
+                        Number(w, e.projectionErrorUpperMm);
+                        w.Add(",\"original_gap_upper_mm\":");
+                        Number(w, e.originalGapUpperMm);
+                        w.Add(",\"local_protection_lower_mm\":");
+                        Number(w, e.localProtectionLowerMm);
+                        w.Add("}");
+                    }
+                    w.Add("]");
+                }
                 w.Add(",\"vertices_compared\":");
                 w.Number(history.verticesCompared);
                 w.Add(",\"edges_compared\":");
@@ -1129,7 +1246,15 @@ void WriteReportJson(
             w.Add(",\"source_unit_declaration_conforming\":false");
         }
         w.Add(",\"repair\":");
-        w.String(report.cylindricalBandRepairs ? "ExactOrientedCylindricalBand-0.1" : report.repairs ? "FaceOrientationZeroGeometry-0.1" : "None");
+        w.String(
+            report.circleVertexBudget && report.circleVertexBudget->requestComplete && IsAcceptedReportStatus(status) ?
+                "ExactOrientedCylindricalBandWithCircleVertices-0.1" :
+            report.cylindricalBandRepairs ?
+                (!report.cylindricalBandRepairs->circleVertices.empty() ? "ExactOrientedCylindricalBandWithCircleVertices-0.1" :
+                                                                          "ExactOrientedCylindricalBand-0.1") :
+            report.repairs ? "FaceOrientationZeroGeometry-0.1" :
+                             "None"
+        );
         w.Add(",\"quality_id\":");
         w.String(quality.id);
         if (report.numericalIntegration)

@@ -254,8 +254,12 @@ class ViewerWindow(QtWidgets.QMainWindow):
             if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
             if metadata.get('repair_applied'):
-                kind = '周期边界角色' if metadata.get('repair_kind') == 'CylindricalBandRoles' else '面朝向'
-                policy += f"\n已修复 {metadata['repaired_face_count']} 处{kind}"
+                if metadata.get('repair_kind') == 'CylindricalBandWithCircleVertices':
+                    policy += (f"\n已修复 {metadata['repaired_face_count']} 处周期边界角色"
+                               f" · {metadata['repaired_vertex_count']} 个圆边顶点")
+                else:
+                    kind = '周期边界角色' if metadata.get('repair_kind') == 'CylindricalBandRoles' else '面朝向'
+                    policy += f"\n已修复 {metadata['repaired_face_count']} 处{kind}"
                 if metadata.get('source_interpretation_applied'):
                     policy += '\n源解释模式 · 条件接受'
             if metadata.get('applied_unit_interpretation') == 'VerifiedExplicitUnitDimensions':
@@ -571,6 +575,11 @@ def run(options):
                               maximum_band_bound_edits=getattr(options, 'maximum_band_bound_edits', 0),
                               maximum_band_proof_operations=getattr(options, 'maximum_band_proof_operations', 0),
                               cylindrical_band_repairs=tuple(getattr(options, 'cylindrical_band_repairs', ())),
+                              maximum_band_circle_vertices=getattr(options, 'maximum_band_circle_vertices', 0),
+                              maximum_band_vertex_move_mm=getattr(options, 'maximum_band_vertex_move_mm', ''),
+                              maximum_band_total_vertex_move_mm=getattr(
+                                  options, 'maximum_band_total_vertex_move_mm', ''),
+                              band_circle_vertices=tuple(getattr(options, 'band_circle_vertices', ())),
                               assembly=getattr(options, 'assembly', False),
                               unreferenced_placement_policy=getattr(options, 'unreferenced_placement_policy', 'Reject'),
                               integration_relative_accuracy=getattr(options, 'integration_relative_accuracy', None))

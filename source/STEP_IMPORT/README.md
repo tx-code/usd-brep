@@ -209,6 +209,41 @@ own 原始错误、原件身份、逐面证明身份与三维／容差比较结�
 
 参数为 `--band-repair-source-sha256 HASH --max-band-repair-faces N --max-band-bound-edits N`
 `--max-band-proof-operations N`，重复 `--repair-cylindrical-band DEFINITION:SHAPE:FACE:BOUND0:BOUND1`。
+
+### 同一计划中的受限圆边顶点修复
+
+`CylindricalBandRepairRequest.circleVertices` 显式选择
+`ExactOrientedCylindricalBandWithCircleVertices-0.1`，并不改变上述角色修复的零位移契约。
+应用必须另行给出最大顶点使用数、逐顶点与全请求累计位移的精确毫米预算，以及每个
+`definitionId / shapeId / vertexId / circleId`；每项使用必须实际执行一次。没有生产默认值，
+也不会按失败自动生成计划。质量配置必须保持原生工作容差固定、增长预算为零。
+
+首版只支持同一受计划约束形状中的自环整圆边：完整反向引用证明该源顶点的全部使用，
+要求恰好一条相同 CIRCLE 的闭合边，不能绕过另一条入射曲线、另一个形状或未知使用。
+用已构建三维边的原参数端点评估值作为候选，不拟合、重建或改写定义曲线／曲面。
+针对保留的原生 binary64 圆定义，以向外区间证明径向投影唯一、原缺口确实超出独立的
+`definitionMm`、候选距唯一最近点不超过该定义预算，并分别检查原缺口、实际移动、闭合端点
+及显式位移预算。不能把普通求值舍入差当成必要修复。原 STEP 字节、数值、单位和顶点身份不改写。
+
+局部保护始终针对修前坐标：除圆半径外，检查全部其他原顶点、全部其他定义边的保守连续距离，
+以及不使用该顶点的全部曲面。整圆、无限直线、正权重 B 样条控制凸包提供边的距离下界；
+正权重曲面控制凸包与受支持解析面提供曲面的下界，解析界另留定义误差余量。
+原缺口、逐项位移和固定工作容差均不得超过可靠尺度的 1%；全请求累计位移也受各体最小
+保护尺度的 1% 和独立累计预算约束。多个体／定义不能重置预算；曲面内部的薄壁不能仅凭
+远处边界放行。缺少支持或正距离证明时返回 `Indeterminate`，不使用采样或整体模型尺寸兜底。
+
+修复在私有候选上进行，随后仍执行原有完整区域、配对、拓扑、原生验证、量测与发布检查。
+owning 历史保留每个原点／候选点、原缺口／位移／投影误差上界、局部尺度下界和全请求最终
+预算凭据；`definitionsIdentical=false`，曲线／曲面及未请求顶点的一致性与工作容差另行记录。
+`requestComplete` 只描述编辑账本完成，不能代替最终导入成功。取消或任一检查／预算失败不发布模型。
+这些界针对已表示的原生数据，不授予完整 AP、连续源十进制换算或 UV 误差证明。
+
+CLI／查看器在原计划后追加 `--max-band-circle-vertices N --max-band-vertex-move-mm DECIMAL`
+`--max-band-total-vertex-move-mm DECIMAL`，并重复
+`--project-band-circle-vertex DEFINITION:SHAPE:VERTEX:CIRCLE`。预算通过精确十进制传输，
+不得隐式使用 consistency、源 uncertainty 或工作容差作为位移授权。与装配、选择、额外修复／
+周期分面组合的限制保持不变。新增内部 C++ 公共结构布局要求 STEP 库与全部消费者一起重建；
+内核 ABI 及原生存档格式不变。
 查看器以“周期边界角色”区分朝向修复；固定计划不能用于目录扫描。
 内部 C++ STEP 源／原生接口与消费者需一起重建，内核 ABI 不变；本开发配置没有生产默认预算。
 

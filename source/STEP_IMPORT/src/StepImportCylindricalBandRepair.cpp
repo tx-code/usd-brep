@@ -643,6 +643,26 @@ bool NeutralizesCylindricalBandBounds(const std::shared_ptr<CylindricalBandRepai
 {
     return t && std::find(t->sourceFaces.begin(), t->sourceFaces.end(), face) != t->sourceFaces.end();
 }
+Result<void> RecordCircleVertexCorrections(
+    const std::shared_ptr<CylindricalBandRepairTrial>& t,
+    std::vector<CircleVertexCorrectionEvidence> evidence,
+    std::shared_ptr<const CircleVertexBudgetReceipt> budget
+)
+{
+    if (evidence.empty())
+    {
+        return {};
+    }
+    if (!t || !t->history.circleVertices.empty())
+    {
+        return tl::unexpected(
+            Failure{ Status::Unsupported, "CircleVertexBandPlanScopeRequired", "Vertex correction requires its unique owning band trial", {}, "Repair" }
+        );
+    }
+    t->history.circleVertices = std::move(evidence);
+    t->history.circleVertexBudget = std::move(budget);
+    return {};
+}
 [[nodiscard]] Result<void> CaptureCylindricalBandDefinitions(
     const std::shared_ptr<CylindricalBandRepairTrial>& t,
     std::shared_ptr<ModelData> model,
@@ -825,7 +845,12 @@ bool NeutralizesCylindricalBandBounds(const std::shared_ptr<CylindricalBandRepai
     t->history.verticesCompared = vertices.GetSize();
     t->history.edgesCompared = edges.GetSize();
     t->history.surfacesCompared = faces.GetSize();
-    t->history.definitionsIdentical = t->history.workingTolerancesIdentical = true;
+    // All unrequested vertices remain bit-identical. Requested source points
+    // have explicit displacement evidence; never label the entire defining
+    // geometry identical when those coordinates have changed.
+    t->history.definitionsIdentical = t->history.circleVertices.empty();
+    t->history.curvesAndSurfacesIdentical = t->history.unrequestedVerticesIdentical = true;
+    t->history.workingTolerancesIdentical = true;
     m.cylindricalBandRepairs = t->history;
     report.cylindricalBandRepairs = t->history;
     if (auto operation = execution.Check(Phase::RepairReady); !operation)

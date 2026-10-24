@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportCircleVertexCorrection.h"
 #include "StepImportCurvePointConstruction.h"
 #include "StepImportCylinderChart.h"
 #include "StepImportCylindricalBandRepair.h"
@@ -179,6 +180,40 @@ public:
                 return tl::unexpected(std::move(operation.error()));
             }
         }
+        if (m_options.cylindricalBandRepair && m_options.cylindricalBandRepair->circleVertices)
+        {
+            std::vector<CircleVertexCurveView> views;
+            views.reserve(curves.size());
+            for (const auto& curve : curves)
+            {
+                views.push_back(
+                    { curve.record,
+                      curve.geometry,
+                      vertices.at(curve.v0),
+                      vertices.at(curve.v1),
+                      curve.native.get(),
+                      curve.p0,
+                      curve.p1,
+                      curve.t0,
+                      curve.t1 }
+                );
+            }
+            auto corrected = CorrectCircleVertices(
+                *m_source,
+                m_binding ? *m_binding : m_source->PartDefinition().shapes.at(0),
+                m_options,
+                vertices,
+                points,
+                views,
+                m_execution,
+                m_report
+            );
+            if (!corrected)
+            {
+                return tl::unexpected(std::move(corrected.error()));
+            }
+            m_circleVertexCorrections = std::move(*corrected);
+        }
         if (auto operation = PrepareRingSubdivisions(); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
@@ -284,6 +319,43 @@ public:
         if (auto businessCheck = PreparePoleInventory(); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (!m_circleVertexCorrections.empty())
+        {
+            std::vector<CircleVertexSurfaceView> surfaces;
+            for (std::size_t i = 0; i < faces.size(); ++i)
+            {
+                CircleVertexSurfaceView view{ faces[i].record, m_model->faces.at(i).face->GetSurface(), {} };
+                for (const auto& loop : faces[i].loops)
+                {
+                    for (const auto& use : loop.uses)
+                    {
+                        if (auto work = m_execution.SpendCylindricalBandProof(); !work)
+                        {
+                            return tl::unexpected(std::move(work.error()));
+                        }
+                        const auto& edge = curves[use.edge];
+                        view.sourceVertexRecords.push_back(vertices[edge.v0]);
+                        view.sourceVertexRecords.push_back(vertices[edge.v1]);
+                    }
+                }
+                surfaces.push_back(std::move(view));
+            }
+            if (auto protectedResult =
+                    ProtectCircleVerticesFromSurfaces(*m_source, m_options, surfaces, m_circleVertexCorrections, m_execution, m_report);
+                !protectedResult)
+            {
+                return tl::unexpected(std::move(protectedResult.error()));
+            }
+            if (auto recorded = RecordCircleVertexCorrections(
+                    m_cylindricalBandTrial,
+                    std::move(m_circleVertexCorrections),
+                    m_execution.CircleVertexBudget()
+                );
+                !recorded)
+            {
+                return tl::unexpected(std::move(recorded.error()));
+            }
         }
         if (auto operation = CaptureCylindricalBandDefinitions(m_cylindricalBandTrial, m_model, m_report, m_execution); !operation)
         {
@@ -461,6 +533,7 @@ private:
     std::set<Index> m_pendingToroidalSupports;
     std::map<Index, const SmTorus*> m_toroidalOriginals;
     std::shared_ptr<CylindricalBandRepairTrial> m_cylindricalBandTrial;
+    std::vector<CircleVertexCorrectionEvidence> m_circleVertexCorrections;
     std::optional<step_semantics::Part::Shape> m_binding;
     Index shape = 0, shell = 0;
     std::vector<Index> vertices;

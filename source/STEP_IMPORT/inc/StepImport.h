@@ -228,11 +228,38 @@ struct SourceErrorIsolationLimits
 {
     std::size_t maximumFailures = 0, maximumInfluenceVisits = 0; // Explicit FaceBoundsClause profile; no production defaults.
 };
+struct CircleVertexCorrection
+{
+    std::string definitionId, shapeId, vertexId, circleId;
+};
+struct CircleVertexCorrectionRequest
+{
+    // Explicit application budgets in mm, with no production defaults. This
+    // first scope composes only with the source-bound cylindrical-band plan.
+    std::size_t maximumVertices = 0;
+    Fraction maximumDisplacementMm, maximumTotalDisplacementMm;
+    std::vector<CircleVertexCorrection> vertices;
+};
+struct CircleVertexCorrectionEvidence
+{
+    CircleVertexCorrection edit;
+    std::string sourcePointId;
+    Point originalMm, correctedMm;
+    double displacementUpperMm = 0, projectionErrorUpperMm = 0, localProtectionLowerMm = 0, originalGapUpperMm = 0;
+};
+struct CircleVertexBudgetReceipt
+{
+    std::size_t maximumVertices = 0, correctedVertices = 0;
+    Fraction maximumDisplacementMm, maximumTotalDisplacementMm;
+    double cumulativeDisplacementUpperMm = 0, minimumProtectionLowerMm = 0;
+    bool requestComplete = false; // Edit ledger completion is distinct from import success.
+};
 struct CylindricalBandRepairRequest
 {
     std::string sourceSha256;
     std::size_t maximumFaces = 0, maximumBoundEdits = 0, maximumProofOperations = 0;
     std::vector<step_semantics::CylindricalBandRepairDeferral> faces;
+    std::optional<CircleVertexCorrectionRequest> circleVertices; // Absent preserves the zero-displacement role-only contract.
 };
 struct CylindricalBandRepairAction
 {
@@ -247,6 +274,9 @@ struct CylindricalBandRepairHistory
     std::vector<step_semantics::Diagnostic> originalSourceDiagnostics;
     std::size_t verticesCompared = 0, edgesCompared = 0, surfacesCompared = 0;
     bool definitionsIdentical = false, workingTolerancesIdentical = false, sourceInterpretationApplied = false;
+    std::vector<CircleVertexCorrectionEvidence> circleVertices;
+    std::shared_ptr<const CircleVertexBudgetReceipt> circleVertexBudget;
+    bool curvesAndSurfacesIdentical = false, unrequestedVerticesIdentical = false;
 };
 struct DefinitionSelectionReceipt
 {
@@ -597,6 +627,7 @@ struct Report
     std::optional<DefinitionSelectionReceipt> definitionSelection;
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepairRequest;
     std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
+    std::shared_ptr<const CircleVertexBudgetReceipt> circleVertexBudget; // Request-wide receipt, never an import-success claim.
     std::size_t cylindricalBandProofOperations = 0;
     std::string sourceEvidenceScope;
     std::vector<ProductDefinitionReport> definitions;

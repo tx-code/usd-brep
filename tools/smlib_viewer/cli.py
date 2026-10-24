@@ -44,6 +44,11 @@ def main(argv=None):
     parser.add_argument('--max-band-repair-faces', type=int, default=0, dest='maximum_band_repair_faces')
     parser.add_argument('--max-band-bound-edits', type=int, default=0, dest='maximum_band_bound_edits')
     parser.add_argument('--max-band-proof-operations', type=int, default=0, dest='maximum_band_proof_operations')
+    parser.add_argument('--max-band-circle-vertices', type=int, default=0, dest='maximum_band_circle_vertices')
+    parser.add_argument('--max-band-vertex-move-mm', default='', dest='maximum_band_vertex_move_mm')
+    parser.add_argument('--max-band-total-vertex-move-mm', default='', dest='maximum_band_total_vertex_move_mm')
+    parser.add_argument('--project-band-circle-vertex', action='append', default=[], dest='band_circle_vertices',
+                        help='显式顶点修复：definition:shape:vertex:circle；需要边界修复计划及独立毫米预算')
     parser.add_argument('--repair-cylindrical-band', action='append', default=[], dest='cylindrical_band_repairs',
                         help='显式周期边界角色修复：definition:shape:face:bound0:bound1')
     parser.add_argument('--selection-source-sha256', default='')
