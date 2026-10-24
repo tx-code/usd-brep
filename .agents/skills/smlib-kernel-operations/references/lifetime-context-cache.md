@@ -70,6 +70,9 @@ The exact UV definition, support, parameter domain, and existing base attribute-
 retained. Curve breaks and the derived 3D approximation are rebuilt lazily; copying does not
 convert the composition to an approximation or change its parameter convention. This does not
 qualify a STEP source pcurve's parameter mapping or complete import acceptance.
+Successful `SmCrvOnSurf::ReadFromDB` also restores its UV and support owner backlinks.
+Standalone archive curves are returned directly, whereas BRep reconstruction subsequently
+copies its edge curves; the standalone reader cannot rely on that later Copy to restore its links.
 Cached gap diagnostics return to the uncomputed state, and optional approximation-break hints
 are not carried into the copy; provide them again when requesting a new approximation.
 

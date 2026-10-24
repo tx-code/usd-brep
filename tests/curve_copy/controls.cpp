@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include <SmAssertArray.h>
 #include <SmAttribute.h>
 #include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
@@ -400,6 +401,16 @@ bool WrapperArchive(const char* outputDirectory, bool ascii)
     {
         return false;
     }
+    // Standalone curves do not pass through the BRep topology builder's Copy.
+    // The decoder itself must restore the owning links that nested validation
+    // and owner-based queries require, without changing the stored definition.
+    passed &= Check("wrapper_archive_restores_uv_owner", readCurve->GetUVCurve()->GetOwner() == readCurve);
+    passed &= Check("wrapper_archive_restores_support_owner", readCurve->GetBaseSurface()->GetOwner() == readCurve);
+    SmAssertArray readFindings;
+    passed &= Check(
+        "wrapper_archive_preserves_native_validity",
+        readCurve->AssertValid(&readFindings, SM_LEVEL_2, SM_WALK) != FALSE && readFindings.GetSize() == 0
+    );
     passed &= Check(
         "wrapper_archive_preserves_uv_basis_and_parameters",
         SameCurveBasis(*copy->GetUVCurve(), *readCurve->GetUVCurve(), ascii ? 1e-12 : 0.)

@@ -2364,6 +2364,13 @@ SmStatus SmCrvOnSurf::ReadFromDB
   pCrvOnSurf->m_vUVDomain.SetMinMax(sMin, sMax) ;  
   pCrvOnSurf->m_bNeedBreaks = bNeedBreaks ;
   pCrvOnSurf->m_lOwnerFlag  = 2 ; 
+
+  // Decoding creates two independently owned children, just as SetAll flag 3
+  // and virtual Copy do. Standalone archive curves are returned directly:
+  // no later BRep Copy repairs these links. Restore the reciprocal owners only
+  // after successful decoding (AssertValid tests 3/4), without touching geometry.
+  pUVCurve->SetOwner(pCrvOnSurf);
+  pSurface->SetOwner(pCrvOnSurf);
   
   // all done
   rpNewCurve = pCrvOnSurf ;

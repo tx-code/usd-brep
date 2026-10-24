@@ -31,7 +31,7 @@ Archive modes also take a disposable output-directory argument.
 | `surface_throw`, `uv_throw` | A child that assigns a candidate and then throws `std::bad_alloc` keeps that exact exception type, publishes no COS, and releases all pending UV/surface candidates before the caller catches. A UV throw prevents further surface Copy. |
 | `ownership_0` through `ownership_3` | Preserve each constructor flag's borrowing/ownership policy, exact UV and surface data, explicit domains, attributes and analytic derivatives across contexts and source destruction. Borrowed inputs remain alive for the whole use. |
 | `definition_cold`, `definition_warm` | Keep the exact composed definition before and after creating a source 3D approximation cache. Cache allocation identity and coefficients are not Copy requirements. |
-| `wrapper_archive_binary`, `wrapper_archive_ascii` | Copy the composed STEP wrapper, destroy its source, persist without spline conversion, read through `SmNativeArchive`, retain independent analytic parameter/derivative results and reproduce the complete stored-definition archive bytes. |
+| `wrapper_archive_binary`, `wrapper_archive_ascii` | Copy the composed STEP wrapper, destroy its source, persist without spline conversion, read the standalone curve through `SmNativeArchive`, restore both owned-child backlinks, pass full native LEVEL_2 validation, retain independent analytic parameter/derivative results and reproduce the complete stored-definition archive bytes. |
 
 There are 25 independent modes. For a pre-fix red run, compile a matching
 consumer from the same test sources using the baseline's `SmSTEPSurface`
