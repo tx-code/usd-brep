@@ -3542,7 +3542,10 @@ SmStatus SmHealData::Fix_DegenFaces
           pThisFace->GetVertices(sFaceVertices);
 
           // Squeeze every degenerate boundary, including vertex-only loops.
-          SE(pBrep->SqueezeFace
+          // SqueezeFace can delete the face before failed best-effort stitching.
+          // Preserve its failure before further edits or property refresh;
+          // tracking and editing scopes unwind without rolling topology back.
+          SER(pBrep->SqueezeFace
             (pThisFace,           // in : target face
              NULL,               // in : use the Brep stitching tolerance
              &sDeletedVertices,   // out: deleted vertices (stale pointers)
@@ -3556,13 +3559,13 @@ SmStatus SmHealData::Fix_DegenFaces
           for(jj=0; jj<sFaceEdges.GetSize(); ++jj)
             {
               if(sFaceEdges[jj]->IsWire())
-                { SE(pBrep->DeleteEdge(sFaceEdges[jj])); }
+                { SER(pBrep->DeleteEdge(sFaceEdges[jj])); }
             }
           for(jj=0; jj<sFaceVertices.GetSize(); ++jj)
             {
               // Keep vertices that still belong to another face or wire.
               if(sFaceVertices[jj]->IsShellVertex())
-                { SE(pBrep->DeleteVertex(sFaceVertices[jj])); }
+                { SER(pBrep->DeleteVertex(sFaceVertices[jj])); }
             }
         } // End iter and squeezing every DegenFace
         
