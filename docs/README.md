@@ -39,3 +39,6 @@ are part of the captured bytes. Preserve them and their versioned manifests.
 Use `.changeset/` for pending caller-visible changes, `CHANGELOG.md` for published
 engineering history, and root `RELEASE_NOTES.md` when preparing an actual release.
 Avoid parallel ticket/acceptance archives inside published documentation.
+Root `RELEASE_MANIFEST.json` accompanies the current release preparation with its
+fixed source cut and note-consumption mapping; Git preserves earlier manifests.
+It does not contain local test receipts or grant capability qualification.

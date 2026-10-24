@@ -161,7 +161,17 @@ if(SMLIB_BUILD_VALIDATION)
         "${CMAKE_SOURCE_DIR}/tools/agent/changesets.py" check)
     add_test(NAME changesets_contracts COMMAND "${Python3_EXECUTABLE}"
         -m unittest tools.agent.tests.test_changesets -v)
-    set_tests_properties(changesets changesets_contracts PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    add_test(NAME release_version_contracts COMMAND "${Python3_EXECUTABLE}"
+        -m unittest tools.agent.tests.test_release_version -v)
+    add_test(NAME release_preparation_contracts COMMAND "${Python3_EXECUTABLE}"
+        -m unittest tools.agent.tests.test_release -v)
+    set_tests_properties(changesets changesets_contracts release_version_contracts release_preparation_contracts
+        PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/RELEASE_MANIFEST.json")
+        add_test(NAME release_records COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/agent/release.py" check)
+        set_tests_properties(release_records PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    endif()
     if(SMLIB_BUILD_PYTHON)
         add_test(NAME build_entry_contracts COMMAND ${Python3_EXECUTABLE}
             -m unittest discover -s "${CMAKE_SOURCE_DIR}/tools/agent/tests" -p test_smlib_build.py -v)

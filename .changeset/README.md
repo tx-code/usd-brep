@@ -60,3 +60,10 @@ At release freeze, follow the [release process](../docs/release/RELEASE_PROCESS.
 check notes against integrated code and the accepted release scope, look for
 missing observable changes, then synthesize the release records. Delete only
 consumed notes in that release-record change; Git retains their original text.
+
+`python tools/agent/release.py plan` captures a fixed commit and every pending
+note's hash. Consolidate its entries and explicitly defer anything outside the
+release before running `prepare`. The tool consumes only that reviewed inventory;
+later notes stay pending. Preview releases can consume their delivered changes.
+The release manifest records the mapping; `check` verifies it against Git and the
+rendered records. These commands do not create commits, tags or packages.

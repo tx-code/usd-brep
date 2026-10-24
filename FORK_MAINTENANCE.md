@@ -14,6 +14,13 @@ merged branches. Do not force-push `main`. Create a release branch when a
 shipped version needs independent maintenance; release tags identify published
 versions. Deployment branches have their own lifecycle.
 
+The fork has its own semantic version line. `VERSION` is the single full release
+identity; CMake extracts the numeric core and wheel packaging translates its
+prerelease suffix. Use numbered `alpha`, `beta` and `rc` previews for explicit
+development cuts, and `fork-v<version>` for fork release tags when tagging is
+authorized. Preserve upstream tags and provenance separately. An upstream merge
+does not replace the fork's version or reinstate retired product components.
+
 Last incorporated upstream commit: `3fd5b9548d19aa8c12c29bc9637a96d42a06f8a5`
 (Release 1.0.1). Native consumers must be rebuilt together after this integration;
 see [the compatibility note](.changeset/upstream-native-1-0-1.md).
