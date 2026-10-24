@@ -44,6 +44,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportObservation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp src/StepImportAssemblyInstances.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionChart.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionPole.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSplineSurfaceConstruction.cpp src/StepImportPcurveConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportTerminalDomainRequest.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSurfaceCurveSession.cpp)
@@ -78,6 +79,24 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_revolution_pole_tests tests/StepImportRevolutionPoleTests.cpp)
+    target_link_libraries(step_import_revolution_pole_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_include_directories(step_import_revolution_pole_tests PRIVATE src)
+    target_include_directories(step_import_revolution_pole_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_revolution_pole_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_revolution_pole_contracts COMMAND step_import_revolution_pole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_patch.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/revolution-pole-output/$<CONFIG>")
+    add_test(NAME step_import_revolution_lune_contracts COMMAND step_import_revolution_pole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_lune.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/revolution-lune-output/$<CONFIG>" lune)
+    add_test(NAME step_import_revolution_min_pole_contracts COMMAND step_import_revolution_pole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_min_patch.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/revolution-min-pole-output/$<CONFIG>" minimum)
+    add_test(NAME step_import_revolution_cone_pole_contracts COMMAND step_import_revolution_pole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_cone.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/revolution-cone-pole-output/$<CONFIG>" cone)
     add_executable(step_import_surface_curve_interpretation_tests tests/StepImportSurfaceCurveInterpretationTests.cpp)
     target_link_libraries(step_import_surface_curve_interpretation_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_import_surface_curve_interpretation_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)

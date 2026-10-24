@@ -2283,6 +2283,10 @@ std::vector<RevolutionChartInfo> ModelSnapshot::RevolutionCharts() const
 {
     return m_data->revolutionCharts;
 }
+std::vector<RevolutionPoleVisitInfo> ModelSnapshot::RevolutionPoleVisits() const
+{
+    return m_data->revolutionPoleVisits;
+}
 std::optional<FaceOrientationRepairHistory> ModelSnapshot::Repairs() const
 {
     return m_data->repairs;

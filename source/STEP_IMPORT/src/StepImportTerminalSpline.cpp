@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportTerminalSpline.h"
 
+#include "StepImportAnalyticLinePole.h"
+
 #include <algorithm>
 #include <bit>
 #include <boost/multiprecision/cpp_int.hpp>
@@ -986,6 +988,245 @@ Result<R> Patch(const Net& a, const Net& b, std::size_t au, std::size_t av, std:
     TS_TRY(denominator, math.Mul(minA, minB));
     return math.Div(total, denominator);
 }
+using Bernstein = std::vector<R>;
+Result<Bernstein> MultiplyBernstein(const Bernstein& a, const Bernstein& b, Arithmetic& math)
+{
+    const auto p = unsigned(a.size() - 1), q = unsigned(b.size() - 1);
+    TS_OK(math.Reserve(std::size_t(p) + q + 1));
+    Bernstein result(std::size_t(p) + q + 1);
+    for (unsigned r = 0; r <= p + q; ++r)
+    {
+        for (unsigned i = r > q ? r - q : 0; i <= std::min(p, r); ++i)
+        {
+            const unsigned j = r - i;
+            TS_TRY(coefficient, math.Normalize(Big(Choose(p, i)) * Choose(q, j), Big(Choose(p + q, r))));
+            TS_TRY(product, math.Mul(a[i], b[j]));
+            TS_TRY(term, math.Mul(coefficient, product));
+            TS_TRY(sum, math.Add(result[r], term));
+            result[r] = std::move(sum);
+        }
+    }
+    return result;
+}
+Result<Bernstein> DifferentiateBernstein(const Bernstein& a, Arithmetic& math)
+{
+    const auto degree = a.size() - 1;
+    TS_OK(math.Reserve(degree ? degree : 1));
+    Bernstein result(degree ? degree : 1);
+    for (std::size_t i = 0; i < degree; ++i)
+    {
+        TS_TRY(difference, math.Sub(a[i + 1], a[i]));
+        TS_TRY(derivative, math.Mul(difference, R{ Big(degree), 1 }));
+        result[i] = std::move(derivative);
+    }
+    return result;
+}
+struct PolePatchBounds
+{
+    bool outside = false, inside = false, increasing = false, decreasing = false;
+    int first = 0, last = 0; // Signs of exact squared-distance-minus-radius at the span endpoints.
+};
+Result<PolePatchBounds> BoundPolePatch(const std::vector<H>& cp, const std::array<R, 3>& pole, const R& radiusSquared, Arithmetic& math)
+{
+    const auto count = cp.size();
+    TS_OK(math.Reserve(count * 4));
+    std::array<Bernstein, 3> d;
+    Bernstein w(count);
+    for (auto& coordinate : d)
+    {
+        coordinate.resize(count);
+    }
+    bool constantWeight = true;
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        TS_OK(math.Spend());
+        if (cp[i][3].n <= 0)
+        {
+            return tl::unexpected(Error("TerminalSplinePoleWeight"));
+        }
+        w[i] = cp[i][3];
+        constantWeight = constantWeight && Compare(w[i], w.front()) == 0;
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            TS_TRY(center, math.Mul(pole[axis], w[i]));
+            TS_TRY(difference, math.Sub(cp[i][axis], center));
+            d[axis][i] = std::move(difference);
+        }
+    }
+    TS_OK(math.Reserve(2 * count - 1));
+    Bernstein q(2 * count - 1);
+    for (const auto& coordinate : d)
+    {
+        TS_TRY(square, MultiplyBernstein(coordinate, coordinate, math));
+        for (std::size_t i = 0; i < q.size(); ++i)
+        {
+            TS_TRY(sum, math.Add(q[i], square[i]));
+            q[i] = std::move(sum);
+        }
+    }
+    TS_TRY(wSquared, MultiplyBernstein(w, w, math));
+    TS_OK(math.Reserve(q.size()));
+    Bernstein f(q.size());
+    PolePatchBounds bounds;
+    bounds.outside = bounds.inside = true;
+    for (std::size_t i = 0; i < f.size(); ++i)
+    {
+        TS_TRY(ball, math.Mul(radiusSquared, wSquared[i]));
+        TS_TRY(difference, math.Sub(q[i], ball));
+        f[i] = std::move(difference);
+        // The ball is CLOSED. Nonnegative coefficients do not exclude an
+        // isolated contact and therefore cannot establish an outside region.
+        bounds.outside = bounds.outside && f[i].n > 0;
+        bounds.inside = bounds.inside && f[i].n <= 0;
+    }
+    const auto sign = [](const R& x)
+    {
+        return x.n < 0 ? -1 : x.n > 0 ? 1 : 0;
+    };
+    bounds.first = sign(f.front());
+    bounds.last = sign(f.back());
+    if (bounds.outside || bounds.inside)
+    {
+        return bounds;
+    }
+    TS_TRY(qDerivative, DifferentiateBernstein(q, math));
+    Bernstein derivative;
+    if (constantWeight)
+    {
+        derivative = std::move(qDerivative); // Positive constant W cannot change the derivative's sign.
+    }
+    else
+    {
+        // C-P=D/W, distance^2=Q/W^2, Q=sum(D_axis^2). Since W>0,
+        // its derivative has the sign of Q'*W-2*Q*W'. Derivatives here use
+        // each span's increasing [0,1] parameter; positive physical t scaling
+        // cannot change the sign. Degree <=3*17-1=50 keeps Choose in uint64.
+        TS_TRY(wDerivative, DifferentiateBernstein(w, math));
+        TS_TRY(left, MultiplyBernstein(qDerivative, w, math));
+        TS_TRY(right, MultiplyBernstein(q, wDerivative, math));
+        derivative = std::move(left);
+        for (std::size_t i = 0; i < derivative.size(); ++i)
+        {
+            TS_TRY(twice, math.Mul(R{ 2, 1 }, right[i]));
+            TS_TRY(difference, math.Sub(derivative[i], twice));
+            derivative[i] = std::move(difference);
+        }
+    }
+    TS_OK(math.Spend(derivative.size()));
+    bounds.increasing = std::all_of(
+        derivative.begin(),
+        derivative.end(),
+        [](const R& x)
+        {
+            return x.n >= 0;
+        }
+    );
+    bounds.decreasing = std::all_of(
+        derivative.begin(),
+        derivative.end(),
+        [](const R& x)
+        {
+            return x.n <= 0;
+        }
+    );
+    // Monotonicity plus its MINIMUM endpoint is also a whole-span outside
+    // certificate, even when the F control hull is inconclusive.
+    bounds.outside = (bounds.increasing && bounds.first > 0) || (bounds.decreasing && bounds.last > 0);
+    return bounds;
+}
+enum class PolePhase
+{
+    First,
+    Outside,
+    Last
+};
+struct PoleState
+{
+    PolePhase phase = PolePhase::Outside;
+    bool outsideSeen = false;
+    PoleVisitProof proof;
+};
+Result<bool> VisitPolePatch(
+    const std::vector<H>& cp,
+    const std::array<R, 3>& pole,
+    const R& radiusSquared,
+    const PoleVisits& visits,
+    PoleState& state,
+    unsigned remainingDepth,
+    Arithmetic& math
+)
+{
+    TS_OK(math.Spend());
+    TS_TRY(bounds, BoundPolePatch(cp, pole, radiusSquared, math));
+    ++state.proof.patches;
+    if (bounds.outside)
+    {
+        if (state.phase == PolePhase::Last)
+        {
+            return false; // A previously entered suffix left again.
+        }
+        state.phase = PolePhase::Outside;
+        state.outsideSeen = true;
+        return true;
+    }
+    if (bounds.inside)
+    {
+        if (state.phase == PolePhase::Outside)
+        {
+            if (!visits.lastAllowed)
+            {
+                return false;
+            }
+            state.phase = PolePhase::Last;
+        }
+        return true;
+    }
+    if (state.phase == PolePhase::First && bounds.increasing)
+    {
+        state.outsideSeen = state.outsideSeen || bounds.last > 0;
+        return true; // One monotone departure attached to the allowed first endpoint.
+    }
+    if (visits.lastAllowed && bounds.decreasing)
+    {
+        state.outsideSeen = state.outsideSeen || bounds.first > 0;
+        state.phase = PolePhase::Last;
+        return true; // One monotone arrival; no later outside piece is permitted.
+    }
+    // These endpoint values are exact, not samples used to accept a curve.
+    // A single forbidden contact/outside witness suffices to refuse the proof.
+    if ((state.phase == PolePhase::Outside && !visits.lastAllowed && (bounds.first <= 0 || bounds.last <= 0)) ||
+        (state.phase == PolePhase::Last && (bounds.first > 0 || bounds.last > 0)) || !remainingDepth)
+    {
+        return false;
+    }
+    const auto count = cp.size();
+    TS_OK(math.Reserve(3 * count));
+    auto work = cp;
+    std::vector<H> left(count), right(count);
+    left.front() = cp.front();
+    right.back() = cp.back();
+    for (std::size_t level = 1; level < count; ++level)
+    {
+        for (std::size_t i = 0; i < count - level; ++i)
+        {
+            TS_TRY(midpoint, Mix(work[i], work[i + 1], R{ 1, 2 }, R{ 1, 2 }, math));
+            work[i] = std::move(midpoint);
+        }
+        left[level] = work.front();
+        right[count - level - 1] = work[count - level - 1];
+    }
+    // ValidateKnots admits only C0-or-better nets. Homogeneous de Casteljau
+    // preserves that continuity and positive weights at every shared endpoint.
+    // Processing every selected piece in order makes each inside component
+    // connect to an allowed ORIGINAL endpoint, rather than a subdivision cut.
+    TS_TRY(first, VisitPolePatch(left, pole, radiusSquared, visits, state, remainingDepth - 1, math));
+    if (!first)
+    {
+        return false;
+    }
+    return VisitPolePatch(right, pole, radiusSquared, visits, state, remainingDepth - 1, math);
+}
+
 template <class T, class F>
 Result<T> Guard(const Limits& limits, const Charge& charge, F&& body)
 {
@@ -1084,6 +1325,168 @@ Result<Proof> Certify(
             proof.maximumMm = upper;
             proof.established = Compare(maximum, allowed) <= 0;
             return proof;
+        }
+    );
+}
+Result<PoleVisitProof> CheckPoleVisits(const BinaryNet& curve, const PoleVisits& visits, const Limits& limits, const Charge& charge)
+{
+    return Guard<PoleVisitProof>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<PoleVisitProof>
+        {
+            if (curve.basis.degreeV || curve.basis.countV != 1 || !curve.basis.knotsV.empty())
+            {
+                return tl::unexpected(Error("TerminalSplinePoleCurveOnly", Status::Unsupported));
+            }
+            TS_TRY(net, ReadBinary(curve, math));
+            TS_TRY(low, math.Binary(visits.interval[0]));
+            TS_TRY(high, math.Binary(visits.interval[1]));
+            if (Compare(low, high) >= 0 || Compare(low, net.u[net.p]) < 0 || Compare(high, net.u[net.nu]) > 0)
+            {
+                return tl::unexpected(Error("TerminalSplinePoleInterval"));
+            }
+            std::array<R, 3> pole;
+            for (std::size_t i = 0; i < pole.size(); ++i)
+            {
+                TS_TRY(coordinate, math.Binary(visits.poleMm[i]));
+                pole[i] = std::move(coordinate);
+            }
+            TS_TRY(radius, math.Binary(visits.radiusMm));
+            if (radius.n <= 0)
+            {
+                return tl::unexpected(Error("TerminalSplinePoleRadius"));
+            }
+            TS_TRY(radiusSquared, math.Mul(radius, radius));
+            TS_OK(math.Reserve(net.u.size() + 2));
+            std::vector<R> cuts;
+            cuts.reserve(net.u.size() + 2);
+            cuts.push_back(low);
+            for (const auto& knot : net.u)
+            {
+                TS_OK(math.Spend());
+                if (Compare(knot, low) > 0 && Compare(knot, high) < 0 && Compare(cuts.back(), knot) != 0)
+                {
+                    cuts.push_back(knot);
+                }
+            }
+            cuts.push_back(high);
+            TS_OK(Refine(net, true, cuts, math));
+            PoleState state;
+            state.phase = visits.firstAllowed ? PolePhase::First : PolePhase::Outside;
+            for (std::size_t i = net.p; i < net.nu; ++i)
+            {
+                TS_OK(math.Spend());
+                if (Compare(net.u[i], net.u[i + 1]) >= 0 || Compare(net.u[i], low) < 0 || Compare(net.u[i + 1], high) > 0)
+                {
+                    continue;
+                }
+                TS_OK(math.Reserve(net.p + 1));
+                const std::vector<H> cp(net.cp.begin() + std::ptrdiff_t(i - net.p), net.cp.begin() + std::ptrdiff_t(i + 1));
+                TS_TRY(valid, VisitPolePatch(cp, pole, radiusSquared, visits, state, 16, math));
+                if (!valid)
+                {
+                    return state.proof;
+                }
+            }
+            state.proof.established = state.proof.patches > 0 && state.outsideSeen;
+            return state.proof;
+        }
+    );
+}
+Result<PoleVisitProof> CheckLinePoleVisits(const AffineLineDefinition& line, const PoleVisits& visits, const Limits& limits, const Charge& charge)
+{
+    return Guard<PoleVisitProof>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<PoleVisitProof>
+        {
+            TS_TRY(naturalFirst, math.Binary(line.naturalInterval[0]));
+            TS_TRY(naturalLast, math.Binary(line.naturalInterval[1]));
+            TS_TRY(first, math.Binary(visits.interval[0]));
+            TS_TRY(last, math.Binary(visits.interval[1]));
+            if (Compare(naturalFirst, naturalLast) >= 0 || Compare(first, last) >= 0 || Compare(first, naturalFirst) < 0 ||
+                Compare(last, naturalLast) > 0)
+            {
+                return tl::unexpected(Error("TerminalSplineLineInterval"));
+            }
+            TS_TRY(stepFirst, math.Binary(line.stepAtNaturalEnds[0]));
+            TS_TRY(stepLast, math.Binary(line.stepAtNaturalEnds[1]));
+            TS_TRY(scale, math.Binary(line.scale));
+            if (scale.n == 0)
+            {
+                return tl::unexpected(Error("TerminalSplineLineScale"));
+            }
+            std::array<R, 3> origin, direction, pole;
+            bool nonzeroDirection = false;
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                TS_TRY(o, math.Binary(line.originMm[axis]));
+                TS_TRY(d, math.Binary(line.direction[axis]));
+                TS_TRY(p, math.Binary(visits.poleMm[axis]));
+                nonzeroDirection = nonzeroDirection || d.n != 0;
+                origin[axis] = std::move(o);
+                direction[axis] = std::move(d);
+                pole[axis] = std::move(p);
+            }
+            if (!nonzeroDirection)
+            {
+                return tl::unexpected(Error("TerminalSplineLineDirection"));
+            }
+            TS_TRY(radius, math.Binary(visits.radiusMm));
+            if (radius.n <= 0)
+            {
+                return tl::unexpected(Error("TerminalSplinePoleRadius"));
+            }
+            TS_TRY(radiusSquared, math.Mul(radius, radius));
+            R naturalLength, stepLength;
+            if (!line.directParameter)
+            {
+                TS_TRY(length, math.Sub(naturalLast, naturalFirst));
+                TS_TRY(stepDelta, math.Sub(stepLast, stepFirst));
+                if (stepDelta.n == 0)
+                {
+                    return tl::unexpected(Error("TerminalSplineLineParameterMapping"));
+                }
+                naturalLength = std::move(length);
+                stepLength = std::move(stepDelta);
+            }
+            TS_OK(math.Reserve(2));
+            std::vector<H> cp(2);
+            const std::array<R, 2> selected{ first, last };
+            for (std::size_t end = 0; end < cp.size(); ++end)
+            {
+                R s = selected[end];
+                if (!line.directParameter)
+                {
+                    TS_TRY(delta, math.Sub(selected[end], naturalFirst));
+                    TS_TRY(fraction, math.Div(delta, naturalLength));
+                    TS_TRY(offset, math.Mul(fraction, stepLength));
+                    TS_TRY(parameter, math.Add(stepFirst, offset));
+                    s = std::move(parameter);
+                }
+                // SmLine evaluates its stored analytic fields, not its rounded
+                // NURBS endpoint cache. Form the affine selected endpoints as
+                // exact ratios; 2^53+1, for example, must NOT round to 2^53 here.
+                // The tiny-domain native branch uses s=t even for InsideOut.
+                TS_TRY(amplitude, math.Mul(s, scale));
+                for (std::size_t axis = 0; axis < 3; ++axis)
+                {
+                    TS_TRY(delta, math.Mul(amplitude, direction[axis]));
+                    TS_TRY(coordinate, math.Add(origin[axis], delta));
+                    cp[end][axis] = std::move(coordinate);
+                }
+                cp[end][3] = R{ 1, 1 };
+            }
+            // An affine function is exactly its degree-one Bezier interpolation
+            // in increasing selected t. Reuse the same CLOSED-ball visitation
+            // proof and endpoint authorizations; there is no second geometric
+            // interpretation and no machine endpoint/parameter sampling.
+            PoleState state;
+            state.phase = visits.firstAllowed ? PolePhase::First : PolePhase::Outside;
+            TS_TRY(valid, VisitPolePatch(cp, pole, radiusSquared, visits, state, 16, math));
+            state.proof.established = valid && state.proof.patches > 0 && state.outsideSeen;
+            return state.proof;
         }
     );
 }

@@ -15,8 +15,15 @@ refuse; source bounds are never rewritten. Reports identify the derived spline
 region method and preserve the selected quality and publication gates.
 
 Revolution faces use the existing bounded, tighter numerical projection recipe
-with a separate same-parameter lift check. Single-period, pole-free revolution
-regions can be classified without rewriting source outer-bound declarations.
+with a separate same-parameter lift check. Single-period revolution regions can
+be classified without rewriting source outer-bound declarations. Native V-end
+pole regions additionally require original vertex markers and exact stored-NURBS
+evidence that every edge's pole-zone visits connect only to authorized endpoints.
+Unsupported composed-curve proofs remain deferred; fitted caches, marker flags,
+and a missing reported crossing are not substitutes for this evidence. Work is
+request-cumulative and independently bounded; snapshots retain owning pole-visit
+records. Native boundary-pole classification does not qualify source exact poles
+or whole-surface regularity, and surface roles do not gain material semantics.
 Independent modeling copies containing STEP-parameterized composed edges forward
 supported transforms through their owned support; borrowed bases are refused.
 

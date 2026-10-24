@@ -309,6 +309,7 @@ int main(int argc, char** argv)
                     throw std::invalid_argument("Unsigned limit required");
                 }
                 const std::pair<std::string_view, std::size_t*> counters[] = { { "--max-native-calls", &options.nativeLimits.nativeCalls },
+                                                                               { "--max-exact-work-units", &options.nativeLimits.exactWorkUnits },
                                                                                { "--max-report-bytes", &options.nativeLimits.reportBytes },
                                                                                { "--max-input-bytes", &options.sourceLimits.inputBytes },
                                                                                { "--max-records", &options.sourceLimits.records },

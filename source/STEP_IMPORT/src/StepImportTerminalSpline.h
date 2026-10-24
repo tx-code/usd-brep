@@ -81,6 +81,18 @@ struct Proof
     std::optional<double> maximumMm; // Outward upper bound, not an error sample.
     std::size_t patches = 0;
 };
+struct PoleVisits
+{
+    std::array<double, 2> interval{}; // Selected actual native t, increasing and contained in the natural domain.
+    std::array<double, 3> poleMm{};
+    double radiusMm = 0; // Positive native working-zone radius; never a source uncertainty or a new tolerance.
+    bool firstAllowed = false, lastAllowed = false;
+};
+struct PoleVisitProof
+{
+    bool established = false;
+    std::size_t patches = 0; // Exact Bezier regions inspected, including bounded subdivision nodes.
+};
 
 // Explicit interpreted geometry only. Parse original decimals/scale exactly;
 // extract clamped continuous terminal spans by homogeneous Boehm insertion and
@@ -115,6 +127,20 @@ struct Proof
     const Limits& limits,
     const Charge& charge
 );
+// Prove, on the WHOLE selected interval of a continuous positive-weight CURVE,
+// that the closed pole-ball preimage has only components attached to allowed
+// first/last endpoints. At least one point must be strictly outside the ball;
+// an edge wholly within the working zone is never established. Isolated
+// interior tangencies, leaving/reentering a ball and endpoint return visits
+// are not exempted by an already represented pole vertex elsewhere on a face.
+//
+// Exact homogeneous Boehm extraction and Bernstein signs bound squared distance
+// and its derivative; unknown pieces use at most 16 exact midpoint subdivisions.
+// Resource/caller failures retain their status. A false proof means this
+// conservative certificate is unestablished, NOT that the source is invalid.
+// This proves the stored BinaryNet geometry only, not evaluator roundoff,
+// STEP-source semantics, pole detection, topology or publication qualification.
+[[nodiscard]] Result<PoleVisitProof> CheckPoleVisits(const BinaryNet& curve, const PoleVisits& visits, const Limits& limits, const Charge& charge);
 // Exact source hull coverage in original scalar parameters, without tolerance.
 [[nodiscard]] Result<bool> CheckScalarCoverage(
     const std::array<std::string, 2>& requested,

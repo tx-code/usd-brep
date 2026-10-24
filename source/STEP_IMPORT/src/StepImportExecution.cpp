@@ -342,6 +342,37 @@ Execution::~Execution()
     }
     return {};
 }
+Result<void> Execution::SpendExactGeometryWork(Report& bodyReport, std::size_t units, std::size_t sourceRecord)
+{
+    if (auto boundary = Check(Phase::BeforeNativeCall); !boundary)
+    {
+        return tl::unexpected(std::move(boundary.error()));
+    }
+    // Exact arithmetic is request-cumulative work, not a native-call count.
+    // Check overflow before either root or leaf accounting changes; real STL
+    // allocation/callback exceptions retain the existing execution contract.
+    if (!m_report.exactGeometryWork)
+    {
+        m_report.exactGeometryWork = ExactWorkObservation{ m_options.nativeLimits.exactWorkUnits, 0 };
+    }
+    auto& total = *m_report.exactGeometryWork;
+    if (units > total.maximumUnits - total.usedUnits)
+    {
+        return tl::unexpected(
+            Failure{ Status::ResourceLimit, "ExactGeometryWorkLimit", "Bounded exact geometry work exhausted", sourceRecord, "ExactGeometry" }
+        );
+    }
+    total.usedUnits += units;
+    if (&bodyReport != &m_report)
+    {
+        if (!bodyReport.exactGeometryWork)
+        {
+            bodyReport.exactGeometryWork = ExactWorkObservation{ total.maximumUnits, 0 };
+        }
+        bodyReport.exactGeometryWork->usedUnits += units;
+    }
+    return {};
+}
 [[nodiscard]] Result<void> Execution::Check(Phase phase)
 {
     m_report.lastBoundary = phase;

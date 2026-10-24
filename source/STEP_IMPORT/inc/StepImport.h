@@ -113,6 +113,19 @@ struct Limits
     std::size_t reportBytes = 16 * 1024 * 1024;
     std::optional<std::size_t> processPrivateBytes; // Cooperative, process-wide commit charge at safe boundaries; not a hard cap.
     std::optional<std::size_t> hardMemoryBytes; // Unsupported in this in-process execution mode; never silently relaxed.
+    std::size_t exactWorkUnits = 2000000; // Request-wide bounded exact geometry work; independent of native calls and physical error budgets.
+};
+struct ExactWorkObservation
+{
+    std::size_t maximumUnits = 0, usedUnits = 0;
+};
+struct RevolutionPoleVisitInfo
+{
+    std::string sourceFaceId, sourceSurfaceId;
+    std::size_t targetFaceIndex = 0, nativePoleMask = 0, checkedEdges = 0, patches = 0, exactWorkUnits = 0;
+    double nativePoleRadiusMm = 0; // Existing native face zone, never source uncertainty or a new allowance.
+    // Exact stored-curve evidence for endpoint-connected visits to native
+    // boundary-pole zones; not source exact-pole or whole-surface regularity.
 };
 struct NumericalIntegrationSettings
 {
@@ -534,9 +547,9 @@ public:
     std::optional<NumericalIntegrationObservation> NumericalIntegration() const; // Owning snapshot evidence; null for the proved planar path.
     UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
-    std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis support extraction, separate from repair/topology
+    std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis extraction, separate from repair/topology changes.
     std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
-                                                               // changes.
+    std::vector<RevolutionPoleVisitInfo> RevolutionPoleVisits() const;
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const;
@@ -706,6 +719,7 @@ struct Report
     std::vector<ParameterMapping> parameterMappings; // Derived native maps; never changes source parameters or entities.
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     std::vector<RevolutionChartInfo> revolutionCharts;
+    std::vector<RevolutionPoleVisitInfo> revolutionPoleVisits;
     std::vector<WireframeInfo> wireframes; // Owning values/source identities only, never native owners.
     std::vector<SupportingGeometryInfo> supportingGeometry;
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;
@@ -735,6 +749,7 @@ struct Report
     std::size_t checkpoints = 0;
     std::optional<std::size_t> maximumObservedPrivateBytes, processPeakCommitBytes;
     std::optional<std::size_t> processPrivateLimitBytes, hardMemoryLimitBytes;
+    std::optional<ExactWorkObservation> exactGeometryWork; // Present only when this request actually enters bounded exact geometry work.
     bool deadlineConfigured = false;
     std::string json; // Mandatory bounded report, completed before a model is published.
     std::shared_ptr<const step_source::CarrierAssumption> carrierAssumption; // Also survives parsing failure without a record graph.

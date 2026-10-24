@@ -1578,6 +1578,44 @@ void WriteReportJson(
         }
         TerminalDomainJson(w, report);
         SurfaceCurve3dJson(w, report);
+        if (report.exactGeometryWork)
+        {
+            w.Add(",\"exact_geometry_work\":{\"maximum_units\":");
+            w.Number(report.exactGeometryWork->maximumUnits);
+            w.Add(",\"used_units\":");
+            w.Number(report.exactGeometryWork->usedUnits);
+            w.Add("}");
+        }
+        if (!report.revolutionPoleVisits.empty())
+        {
+            w.Add(",\"revolution_pole_visits\":[");
+            for (std::size_t i = 0; i < report.revolutionPoleVisits.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& proof = report.revolutionPoleVisits[i];
+                w.Add("{\"source_face\":");
+                w.String(proof.sourceFaceId);
+                w.Add(",\"source_surface\":");
+                w.String(proof.sourceSurfaceId);
+                w.Add(",\"target_face\":");
+                w.Number(proof.targetFaceIndex);
+                w.Add(",\"native_pole_mask\":");
+                w.Number(proof.nativePoleMask);
+                w.Add(",\"checked_edge_pole_pairs\":");
+                w.Number(proof.checkedEdges);
+                w.Add(",\"bezier_patches\":");
+                w.Number(proof.patches);
+                w.Add(",\"exact_work_units\":");
+                w.Number(proof.exactWorkUnits);
+                w.Add(",\"native_pole_radius_mm\":");
+                Number(w, proof.nativePoleRadiusMm);
+                w.Add(",\"evidence\":\"EndpointConnectedNativePoleZoneVisits\",\"source_exact_poles_qualified\":false}");
+            }
+            w.Add("]");
+        }
         if (report.supportDomainRestrictionRequested)
         {
             w.Add(",\"support_domain_restriction_requested\":true");

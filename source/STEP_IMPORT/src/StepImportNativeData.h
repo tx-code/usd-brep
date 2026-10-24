@@ -56,6 +56,7 @@ struct ModelData
     std::vector<std::unique_ptr<SmSurface>> retainedSupportDefinitions;
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     std::vector<RevolutionChartInfo> revolutionCharts;
+    std::vector<RevolutionPoleVisitInfo> revolutionPoleVisits;
     SmRegion* material = nullptr;
     SmRegion* bounded = nullptr;
     SmShell* outside = nullptr;

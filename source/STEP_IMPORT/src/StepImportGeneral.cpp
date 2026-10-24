@@ -17,6 +17,7 @@
 #include "StepImportPeriodicNormalization.h"
 #include "StepImportRevolutionChart.h"
 #include "StepImportRevolutionConstruction.h"
+#include "StepImportRevolutionPole.h"
 #include "StepImportRingSegmentation.h"
 #include "StepImportSourceParameterUnits.h"
 #include "StepImportSplineSurfaceConstruction.h"
@@ -571,6 +572,10 @@ public:
             {
                 return tl::unexpected(Fail("GeneralRevolutionChartIdentityLost", record, Status::PostcheckFailure));
             }
+        }
+        if (auto observed = RecordFinalRevolutionPoleVisits(); !observed)
+        {
+            return tl::unexpected(std::move(observed.error()));
         }
         for (const auto action : m_surfaceCurveActions)
         {
@@ -4906,7 +4911,19 @@ private:
             {
                 explicitOuter = explicitOuter || l.outer;
             }
-            if (!explicitOuter)
+            bool poleRegion = false;
+            if (explicitOuter && Is(f.surface, "SURFACE_OF_REVOLUTION"))
+            {
+                if (auto operation = Step(f.record); !operation)
+                {
+                    return tl::unexpected(std::move(operation.error()));
+                }
+                ULONG approximate = 0;
+                poleRegion = native.face->GetSurface()->GetSingularities(nullptr, nullptr, &approximate) != SM_SS_NONE || approximate != SM_SS_NONE;
+            }
+            // An outer-bound declaration identifies the region; it does not
+            // establish absence of another edge's interior pole-zone visit.
+            if (!explicitOuter || poleRegion)
             {
                 if (auto operation = ClassifyRegion(f, native); !operation)
                 {
@@ -5083,6 +5100,95 @@ private:
         }
         return {};
     }
+    [[nodiscard]] Result<void> ObserveRevolutionPoleVisits(const Face& f, NativeFaceData& native, std::size_t expectedMask)
+    {
+        // These transformations may change face indices or the native pole
+        // center/domain. Their composition needs its own final correspondence
+        // proof; an old certificate is never carried across them implicitly.
+        if (m_options.normalizePeriodicFaces || m_options.restrictUnusedSupportDomains || m_model->topologyNormalization)
+        {
+            return tl::unexpected(Fail("GeneralRevolutionPoleNormalizationCompositionUnestablished", f.record, Status::Unsupported));
+        }
+        // Stage 2 may skip its crossing search when ANY vertex already
+        // marks a pole. Prove visits on EVERY actual defining edge instead;
+        // a marker on one edge cannot authorize another edge's interior.
+        terminal_spline::Limits limits;
+        limits.controlSlots = m_options.sourceLimits.values;
+        std::size_t work = 0;
+        auto proof = CheckRevolutionPoleVisits(
+            *native.face,
+            m_model->vertices,
+            limits,
+            [&](std::size_t units) -> Result<void>
+            {
+                auto spent = m_execution.SpendExactGeometryWork(m_report, units, f.record);
+                if (spent)
+                {
+                    work += units;
+                }
+                return spent;
+            },
+            [&]
+            {
+                return Step(f.record);
+            }
+        );
+        if (!proof)
+        {
+            auto failure = std::move(proof.error());
+            if (!failure.record)
+            {
+                failure.record = f.record;
+            }
+            return tl::unexpected(std::move(failure));
+        }
+        if (auto same = Need(proof->mask == expectedMask, "GeneralRevolutionPoleClassificationChanged", f.record); !same)
+        {
+            return tl::unexpected(std::move(same.error()));
+        }
+        RevolutionPoleVisitInfo info;
+        info.sourceFaceId = Id(f.record);
+        info.sourceSurfaceId = Id(f.surface);
+        info.targetFaceIndex = static_cast<std::size_t>(&native - m_model->faces.data());
+        info.nativePoleMask = proof->mask;
+        info.checkedEdges = proof->checkedEdges;
+        info.patches = proof->patches;
+        info.exactWorkUnits = work;
+        info.nativePoleRadiusMm = proof->radiusMm;
+        m_model->revolutionPoleVisits.push_back(info);
+        m_report.revolutionPoleVisits.push_back(std::move(info));
+        return {};
+    }
+    [[nodiscard]] Result<void> RecordFinalRevolutionPoleVisits()
+    {
+        // Queries and validators can materialize derived data. Bind owning
+        // evidence only after ALL consumers and representation changes, using
+        // final face indices and final actual curve intervals/zone/pole data.
+        for (Index i = 0; i < m_model->faces.size(); ++i)
+        {
+            const auto& source = faces[SourceFaceIndex(i)];
+            if (!Is(source.surface, "SURFACE_OF_REVOLUTION"))
+            {
+                continue;
+            }
+            if (auto operation = Step(source.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            ULONG approximate = 0;
+            auto& native = m_model->faces[i];
+            const auto poles = native.face->GetSurface()->GetSingularities(nullptr, nullptr, &approximate);
+            if (poles == SM_SS_NONE && approximate == SM_SS_NONE)
+            {
+                continue;
+            }
+            if (auto observed = ObserveRevolutionPoleVisits(source, native, poles); !observed)
+            {
+                return tl::unexpected(std::move(observed.error()));
+            }
+        }
+        return {};
+    }
     [[nodiscard]] Result<void> ClassifyRegion(const Face& f, NativeFaceData& native)
     {
         // Source-unmarked regions use curve-intersection containment AFTER
@@ -5122,11 +5228,17 @@ private:
         {
             return tl::unexpected(Fail("GeneralSplineRegionChartUnestablished", f.record, Status::Deferred));
         }
-        // The current revolution constructor retains a full angular U chart
-        // and an unswapped finite generator V interval. Admit this one-period
-        // region only; closed generators and pole charts need their own tests.
-        if (revolution && (properties.m_bClosedU != TRUE || properties.m_bClosedV != FALSE || properties.m_lPoles != SM_SS_NONE ||
-                           properties.m_lApproxPoles != SM_SS_NONE || properties.m_bBadCrossedPole != FALSE))
+        // STEP_IMPORT/README.md, revolution pole regions: the retained chart is
+        // one angular period in U, with the unswapped finite generator in V.
+        // Admit native exact V-end poles only when each already has a face
+        // vertex. Stage 3's missing-pole count alone does not establish that
+        // inventory for every chart orientation (SmFaceProps::SetProps_Stage3).
+        // No additional approximate pole, new vertex, seam/pole crossing or
+        // support change is allowed. In particular this does NOT exempt a
+        // defining SmCrvOnSurf/SmSTEPSurface from the later complete LEVEL2.
+        if (revolution && (properties.m_bClosedU != TRUE || properties.m_bClosedV != FALSE ||
+                           (properties.m_lPoles & ~(SM_SS_VMIN | SM_SS_VMAX)) != 0 || properties.m_lApproxPoles != properties.m_lPoles ||
+                           (properties.m_lPoles != SM_SS_NONE && properties.m_lNoVertexPoles != SM_SS_NONE) || properties.m_bBadCrossedPole != FALSE))
         {
             return tl::unexpected(Fail("GeneralRevolutionRegionChartUnestablished", f.record, Status::Deferred));
         }
@@ -5182,15 +5294,38 @@ private:
             return tl::unexpected(std::move(businessCheck.error()));
         }
         const auto index = static_cast<Index>(it - native.loops.begin());
+        const bool declaredOuter = std::any_of(
+            f.loops.begin(),
+            f.loops.end(),
+            [](const auto& loop)
+            {
+                return loop.outer;
+            }
+        );
+        if (declaredOuter && !f.loops[index].outer)
+        {
+            return tl::unexpected(Fail("GeneralDeclaredOuterRegionUnestablished", f.record, Status::Indeterminate));
+        }
+        if (revolution && properties.m_lPoles != SM_SS_NONE)
+        {
+            if (m_options.normalizePeriodicFaces || m_options.restrictUnusedSupportDomains || m_model->topologyNormalization)
+            {
+                return tl::unexpected(Fail("GeneralRevolutionPoleNormalizationCompositionUnestablished", f.record, Status::Unsupported));
+            }
+            // Final defining curves are certified once after all consumers.
+            // Region classification and an outer marker grant no exemption. Study
+            // transformations never inherit a certificate from an earlier graph.
+        }
         if (periodicSupport)
         {
             // A cut annulus is derived from BOTH rings; neither source ring is
             // an outer-bound marker. Preserve all origins and keep the planar
             // one-bound classification report separate from this result.
             RepresentationNormalization classification;
-            classification.kind = cylinder ? "NativeCylindricalCurveIntersectionContainment" :
-                                  cone     ? "NativeConicalCurveIntersectionContainment" :
-                                             "NativeRevolutionCurveIntersectionContainment";
+            classification.kind = cylinder                          ? "NativeCylindricalCurveIntersectionContainment" :
+                                  cone                              ? "NativeConicalCurveIntersectionContainment" :
+                                  properties.m_lPoles != SM_SS_NONE ? "NativeRevolutionPoleCurveIntersectionContainment" :
+                                                                      "NativeRevolutionCurveIntersectionContainment";
             classification.sourceFaceId = Id(f.record);
             for (const auto& loop : f.loops)
             {

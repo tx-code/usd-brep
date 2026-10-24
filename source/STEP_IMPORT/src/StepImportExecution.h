@@ -58,6 +58,7 @@ public:
         return m_surfaceCurves.get();
     }
     [[nodiscard]] Result<void> SpendTerminalDomainWork(std::size_t units = 1);
+    [[nodiscard]] Result<void> SpendExactGeometryWork(Report& bodyReport, std::size_t units, std::size_t sourceRecord);
     [[nodiscard]] Result<void> RecordTerminalDomainAction(std::size_t plan, TerminalDomainInterpretationAction action);
     [[nodiscard]] Result<void> CheckTerminalDomainCompletion();
     [[nodiscard]] Result<void> ClaimTerminalDomainPcurve(const std::string& sourceId);
