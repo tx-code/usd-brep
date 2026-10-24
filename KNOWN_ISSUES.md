@@ -47,6 +47,20 @@ copied surface, check their results, then transfer both with the curve/surface c
 
 Near a surface pole, for example the apex of a cone, dropping a curve onto a surface can miss a seam that the curve starts on or runs along within tolerance, and so classify the curve's boundary incorrectly.
 
+### Near-axis revolution NURBS and STEP validity can disagree
+
+`SmSurfOfRevolution::CreateCanonical` can collapse a small nonzero end circle in its ordinary NURBS
+representation, while retaining the original generator and the nonzero circle in STEP evaluation.
+The collapse uses a coordinate-scaled numerical zero. The ordinary surface can then pass full
+`AssertValid`, while an `SmSTEPSurface` facade over the same object fails `SmSurface` predicate 5
+(`Bad Surf Pole Approximation`) at the same zone tolerance. A translated synthetic linear frustum
+reproduces this in matching Release and Debug builds. ([GitHub #30](https://github.com/NVIDIA-Omniverse/usd-brep/issues/30))
+
+**Workaround:** none established for source-priority STEP construction. A valid face does not
+establish validity of the distinct source-pcurve carrier. Native STEP import retains the source
+definition and refuses the complete candidate when the carrier fails; it does not silently snap
+the source, select a different driving curve, skip validation or enlarge tolerances.
+
 ### `shell_brep` can return a result that is not a solid
 
 Shelling `TestFiles/pt_TestFiles/Shell/problemShell4.smb` outward by 5.08 with face 2 open returns three faces that do not form a solid. The debug `ShellBrep` test for this file expects a placeholder face count of `9999`. With `extended_offset=False`, shelling a 50 x 50 x 30 box whose top edges are filleted, with its top face open and an inset of 2, returns 83 faces that do not form a solid.

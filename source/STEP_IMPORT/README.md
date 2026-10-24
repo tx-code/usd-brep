@@ -129,6 +129,14 @@ Bezier 分段及有界细分。对齐次定义 `H=(X,Y,Z,W)` 和原生极点 `P`
 定义和参数继续保留；默认路径及任何显式原件解释都须通过最终 LEVEL2、同参数 lift、
 角色、工作容差、量测、完整报告和提交检查。
 
+近轴生成线还受原生载体限制：旋转面的普通 NURBS 扫掠可能按坐标尺度将非零端圈折叠为
+一点，而 `SmSTEPSurface` 中的源生成线／STEP 求值仍保留该端圈。普通面通过 LEVEL2，
+不能替代这个独立定义载体的验证；后者仍可能触发 `SmSurface` test 5 并使完整候选失败。
+该差异已有不含外部 CAD 的平移线性截锥复现；见
+[已知限制](../../KNOWN_ISSUES.md#near-axis-revolution-nurbs-and-step-validity-can-disagree)及
+[上游 #30](https://github.com/NVIDIA-Omniverse/usd-brep/issues/30)。当前没有源优先路径的
+已验证规避方式，不自动折叠源定义、切换三维主表示或跳过原生检查。
+
 ## 旋转面的等价目标参数图条件化
 
 通用 development 路径的完整 LEVEL2 失败集若全部来自面所拥有的派生二维 UV trim
