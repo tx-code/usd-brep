@@ -24,6 +24,24 @@ struct GeneralSolidIntegrals
     std::vector<GeneralFaceIntegral> faces; // Same order as ModelData::faces.
 };
 
+struct GeneralSurfaceIntegrals
+{
+    double areaMm2 = 0;
+    Point centroidMm{}; // Area centroid; no material volume is requested or inferred.
+    std::vector<GeneralFaceIntegral> faces;
+};
+
+// The caller has checked the nonmaterial role and complete face inventory.
+// Integrate each geometric face once, retaining the existing face-area stopping
+// scale and exact trim. Publish only after all charged/cancellable queries pass.
+[[nodiscard]] Result<SmStatus> IntegrateGeneralSurface(
+    const ModelData& model,
+    const Point& accumulationOriginMm,
+    const NativeStep& beforeFace,
+    GeneralSurfaceIntegrals& output,
+    double relativeAccuracy = 1e-4
+);
+
 // Internal general-development measurement policy. The default retains 1e-4;
 // explicit requests tighten its numerical stopping control, without clamping.
 // This is not a production quality default or an error bound.

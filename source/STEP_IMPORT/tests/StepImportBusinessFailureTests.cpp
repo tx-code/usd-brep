@@ -101,13 +101,16 @@ void GeneralBusinessErrors(const Plan& plan)
     auto options = Options::PlanarFixture();
     options.generalBrep = true;
     options.quality = Quality::GeneralDevelopment();
+    // The source surface role itself is supported. This late-normalization
+    // combination still lacks its independent surface-use correspondence.
+    options.normalizePeriodicFaces = true;
     Report report;
     Execution execution(options, report);
     const auto result = BuildGeneral(plan.source, options, report, execution);
     Require(
-        !result && result.error().status == Status::Unsupported && result.error().key == "GeneralRequiresMaterialSolid" && result.error().record &&
-            plan.source->Source().Records()[*result.error().record].id == "21" && result.error().stage == "GeneralBrep",
-        "a source surface cannot become a material solid through a thrown business failure"
+        !result && result.error().status == Status::Unsupported && result.error().key == "GeneralSurfaceConfigurationUnestablished" &&
+            result.error().record && plan.source->Source().Records()[*result.error().record].id == "21" && result.error().stage == "GeneralBrep",
+        "an unqualified surface option combination returns its business failure without changing the source role"
     );
     Require(report.nativeCalls == 0 && !report.candidateDiscarded, "general profile refusal returns before native work");
 }
@@ -128,17 +131,19 @@ void FrameBusinessErrors(const std::filesystem::path& fixtures)
         std::size_t calls;
         bool validated;
     };
+    // The checked box now charges one body-role gate, six faces and twelve
+    // edges before associated geometry. Early refusals keep their old counts.
     const FrameCase cases[]{
         { "conic_bounds_bulged_box.step", "#200=DIRECTION('',(1.,0.,0.));", "#200=DIRECTION('',(1.7E308,1.7E308,0.));", 14, false },
         { "conic_bounds_cylinder.step", "#105=DIRECTION('',(1.,0.,0.));", "#105=DIRECTION('',(1.7E308,1.7E308,0.));", 2, false },
         { "conic_bounds_cylinder.step", "#104=DIRECTION('',(0.,0.,1.));", "#104=DIRECTION('',(0.,1.7E308,1.7E308));", 2, false },
         { "conic_bounds_cylinder.step", "#105=DIRECTION('',(1.,0.,0.));", "#105=DIRECTION('',(1.E-320,0.,1.));", 2, false },
         { "conic_bounds_bulged_box.step", "#501=DIRECTION('',(0.,0.,-1.));", "#501=DIRECTION('',(0.,1.7E308,1.7E308));", 69, false },
-        { "linked_wireframe.step", "#917=DIRECTION('',(1.,0.,0.));", "#917=DIRECTION('',(1.7E308,1.7E308,0.));", 236, true },
-        { "linked_wireframe.step", "#907=DIRECTION('',(1.,0.,0.));", "#907=DIRECTION('',(1.7E308,1.7E308,0.));", 240, true },
-        { "supporting_geometry.step", "#917=DIRECTION('',(1.,0.,0.));", "#917=DIRECTION('',(1.7E308,1.7E308,0.));", 239, true },
-        { "supporting_geometry.step", "#907=DIRECTION('',(1.,0.,0.));", "#907=DIRECTION('',(1.7E308,1.7E308,0.));", 236, true },
-        { "supporting_geometry.step", "#973=DIRECTION('',(1.,0.,0.));", "#973=DIRECTION('',(1.7E308,1.7E308,0.));", 237, true },
+        { "linked_wireframe.step", "#917=DIRECTION('',(1.,0.,0.));", "#917=DIRECTION('',(1.7E308,1.7E308,0.));", 255, true },
+        { "linked_wireframe.step", "#907=DIRECTION('',(1.,0.,0.));", "#907=DIRECTION('',(1.7E308,1.7E308,0.));", 259, true },
+        { "supporting_geometry.step", "#917=DIRECTION('',(1.,0.,0.));", "#917=DIRECTION('',(1.7E308,1.7E308,0.));", 258, true },
+        { "supporting_geometry.step", "#907=DIRECTION('',(1.,0.,0.));", "#907=DIRECTION('',(1.7E308,1.7E308,0.));", 255, true },
+        { "supporting_geometry.step", "#973=DIRECTION('',(1.,0.,0.));", "#973=DIRECTION('',(1.7E308,1.7E308,0.));", 256, true },
     };
     for (const auto& item : cases)
     {
@@ -160,6 +165,10 @@ void FrameBusinessErrors(const std::filesystem::path& fixtures)
                 result.error().message == "Native derived evidence is unestablished" && !result.error().record && result.error().stage == "D5",
             "unestablished native direction returns its original numerical refusal"
         );
+        if (report.nativeCalls != item.calls)
+        {
+            std::cerr << "frame native billing expected=" << item.calls << " actual=" << report.nativeCalls << '\n';
+        }
         Require(
             report.nativeCalls == item.calls && report.candidateDiscarded &&
                 report.pointerReports == (item.validated ? std::optional<std::size_t>(0) : std::nullopt) &&
@@ -222,6 +231,7 @@ void ScalarBusinessErrors(const std::filesystem::path& fixtures)
         std::vector<std::pair<std::string, std::string>> edits;
         const char* key;
         std::size_t calls;
+        bool validated = false;
     };
     const ConversionCase cases[]{
         { "conic_bounds_bulged_box.step",
@@ -258,20 +268,28 @@ void ScalarBusinessErrors(const std::filesystem::path& fixtures)
         { "linked_wireframe.step",
           { { "#911=CARTESIAN_POINT('',(7.,8.,9.));", "#911=CARTESIAN_POINT('',(1.E309,8.,9.));" } },
           "GeneralNumericRangeUnestablished",
-          236 },
+          255,
+          true },
         { "linked_wireframe.step",
           { { "#911=CARTESIAN_POINT('',(7.,8.,9.));", "#911=CARTESIAN_POINT('',(7.,8.));" } },
           "GeneralRequires3DGeometry",
-          236 },
-        { "linked_wireframe.step", { { "PARAMETER_VALUE(1.5707963267948966)", "PARAMETER_VALUE(1.E309)" } }, "GeneralNumericRangeUnestablished", 240 },
+          255,
+          true },
+        { "linked_wireframe.step",
+          { { "PARAMETER_VALUE(1.5707963267948966)", "PARAMETER_VALUE(1.E309)" } },
+          "GeneralNumericRangeUnestablished",
+          259,
+          true },
         { "supporting_geometry.step",
           { { "#911=CARTESIAN_POINT('',(7.,8.,9.));", "#911=CARTESIAN_POINT('',(1.E309,8.,9.));" } },
           "GeneralNumericRangeUnestablished",
-          239 },
+          258,
+          true },
         { "supporting_geometry.step",
           { { "#971=CARTESIAN_POINT('',(30.,40.,50.));", "#971=CARTESIAN_POINT('',(1.E309,40.,50.));" } },
           "GeneralNumericRangeUnestablished",
-          237 },
+          256,
+          true },
         { "conic_bounds_bulged_box.step",
           { { "#200=DIRECTION('',(1.,0.,0.));\n", "" },
             { "#201=VECTOR('',#200,10.);\n", "" },
@@ -312,7 +330,11 @@ void ScalarBusinessErrors(const std::filesystem::path& fixtures)
                 result.error().message == "Native derived evidence is unestablished" && !result.error().record && result.error().stage == "D5",
             "native scalar conversion returns the original numerical refusal without throwing"
         );
-        const auto observed = item.calls >= 236 ? std::optional<std::size_t>(0) : std::nullopt;
+        const auto observed = item.validated ? std::optional<std::size_t>(0) : std::nullopt;
+        if (report.nativeCalls != item.calls)
+        {
+            std::cerr << "scalar native billing expected=" << item.calls << " actual=" << report.nativeCalls << '\n';
+        }
         Require(
             report.nativeCalls == item.calls && report.candidateDiscarded == (item.calls > 0) && report.pointerReports == observed &&
                 report.deepReports == observed,

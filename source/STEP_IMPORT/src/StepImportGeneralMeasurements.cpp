@@ -30,6 +30,123 @@ Point P(const SmVector3d& value)
 }
 } // namespace
 
+[[nodiscard]] Result<SmStatus> IntegrateGeneralSurface(
+    const ModelData& model,
+    const Point& origin,
+    const NativeStep& beforeFace,
+    GeneralSurfaceIntegrals& output,
+    double relativeAccuracy
+)
+{
+    if (!std::isfinite(relativeAccuracy) || relativeAccuracy < 1e-8 || relativeAccuracy > 1e-4 || !model.brep || model.material || !beforeFace ||
+        !std::all_of(
+            origin.begin(),
+            origin.end(),
+            [](double value)
+            {
+                return std::isfinite(value);
+            }
+        ))
+    {
+        return SM_ERR_INVALID_INPUT;
+    }
+    SmTArray<SmFace*> nativeFaces;
+    model.brep->GetFaces(nativeFaces);
+    if (nativeFaces.GetSize() != model.faces.size() || model.faces.empty())
+    {
+        return SM_ERR_INVALID_INPUT;
+    }
+    std::map<const SmFace*, std::size_t> sourceOrder;
+    for (std::size_t i = 0; i < model.faces.size(); ++i)
+    {
+        if (!model.faces[i].face || !sourceOrder.emplace(model.faces[i].face, i).second)
+        {
+            return SM_ERR_INVALID_INPUT;
+        }
+    }
+    GeneralSurfaceIntegrals result;
+    result.faces.resize(model.faces.size());
+    SmVector3d firstMoment(0, 0, 0);
+    const SmPoint3d reference(origin[0], origin[1], origin[2]);
+    for (const auto face : nativeFaces)
+    {
+        const auto found = sourceOrder.find(face);
+        if (found == sourceOrder.end())
+        {
+            return SM_ERR_INVALID_INPUT;
+        }
+        if (auto operation = beforeFace(found->second); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        SmExtent3d box;
+        const auto bounded = face->CalculateBoundingBox(box);
+        if (bounded != SM_SUCCESS)
+        {
+            return bounded;
+        }
+        const auto local = box.GetMid();
+        double signedArea = 0, unusedVolume = 0;
+        SmTArray<SmVector3d> moments;
+        const auto integrated = face->ComputePreciseProperties(
+            SM_OT_SAME,
+            relativeAccuracy,
+            local,
+            AreaEstimate(box),
+            0.,
+            signedArea,
+            unusedVolume,
+            moments,
+            SM_PPF_AREA | SM_PPF_AREA_FIRST_MOMENTS
+        );
+        if (integrated != SM_SUCCESS)
+        {
+            return integrated;
+        }
+        if (!std::isfinite(signedArea) || std::abs(signedArea) < SM_EFF_ZERO || !moments.GetSize())
+        {
+            return SM_ERR_INVALID_INPUT;
+        }
+        const auto center = local + moments[0] / signedArea;
+        const auto coordinates = P(center);
+        if (!std::all_of(
+                coordinates.begin(),
+                coordinates.end(),
+                [](double value)
+                {
+                    return std::isfinite(value);
+                }
+            ))
+        {
+            return SM_ERR_INVALID_INPUT;
+        }
+        // Area is unsigned; both oriented sides are one geometric face. Keep
+        // moments near a finite body reference instead of summing world A*C.
+        const double area = std::abs(signedArea);
+        result.areaMm2 += area;
+        firstMoment += (center - reference) * area;
+        result.faces[found->second] = { signedArea, P(moments[0]), P(local) };
+    }
+    if (!std::isfinite(result.areaMm2) || !(result.areaMm2 > 0))
+    {
+        return SM_ERR_INVALID_INPUT;
+    }
+    result.centroidMm = P(reference + firstMoment / result.areaMm2);
+    if (!std::all_of(
+            result.centroidMm.begin(),
+            result.centroidMm.end(),
+            [](double value)
+            {
+                return std::isfinite(value);
+            }
+        ))
+    {
+        return SM_ERR_INVALID_INPUT;
+    }
+    output = std::move(result);
+    return SM_SUCCESS;
+}
+
 [[nodiscard]] Result<SmStatus> IntegrateGeneralSolid(
     const ModelData& model,
     const Point& origin,

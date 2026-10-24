@@ -7,6 +7,7 @@
 #include "StepImportDerivedUv.h"
 #include "StepImportExecution.h"
 #include "StepImportGeneralMeasurements.h"
+#include "StepImportGeneralRole.h"
 #include "StepImportGeometryConstruction.h"
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
@@ -148,6 +149,12 @@ public:
                 Failure{ Status::Indeterminate, "UnsupportedNativeNumericEnvironment", "Nearest binary64 environment required", {}, "GeneralBrep" }
             );
         }
+        // Source role and unsupported option combinations are settled before
+        // claiming a repair plan or allocating any native geometry.
+        if (auto operation = PrepareRole(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
         auto nativeValue1 = PrepareCylindricalBandRepair(m_source, m_binding, m_options, m_report, m_execution);
         if (!nativeValue1)
         {
@@ -265,17 +272,22 @@ public:
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
         }
-        if (auto operation = Step(shape); !operation)
+        if (IsClosedBoundary(m_bodyRole))
         {
-            return tl::unexpected(std::move(operation.error()));
+            if (auto operation = Step(shape); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            m_model->bounded = c.StartRegion(IsMaterial(m_bodyRole) ? TRUE : FALSE, nullptr);
+            if (auto businessCheck = Need(m_model->bounded != nullptr, "GeneralRegionAllocation", shape); !businessCheck)
+            {
+                return tl::unexpected(std::move(businessCheck.error()));
+            }
+            // StartRegion's bool is ignored by the kernel. Void is an explicit
+            // source-role policy, never inferred from native closure predicates.
+            m_model->bounded->SetIsVoid(IsMaterial(m_bodyRole) ? FALSE : TRUE);
+            m_model->material = IsMaterial(m_bodyRole) ? m_model->bounded : nullptr;
         }
-        m_model->bounded = c.StartRegion(TRUE, nullptr);
-        if (auto businessCheck = Need(m_model->bounded != nullptr, "GeneralRegionAllocation", shape); !businessCheck)
-        {
-            return tl::unexpected(std::move(businessCheck.error()));
-        }
-        m_model->bounded->SetIsVoid(FALSE);
-        m_model->material = m_model->bounded;
         if (auto operation = Step(shell); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
@@ -300,13 +312,16 @@ public:
         {
             return tl::unexpected(std::move(nativeStatusCheck.error()));
         } // No implicit stitching or source repair.
-        if (auto operation = Step(shape); !operation)
+        if (IsClosedBoundary(m_bodyRole))
         {
-            return tl::unexpected(std::move(operation.error()));
-        }
-        if (auto nativeStatusCheck = Good(c.EndRegion()); !nativeStatusCheck)
-        {
-            return tl::unexpected(std::move(nativeStatusCheck.error()));
+            if (auto operation = Step(shape); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto nativeStatusCheck = Good(c.EndRegion()); !nativeStatusCheck)
+            {
+                return tl::unexpected(std::move(nativeStatusCheck.error()));
+            }
         }
         if (auto operation = Step(shape); !operation)
         {
@@ -539,6 +554,9 @@ private:
     std::shared_ptr<CylindricalBandRepairTrial> m_cylindricalBandTrial;
     std::vector<CircleVertexCorrectionEvidence> m_circleVertexCorrections;
     std::optional<step_semantics::Part::Shape> m_binding;
+    GeneralBodyRole m_bodyRole = GeneralBodyRole::MaterialSolid;
+    std::vector<GeneralRoleFace> m_roleFaces;
+    std::vector<GeneralRoleEdge> m_roleEdges;
     Index shape = 0, shell = 0;
     std::vector<Index> vertices;
     std::vector<V> points;
@@ -721,7 +739,7 @@ private:
         return Is(geometry, "TRIMMED_CURVE") ? Is(basis, "LINE") || Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") :
                                                Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") || Is(basis, "B_SPLINE_CURVE_WITH_KNOTS");
     }
-    [[nodiscard]] Result<void> Prepare()
+    [[nodiscard]] Result<void> PrepareRole()
     {
         // Source checking can inventory every MSB in one part. Until collection
         // publication is implemented, reject the whole request before selecting
@@ -758,33 +776,59 @@ private:
                     return item.shape == m_binding->shape && item.shell == m_binding->shell && item.role == m_binding->role;
                 }
             );
-            if (!selected || m_binding->role != "MaterialSolid")
+            if (!selected)
             {
-                throw std::logic_error("UnregisteredMaterialBodyBinding");
+                throw std::logic_error("UnregisteredGeneralBodyBinding");
             }
             shape = m_binding->shape;
             shell = m_binding->shell;
         }
         else
         {
-            const auto& role = m_source->PartDefinition().shapeRole;
-            if (role != "MaterialSolid")
-            {
-                // A checked surface model is a legitimate source role. This
-                // builder currently constructs closed material regions only;
-                // refuse its unsupported scope before native allocation, never
-                // retag the surface as material or call this a failed postcheck.
-                const auto status = role == "OpenSurfaceModel" || role == "ClosedSurfaceModel" ? Status::Unsupported : Status::PostcheckFailure;
-                return tl::unexpected(Fail("GeneralRequiresMaterialSolid", Role("shape"), status));
-            }
             shape = Role("shape");
             shell = Role("shell");
         }
-        if (auto businessCheck = Need(Is(shape, "MANIFOLD_SOLID_BREP") && Is(shell, "CLOSED_SHELL"), "GeneralUnsupportedShape", shape);
-            !businessCheck)
+        const auto& role = m_binding ? m_binding->role : m_source->PartDefinition().shapeRole;
+        if (role == "MaterialSolid")
+        {
+            m_bodyRole = GeneralBodyRole::MaterialSolid;
+        }
+        else if (role == "ClosedSurfaceModel")
+        {
+            m_bodyRole = GeneralBodyRole::ClosedSurfaceModel;
+        }
+        else if (role == "OpenSurfaceModel")
+        {
+            m_bodyRole = GeneralBodyRole::OpenSurfaceModel;
+        }
+        else
+        {
+            return tl::unexpected(Fail("GeneralUnsupportedShapeRole", shape, Status::Unsupported));
+        }
+        const char* shapeType = IsMaterial(m_bodyRole) ? "MANIFOLD_SOLID_BREP" : "SHELL_BASED_SURFACE_MODEL";
+        const char* shellType = IsClosedBoundary(m_bodyRole) ? "CLOSED_SHELL" : "OPEN_SHELL";
+        if (auto businessCheck = Need(Is(shape, shapeType) && Is(shell, shellType), "GeneralUnsupportedShape", shape); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
+        if (!IsMaterial(m_bodyRole) && (m_options.normalizePeriodicFaces || m_options.faceOrientationRepair || m_options.cylindricalBandRepair))
+        {
+            // Late splitting needs a role-qualified use/segment proof; source
+            // repair plans retain their separately established material scope.
+            return tl::unexpected(Fail("GeneralSurfaceConfigurationUnestablished", shape, Status::Unsupported));
+        }
+        const auto representation = Role("representation");
+        m_report.sourceShape = SourceShapeObservation{ std::string(GeneralRoleName(m_bodyRole)),
+                                                       Id(representation),
+                                                       m_source->Source().Records().at(representation).components.at(0).name,
+                                                       Id(shape),
+                                                       shapeType,
+                                                       Id(shell),
+                                                       shellType };
+        return {};
+    }
+    [[nodiscard]] Result<void> Prepare()
+    {
         const auto power = m_source->UnitContext().lengthPower10Mm;
         std::optional<ResolvedLengthScale> convertedLength;
         if (power)
@@ -840,7 +884,7 @@ private:
                 const auto oriented = Refs(loop, "edge_list");
                 // AP214E3_2010.exp ORIENTED_EDGE.orientation is relative to EC;
                 // FACE_BOUND.orientation reverses the whole source loop, while
-                // ADVANCED_FACE.same_sense relates material face to surface normal.
+                // ADVANCED_FACE.same_sense relates the source face to surface normal.
                 // Native primary loops use the surface-normal sense, so compose
                 // all three with EC.same_sense before constructing ordered uses.
                 const bool forward = l.orientation == f.same;
@@ -881,32 +925,48 @@ private:
             );
             faces.push_back(std::move(f));
         }
-        // Incidence is tested in material-boundary sense. Undo the preceding
+        // Incidence is tested in source-selected-face sense. Undo the preceding
         // surface-normal normalization with face.same_sense before comparing
         // the two uses: every closed-shell EC must occur oppositely twice.
         std::vector<std::vector<std::pair<Index, bool>>> incidence(curves.size());
-        for (const auto& f : faces)
+        m_roleEdges.reserve(curves.size());
+        for (const auto& curve : curves)
         {
+            m_roleEdges.push_back({ curve.record, {} });
+        }
+        for (Index ordinal = 0; ordinal < faces.size(); ++ordinal)
+        {
+            const auto& f = faces[ordinal];
+            m_roleFaces.push_back({ f.record, f.same });
             for (const auto& l : f.loops)
             {
                 for (const auto& use : l.uses)
                 {
                     incidence[use.edge].push_back({ f.record, use.forward == f.same });
+                    m_roleEdges[use.edge].uses.push_back({ ordinal, use.forward });
                 }
             }
         }
+        std::size_t freeEdges = 0;
         for (Index i = 0; i < incidence.size(); ++i)
         {
             const auto& uses = incidence[i];
-            if (auto businessCheck = Need(uses.size() == 2 && uses[0].second != uses[1].second, "GeneralSourceNonManifoldEdge", curves[i].record);
+            const bool free = !IsClosedBoundary(m_bodyRole) && uses.size() == 1;
+            freeEdges += free;
+            if (auto businessCheck = Need(
+                    free || (uses.size() == 2 && uses[0].second != uses[1].second),
+                    "GeneralSourceNonManifoldEdge",
+                    curves[i].record
+                );
                 !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
         }
-        m_report.sourceShape = SourceShapeObservation{ "MaterialSolid", Id(Role("representation")), "SourceRepresentation",
-                                                       Id(shape),       "MANIFOLD_SOLID_BREP",      Id(shell),
-                                                       "CLOSED_SHELL" };
+        if (!IsClosedBoundary(m_bodyRole) && freeEdges == 0)
+        {
+            return tl::unexpected(Fail("GeneralOpenBoundaryUnestablished", shell, Status::Unsupported));
+        }
         std::int64_t num = 1, den = 1;
         for (int i = 0; power && i < std::abs(*power); ++i)
         {
@@ -4840,17 +4900,21 @@ private:
                 return tl::unexpected(std::move(businessCheck.error()));
             }
         }
-        for (Index i = 0; i < (m_model->topologyNormalization ? TargetEdges().size() : curves.size()); ++i)
+        if (auto role = VerifyGeneralRole(
+                *m_model,
+                m_bodyRole,
+                m_roleFaces,
+                m_roleEdges,
+                derivedEdgeFaces,
+                m_report,
+                [&](Index record)
+                {
+                    return Step(record);
+                }
+            );
+            !role)
         {
-            SmTArray<SmEdgeuse*> uses;
-            if (auto nativeStatusCheck = Good(TargetEdges()[i]->GetEdgeuses(uses)); !nativeStatusCheck)
-            {
-                return tl::unexpected(std::move(nativeStatusCheck.error()));
-            }
-            if (auto businessCheck = Need(uses.GetSize() == 4, "GeneralNativeEdgeIncidence", EdgeOwner(i)); !businessCheck)
-            {
-                return tl::unexpected(std::move(businessCheck.error()));
-            }
+            return tl::unexpected(std::move(role.error()));
         }
         return {};
     }
@@ -5005,8 +5069,8 @@ private:
         info.faces = m_model->faces.size();
         info.edges = TargetEdges().size();
         info.vertices = TargetVertices().size();
-        info.shapeRole = "MaterialSolid";
-        // This path has already checked a closed all-face material boundary:
+        info.shapeRole = GeneralRoleName(m_bodyRole);
+        // This path has already checked the complete all-face boundary:
         // there are no free curves/vertices outside these faces. Each required
         // tight face box includes its vertices, edges AND trimmed interior
         // surface extrema. Their union therefore bounds the whole model without
@@ -5050,7 +5114,8 @@ private:
         for (Index a = 0; a < 3; ++a)
         {
             if (auto businessCheck = Need(
-                    std::isfinite(info.boundsMm[0][a]) && std::isfinite(info.boundsMm[1][a]) && info.boundsMm[1][a] > info.boundsMm[0][a],
+                    std::isfinite(info.boundsMm[0][a]) && std::isfinite(info.boundsMm[1][a]) &&
+                        (IsMaterial(m_bodyRole) ? info.boundsMm[1][a] > info.boundsMm[0][a] : info.boundsMm[1][a] >= info.boundsMm[0][a]),
                     "GeneralFiniteBounds",
                     shape
                 );
@@ -5075,31 +5140,58 @@ private:
         }
         GeneralSolidIntegrals integrals;
         const auto accuracy = m_options.numericalIntegration ? m_options.numericalIntegration->relativeAccuracy : 1e-4;
-        auto nativeStatus0 = IntegrateGeneralSolid(
-            *m_model,
-            origin,
-            [&](Index face) -> Result<void>
+        const auto beforeFace = [&](Index face) -> Result<void>
+        {
+            if (auto operation = Step(faces[SourceFaceIndex(face)].record); !operation)
             {
-                if (auto operation = Step(faces[SourceFaceIndex(face)].record); !operation)
-                {
-                    return tl::unexpected(std::move(operation.error()));
-                }
-                if (m_report.numericalIntegration)
-                {
-                    m_report.numericalIntegration->appliedRelativeAccuracy = accuracy;
-                }
-                return {};
-            },
-            integrals,
-            accuracy
-        );
-        if (!nativeStatus0)
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (m_report.numericalIntegration)
+            {
+                m_report.numericalIntegration->appliedRelativeAccuracy = accuracy;
+            }
+            return {};
+        };
+        if (IsMaterial(m_bodyRole))
         {
-            return tl::unexpected(std::move(nativeStatus0.error()));
+            auto integrated = IntegrateGeneralSolid(*m_model, origin, beforeFace, integrals, accuracy);
+            if (!integrated)
+            {
+                return tl::unexpected(std::move(integrated.error()));
+            }
+            if (auto checked = Good(*integrated); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            const double volume = integrals.volumeMm3;
+            if (auto checked = Need(
+                    std::isfinite(volume) && volume > 0 && std::isfinite(integrals.areaMm2) && integrals.areaMm2 > 0,
+                    "GeneralSolidMeasures",
+                    shape
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            info.areaMm2 = integrals.areaMm2;
+            info.materialVolumeMm3 = volume;
+            info.centroidMm = integrals.centroidMm;
         }
-        if (auto nativeStatusCheck = Good(*nativeStatus0); !nativeStatusCheck)
+        else
         {
-            return tl::unexpected(std::move(nativeStatusCheck.error()));
+            GeneralSurfaceIntegrals surface;
+            auto integrated = IntegrateGeneralSurface(*m_model, origin, beforeFace, surface, accuracy);
+            if (!integrated)
+            {
+                return tl::unexpected(std::move(integrated.error()));
+            }
+            if (auto checked = Good(*integrated); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            info.areaMm2 = surface.areaMm2;
+            info.centroidMm = surface.centroidMm;
+            integrals.faces = std::move(surface.faces);
         }
         // The face API honors this control directly. SmApiBrepComputeMassProperties
         // clamps tighter requests to 1e-4 and must not substitute for this path.
@@ -5110,19 +5202,6 @@ private:
         {
             m_report.numericalIntegration = m_model->numericalIntegration;
         }
-        info.areaMm2 = integrals.areaMm2;
-        const double volume = integrals.volumeMm3;
-        if (auto businessCheck = Need(
-                std::isfinite(volume) && volume > 0 && std::isfinite(info.areaMm2) && info.areaMm2 > 0,
-                "GeneralSolidMeasures",
-                shape
-            );
-            !businessCheck)
-        {
-            return tl::unexpected(std::move(businessCheck.error()));
-        }
-        info.materialVolumeMm3 = volume;
-        info.centroidMm = integrals.centroidMm;
         for (const auto value : info.centroidMm)
         {
             if (auto businessCheck = Need(std::isfinite(value), "GeneralFiniteCentroid", shape); !businessCheck)
@@ -5130,6 +5209,7 @@ private:
                 return tl::unexpected(std::move(businessCheck.error()));
             }
         }
+        std::map<SmEdge*, std::pair<double, bool>> edgeMeasures;
         for (Index i = 0; i < TargetEdges().size(); ++i)
         {
             double length = 0;
@@ -5146,12 +5226,15 @@ private:
                 return tl::unexpected(std::move(businessCheck.error()));
             }
             info.boundaryMm += length;
+            const bool free = TargetEdges()[i]->IsLamina() != FALSE;
+            info.freeBoundaryEdges += free;
+            edgeMeasures.emplace(TargetEdges()[i], std::pair{ length, free });
         }
         for (Index i = 0; i < m_model->faces.size(); ++i)
         {
             auto& f = m_model->faces[i];
             f.info.faces = 1;
-            f.info.shapeRole = "MaterialSolidBoundary";
+            f.info.shapeRole = IsMaterial(m_bodyRole) ? "MaterialSolidBoundary" : "FaceSurface";
             // The face's charged/cancellable query ran in the fused traversal.
             // Finish its cached result here, retaining the original report order.
             const auto& integral = integrals.faces[i];
@@ -5196,13 +5279,28 @@ private:
                 f.info.edges = faceEdges.size() + (missing->has_value() ? 1 : 0);
                 f.info.vertices = faceVertices.size();
             }
+            SmTArray<SmEdge*> nativeEdges;
+            f.face->GetEdges(nativeEdges);
+            for (const auto edge : nativeEdges)
+            {
+                const auto measured = edgeMeasures.find(edge);
+                if (auto checked = Need(measured != edgeMeasures.end(), "GeneralFaceEdgeInventoryMismatch", shape); !checked)
+                {
+                    return tl::unexpected(std::move(checked.error()));
+                }
+                f.info.boundaryMm += measured->second.first;
+                f.info.freeBoundaryEdges += measured->second.second;
+            }
             const auto& sourceFace = faces[SourceFaceIndex(i)];
             m_report.faces.push_back({ f.faceId, Id(sourceFace.surface), B(sourceFace.record, "same_sense"), f.info });
         }
         m_model->info = info;
         m_report.native = info;
-        m_report.solidRegions = 1;
-        m_report.voidCavities = 0;
+        if (IsMaterial(m_bodyRole))
+        {
+            m_report.solidRegions = m_report.nativeRole->materialRegions;
+            m_report.voidCavities = m_report.nativeRole->boundedVoidRegions;
+        }
         // Measurements are intentionally not written into *_bound_mm fields,
         // which are reserved for the existing planar conservative proof.
         m_report.tolerances.push_back({ "Postcheck", "MeasuredEdgeVertexGap", "", consistency });

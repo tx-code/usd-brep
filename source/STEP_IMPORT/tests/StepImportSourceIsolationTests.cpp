@@ -121,13 +121,16 @@ int main(int argc, char** argv)
         Replace(surfaceText, "#21=MANIFOLD_SOLID_BREP('',#22)", "#21=SHELL_BASED_SURFACE_MODEL('',(#22))");
         Replace(surfaceText, "#20=ADVANCED_BREP_SHAPE_REPRESENTATION", "#20=MANIFOLD_SURFACE_SHAPE_REPRESENTATION");
         const auto surface = ImportDocumentBytes(surfaceText, Config(surfaceText));
-        // Selected-source qualification does not expand the material-only general
-        // native builder. Preserve the surface role and refuse native publication;
-        // a geometrically closed shell must never be promoted to a material solid.
+        // Source isolation and native construction retain the selected surface
+        // role. Geometric closure grants neither material volume nor InsideSolid.
         Require(
-            surface.status == Status::Unsupported && !surface.document && surface.report.generalSource && surface.report.generalSource->document &&
+            surface.status == Status::AcceptedWithSourceIsolation && surface.document && surface.document->BodyCount() == 1 &&
+                surface.report.generalSource && surface.report.generalSource->document &&
                 surface.report.generalSource->document->Part(0)->PartDefinition().shapeRole == "ClosedSurfaceModel" &&
-                !surface.report.diagnostics.empty() && surface.report.diagnostics.back().source.key == "GeneralRequiresMaterialSolid",
+                surface.document->Body(0)->Info().shapeRole == "ClosedSurfaceModel" && !surface.document->Body(0)->MaterialVolumeMm3() &&
+                !surface.document->Body(0)->ClassifyMaterial({ 7, 7, 20 }) &&
+                surface.report.definitions.at(0).checks->nativeRole->materialRegions == 0 &&
+                surface.report.definitions.at(0).checks->nativeRole->boundedVoidRegions == 1,
             "selected closed surface retains its source role without material promotion"
         );
         auto three = text;
