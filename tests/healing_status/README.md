@@ -33,3 +33,22 @@ not establish full-pipeline propagation for the injected solver failure. Normal 
 controls exercise `SmBrep::HealBrep` and `SmHealData::HealBrep` with both option and editing
 settings, check requested trims before validation can create them, then check Level 2 validity
 and repeated healing. The ordinary `SmApiHealBrep` has no UV-generation option.
+
+The `healing_degen_face_*` cases exercise a real zero-area planar face bounded by two independent
+NURBS lines with the same two vertices, traversed in opposite directions. Its public virtual
+point evaluator fails only after real face deletion turns its edge into a wire. Construction,
+degeneracy classification, and the attempted squeeze remain real; both curves share failure state
+outside their lifetime so deletion cannot erase the evidence. Direct `SqueezeFace` delivers
+`SM_ERR` after its internal stitching failure. The native sequence, `SmBrep::HealBrep`, and full
+`SmApiHealBrep` must preserve that delivered status with both initial editing settings, restore
+editing/tracking, and stop before recording the failed stage as complete. Reset/destruction of
+the retained session must release stale properties safely. Remaining wire intervals keep their
+original parameter domains; the failed operation is not rolled back or accepted as a repaired model.
+
+Successful same-shape, vertex-only, and connected-wire controls check ordinary cleanup, retention
+of vertices still used by other topology, connected-wire identities/coordinates/parameter interval,
+pointer/geometry reports, Level 2 validity, and repeated
+healing. `SmHealData` test sessions are heap allocated to keep nested Debug calls within the default
+thread stack. Dynamic failure coverage concerns `SqueezeFace`; the two cleanup error guards are
+source-audited, with their successful paths covered by controls. No damaged pointer graph is
+introduced to manufacture `DeleteEdge` or `DeleteVertex` failure coverage.

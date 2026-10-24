@@ -36,11 +36,17 @@ repair are unimplemented. Uncontained-edge handling only adjusts cached state. B
 remains disabled because its classification and repair are unreliable. A successful return does not
 establish that every defect was repaired; validate the resulting topology and geometry.
 
-Failed seam movement/insertion and failed recursive property refresh propagate through
-`SmBrep::HealBrep` and `SmApiHealBrep`. Python's existing status check raises `RuntimeError` for
+Failed degenerate-face squeezing/cleanup, seam movement/insertion and recursive property refresh
+propagate through `SmBrep::HealBrep` and `SmApiHealBrep`. Python's existing status check raises `RuntimeError` for
 these failures. Healing is in-place: earlier changes can remain after an error, so heal a copy
 when the original must be preserved. Some other stages still discard errors; see
 [known issues](../../KNOWN_ISSUES.md).
+
+Degenerate-face repair stops on the first failed squeeze or boundary cleanup. `SqueezeFace`
+can delete the face before a later stitching failure and summarizes that failure as `SM_ERR`;
+the healer preserves the status it receives. An aborted native `SmHealData` session can retain
+properties referencing removed topology. Discard those caches before consulting them or calling
+`HealTgts` again: use `ReSet`, destroy the session, or start a fresh `HealBrep` call, which resets on entry.
 
 `SmBrep::HealBrep` and `SmHealData::HealBrep` callers can explicitly request UV-trim creation
 with `bMakeUVTrimCurves=TRUE`.

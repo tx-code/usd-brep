@@ -299,6 +299,13 @@ Other split errors can occur after interval/curve mutation and are propagated im
 target offsets, and recursion depth on exit. A failed refresh can leave replaced properties and
 partial topology edits; it is not a transaction or permission to continue later repair stages.
 
+`Fix_DegenFaces` returns the first failed `SqueezeFace`, `DeleteEdge`, or `DeleteVertex` status.
+After deleting the face, `SqueezeFace` attempts internal best-effort cleanup and summarizes a
+later stitching failure as `SM_ERR`. The outer repair stops before further cleanup or
+`UpdateTargetLists`; tracker/editing scopes unwind, but old properties can reference removed
+topology. Discard those caches before reading them or calling `HealTgts` again. Use `ReSet`,
+destroy the session, or call `HealBrep`, which resets the session at entry.
+
 ## Seams and Loops
 
 `SmFace::HasSeamProblem` produces separate **crossed**, **missing**, and **near-miss** seam
@@ -369,8 +376,8 @@ sequence, failed catch-up after a real surface replacement, and U/V seam-inserti
 It uses public virtual geometry operations to inject failures while retaining real classification
 and topology operations. Successful full-healer controls also check Level 2 validity; the low-level
 insertion controls establish status and pointer safety, not complete periodic-face repair.
-See the [UV-trim stage contracts](../../../../tests/healing_status/README.md) for the retained-target
-failure seam, unsupported-face deferral caveat, and normal full-entry controls.
+See the [healing status contracts](../../../../tests/healing_status/README.md) for degenerate-face
+failure/cleanup controls and the UV-trim retained-target seam and unsupported-face deferral caveat.
 For a new defect, assert the repaired state and the next consumer's required caches, not only
 that an event appeared. Compare debug logs as well as exit status; use test-selection guidance
 for focused and broader suites.
