@@ -4303,8 +4303,9 @@ private:
             const bool cylinderProjection = Is(f.surface, "CYLINDRICAL_SURFACE");
             const bool coneProjection = Is(f.surface, "CONICAL_SURFACE");
             const bool splineProjection = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
+            const bool revolutionProjection = Is(f.surface, "SURFACE_OF_REVOLUTION");
             const bool toroidalProjection = m_options.restrictUnusedSupportDomains && Is(f.surface, "TOROIDAL_SURFACE");
-            if (cylinderProjection || coneProjection || splineProjection || toroidalProjection)
+            if (cylinderProjection || coneProjection || splineProjection || revolutionProjection || toroidalProjection)
             {
                 SmTArray<SmEdgeuse*> uses;
                 native.face->GetUpwardEdgeuses(uses);
@@ -4325,7 +4326,7 @@ private:
                     {
                         continue;
                     }
-                    // Spline supports and analytic cylinders/cones share this
+                    // Spline supports and analytic cylinders/cones/revolutions share this
                     // bounded derived-data path. Legacy UV retry may enlarge
                     // edge tolerance even for an exact on-surface source curve.
                     // Keep the defining spline and its parameter interval; a
@@ -4381,6 +4382,7 @@ private:
                     const char* kind = Is(curves[index].geometry, "SURFACE_CURVE")             ? "ControlledSourcePcurveUvProjection" :
                                        toroidalProjection                                      ? "ControlledToroidalCurveUvProjection" :
                                        splineProjection                                        ? "ControlledSplineSurfaceUvProjection" :
+                                       revolutionProjection                                    ? "ControlledRevolutionUvProjection" :
                                        coneProjection                                          ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
                                                                                                  "ControlledCircleUvProjection";
@@ -4750,7 +4752,8 @@ private:
         const bool cylinder = Is(f.surface, "CYLINDRICAL_SURFACE");
         const bool cone = Is(f.surface, "CONICAL_SURFACE");
         const bool spline = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
-        const bool periodicSupport = cylinder || cone;
+        const bool revolution = Is(f.surface, "SURFACE_OF_REVOLUTION");
+        const bool periodicSupport = cylinder || cone || revolution;
         // This development increment uses an ordinary finite spline chart.
         // F is an admission restriction, not a proof of the source assertion.
         // Unknown/closed declarations still need their own seam/pole contract.
@@ -4779,6 +4782,14 @@ private:
                        properties.m_bBadUnpairedNoArea_Loop != FALSE || properties.m_lBadMissingPoles != 0))
         {
             return tl::unexpected(Fail("GeneralSplineRegionChartUnestablished", f.record, Status::Deferred));
+        }
+        // The current revolution constructor retains a full angular U chart
+        // and an unswapped finite generator V interval. Admit this one-period
+        // region only; closed generators and pole charts need their own tests.
+        if (revolution && (properties.m_bClosedU != TRUE || properties.m_bClosedV != FALSE || properties.m_lPoles != SM_SS_NONE ||
+                           properties.m_lApproxPoles != SM_SS_NONE || properties.m_bBadCrossedPole != FALSE))
+        {
+            return tl::unexpected(Fail("GeneralRevolutionRegionChartUnestablished", f.record, Status::Deferred));
         }
         if (periodicSupport)
         {
@@ -4838,7 +4849,8 @@ private:
             // an outer-bound marker. Preserve all origins and keep the planar
             // one-bound classification report separate from this result.
             RepresentationNormalization classification;
-            classification.kind = cylinder ? "NativeCylindricalCurveIntersectionContainment" : "NativeConicalCurveIntersectionContainment";
+            classification.kind = cylinder ? "NativeCylindricalCurveIntersectionContainment" :
+                cone ? "NativeConicalCurveIntersectionContainment" : "NativeRevolutionCurveIntersectionContainment";
             classification.sourceFaceId = Id(f.record);
             for (const auto& loop : f.loops)
             {

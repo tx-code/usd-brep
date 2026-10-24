@@ -101,6 +101,28 @@ SmExtent2d SmSTEPSurface::GetNaturalUVDomain() const
   return m_pSurface->GetSTEPUVDomain();
 }
 
+SmStatus SmSTEPSurface::Transform(const SmAxis2Placement & transform, const SmVector3d * scale)
+{
+    NER(m_pSurface);
+    const SmVector3d identityScale(1, 1, 1);
+    if (transform.IsIdentity() && (scale == NULL || *scale == identityScale))
+    {
+        return SM_SUCCESS;
+    }
+    // A CrvOnSurf owns this wrapper and its copied support independently of
+    // the face support. Transform that owned support once, never the UV curve.
+    // Follow the same borrowed-base refusal as SmOffsetSurface::Transform;
+    // neither ownership transfer nor failure rollback is implied here.
+    if (!m_bOwnsSurface)
+    {
+        return SM_ERR;
+    }
+    Notify(SM_NO_PRE_EDIT, this, SM_NO_GET_OWNER(this), NULL);
+    const SmStatus status = m_pSurface->Transform(transform, scale);
+    Notify(SM_NO_POST_EDIT, this, SM_NO_GET_OWNER(this), NULL);
+    return status;
+}
+
 
 /*******************************************************************//**
 PURPOSE: Equality operator for SmSTEPSurface

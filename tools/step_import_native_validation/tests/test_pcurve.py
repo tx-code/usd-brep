@@ -105,6 +105,58 @@ class PcurveNativeTests(unittest.TestCase):
         self.assertEqual([-3, 9], mapping["parameters"]["source_parameter_interval"])
         self.assertEqual(1, mapping["parameters"]["source_uv_to_native_step_scale"][1])
 
+    def test_revolution_patch_uses_bounded_projection_and_retains_source_role(self):
+        path = (Path(__file__).resolve().parents[3] /
+                "source/STEP_IMPORT/tests/fixtures/source_pcurve_revolution_patch.step")
+        data = path.read_bytes()
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report["diagnostics"])
+        self.assertAlmostEqual(3 * 7 * (.9), report["model"]["area_mm2"], delta=1e-4)
+        self.assertEqual("NotApplicable", report["model"]["material_volume"])
+        self.assertEqual(0, report["native_role"]["material_regions"])
+        self.assertEqual("None", report["repair"])
+        self.assertEqual(data.decode(), report["source_inspection"]["source"]["input"]["raw"])
+        self.assertTrue(any(row["kind"] == "ControlledSourcePcurveUvProjection"
+                            for row in report["representation_normalizations"]))
+        mapping = next(row for row in report["parameter_mappings"] if row["kind"] == "SourcePcurveComposition")
+        self.assertEqual([-3, 9], mapping["parameters"]["source_parameter_interval"])
+        self.assertEqual(1, mapping["parameters"]["source_uv_to_native_step_scale"][1])
+        self.assertEqual({"pointer_reports": 0, "level2_reports": 0}, report["validations"])
+
+    def test_revolution_patch_source_gap_is_not_hidden_by_tighter_projection(self):
+        path = (Path(__file__).resolve().parents[3] /
+                "source/STEP_IMPORT/tests/fixtures/source_pcurve_revolution_patch.step")
+        data = path.read_bytes().replace(b"(0.,3.,7.)", b"(0.,3.01,7.)")
+        run, report = self.invoke(data)
+        self.assertNotEqual(0, run.returncode)
+        self.assertIsNone(report["model"])
+        self.assertEqual("None", report["repair"])
+
+    def test_unmarked_revolution_patch_uses_periodic_region_checks(self):
+        path = (Path(__file__).resolve().parents[3] /
+                "source/STEP_IMPORT/tests/fixtures/source_pcurve_revolution_patch.step")
+        data = path.read_bytes().replace(b"#170=FACE_OUTER_BOUND", b"#170=FACE_BOUND")
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report["diagnostics"])
+        self.assertAlmostEqual(18.9, report["model"]["area_mm2"], delta=1e-4)
+        self.assertEqual("NotApplicable", report["model"]["material_volume"])
+        self.assertTrue(any(row["kind"] == "NativeRevolutionCurveIntersectionContainment"
+                            for row in report["representation_normalizations"]))
+        self.assertEqual(data.decode(), report["source_inspection"]["source"]["input"]["raw"])
+
+    def test_unmarked_revolution_solid_keeps_its_original_volume(self):
+        data = axial_pcurve_source(revolution=True).replace(b"#172=FACE_OUTER_BOUND", b"#172=FACE_BOUND")
+        run, report = self.invoke(data)
+        self.assertEqual(0, run.returncode, report["diagnostics"])
+        self.assertAlmostEqual(63 * math.pi, report["model"]["material_volume"]["value_mm3"], delta=.001)
+        self.assertAlmostEqual(60 * math.pi, report["model"]["area_mm2"], delta=.001)
+        self.assertTrue(any(row["kind"] == "NativeRevolutionCurveIntersectionContainment"
+                            for row in report["representation_normalizations"]))
+        wrong = data.replace(b"#182=ADVANCED_FACE('',(#172),#142,.T.)", b"#182=ADVANCED_FACE('',(#172),#142,.F.)")
+        failed, rejected = self.invoke(wrong)
+        self.assertNotEqual(0, failed.returncode)
+        self.assertIsNone(rejected["model"])
+
     def test_bspline_basis_uses_original_uv_knots_not_physical_length_units(self):
         data = spline_pcurve_source().replace(
             b"#504=PLANE('',#503);",

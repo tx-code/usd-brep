@@ -3,6 +3,8 @@
 #pragma once
 #include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
+#include <SmCrvOnSurf.h>
+#include <SmSTEPSurface.h>
 #include <SmBrep.h>
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
@@ -65,6 +67,20 @@ inline void CompareCurveCoefficients(const SmCurve& a, const SmCurve& b)
             "archive curve class/degree/dim " + std::to_string(a.GetType()) + "/" + std::to_string(a.GetDegree()) + "/" + std::to_string(a.GetDim()) +
             " -> " + std::to_string(b.GetType()) + "/" + std::to_string(b.GetDegree()) + "/" + std::to_string(b.GetDim())
         );
+    }
+    if (const auto first = dynamic_cast<const SmCrvOnSurf*>(&a))
+    {
+        const auto second = dynamic_cast<const SmCrvOnSurf*>(&b);
+        Require(second && first->GetUVCurve() && second->GetUVCurve(), "archive exact composition class and parameter child");
+        CompareCurveCoefficients(*first->GetUVCurve(), *second->GetUVCurve());
+        const auto surfaceA = first->GetBaseSurface(), surfaceB = second->GetBaseSurface();
+        Require(
+            surfaceA && surfaceB && dynamic_cast<const SmSTEPSurface*>(surfaceA) && dynamic_cast<const SmSTEPSurface*>(surfaceB) &&
+                surfaceA->GetType() == surfaceB->GetType() && *surfaceA == *surfaceB &&
+                surfaceA->GetNaturalUVDomain() == surfaceB->GetNaturalUVDomain() && surfaceA->GetSTEPUVDomain() == surfaceB->GetSTEPUVDomain(),
+            "archive STEP composition retains its wrapped canonical definition and parameter domains"
+        );
+        return;
     }
     const auto first = dynamic_cast<const SmBSplineCurve*>(&a), second = dynamic_cast<const SmBSplineCurve*>(&b);
     Require(first && second, "admitted exact native curve net");

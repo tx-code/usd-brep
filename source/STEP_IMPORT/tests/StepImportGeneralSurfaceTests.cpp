@@ -108,6 +108,15 @@ Truth Expected(std::string_view mode)
                  area * 1e-7,
                  1e-5 };
     }
+    if (mode == "revolution_patch")
+    {
+        // Radius 3, height 7, angular interval [.3,1.2] from +Y. Integrating
+        // (-3sin(u),3cos(u),z) over r*du*dz gives this independent centroid.
+        return { "OpenSurfaceModel", 1, 4, 4, 4, 18.9, 19.4,
+            { 3 * (std::cos(1.2) - std::cos(.3)) / .9, 3 * (std::sin(1.2) - std::sin(.3)) / .9, 3.5 },
+            { Point{ -3 * std::sin(1.2), 3 * std::cos(1.2), 0 }, Point{ -3 * std::sin(.3), 3 * std::cos(.3), 7 } },
+            false, false, { 18.9 }, 1e-4, 1e-4 };
+    }
     throw std::invalid_argument("Unknown general surface mode");
 }
 Options General()
@@ -558,10 +567,40 @@ void CheckParameterIdentity(SmBrep& a, SmBrep& b)
 void Archive(const std::filesystem::path& fixture, const std::filesystem::path& directory, const std::string& mode)
 {
     const bool band = mode == "archive_band";
-    const auto truth = Expected(band ? "cylinder_band" : mode == "archive_closed" ? "closed" : "plane");
+    const auto truth = Expected(
+        band                               ? "cylinder_band" :
+        mode == "archive_closed"           ? "closed" :
+        mode == "archive_revolution_patch" ? "revolution_patch" :
+                                             "plane"
+    );
     auto imported = Accepted(band ? BandBytes(fixture) : ReadPublic(fixture), band ? BandOptions() : General());
     const auto original = imported.model->Info();
     const auto report = imported.report;
+    if (mode == "archive_revolution_patch")
+    {
+        for (const auto phase : { Phase::NativeReady, Phase::BeforeCommit })
+        {
+            auto stoppedOptions = General();
+            stoppedOptions.execution.control = std::make_shared<ImportControl>();
+            stoppedOptions.execution.progress = [&, phase](Progress progress)
+            {
+                if (progress.phase == phase)
+                {
+                    stoppedOptions.execution.control->RequestCancel();
+                }
+            };
+            const auto stopped = ImportBytes(ReadPublic(fixture), stoppedOptions);
+            Require(stopped.status == Status::Cancelled && !stopped.model, "Revolution projection final cancellation is atomic");
+        }
+        auto limited = General();
+        limited.nativeLimits.nativeCalls = imported.report.nativeCalls - 1;
+        const auto exhausted = ImportBytes(ReadPublic(fixture), limited);
+        Require(exhausted.status == Status::ResourceLimit && !exhausted.model, "Revolution late call budget withholds model");
+        limited = General();
+        limited.nativeLimits.reportBytes = 1;
+        const auto unreported = ImportBytes(ReadPublic(fixture), limited);
+        Require(unreported.status == Status::ResourceLimit && !unreported.model, "Revolution required report precedes publication");
+    }
     auto views = imported.model->Faces();
     const auto domain = views[0].ParameterDomain();
     const double u = (domain[0] + domain[2]) / 2., v = (domain[1] + domain[3]) / 2.;

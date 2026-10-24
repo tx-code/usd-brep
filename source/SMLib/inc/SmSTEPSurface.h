@@ -51,6 +51,10 @@ public:
     // equality operator
     virtual SmBoolean operator==(const SmSurface &crOther) const;
 
+    // Move owned 3D geometry while retaining the STEP parameter convention.
+    // Borrowed bases are not independently mutable through this facade.
+    virtual SmStatus Transform(const SmAxis2Placement & transform, const SmVector3d * scale = NULL) override;
+
     // The copy owns an independent exact base surface even if this wrapper borrows its base.
     virtual SmStatus Copy(const SmContext & crContext, SmSurface *& rpNewSurface) const override;
 

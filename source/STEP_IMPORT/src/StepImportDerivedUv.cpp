@@ -300,7 +300,7 @@ bool SameBasis(const SmBSplineSurface& a, const SmBSplineSurface& b)
             ordinary.reset(new (*face->GetContext()) SmBSplineSurface(*spline));
             ordinary->SetOwner(nullptr);
             ordinary->SetBSplineSurfaceForm(SM_SF_UNSPECIFIED);
-            // The bounded analytic torus net is small. Reject any copy-time
+            // The admitted analytic support net is bounded here. Reject any copy-time
             // knot correction instead of claiming an unchanged UV map. Measure
             // every resulting trim against the actual original surface below.
             if (!SameBasis(*spline, *ordinary))

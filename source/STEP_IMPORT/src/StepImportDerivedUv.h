@@ -55,8 +55,8 @@ struct DerivedUvCandidate
 // One bounded surface projection, with a tighter numerical solve target than
 // the acceptance budget. No edgeuse retry or topology tolerance adjustment.
 // Multiple branches remain unestablished for the caller to handle normally.
-// The optional original-basis mode is bounded to the canonical analytic torus
-// use case. A temporary ordinary surface must retain every coefficient, knot
+// The optional original-basis mode is bounded to the canonical analytic
+// supports admitted by the general builder (including source-master pcurves). A temporary ordinary surface must retain every coefficient, knot
 // and native domain exactly; paired measurements still use the real surface.
 [[nodiscard]] Result<DerivedUvCandidate> ProjectDerivedUv(
     const SmEdgeuse& use,

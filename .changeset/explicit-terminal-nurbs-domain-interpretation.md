@@ -14,13 +14,19 @@ shape roles. Native closed/pole charts and unknown source declarations still
 refuse; source bounds are never rewritten. Reports identify the derived spline
 region method and preserve the selected quality and publication gates.
 
+Revolution faces use the existing bounded, tighter numerical projection recipe
+with a separate same-parameter lift check. Single-period, pole-free revolution
+regions can be classified without rewriting source outer-bound declarations.
+Independent modeling copies containing STEP-parameterized composed edges forward
+supported transforms through their owned support; borrowed bases are refused.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).
 
 ## Integrator action
 
-Rebuild STEP_IMPORT and all native consumers together. Select the interpretation,
+Rebuild matching SMLib, STEP_IMPORT and all native consumers together. Select the interpretation,
 source identities, parameter ranges and resource limits explicitly when needed.
 
 ## Compatibility
