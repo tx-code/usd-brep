@@ -113,7 +113,8 @@ struct Limits
     std::size_t reportBytes = 16 * 1024 * 1024;
     std::optional<std::size_t> processPrivateBytes; // Cooperative, process-wide commit charge at safe boundaries; not a hard cap.
     std::optional<std::size_t> hardMemoryBytes; // Unsupported in this in-process execution mode; never silently relaxed.
-    std::size_t exactWorkUnits = 2000000; // Request-wide bounded exact geometry work; independent of native calls and physical error budgets.
+    std::size_t exactWorkUnits = 2000000; // Request-wide certified geometry work (exact integers/outward intervals); separate from native calls and
+                                          // physical budgets.
 };
 struct ExactWorkObservation
 {
@@ -124,8 +125,9 @@ struct RevolutionPoleVisitInfo
     std::string sourceFaceId, sourceSurfaceId;
     std::size_t targetFaceIndex = 0, nativePoleMask = 0, checkedEdges = 0, patches = 0, exactWorkUnits = 0;
     double nativePoleRadiusMm = 0; // Existing native face zone, never source uncertainty or a new allowance.
-    // Exact stored-curve evidence for endpoint-connected visits to native
+    // Certified stored-definition evidence for endpoint-connected visits to native
     // boundary-pole zones; not source exact-pole or whole-surface regularity.
+    std::size_t composedEdges = 0, composedRegions = 0; // Subset using actual UV/SOR composition; not Bezier patch counts.
 };
 struct NumericalIntegrationSettings
 {

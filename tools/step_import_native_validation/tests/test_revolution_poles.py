@@ -56,6 +56,34 @@ class RevolutionPoleTests(unittest.TestCase):
         self.assertTrue(any(item["key"] == "ExactGeometryWorkLimit" for item in report["diagnostics"]))
         self.assertEqual({"maximum_units": 0, "used_units": 0}, report["exact_geometry_work"])
 
+    def test_declared_pcurve_retains_priority_and_continuous_composed_receipt(self):
+        name = 'source_pcurve_revolution_pole_driven_patch.step'
+        result, report = self.invoke(name)
+        self.assertEqual(0, result.returncode, report['diagnostics'])
+        self.assertEqual('Accepted', report['status'])
+        self.assertEqual('None', report['repair'])
+        self.assertNotIn('surface_curve_3d_interpretation', report)
+        self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
+        self.assertAlmostEqual(8.1, report['model']['area_mm2'], delta=1e-5)
+        self.assertAlmostEqual(3 * math.pi + 2.7, report['model']['boundary_mm'], delta=1e-6)
+        self.assertEqual({'pointer_reports': 0, 'level2_reports': 0}, report['validations'])
+        proof = report['revolution_pole_visits'][0]
+        self.assertEqual(3, proof['checked_edge_pole_pairs'])
+        self.assertEqual(1, proof['composed_edge_pole_pairs'])
+        self.assertGreater(proof['composed_interval_regions'], 0)
+        self.assertGreater(proof['bezier_patches'], 0)
+        self.assertEqual('OutwardIntervalDefiningUvRevolution', proof['composed_evidence'])
+        self.assertFalse(proof['source_exact_poles_qualified'])
+        self.assertEqual((FIXTURES / name).read_bytes().decode('utf-8'),
+                         report['source_inspection']['source']['input']['raw'])
+        units = report['exact_geometry_work']['used_units']
+        for budget, expected in ((units, 'Accepted'), (units - 1, 'ResourceLimit')):
+            with self.subTest(budget=budget):
+                run, bounded = self.invoke(name, '--max-exact-work-units', str(budget))
+                self.assertEqual(expected, bounded['status'])
+                self.assertEqual(0 if expected == 'Accepted' else 3, run.returncode)
+                self.assertEqual(expected == 'Accepted', bounded['model'] is not None)
+
     def test_zero_exact_work_does_not_change_the_existing_pole_free_path(self):
         result, report = self.invoke("source_pcurve_revolution_patch.step", "--max-exact-work-units", "0")
         self.assertEqual(0, result.returncode, report["diagnostics"])

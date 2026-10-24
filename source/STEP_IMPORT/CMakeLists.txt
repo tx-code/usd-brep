@@ -45,6 +45,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportA
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionChart.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionPole.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportComposedPole.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSplineSurfaceConstruction.cpp src/StepImportPcurveConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportTerminalDomainRequest.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSurfaceCurveSession.cpp)
@@ -93,6 +94,9 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_revolution_pole_contracts COMMAND step_import_revolution_pole_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_patch.step"
         "${CMAKE_CURRENT_BINARY_DIR}/revolution-pole-output/$<CONFIG>")
+    add_test(NAME step_import_revolution_driven_pole_contracts COMMAND step_import_revolution_pole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_driven_patch.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/revolution-driven-pole-output/$<CONFIG>")
     add_test(NAME step_import_revolution_lune_contracts COMMAND step_import_revolution_pole_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_lune.step"
         "${CMAKE_CURRENT_BINARY_DIR}/revolution-lune-output/$<CONFIG>" lune)
@@ -138,6 +142,13 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_link_libraries(step_import_terminal_spline_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_import_terminal_spline_tests PRIVATE src)
     add_test(NAME step_import_terminal_spline_contracts COMMAND step_import_terminal_spline_tests)
+    add_executable(step_import_composed_pole_tests tests/StepImportComposedPoleTests.cpp)
+    target_link_libraries(step_import_composed_pole_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_include_directories(step_import_composed_pole_tests PRIVATE src)
+    if(MSVC)
+        target_compile_options(step_import_composed_pole_tests PRIVATE /W4 /WX /permissive- /utf-8)
+    endif()
+    add_test(NAME step_import_composed_pole_contracts COMMAND step_import_composed_pole_tests)
     add_executable(step_import_terminal_request_tests tests/StepImportTerminalRequestTests.cpp)
     target_link_libraries(step_import_terminal_request_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_import_terminal_request_tests PRIVATE src)

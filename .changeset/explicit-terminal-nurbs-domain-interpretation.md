@@ -24,6 +24,16 @@ and a missing reported crossing are not substitutes for this evidence. Work is
 request-cumulative and independently bounded; snapshots retain owning pole-visit
 records. Native boundary-pole classification does not qualify source exact poles
 or whole-surface regularity, and surface roles do not gain material semantics.
+
+Source-pcurve-driven pole edges can now retain their actual UV/revolution
+composition when both defining splines have finite positive-weight C0+ nets.
+Outward interval value/derivative bounds cover generator-knot crossings and
+stored-frame residuals without assuming an exactly axial pole center. Owning
+receipts distinguish these regions from exact NURBS Bezier patches; both share
+the existing request-wide work quota, cancellation and final publication gates.
+Native carrier LEVEL2 remains mandatory, including the documented near-axis
+representation limitation. Source priority, working zones and repair policy do
+not change. Matching native consumers must rebuild for the additive receipt fields.
 Independent modeling copies containing STEP-parameterized composed edges forward
 supported transforms through their owned support; borrowed bases are refused.
 

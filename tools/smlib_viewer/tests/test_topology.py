@@ -460,3 +460,16 @@ class NativeTopologyTests(unittest.TestCase):
         self.assertTrue(failed)
         self.assertFalse(loaded)
         self.assertIn("InvalidAuxiliaryFormat", failed[-1][1])
+
+    def test_source_pcurve_pole_model_keeps_native_measurement_and_pick_tables(self):
+        path = REPO / 'source/STEP_IMPORT/tests/fixtures/source_pcurve_revolution_pole_driven_patch.step'
+        original = path.read_bytes()
+        _, mesh, boundary, metadata = self.load(path)
+        self.assertEqual('Accepted', metadata['native_import_status'])
+        self.assertEqual((1, 3, 3), tuple(metadata[key] for key in ('faces', 'edges', 'vertices')))
+        topology = metadata['_topology']
+        self.assertTrue(topology.face_labels_complete)
+        self.assertEqual({0}, set(mesh.cell_data['TopoFace']))
+        self.assertEqual({0, 1, 2}, set(boundary.cell_data['TopoEdge']))
+        self.assertAlmostEqual(8.1, topology.faces[0].area_mm2, delta=.001)
+        self.assertEqual(original, path.read_bytes())

@@ -1608,6 +1608,14 @@ void WriteReportJson(
                 w.Number(proof.checkedEdges);
                 w.Add(",\"bezier_patches\":");
                 w.Number(proof.patches);
+                if (proof.composedEdges)
+                {
+                    w.Add(",\"composed_edge_pole_pairs\":");
+                    w.Number(proof.composedEdges);
+                    w.Add(",\"composed_interval_regions\":");
+                    w.Number(proof.composedRegions);
+                    w.Add(",\"composed_evidence\":\"OutwardIntervalDefiningUvRevolution\"");
+                }
                 w.Add(",\"exact_work_units\":");
                 w.Number(proof.exactWorkUnits);
                 w.Add(",\"native_pole_radius_mm\":");

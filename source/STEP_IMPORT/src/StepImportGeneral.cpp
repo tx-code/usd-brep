@@ -5155,6 +5155,8 @@ private:
         info.patches = proof->patches;
         info.exactWorkUnits = work;
         info.nativePoleRadiusMm = proof->radiusMm;
+        info.composedEdges = proof->composedEdges;
+        info.composedRegions = proof->composedRegions;
         m_model->revolutionPoleVisits.push_back(info);
         m_report.revolutionPoleVisits.push_back(std::move(info));
         return {};

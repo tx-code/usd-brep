@@ -13,6 +13,7 @@ namespace step_import::detail
 struct RevolutionPoleVisitEvidence
 {
     std::size_t mask = 0, checkedEdges = 0, patches = 0;
+    std::size_t composedEdges = 0, composedRegions = 0;
     double radiusMm = 0;
 };
 // Private constructed graph only. Read stored defining curve coefficients,

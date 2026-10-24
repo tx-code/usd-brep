@@ -3,13 +3,20 @@
 #include "StepImportRevolutionPole.h"
 
 #include "StepImportAnalyticLinePole.h"
+#include "StepImportComposedPole.h"
 #include "StepImportNativeStatus.h"
 
+// SmCrvOnSurf's legacy inline accessors require the complete surface type.
+// clang-format off
+#include <SmSurface.h>
+// clang-format on
 #include <SmBSplineCurve.h>
+#include <SmCrvOnSurf.h>
 #include <SmEdge.h>
 #include <SmFace.h>
 #include <SmLine.h>
-#include <SmSurface.h>
+#include <SmSTEPSurface.h>
+#include <SmSurfOfRevolution.h>
 #include <SmTol.h>
 #include <SmVertex.h>
 #include <algorithm>
@@ -62,6 +69,86 @@ Result<terminal_spline::BinaryNet> Read(SmBSplineCurve& curve, const terminal_sp
         net.homogeneous.push_back({ values[4 * i], values[4 * i + 1], values[4 * i + 2], curve.IsRational() ? values[4 * i + 3] : 1 });
     }
     return net;
+}
+Result<terminal_spline::PoleVisitProof> ProveComposition(
+    const SmCrvOnSurf& curve,
+    const terminal_spline::PoleVisits& visits,
+    const terminal_spline::Limits& limits,
+    const terminal_spline::Charge& work,
+    const std::function<Result<void>()>& nativeStep
+)
+{
+    const auto* wrapper = curve.GetBaseSurface();
+    const auto* uv = curve.GetUVCurve();
+    if (!wrapper || wrapper->GetType() != SmSTEPSurface_TYPE || !uv || uv->GetType() != SmBSplineCurve_TYPE || uv->GetDim() != 2)
+    {
+        return Refuse("GeneralRevolutionPoleCompositionUnsupported", Status::Deferred);
+    }
+    const auto* base = static_cast<const SmSTEPSurface*>(wrapper)->GetBaseSurface();
+    if (!base || base->GetType() != SmSurfOfRevolution_TYPE)
+    {
+        return Refuse("GeneralRevolutionPoleCompositionUnsupported", Status::Deferred);
+    }
+    if (auto step = nativeStep(); !step)
+    {
+        return tl::unexpected(std::move(step.error()));
+    }
+    const auto& revolution = *static_cast<const SmSurfOfRevolution*>(base);
+    SmBSplineCurve* generator = nullptr;
+    SmPoint3d ignoredOrigin;
+    SmVector3d ignoredAxis;
+    if (auto good = CheckNativeStatus(revolution.GetCanonical(generator, ignoredOrigin, ignoredAxis), NativeStatusOrigin::GeneralConstruction); !good)
+    {
+        return tl::unexpected(std::move(good.error()));
+    }
+    // Analytic/offset generator classes can expose fitted NURBS caches. This
+    // path consumes only an actual stored BSpline definition. Its inherited
+    // SmCurve::EvaluateSTEP forwards t directly to the ordinary evaluator.
+    if (!generator || generator->GetType() != SmBSplineCurve_TYPE || generator->GetDim() != 3)
+    {
+        return Refuse("GeneralRevolutionPoleCompositionGeneratorUnsupported", Status::Deferred);
+    }
+    auto uvNet = Read(*const_cast<SmBSplineCurve*>(static_cast<const SmBSplineCurve*>(uv)), limits);
+    if (!uvNet)
+    {
+        return tl::unexpected(std::move(uvNet.error()));
+    }
+    auto remaining = limits;
+    if (uvNet->homogeneous.size() >= remaining.controlSlots)
+    {
+        return Refuse("GeneralRevolutionPoleControlCapacity", Status::ResourceLimit);
+    }
+    remaining.controlSlots -= uvNet->homogeneous.size();
+    if (auto step = nativeStep(); !step)
+    {
+        return tl::unexpected(std::move(step.error()));
+    }
+    auto generatorNet = Read(*generator, remaining);
+    if (!generatorNet)
+    {
+        return tl::unexpected(std::move(generatorNet.error()));
+    }
+    RevolutionCurveDefinition definition;
+    definition.uv = std::move(*uvNet);
+    definition.generator = std::move(*generatorNet);
+    const auto& placement = revolution.GetPosition();
+    const auto& origin = placement.GetOriginRef();
+    const auto& x = placement.GetXAxisRef();
+    const auto& y = placement.GetYAxisRef();
+    // EvaluateSTEP recomputes Z through this getter too. Re-normalizing the
+    // rounded GetCanonical axis would describe a different stored evaluator.
+    const auto z = placement.GetZAxis();
+    definition.originMm = { origin.x, origin.y, origin.z };
+    definition.frame = { std::array{ x.x, x.y, x.z }, std::array{ y.x, y.y, y.z }, std::array{ z.x, z.y, z.z } };
+    const auto domain = wrapper->GetNaturalUVDomain();
+    definition.stepDomain = { domain.GetUMin(), domain.GetVMin(), domain.GetUMax(), domain.GetVMax() };
+    definition.angleNumerator = SM_PI;
+    auto proof = CheckComposedPoleVisits(definition, visits, limits, work);
+    if (!proof)
+    {
+        return tl::unexpected(std::move(proof.error()));
+    }
+    return terminal_spline::PoleVisitProof{ proof->established, proof->regions };
 }
 } // namespace
 Result<RevolutionPoleVisitEvidence> CheckRevolutionPoleVisits(
@@ -125,7 +212,8 @@ Result<RevolutionPoleVisitEvidence> CheckRevolutionPoleVisits(
                 continue;
             }
             auto* curve = edge->GetCurve();
-            if (!curve || curve->GetDim() != 3 || (!DefiningNurbsType(curve->GetType()) && curve->GetType() != SmLine_TYPE))
+            if (!curve || curve->GetDim() != 3 ||
+                (!DefiningNurbsType(curve->GetType()) && curve->GetType() != SmLine_TYPE && curve->GetType() != SmCrvOnSurf_TYPE))
             {
                 return Refuse("GeneralRevolutionPoleCurveProofUnsupported", Status::Deferred);
             }
@@ -141,6 +229,10 @@ Result<RevolutionPoleVisitEvidence> CheckRevolutionPoleVisits(
             visits.lastAllowed = marked.contains(last);
             const auto prove = [&]() -> Result<terminal_spline::PoleVisitProof>
             {
+                if (curve->GetType() == SmCrvOnSurf_TYPE)
+                {
+                    return ProveComposition(*static_cast<const SmCrvOnSurf*>(curve), visits, limits, work, nativeStep);
+                }
                 if (curve->GetType() == SmLine_TYPE)
                 {
                     const auto& line = *static_cast<const SmLine*>(curve);
@@ -182,7 +274,15 @@ Result<RevolutionPoleVisitEvidence> CheckRevolutionPoleVisits(
                 return Refuse("GeneralRevolutionPoleCrossingUnestablished");
             }
             ++evidence.checkedEdges;
-            evidence.patches += proof->patches;
+            if (curve->GetType() == SmCrvOnSurf_TYPE)
+            {
+                ++evidence.composedEdges;
+                evidence.composedRegions += proof->patches;
+            }
+            else
+            {
+                evidence.patches += proof->patches;
+            }
         }
     }
     return evidence;

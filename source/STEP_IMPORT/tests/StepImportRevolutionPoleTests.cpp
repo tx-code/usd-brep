@@ -6,7 +6,9 @@
 
 #include <SmAssertArray.h>
 #include <SmBrepData.h>
+#include <SmCrvOnSurf.h>
 #include <SmNativeArchive.h>
+#include <SmSTEPSurface.h>
 #include <SmSurfOfRevolution.h>
 #include <algorithm>
 #include <cstring>
@@ -29,7 +31,7 @@ Options Config()
     options.numericalIntegration = NumericalIntegrationSettings{ 1e-8 };
     return options;
 }
-void Verify(SmBrep& brep, bool lune, bool minimum, bool cone)
+void Verify(SmBrep& brep, bool lune, bool minimum, bool cone, bool composed = false)
 {
     SmAssertArray pointers, deep;
     Require(brep.ValidatePointers(&pointers) == SM_SUCCESS && pointers.GetSize() == 0, "complete exact-pole pointers");
@@ -108,12 +110,72 @@ void Verify(SmBrep& brep, bool lune, bool minimum, bool cone)
             Near(point.z, height, 1e-9, "independent rational generator z");
         }
     }
-    unsigned circles = 0, lines = 0, poleVertices = 0;
+    unsigned circles = 0, lines = 0, compositions = 0, poleVertices = 0;
     for (ULONG i = 0; i < edges.GetSize(); ++i)
     {
         const auto type = edges[i]->GetCurve()->GetType();
-        Require(type == SmCircle_TYPE || (cone && type == SmLine_TYPE), "original source 3D definitions, no fitted cache or priority override");
-        if (type == SmLine_TYPE)
+        Require(
+            type == SmCircle_TYPE || (cone && type == SmLine_TYPE) || (composed && type == SmCrvOnSurf_TYPE),
+            "original declared driving definitions, no fitted cache or priority override"
+        );
+        if (type == SmCrvOnSurf_TYPE)
+        {
+            ++compositions;
+            const auto& curve = *static_cast<SmCrvOnSurf*>(edges[i]->GetCurve());
+            Require(
+                curve.GetUVCurve()->GetType() == SmBSplineCurve_TYPE && curve.GetUVCurve()->GetDim() == 2 &&
+                    curve.GetBaseSurface()->GetType() == SmSTEPSurface_TYPE,
+                "retained actual UV and STEP support classes"
+            );
+            const auto* wrapper = static_cast<const SmSTEPSurface*>(curve.GetBaseSurface());
+            Require(
+                wrapper->GetBaseSurface()->GetType() == SmSurfOfRevolution_TYPE && wrapper->GetBaseSurface() != surface,
+                "independently owned source revolution support"
+            );
+            const auto* uv = static_cast<const SmBSplineCurve*>(curve.GetUVCurve());
+            SmTArray<SmPoint3d> controls;
+            SmTArray<double> weights, knots;
+            Require(
+                uv->GetControlPolygon(controls, weights) == SM_SUCCESS && controls.GetSize() == 2 && uv->GetDegree() == 1 &&
+                    uv->GetNaturalInterval() == SmExtent1d(0, 1) && uv->GetKnotsAll(knots) == SM_SUCCESS && knots.GetSize() == 4,
+                "source UV controls, degree, interval and knots survive copy/archive"
+            );
+            for (ULONG j = 0; j < 2; ++j)
+            {
+                Near(controls[j].x, 1.2 * 180 / std::numbers::pi, 1e-12, "original source angular parameter");
+                Require(
+                    controls[j].y == (j ? 8 : -2) && controls[j].z == 0 && (weights.GetSize() == 0 || weights[j] == 1),
+                    "source generator parameter and unit weight remain"
+                );
+            }
+            for (ULONG j = 0; j < 4; ++j)
+            {
+                Require(knots[j] == (j < 2 ? 0 : 1), "all source UV knots remain");
+            }
+            const auto& retained = *static_cast<const SmSurfOfRevolution*>(wrapper->GetBaseSurface());
+            SmBSplineCurve* retainedGenerator = nullptr;
+            SmPoint3d retainedOrigin;
+            SmVector3d retainedAxis;
+            Require(
+                retained.GetCanonical(retainedGenerator, retainedOrigin, retainedAxis) == SM_SUCCESS && retainedGenerator &&
+                    retainedGenerator != generator && retainedGenerator->GetDegree() == generator->GetDegree() &&
+                    retainedGenerator->GetNaturalInterval() == generator->GetNaturalInterval(),
+                "independent original generator definition"
+            );
+            ULONG retainedCount = 0, faceCount = 0;
+            double* retainedCp = nullptr;
+            double* faceCp = nullptr;
+            Require(
+                retainedGenerator->GetControlPointsPointer(retainedCount, retainedCp) == SM_SUCCESS &&
+                    generator->GetControlPointsPointer(faceCount, faceCp) == SM_SUCCESS && retainedCount == faceCount && retainedCp && faceCp,
+                "retained homogeneous generator net"
+            );
+            for (ULONG j = 0; j < 4 * faceCount; ++j)
+            {
+                Require(retainedCp[j] == faceCp[j], "every retained generator coefficient survives copy/archive");
+            }
+        }
+        else if (type == SmLine_TYPE)
         {
             ++lines;
         }
@@ -132,19 +194,27 @@ void Verify(SmBrep& brep, bool lune, bool minimum, bool cone)
     Require(
         circles == (cone ? 1u :
                     lune ? 2u :
-                           3u) &&
-            lines == (cone ? 2u : 0u) && poleVertices == (lune ? 2u : 1u),
+                           3u) -
+                       (composed && !cone ? 1u : 0u) &&
+            lines == (cone ? 2u : 0u) - (composed && cone ? 1u : 0u) && compositions == (composed ? 1u : 0u) && poleVertices == (lune ? 2u : 1u),
         "complete original curves and pole-vertex inventory"
     );
 }
-void RoundTrips(const std::shared_ptr<const ModelSnapshot>& model, const std::filesystem::path& directory, bool lune, bool minimum, bool cone)
+void RoundTrips(
+    const std::shared_ptr<const ModelSnapshot>& model,
+    const std::filesystem::path& directory,
+    bool lune,
+    bool minimum,
+    bool cone,
+    bool composed
+)
 {
     auto editable = model->CopyForModeling();
     Require(editable.status == Status::Accepted && editable.model, "independent exact-pole modeling copy");
     editable.model->Edit(
         [&](SmBrep& brep)
         {
-            Verify(brep, lune, minimum, cone);
+            Verify(brep, lune, minimum, cone, composed);
         }
     );
     for (const auto format : { SM_BINARY, SM_ASCII })
@@ -177,7 +247,7 @@ void RoundTrips(const std::shared_ptr<const ModelSnapshot>& model, const std::fi
                 curves.GetSize() == 0 && surfaces.GetSize() == 0 && bodies.GetSize() == 1,
             "complete exact-pole archive read"
         );
-        Verify(*bodies[0], lune, minimum, cone);
+        Verify(*bodies[0], lune, minimum, cone, composed);
     }
 }
 void InteriorVisitRefused(const std::shared_ptr<const ModelSnapshot>& model)
@@ -302,6 +372,7 @@ void InteriorVisitRefused(const std::shared_ptr<const ModelSnapshot>& model)
 }
 void Check(const std::string& source, const std::filesystem::path& directory, bool lune, bool minimum, bool cone)
 {
+    const bool composed = source.find("#960=SURFACE_CURVE('',#304,(#961),.PCURVE_S1.);") != std::string::npos;
     const auto options = Config();
     auto result = ImportBytes(source, options);
     Require(result.status == Status::Accepted && result.model, "complete unmarked source revolution pole region");
@@ -363,6 +434,10 @@ void Check(const std::string& source, const std::filesystem::path& directory, bo
                 proof.nativePoleRadiusMm <= .001,
             "every actual edge/pole pair uses the original native zone"
         );
+        Require(
+            proof.composedEdges == (composed ? (lune ? 2u : 1u) : 0u) && (proof.composedRegions > 0) == composed,
+            "snapshot distinguishes composed continuous proof"
+        );
     }
     auto bounded = options;
     bounded.nativeLimits.exactWorkUnits = result.report.exactGeometryWork->usedUnits;
@@ -371,6 +446,7 @@ void Check(const std::string& source, const std::filesystem::path& directory, bo
     --bounded.nativeLimits.exactWorkUnits;
     const auto insufficientWork = ImportBytes(source, bounded);
     Require(insufficientWork.status == Status::ResourceLimit && !insufficientWork.model, "one unit short cannot publish");
+    Require(insufficientWork.report.candidateDiscarded, "work failure releases the complete unpublished candidate");
     bounded = options;
     bounded.nativeLimits.reportBytes = result.report.json.size();
     const auto exactReport = ImportBytes(source, bounded);
@@ -381,15 +457,25 @@ void Check(const std::string& source, const std::filesystem::path& directory, bo
     --bounded.nativeLimits.reportBytes;
     const auto insufficientReport = ImportBytes(source, bounded);
     Require(insufficientReport.status == Status::ResourceLimit && !insufficientReport.model, "one report byte short cannot publish");
+    Require(insufficientReport.report.candidateDiscarded, "mandatory report failure releases the complete unpublished candidate");
     if (!lune && !cone)
     {
         InteriorVisitRefused(model);
     }
     const auto original = model->Source();
-    RoundTrips(model, directory, lune, minimum, cone);
+    RoundTrips(model, directory, lune, minimum, cone, composed);
     result = {};
     Require(model->Source() == original, "original defining geometry outlives reports and copies");
     Require(model->RevolutionPoleVisits().size() == evidence.size(), "clearing mutable reports preserves accepted pole evidence");
+    const auto retainedEvidence = model->RevolutionPoleVisits();
+    for (std::size_t i = 0; i < evidence.size(); ++i)
+    {
+        Require(
+            retainedEvidence[i].composedEdges == evidence[i].composedEdges && retainedEvidence[i].composedRegions == evidence[i].composedRegions &&
+                retainedEvidence[i].exactWorkUnits == evidence[i].exactWorkUnits,
+            "owning composed evidence values outlive mutable reports"
+        );
+    }
     for (const auto phase : { Phase::BeforeNativeCall, Phase::NativeReady, Phase::BeforeCommit })
     {
         auto stopped = options;
@@ -405,27 +491,25 @@ void Check(const std::string& source, const std::filesystem::path& directory, bo
         Require(cancelled.status == Status::Cancelled && !cancelled.model, "cancelled pole construction never publishes");
     }
 }
-void UnsupportedDefinitionRemainsExplicit(std::string source)
+void SourcePcurveDefinitionEvidence(std::string source)
 {
     const auto at = source.find("#960=SURFACE_CURVE('',#304,(#961),.CURVE_3D.);");
-    Require(at != std::string::npos, "one public priority declaration");
-    source.replace(at, std::strlen("#960=SURFACE_CURVE('',#304,(#961),.CURVE_3D.);"), "#960=SURFACE_CURVE('',#304,(#961),.PCURVE_S1.);");
+    if (at != std::string::npos)
+    {
+        source.replace(at, std::strlen("#960=SURFACE_CURVE('',#304,(#961),.CURVE_3D.);"), "#960=SURFACE_CURVE('',#304,(#961),.PCURVE_S1.);");
+    }
+    Require(source.find("#960=SURFACE_CURVE('',#304,(#961),.PCURVE_S1.);") != std::string::npos, "one public priority declaration");
     const auto result = ImportBytes(source, Config());
-    Require(result.status == Status::Deferred && !result.model, "unproved composed definition is never replaced with a fitted NURBS");
+    Require(result.status == Status::Accepted && result.model, "actual source pcurve has continuous composed-curve evidence");
+    const auto evidence = result.model->RevolutionPoleVisits();
     Require(
-        std::any_of(
-            result.report.diagnostics.begin(),
-            result.report.diagnostics.end(),
-            [](const auto& diagnostic)
-            {
-                return diagnostic.source.key == "GeneralRevolutionPoleCurveProofUnsupported";
-            }
-        ),
-        "unsupported pole proof is explicit"
+        !evidence.empty() && evidence[0].composedEdges > 0 && evidence[0].composedRegions > 0 &&
+            result.report.json.find("OutwardIntervalDefiningUvRevolution") != std::string::npos,
+        "owning receipts distinguish outward interval composition from exact NURBS patches"
     );
     Require(
         !result.report.surfaceCurve3dInterpretation && result.report.source && result.report.source->Bytes() == source,
-        "no priority override or source rewriting while declining a composed proof"
+        "no priority override or source rewriting when qualifying a composed proof"
     );
 }
 void SharedDocumentBudget(const std::string& source)
@@ -514,7 +598,7 @@ int main(int argc, char** argv)
             argc == 4 && std::string_view(argv[3]) == "minimum",
             argc == 4 && std::string_view(argv[3]) == "cone"
         );
-        UnsupportedDefinitionRemainsExplicit(source);
+        SourcePcurveDefinitionEvidence(source);
         if (argc == 3)
         {
             SharedDocumentBudget(source);
