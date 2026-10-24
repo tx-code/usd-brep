@@ -83,7 +83,8 @@ protected:
   // copy constructor
   SmCrvOnSurf( const SmCrvOnSurf & crCurveToCopy) ;
 
-  // copy
+  // Copy owned children; keep borrowed children borrowed. A child failure leaves
+  // the output null and source ownership unchanged. Check the returned status.
   virtual SmStatus Copy(const SmContext & crContext,
                         SmCurve        *& crNewCurve)
                        const;
@@ -365,6 +366,12 @@ protected:
 
   // Define  GetType(), IsKindOf(), and virtual Dump() (Dump needs local implementation)
   SM_COMMON( SmCrvOnSurf, SmCurve, SmCrvOnSurf_TYPE );
+
+private:
+  // Copy-only adoption after fallible child clones have been validated. Existing
+  // public constructors/SetAll keep their legacy contracts and are not called.
+  SmCrvOnSurf(const SmCrvOnSurf & crSource, SmCurve *pUVCurve,
+              SmSurface *pSurface, ULONG lOwnerFlag);
 
 }; // end class SmCrvOnSurf
 

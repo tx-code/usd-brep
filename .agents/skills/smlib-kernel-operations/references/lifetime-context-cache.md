@@ -51,6 +51,32 @@ Current starting points:
 - `source/SmPyLib/src/SmPyMain.cpp`
 - `source/SmPyLib/src/SmPyTypes.cpp`
 
+### Native composed-curve copies
+
+Use the status-returning virtual `SmCurve::Copy` / `SmSurface::Copy` path and check its result
+before consuming the output. `SmCrvOnSurf::Copy` clones children that the source owns and retains
+borrowed children as borrowed: flag 0 borrows both, flag 1 copies only the UV curve, and flags 2/3
+produce independently owned UV/support copies. A borrowed support therefore still needs to
+outlive the copied curve. `SmSTEPSurface::Copy` always owns a deep copy of its underlying surface,
+including when the original wrapper borrows that surface.
+
+These paths publish a null output on a child-copy failure, preserve the child's error status, and
+release unpublished independent candidates. They reject success with a null, known source alias,
+different geometry type, wrong target context, or different UV dimension. An allocation exception
+continues to propagate after candidate cleanup. Child implementations must still honor their own
+copy contract; arbitrary alias graphs or leaks before writing the output are not repaired here.
+
+The exact UV definition, support, parameter domain, and existing base attribute-copy rules are
+retained. Curve breaks and the derived 3D approximation are rebuilt lazily; copying does not
+convert the composition to an approximation or change its parameter convention. This does not
+qualify a STEP source pcurve's parameter mapping or complete import acceptance.
+Cached gap diagnostics return to the uncomputed state, and optional approximation-break hints
+are not carried into the copy; provide them again when requesting a new approximation.
+
+The legacy public `SmCrvOnSurf` C++ copy constructor, `SetAll`, and UV-endpoints constructors do
+not acquire this fallible-copy guarantee. In particular, avoid their copying modes when a child
+can fail to copy; see [known issues](../../../../KNOWN_ISSUES.md).
+
 ## Caches and lazy state
 
 Global context caches are disabled by default and deprecated in current configuration. Do not copy

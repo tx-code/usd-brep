@@ -13,6 +13,8 @@
 #include <SmDatabaseIO.h>
 #include <SmContext.h>
 
+#include <memory>
+
 /*******************************************************************//**
 PURPOSE:
 
@@ -35,6 +37,59 @@ SmSTEPSurface::~SmSTEPSurface()
   if (m_bOwnsSurface) { delete m_pSurface; }
 
 } // end SmSTEPSurface::~SmSTEPSurface destructor
+
+/*******************************************************************//**
+PURPOSE: Copy the wrapper and its exact STEP-parameterized base surface.
+
+NOTES: A copy owns its base independently of the source wrapper's ownership.
+       Publish only after both objects and their ownership link are complete.
+***********************************************************************/
+SmStatus SmSTEPSurface::Copy(const SmContext & crContext, SmSurface *& rpNewSurface) const
+{
+    rpNewSurface = NULL;
+    NER(m_pSurface);
+
+    SmSurface *pBaseCopy = NULL;
+    // Observe the output slot during Copy itself: a base implementation may
+    // supply a candidate before returning an error or throwing. Never delete
+    // either known source alias if a malformed implementation returns one.
+    struct PendingBaseCopy
+    {
+        SmSurface *& pCandidate;
+        const SmSurface *pSource;
+        const SmSurface *pWrapper;
+
+        ~PendingBaseCopy()
+        {
+            if (pCandidate != pSource && pCandidate != pWrapper)
+            {
+                delete pCandidate;
+            }
+        }
+    } pendingBaseCopy{pBaseCopy, m_pSurface, this};
+
+    SER(m_pSurface->Copy(crContext, pBaseCopy));
+    if (pBaseCopy == NULL || pBaseCopy == m_pSurface || pBaseCopy == this ||
+        pBaseCopy->GetType() != m_pSurface->GetType() || pBaseCopy->GetContext() != &crContext)
+    {
+        SER(SM_ERR);
+    }
+
+    // SmSurface's copy constructor retains attributes/notifications and resets
+    // the wrapper owner; placement construction retains the requested context.
+    // Immediately replace the implicit member-copy alias using nonthrowing
+    // assignments before invoking anything that can inspect ownership.
+    std::unique_ptr<SmSTEPSurface> pCopy(new (crContext) SmSTEPSurface(*this));
+    NER(pCopy.get());
+    pCopy->m_pSurface = pBaseCopy;
+    pCopy->m_bOwnsSurface = TRUE;
+    pBaseCopy = NULL;
+
+    // Only pCopy owns the candidate now, including if SetOwner throws.
+    pCopy->m_pSurface->SetOwner(pCopy.get());
+    rpNewSurface = pCopy.release();
+    return SM_SUCCESS;
+}
 
 /*******************************************************************//**
 PURPOSE:

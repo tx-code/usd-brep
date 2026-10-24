@@ -51,6 +51,9 @@ public:
     // equality operator
     virtual SmBoolean operator==(const SmSurface &crOther) const;
 
+    // The copy owns an independent exact base surface even if this wrapper borrows its base.
+    virtual SmStatus Copy(const SmContext & crContext, SmSurface *& rpNewSurface) const override;
+
     virtual SmStatus EvaluatePoint
     (
       const SmPoint2d & crUV,         ///< [in ]:        <br>

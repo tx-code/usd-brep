@@ -31,6 +31,18 @@ reproductions and regressions; success does not establish complete repair.
 
 **Workaround:** none. Check healed Breps as described above.
 
+### Legacy `SmCrvOnSurf` copying constructors can retain invalid ownership
+
+The direct C++ copy constructor and copying modes of `SetAll` do not propagate child-copy
+failures. A failed copy can leave source aliases owned by the new curve. The UV-endpoints
+constructor with ownership flag 2 also retains the original surface after allocating a copy,
+which can delete the original surface and leak the copy. These constructor paths remain distinct
+from the status-returning virtual `SmCrvOnSurf::Copy`, which checks failures and cleans candidates.
+
+**Workaround:** use the status-returning virtual copy path for an existing valid curve and check
+the result. Avoid the UV-endpoints flag-2 constructor; explicitly create a UV curve and independently
+copied surface, check their results, then transfer both with the curve/surface constructor's flag 3.
+
 ### `drop_curve_to_surface` near a surface pole
 
 Near a surface pole, for example the apex of a cone, dropping a curve onto a surface can miss a seam that the curve starts on or runs along within tolerance, and so classify the curve's boundary incorrectly.

@@ -9,6 +9,34 @@
 #include "StdAfx.h"
 #include <SmCrvOnSurf.h>
 
+#include <memory>
+
+namespace
+{
+// Watch the output slot even while a virtual Copy is running: an implementation
+// can allocate before returning an error or throwing. Known borrowed aliases
+// are never candidates to delete. This guard owns only newly returned objects.
+template<class T> class SmPendingDefinitionCopy
+{
+public:
+  SmPendingDefinitionCopy(const T *pSource, const T *pAlsoBorrowed = NULL)
+    : m_pSource(pSource), m_pAlsoBorrowed(pAlsoBorrowed) {}
+  SmPendingDefinitionCopy(const SmPendingDefinitionCopy &) = delete;
+  SmPendingDefinitionCopy &operator=(const SmPendingDefinitionCopy &) = delete;
+  ~SmPendingDefinitionCopy()
+  {
+    if(m_pCandidate != m_pSource && m_pCandidate != m_pAlsoBorrowed)
+      { delete m_pCandidate; }
+  }
+  T *Release() { T *pResult = m_pCandidate; m_pCandidate = NULL; return pResult; }
+  T *m_pCandidate = NULL;
+
+private:
+  const T *m_pSource;
+  const T *m_pAlsoBorrowed;
+};
+}
+
 /*******************************************************************//**
 PURPOSE: Reload an SmCrvOnSurf values and checks to make sure that 
          curve is valid.
@@ -294,11 +322,65 @@ SmStatus SmCrvOnSurf::Copy
    SmCurve        *& rpNewCurve) 
   const
 {
-  rpNewCurve = new (crContext) SmCrvOnSurf(*this);
-  NER(rpNewCurve);
+  rpNewCurve = NULL;
+  NER(m_pUVCurve);
+  NER(m_pSurface);
+  if(m_lOwnerFlag > 3) { SER(SM_ERR); }
+
+  const SmBoolean bOwnUV = m_lOwnerFlag != 0;
+  const SmBoolean bOwnSurface = m_lOwnerFlag == 2 || m_lOwnerFlag == 3;
+  SmPendingDefinitionCopy<SmCurve> sUV(m_pUVCurve, this);
+  SmPendingDefinitionCopy<SmSurface> sSurface(m_pSurface);
+  SmCurve *pUV = m_pUVCurve;
+  SmSurface *pSurface = m_pSurface;
+
+  // Never let a child write directly into a member initially aliasing the
+  // source. Preserve the returned failure before changing any ownership link.
+  if(bOwnUV)
+    {
+      SER(m_pUVCurve->Copy(crContext, sUV.m_pCandidate));
+      pUV = sUV.m_pCandidate;
+      if(   pUV == NULL || pUV == m_pUVCurve || pUV == this
+         || pUV->GetType() != m_pUVCurve->GetType()
+         || pUV->GetDim() != m_pUVCurve->GetDim()
+         || pUV->GetContext() != &crContext)
+        { SER_MSG(SM_ERR, _T("Invalid curve-on-surface UV copy candidate")); }
+    }
+  if(bOwnSurface)
+    {
+      SER(m_pSurface->Copy(crContext, sSurface.m_pCandidate));
+      pSurface = sSurface.m_pCandidate;
+      if(   pSurface == NULL || pSurface == m_pSurface
+         || pSurface->GetType() != m_pSurface->GetType()
+         || pSurface->GetContext() != &crContext)
+        { SER_MSG(SM_ERR, _T("Invalid curve-on-surface support copy candidate")); }
+    }
+
+  // A copied definition keeps the source's borrow/own contract. In particular,
+  // borrowed support is not silently promoted to an independent owned surface.
+  const ULONG lCopyOwnerFlag = bOwnSurface ? 2 : bOwnUV ? 1 : 0;
+  std::unique_ptr<SmCrvOnSurf> pCopy(new (crContext) SmCrvOnSurf(*this, pUV, pSurface, lCopyOwnerFlag));
+  NER(pCopy.get());
+  sUV.Release();
+  sSurface.Release();
+  // Only pCopy owns the cloned children now, including if SetOwner throws.
+  if(bOwnUV) { pUV->SetOwner(pCopy.get()); }
+  if(bOwnSurface) { pSurface->SetOwner(pCopy.get()); }
+  rpNewCurve = pCopy.release();
   return SM_SUCCESS;
 
 } // end SmCrvOnSurf::Copy
+
+// Preserve ordinary base metadata without invoking the legacy public copy
+// constructor's unchecked child copies. Breaks and the 3D approximation are
+// derived caches: rebuild them lazily from the exact copied UV/support pair.
+SmCrvOnSurf::SmCrvOnSurf(const SmCrvOnSurf &crSource, SmCurve *pUVCurve,
+                       SmSurface *pSurface, ULONG lOwnerFlag)
+  : SmCurve(crSource), m_pUVCurve(pUVCurve), m_pSurface(pSurface),
+    m_vUVDomain(crSource.m_vUVDomain), m_bNeedBreaks(TRUE), m_lOwnerFlag(lOwnerFlag),
+    m_pBSApproxCurve(NULL), m_dMaxGap3d(SM_BIG_DOUBLE), m_bParametrizationMatches(FALSE)
+{
+}
 
 /*******************************************************************//**
 PURPOSE: Destructor for the SmCrvOnSurf object.  It cleans up
