@@ -1,9 +1,44 @@
 # STEP_IMPORT（内部 C++20）
 
-通用开发构建器当前仍仅构建材料实体；合格的开放／闭合 surface-model 角色以
-`Unsupported`／`GeneralRequiresMaterialSolid` 拒绝，不把能力范围当成原生后验检查失败。
-源层的 pcurve／旋转面必要规则通过不代表这些原生构建路径已实现，也不会使表面模型自动
-获得材料角色或体积。已限定的平面 surface-model 原生路径保留其独立范围。
+通用开发构建器按已检查的源角色分别构建材料实体、`OpenSurfaceModel` 和
+`ClosedSurfaceModel`。曲面角色不获得材料体积或 InsideSolid 资格；源层的 pcurve／旋转面
+必要规则通过仍不代替对应原生工厂、几何一致性和完整发布验收。严格平面路径保留独立范围。
+
+## 通用构建的非材料曲面角色
+
+显式 `generalBrep` 请求可在既有受支持的几何载体上构建一个已检查的连通、可定向源 shell。
+开放模型不创建 bounded region，正反两侧 faceuse 都归无限 void region 的同一 shell。
+闭合表面创建一个显式 void 的 bounded region 及内外两个 shell，`material` 始终为空。
+内核 `IsManifoldSolid()` 对闭合表面可以为真；这只是一项拓扑观察，不能改变源角色。
+
+源共享边按有向使用次数保留：开放自由边一次使用、共享边两次反向使用，闭合边界均须两次。
+原生后验独立核对完整对象库存、region/shell 的真实身份与 void 标记、faceuse 两侧归属、
+edgeuse 的 mate/radial 和 source-selected 使用清单。同面 seam 的两次使用不能按 face ID
+去重，派生 seam 也不算自由边。仍执行原有 pointer／LEVEL2、UV 配对、区域及容差门槛。
+
+曲面仅逐几何面计算面积及面积一阶矩，全体质心按面积加权，不调用材料体积积分，也不把
+正反 faceuse 算成两份面积。默认相对停止精度及显式 tighter 控制保持原合同；这些结果是数值
+观察，未建立连续绝对误差界。tight bounds 保留面内部极值并允许平面某轴厚度为零。
+`boundaryMm` 仍为唯一目标边长总和，包含共享边一次；它不等于自由边周长。
+模型及逐面 `freeBoundaryEdges` 记录真实自由边数。`MaterialVolumeMm3`、`ClassifyMaterial`
+对所有曲面角色保持空值，不返回虚构的零体积或材料分类。
+
+general 报告及嵌套 definition／assembly 报告输出 `source_shape`、`native_role`、
+`edge_adjacency`、`face_mappings` 和材料 census 的适用性；派生边的源 edge ID 为空，
+同面 seam 的重复源 face ID 保留。物质体积证据与未运行／失败的检查分别表达。
+面积积分和原有材料融合积分的策略分开标记，placement-only wrapper 不制造积分结果。
+全部所选定义及必需报告仍在同一个取消／预算／最终提交点后共同发布。
+新增角色及库存检查计入原生调用预算；既有恰好用尽的配额可能更早返回资源限制，
+不能跳过这些检查来维持旧调用数字。报告不足时不发布模型；能容纳的完整失败报告仍保留。
+
+首批不组合 surface 角色的显式修复或 `normalizePeriodicFaces` 晚期分面请求，返回
+`GeneralSurfaceConfigurationUnestablished`；不能静默忽略计划或改源面方向。原有构造期 seam、
+已建立的原基支撑域规范化仍须通过其自身合同。多 shell／混合角色集合不因此获得支持，
+不送入材料集合入口，也不只导入第一个成员。原有材料实体融合量测路径保持。
+
+正常建模副本和不拟合的原生存档须保留曲面空间角色、定义类型、参数及独立生命周期；
+存档不继承 STEP 来源资格。`SmBrep` 旧 C++ 复制构造器的完整失败传播／清理仍是独立
+资格边界，不能从两类几何 `Copy` 修复或正常回读成功推导全 BRep 失败原子性。
 
 ## 显式装配导入 C++ 接口
 
@@ -24,7 +59,7 @@ general 模式、质量配置和 `AssemblyLimits`：occurrences、instances 必�
 通过 Body 获取的建模副本仍在**定义本地坐标**；没有自动实例化建模副本或装配存档接口。
 
 当前范围为已登记源 profile 的 NAUO/CDSR、直接表示项中的 IDT 三维轴系，以及已有
-单体／材料集合构建能力；surface-model 角色保持原义。源归属不完整、未支持关联几何等
+单体材料／曲面及仅材料集合构建能力；surface-model 角色保持原义。源归属不完整、未支持关联几何等
 仍明确拒绝。该 development 接口不授予完整 EXPRESS 或连续 UV／变换误差证明。
 现有自动文件导入不切换到此入口。独立查看器可显式传 `--assembly`，并按需显式选择
 `--unreferenced-placement-policy RetainDisconnected`；其显示范围与资源限制见查看器 README。
@@ -175,8 +210,8 @@ BRep，不继承源解析定义、STEP 资格或归一化报告；需要源语�
 
 所选原生体仍执行全部既有构建、查询资格及后验，并共同提交。有实际隔离时返回
 `AcceptedWithSourceIsolation`（CLI 13），独立的源解释仍保留；无实际源错误时不制造该状态。
-该配置不扩充通用原生构建的形状范围；合格源中的闭合表面仍保留 surface-model 角色，
-既有仅材料实体的通用构建路径继续明确拒绝，不能因闭合或隔离成功自动升级为实体。
+选择隔离不扩充当前通用原生构建的几何范围；所选闭合表面按其真实 surface-model 角色
+构建与验收，不能因闭合或隔离成功自动升级为材料实体。
 任一所选体失败、取消、预算或必需报告不足均释放未发布候选。查看器 HUD 区分选入定义数和
 隔离错误数，继续保留面／边／顶点测量与选择。原生存档及建模副本不继承 STEP 隔离资格。
 内部 C++ 源／原生接口、结果枚举与消费者需一起重建；内核 ABI 不变。

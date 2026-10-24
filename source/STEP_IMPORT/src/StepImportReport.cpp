@@ -365,9 +365,16 @@ void Optional(Writer& writer, const std::optional<double>& value)
         writer.Add("null");
     }
 }
-void StatisticsJson(Writer& w, const Statistics& n)
+void StatisticsJson(Writer& w, const Statistics& n, bool includeRole = false)
 {
-    w.Add("{\"faces\":");
+    w.Add("{");
+    if (includeRole)
+    {
+        w.Add("\"shape_role\":");
+        w.String(n.shapeRole);
+        w.Add(",");
+    }
+    w.Add("\"faces\":");
     w.Number(n.faces);
     w.Add(",\"edges\":");
     w.Number(n.edges);
@@ -424,6 +431,136 @@ void StatisticsJson(Writer& w, const Statistics& n)
     }
     w.Add(",\"free_boundary_edges\":");
     w.Number(n.freeBoundaryEdges);
+    w.Add("}");
+}
+// General reports return before the planar serializer. Keep their role and
+// incidence observations explicit here, including nested definition reports.
+void GeneralNativeEvidenceJson(Writer& w, const Report& report)
+{
+    w.Add(",\"source_shape\":");
+    if (report.sourceShape)
+    {
+        const auto& source = *report.sourceShape;
+        w.Add("{");
+        const std::pair<const char*, const std::string*> fields[]{ { "role", &source.role },
+                                                                   { "representation_id", &source.representationId },
+                                                                   { "representation_type", &source.representationType },
+                                                                   { "shape_id", &source.shapeId },
+                                                                   { "shape_type", &source.shapeType },
+                                                                   { "shell_id", &source.shellId },
+                                                                   { "shell_type", &source.shellType } };
+        bool comma = false;
+        for (const auto& [name, value] : fields)
+        {
+            if (comma)
+            {
+                w.Add(",");
+            }
+            comma = true;
+            w.String(name);
+            w.Add(":");
+            w.String(*value);
+        }
+        w.Add("}");
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add(",\"native_role\":");
+    if (report.nativeRole)
+    {
+        const auto& role = *report.nativeRole;
+        w.Add("{\"regions\":");
+        w.Number(role.regions);
+        w.Add(",\"shells\":");
+        w.Number(role.shells);
+        w.Add(",\"material_regions\":");
+        w.Number(role.materialRegions);
+        w.Add(",\"bounded_void_regions\":");
+        w.Number(role.boundedVoidRegions);
+        w.Add(",\"manifold_solid_predicate\":");
+        w.Bool(role.manifoldSolidPredicate);
+        w.Add("}");
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add(",\"edge_adjacency\":[");
+    for (std::size_t i = 0; i < report.adjacency.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& edge = report.adjacency[i];
+        w.Add("{\"target_edge_index\":");
+        w.Number(i);
+        w.Add(",\"source_edge\":");
+        if (edge.edgeId.empty())
+        {
+            w.Add("null");
+        }
+        else
+        {
+            w.String(edge.edgeId);
+        }
+        w.Add(",\"native_edgeuses\":");
+        w.Number(edge.nativeUses);
+        w.Add(",\"source_faces\":[");
+        for (std::size_t j = 0; j < edge.faceIds.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            // Repeated IDs retain distinct same-face seam uses.
+            w.String(edge.faceIds[j]);
+        }
+        w.Add("]}");
+    }
+    w.Add("],\"face_mappings\":[");
+    for (std::size_t i = 0; i < report.faces.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& face = report.faces[i];
+        w.Add("{\"target_face_index\":");
+        w.Number(i);
+        w.Add(",\"source_face\":");
+        w.String(face.faceId);
+        w.Add(",\"source_surface\":");
+        w.String(face.planeId);
+        w.Add(",\"source_same_sense\":");
+        w.Bool(face.sourceSameSense);
+        w.Add(",\"measurements\":");
+        StatisticsJson(w, face.native, true);
+        w.Add("}");
+    }
+    w.Add("],\"material_census\":{\"applicability\":");
+    const bool surface = report.sourceShape && report.sourceShape->role != "MaterialSolid";
+    w.String(surface ? "NotApplicable" : report.solidRegions ? "Applicable" : "NotRun");
+    w.Add(",\"solid_regions\":");
+    if (report.solidRegions)
+    {
+        w.Number(*report.solidRegions);
+    }
+    else
+    {
+        w.Add("null");
+    }
+    w.Add(",\"void_cavities\":");
+    if (report.voidCavities)
+    {
+        w.Number(*report.voidCavities);
+    }
+    else
+    {
+        w.Add("null");
+    }
     w.Add("}");
 }
 void DeclarationsJson(Writer& w, const SourceDeclarations& declarations)
@@ -1260,9 +1397,11 @@ void WriteReportJson(
         if (report.numericalIntegration)
         {
             const auto& integration = *report.numericalIntegration;
-            w.Add(
-                ",\"numerical_integration\":{\"method\":\"SMLibFusedFaceProperties\",\"control_scope\":\"DimensionlessNumericalStoppingOnly\",\"requested_relative_accuracy\":"
-            );
+            w.Add(",\"numerical_integration\":{\"method\":");
+            const bool grouped = report.materialCollection || report.productDocument || assembly || assemblyRequest;
+            const bool surface = report.sourceShape && report.sourceShape->role != "MaterialSolid";
+            w.String(grouped ? "PerDefinitionFaceProperties" : surface ? "SMLibAreaFaceProperties" : "SMLibFusedFaceProperties");
+            w.Add(",\"control_scope\":\"DimensionlessNumericalStoppingOnly\",\"requested_relative_accuracy\":");
             Number(w, integration.requestedRelativeAccuracy);
             w.Add(",\"applied_relative_accuracy\":");
             if (integration.appliedRelativeAccuracy)
@@ -1343,8 +1482,22 @@ void WriteReportJson(
         {
             w.Add("0.0001"); // Retain the exact legacy spelling for unconfigured requests.
         }
+        if (report.materialCollection || report.productDocument || assembly || assemblyRequest)
+        {
+            w.Add(",\"integration_scope\":\"PerDefinitionOnly\",\"absolute_area_volume_error_bound\":\"NotEstablished\"");
+        }
+        else if (report.sourceShape && report.sourceShape->role != "MaterialSolid")
+        {
+            w.Add(
+                ",\"area_centroid_accumulation_origin\":\"AxisAlignedBoundsMidpoint\",\"face_area_origin\":\"FaceBoundsMidpoint\",\"absolute_area_error_bound\":\"NotEstablished\",\"material_volume\":\"NotApplicable\""
+            );
+        }
+        else
+        {
+            w.Add(",\"mass_integration_origin\":\"AxisAlignedBoundsMidpoint\",\"absolute_area_volume_error_bound\":\"NotEstablished\"");
+        }
         w.Add(
-            ",\"mass_integration_origin\":\"AxisAlignedBoundsMidpoint\",\"absolute_area_volume_error_bound\":\"NotEstablished\",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
+            ",\"global_definition_error_bound\":\"NotEstablished\",\"global_curve_surface_error_bound\":\"NotEstablished\",\"final_trim_measurement\":\"PairedParameter8SubintervalsPerUnionKnotSpan\"}"
         );
         w.Add(
             ",\"qualification\":\"SelectedSourceChecksAndNativeMeasuredPostchecks\",\"full_schema_conformance\":false,\"planar_proofs\":\"NotApplicable\",\"source_sha256\":"
@@ -1482,12 +1635,13 @@ void WriteReportJson(
         w.Add("],\"model\":");
         if (report.native && IsAcceptedReportStatus(status))
         {
-            StatisticsJson(w, *report.native);
+            StatisticsJson(w, *report.native, true);
         }
         else
         {
             w.Add("null");
         }
+        GeneralNativeEvidenceJson(w, report);
         w.Add(",\"validations\":{\"pointer_reports\":");
         if (report.pointerReports)
         {
