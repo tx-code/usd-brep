@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.24)
-project(SMLibGeometry VERSION 1.0.0 LANGUAGES CXX)
+include(cmake/RepositoryVersion.cmake)
+smlib_read_repository_version("${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+project(SMLibGeometry VERSION "${SMLIB_VERSION_CORE}" LANGUAGES CXX)
 
 option(SMLIB_BUILD_PYTHON "Build the stable geometry Python extension" ON)
 option(SMLIB_BUILD_DEV "Build debugger extensions for the optional GUI" OFF)

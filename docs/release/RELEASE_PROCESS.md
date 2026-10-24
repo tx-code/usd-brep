@@ -21,9 +21,12 @@ qualification limits when described in release notes.
    implementation range for missing caller-visible changes. Keep unintegrated or
    out-of-scope notes pending. Follow [fork maintenance](../../FORK_MAINTENANCE.md)
    when the release incorporates upstream changes.
-2. Update `VERSION` and the matching `project(... VERSION ...)` value in
-   `CMakeLists.txt` together. Packaging derives its wheel version from `VERSION`
-   through `tools/repoman/wheel_version.py`; the `0.0.0` value in the packaging
+2. Update the full fork version in `VERSION`. CMake reads its numeric core through
+   `cmake/RepositoryVersion.cmake`; do not add a second version literal to
+   `CMakeLists.txt`. Packaging derives its wheel version from `VERSION`
+   through `tools/repoman/wheel_version.py`. Canonical versions use
+   `MAJOR.MINOR.PATCH` with optional `-alpha.N`, `-beta.N`, or `-rc.N`;
+   the `0.0.0` value in the packaging
    template remains a staging placeholder. A `change` category does not perform
    this version update or determine compatibility policy.
 3. Summarize verified changes in the root `CHANGELOG.md` for engineering history
