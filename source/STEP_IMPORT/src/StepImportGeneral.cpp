@@ -21,6 +21,7 @@
 #include "StepImportSourceParameterUnits.h"
 #include "StepImportSplineSurfaceConstruction.h"
 #include "StepImportSupportDomain.h"
+#include "StepImportSurfaceCurveSession.h"
 #include "StepImportTrimMeasurement.h"
 #include "StepImportUnits.h"
 
@@ -142,6 +143,11 @@ public:
         m_model->source = m_source;
         m_model->terminalDomainInterpretation = m_execution.TerminalDomainInterpretation();
         m_report.terminalDomainInterpretation = m_model->terminalDomainInterpretation;
+        if (auto* choices = m_execution.SurfaceCurves())
+        {
+            m_model->surfaceCurve3dInterpretation = choices->Evidence();
+            m_report.surfaceCurve3dInterpretation = m_model->surfaceCurve3dInterpretation;
+        }
         m_model->queryTolerance = Q(m_options.quality.queryMm);
         m_model->definitionToleranceMm = Q(m_options.quality.definitionMm);
         m_model->queryBudget = m_options.quality.queryMm;
@@ -169,6 +175,10 @@ public:
         if (auto operation = Prepare(); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
+        }
+        if (auto verified = VerifySurfaceCurveInterpretationScope(); !verified)
+        {
+            return tl::unexpected(std::move(verified.error()));
         }
         if (auto operation = Step(shape); !operation)
         {
@@ -562,6 +572,13 @@ public:
                 return tl::unexpected(Fail("GeneralRevolutionChartIdentityLost", record, Status::PostcheckFailure));
             }
         }
+        for (const auto action : m_surfaceCurveActions)
+        {
+            if (auto checked = m_execution.SurfaceCurves()->MarkNativeChecked(action); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+        }
         return m_model;
     }
 
@@ -585,6 +602,8 @@ private:
     double consistency = 0, uvGap = 0;
     bool m_rebuiltUv = false;
     std::vector<std::pair<Index, std::function<bool()>>> m_revolutionChartChecks;
+    std::map<Index, std::size_t> m_surfaceCurveChoices; // Source EC record -> immutable interpretation plan.
+    std::vector<std::size_t> m_surfaceCurveActions; // Finalize only after every native consumer and witness.
     bool m_captureRepairFailure = false;
     FaceSenseOverrides m_faceSenseOverrides;
     struct RingVertex
@@ -720,6 +739,84 @@ private:
         points.push_back(point);
         return i;
     }
+    [[nodiscard]] Result<Index> ParameterGeometry(Index edge, Index geometry)
+    {
+        bool use3d = Is(geometry, "SURFACE_CURVE") && F(geometry, "master_representation").text == "CURVE_3D";
+        if (auto* choices = m_execution.SurfaceCurves())
+        {
+            auto chosen = choices->FindUse(Id(Role("definition")), Id(shape), Id(edge));
+            if (!chosen)
+            {
+                return tl::unexpected(std::move(chosen.error()));
+            }
+            if (*chosen)
+            {
+                const auto planIndex = **chosen;
+                const auto& plan = choices->Plan(planIndex);
+                if (!Is(geometry, "SURFACE_CURVE") || Id(geometry) != plan.surfaceCurveId ||
+                    F(geometry, "master_representation").text !=
+                        (plan.expectedMaster == SurfaceCurveDeclaredMaster::PcurveS1 ? "PCURVE_S1" : "PCURVE_S2") ||
+                    Id(Ref(geometry, "curve_3d")) != plan.curve3dId)
+                {
+                    return tl::unexpected(Fail("SurfaceCurve3dInterpretationBindingMismatch", edge, Status::Unsupported));
+                }
+                const auto associated = Refs(geometry, "associated_geometry");
+                if (associated.size() != plan.pcurveIds.size())
+                {
+                    return tl::unexpected(Fail("SurfaceCurve3dInterpretationBindingMismatch", edge, Status::Unsupported));
+                }
+                for (Index i = 0; i < associated.size(); ++i)
+                {
+                    if (!Is(associated[i], "PCURVE") || Id(associated[i]) != plan.pcurveIds[i])
+                    {
+                        return tl::unexpected(Fail("SurfaceCurve3dInterpretationBindingMismatch", edge, Status::Unsupported));
+                    }
+                }
+                m_surfaceCurveChoices.emplace(edge, planIndex);
+                use3d = true;
+            }
+        }
+        return use3d ? Ref(geometry, "curve_3d") : geometry;
+    }
+    [[nodiscard]] Result<void> VerifySurfaceCurveInterpretationScope()
+    {
+        if (m_surfaceCurveChoices.empty())
+        {
+            return {};
+        }
+        // A non-driving pcurve cannot certify membership of the selected 3D
+        // curve in its support. Restrict this increment to bases of incident
+        // source faces: the unchanged final lift checks independently cover
+        // every one of those actual surfaces. No unused base is ignored.
+        std::map<Index, std::set<Index>> incident;
+        for (const auto& face : faces)
+        {
+            for (const auto& loop : face.loops)
+            {
+                for (const auto& use : loop.uses)
+                {
+                    const auto record = curves[use.edge].record;
+                    if (m_surfaceCurveChoices.contains(record))
+                    {
+                        incident[record].insert(face.surface);
+                    }
+                }
+            }
+        }
+        for (const auto& [edge, plan] : m_surfaceCurveChoices)
+        {
+            static_cast<void>(plan);
+            const auto geometry = curves[ei.at(edge)].geometry;
+            for (const auto pcurve : Refs(geometry, "associated_geometry"))
+            {
+                if (!incident[edge].contains(Ref(pcurve, "basis_surface")))
+                {
+                    return tl::unexpected(Fail("SurfaceCurve3dInterpretationBasisCoverageUnestablished", pcurve, Status::Unsupported));
+                }
+            }
+        }
+        return {};
+    }
     [[nodiscard]] Result<Index> Edge(Index a)
     {
         if (auto it = ei.find(a); it != ei.end())
@@ -736,9 +833,12 @@ private:
         // from trim_1, opposing its basis when sense_agreement is FALSE.
         // Native conics increase along the BASIS, so compose this extra sense
         // with EC and subsequently OE; never change the immutable source flags.
-        const auto parameterGeometry = Is(geometry, "SURFACE_CURVE") && F(geometry, "master_representation").text == "CURVE_3D" ?
-                                           Ref(geometry, "curve_3d") :
-                                           geometry;
+        auto parameter = ParameterGeometry(a, geometry);
+        if (!parameter)
+        {
+            return tl::unexpected(std::move(parameter.error()));
+        }
+        const auto parameterGeometry = *parameter;
         // CURVE_3D carries the defining trimmed curve's sense through its
         // surface-curve wrapper. Compose it before OE/loop uses are prepared.
         const bool same = Is(parameterGeometry, "TRIMMED_CURVE") ? B(a, "same_sense") == B(parameterGeometry, "sense_agreement") : B(a, "same_sense");
@@ -1190,11 +1290,12 @@ private:
         }
         return {};
     }
-    [[nodiscard]] Result<void> MakeSurfaceCurve3d(Curve& c, Index geometry)
+    [[nodiscard]] Result<void> MakeSurfaceCurve3d(Curve& c, Index geometry, std::optional<std::size_t> interpretation = {})
     {
-        // Declared CURVE_3D only: retain that original defining curve, not an
-        // approximation lifted from a pcurve. Source pcurves remain required
-        // independent comparisons under the same selected consistency budget.
+        // Retain the original 3D definition, never a fit lifted from a pcurve.
+        // Declared CURVE_3D requires all auxiliary consistency checks; the
+        // separately bound interpretation retains known auxiliary conflicts
+        // without qualifying the file's original pcurve priority/consistency.
         // STEP_IMPORT/README.md, source-priority surface-curve construction.
         const auto auxiliary = Ref(geometry, "curve_3d");
         if (Is(auxiliary, "SURFACE_CURVE"))
@@ -1210,6 +1311,19 @@ private:
         if (auto made = MakeCurve(master); !made)
         {
             return tl::unexpected(std::move(made.error()));
+        }
+        std::optional<std::size_t> actionIndex;
+        if (interpretation)
+        {
+            SurfaceCurve3dInterpretationAction action;
+            action.planIndex = *interpretation;
+            action.nativeEdgeInterval = { master.t0, master.t1 };
+            auto recorded = m_execution.SurfaceCurves()->RecordAction(std::move(action));
+            if (!recorded)
+            {
+                return tl::unexpected(std::move(recorded.error()));
+            }
+            actionIndex = *recorded;
         }
         const auto associated = Refs(geometry, "associated_geometry");
         const bool sourceForward = !Is(auxiliary, "TRIMMED_CURVE") || B(auxiliary, "sense_agreement");
@@ -1233,41 +1347,107 @@ private:
             comparison.bounds = made->conservativeBoundsMm;
             comparison.associationOccurrence = occurrence + 1;
             const auto domain = comparison.native->GetNaturalInterval();
+            const auto retainConflict = [&](const Failure& failure) -> Result<void>
+            {
+                // This explicit source interpretation can retain only known
+                // auxiliary geometric disagreements. Type/unit/construction,
+                // native API, resource and cancellation failures still stop
+                // immediately, before any subsequent operation or publication.
+                if (!interpretation || !IsSurfaceCurve3dAuxiliaryConflict(failure))
+                {
+                    return tl::unexpected(failure);
+                }
+                return m_execution.SurfaceCurves()->RecordConflict(
+                    *actionIndex,
+                    { Id(record),
+                      occurrence + 1,
+                      StatusName(failure.status),
+                      failure.key,
+                      failure.record ? Id(*failure.record) : Id(record),
+                      failure.stage,
+                      failure.message }
+                );
+            };
             auto first = CurveParameter(*comparison.native, points[c.v0], domain.GetMin(), record);
             if (!first)
             {
-                return tl::unexpected(std::move(first.error()));
+                if (auto retained = retainConflict(first.error()); !retained)
+                {
+                    return tl::unexpected(std::move(retained.error()));
+                }
             }
             auto last = CurveParameter(*comparison.native, points[c.v1], domain.GetMax(), record);
             if (!last)
             {
-                return tl::unexpected(std::move(last.error()));
+                if (auto retained = retainConflict(last.error()); !retained)
+                {
+                    return tl::unexpected(std::move(retained.error()));
+                }
             }
             // A reverse trimmed 3D master decreases in its basis parameter,
             // while its pcurve increases in the wrapper's source sense. Keep
             // both exact definitions; represent that known relation explicitly.
-            comparison.t0 = sourceForward ? *first : *last;
-            comparison.t1 = sourceForward ? *last : *first;
+            bool endpoints = first && last;
+            comparison.t0 = endpoints ? (sourceForward ? *first : *last) : domain.GetMin();
+            comparison.t1 = endpoints ? (sourceForward ? *last : *first) : domain.GetMax();
             comparison.forwardForComparison = sourceForward;
             if (!(comparison.t1 > comparison.t0))
             {
-                return tl::unexpected(Fail("GeneralSurfaceCurveAssociationSenseConflict", record));
+                const auto failure = Fail("GeneralSurfaceCurveAssociationSenseConflict", record);
+                if (auto retained = retainConflict(failure); !retained)
+                {
+                    return tl::unexpected(std::move(retained.error()));
+                }
+                endpoints = false;
             }
-            for (Index i = mappingBegin; i < m_report.parameterMappings.size(); ++i)
+            const auto mappingEnd = m_report.parameterMappings.size();
+            for (Index i = mappingBegin; i < mappingEnd; ++i)
             {
                 auto& mapping = m_report.parameterMappings[i];
                 mapping.targetEdgeIndex.reset();
                 mapping.kind = "SurfaceCurveAuxiliaryPcurve" + mapping.kind;
                 mapping.equation = "private comparison definition, no target-edge parameter identity: " + mapping.equation;
-                mapping.parameters.push_back({ "increasing_parameter_follows_native_master", { sourceForward ? 1. : 0. } });
+                mapping.parameters.push_back(
+                    { interpretation ? "expected_increasing_parameter_follows_native_master" : "increasing_parameter_follows_native_master",
+                      { sourceForward ? 1. : 0. } }
+                );
                 mapping.parameters.push_back({ "source_association_occurrence", { double(occurrence + 1) } });
+                if (interpretation)
+                {
+                    mapping
+                        .equation += "; retained source auxiliary under explicit Curve3dPriority interpretation, original consistency not qualified";
+                }
             }
             // Do not assume equal parameters or silently drop an inaccurate
             // auxiliary. Shared source definitions and LIST occurrences retain
             // their original identities, order and direction checks.
-            if (auto observed = ObserveCurveImages(master, comparison, geometry); !observed)
+            // If endpoints cannot be associated, the full source pcurve is
+            // retained but no selected-interval/image or direction agreement
+            // is claimed. Actual target face membership is checked separately.
+            bool directionObserved = false;
+            if (endpoints)
             {
-                return tl::unexpected(std::move(observed.error()));
+                const auto observed = ObserveCurveImages(master, comparison, geometry);
+                directionObserved = bool(observed);
+                if (!observed)
+                {
+                    if (auto retained = retainConflict(observed.error()); !retained)
+                    {
+                        return tl::unexpected(std::move(retained.error()));
+                    }
+                }
+            }
+            if (interpretation)
+            {
+                // A declared/expected sense is not observed agreement. Keep
+                // missing intervals and failed direction observations explicit
+                // when a non-driving original is retained under interpretation.
+                for (Index i = mappingBegin; i < mappingEnd; ++i)
+                {
+                    auto& mapping = m_report.parameterMappings[i];
+                    mapping.parameters.push_back({ "selected_interval_established", { endpoints ? 1. : 0. } });
+                    mapping.parameters.push_back({ "direction_observation_passed", { directionObserved ? 1. : 0. } });
+                }
             }
         }
         c.native = std::move(master.native);
@@ -1277,16 +1457,22 @@ private:
         c.p0 = master.p0;
         c.p1 = master.p1;
         ParameterMapping mapping;
-        mapping.kind = "SurfaceCurveMaster3d";
+        mapping.kind = interpretation ? "InterpretedSurfaceCurveMaster3d" : "SurfaceCurveMaster3d";
         mapping.sourceGeometryId = Id(geometry);
         mapping.sourceBasisGeometryId = Id(auxiliary);
         mapping.sourceUseId = Id(c.record);
         mapping.targetEdgeIndex = ei.at(c.record);
-        mapping
-            .equation = "declared CURVE_3D uses the original 3D defining curve; source/native parameter conversion is recorded by its basis mapping";
+        mapping.equation =
+            interpretation ?
+                "explicit original/edge-bound Curve3dPriority; original declared pcurve priority retained and not qualified; original 3D parameter conversion is recorded by its basis mapping" :
+                "declared CURVE_3D uses the original 3D defining curve; source/native parameter conversion is recorded by its basis mapping";
         mapping.parameters = { { "native_natural_interval", { c.native->GetNaturalInterval().GetMin(), c.native->GetNaturalInterval().GetMax() } },
                                { "native_edge_interval", { c.t0, c.t1 } } };
         m_report.parameterMappings.push_back(std::move(mapping));
+        if (actionIndex)
+        {
+            m_surfaceCurveActions.push_back(*actionIndex);
+        }
         return {};
     }
     [[nodiscard]] Result<void> MakeCurve(Curve& c)
@@ -1307,6 +1493,10 @@ private:
         if (lifted)
         {
             const auto preference = F(g, "master_representation").text;
+            if (const auto chosen = m_surfaceCurveChoices.find(c.record); chosen != m_surfaceCurveChoices.end())
+            {
+                return MakeSurfaceCurve3d(c, g, chosen->second);
+            }
             if (preference == "CURVE_3D")
             {
                 return MakeSurfaceCurve3d(c, g);
@@ -4999,7 +5189,8 @@ private:
             // one-bound classification report separate from this result.
             RepresentationNormalization classification;
             classification.kind = cylinder ? "NativeCylindricalCurveIntersectionContainment" :
-                cone ? "NativeConicalCurveIntersectionContainment" : "NativeRevolutionCurveIntersectionContainment";
+                                  cone     ? "NativeConicalCurveIntersectionContainment" :
+                                             "NativeRevolutionCurveIntersectionContainment";
             classification.sourceFaceId = Id(f.record);
             for (const auto& loop : f.loops)
             {

@@ -3,6 +3,7 @@
 #include "StepImportExecution.h"
 
 #include "StepImportInterval.h"
+#include "StepImportSurfaceCurveSession.h"
 
 #include <algorithm>
 #include <new>
@@ -65,6 +66,14 @@ const char* PhaseName(Phase phase)
 }
 namespace detail
 {
+Result<void> Execution::BindSourceInterpretations(const step_source::SourceSnapshot& source)
+{
+    if (auto bound = BindTerminalDomainSource(source); !bound)
+    {
+        return tl::unexpected(std::move(bound.error()));
+    }
+    return m_surfaceCurves ? m_surfaceCurves->BindSource(source) : Result<void>{};
+}
 Execution::Execution(const Options& options, Report& report)
     : m_options(options), m_report(report), m_control(options.execution.control ? options.execution.control : std::make_shared<ImportControl>())
 {
@@ -75,6 +84,12 @@ Execution::Execution(const Options& options, Report& report)
     m_report.processPrivateLimitBytes = options.nativeLimits.processPrivateBytes;
     m_report.hardMemoryLimitBytes = options.nativeLimits.hardMemoryBytes;
     m_report.deadlineConfigured = bool(options.execution.deadline);
+    if (options.surfaceCurve3dInterpretation)
+    {
+        m_surfaceCurves = std::make_unique<SurfaceCurve3dInterpretationSession>(options);
+        m_report.surfaceCurve3dInterpretation = m_surfaceCurves->Evidence();
+        m_report.surfaceCurve3dReceiptRoot = true;
+    }
     if (options.terminalDomainInterpretation)
     {
         const auto& request = *options.terminalDomainInterpretation;

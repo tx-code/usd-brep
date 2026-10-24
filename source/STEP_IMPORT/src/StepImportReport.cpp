@@ -3,6 +3,7 @@
 #include "StepImportReport.h"
 
 #include "StepImportAssemblyEvidence.h"
+#include "StepImportSurfaceCurveInterpretation.h"
 #include "StepSemanticReport.h"
 #include "StepSourceReport.h"
 
@@ -47,6 +48,117 @@ void Number(Writer& writer, double value)
         throw std::length_error("Native report number capacity");
     }
     writer.Add(std::string_view(buffer.data(), static_cast<std::size_t>(end.ptr - buffer.data())));
+}
+void SurfaceCurve3dJson(Writer& w, const Report& report)
+{
+    if (!report.surfaceCurve3dInterpretation)
+    {
+        return;
+    }
+    const auto& receipt = *report.surfaceCurve3dInterpretation;
+    w.Add(",\"surface_curve_3d_interpretation\":{\"source_sha256\":");
+    w.String(receipt.sourceSha256);
+    if (!report.surfaceCurve3dReceiptRoot)
+    {
+        w.Add(",\"receipt_scope\":\"RequestRoot\"}");
+        return;
+    }
+    w.Add(
+        ",\"interpretation\":\"ExplicitCurve3dPriority\",\"strict_original_geometry_qualified\":false,\"source_priority_declaration_rewritten\":false,\"source_definitions_rewritten\":false,\"source_pcurve_consistency_qualified\":false,\"request_complete\":"
+    );
+    w.Bool(receipt.requestComplete);
+    w.Add(",\"quality_id\":");
+    w.String(receipt.qualityId);
+    w.Add(",\"maximum_uses\":");
+    w.Number(receipt.maximumUses);
+    const auto fraction = [&](std::string_view key, const auto& value)
+    {
+        w.Add(",");
+        w.String(key);
+        w.Add(":[");
+        w.Number(value[0]);
+        w.Add(",");
+        w.Number(value[1]);
+        w.Add("]");
+    };
+    fraction("consistency_budget_mm", receipt.consistencyBudgetMm);
+    fraction("derived_uv_budget_mm", receipt.derivedUvBudgetMm);
+    fraction("maximum_work_tolerance_mm", receipt.maximumWorkToleranceMm);
+    w.Add(",\"plans\":[");
+    for (std::size_t i = 0; i < receipt.plans.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& plan = receipt.plans[i];
+        w.Add("{\"source_definition\":");
+        w.String(plan.definitionId);
+        w.Add(",\"source_shape\":");
+        w.String(plan.shapeId);
+        w.Add(",\"source_edge\":");
+        w.String(plan.edgeId);
+        w.Add(",\"source_surface_curve\":");
+        w.String(plan.surfaceCurveId);
+        w.Add(",\"source_curve_3d\":");
+        w.String(plan.curve3dId);
+        w.Add(",\"original_master\":");
+        w.String(plan.expectedMaster == SurfaceCurveDeclaredMaster::PcurveS1 ? "PCURVE_S1" : "PCURVE_S2");
+        w.Add(",\"source_pcurves\":[");
+        for (std::size_t j = 0; j < plan.pcurveIds.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            w.String(plan.pcurveIds[j]);
+        }
+        w.Add("]}");
+    }
+    w.Add("],\"actions\":[");
+    for (std::size_t i = 0; i < receipt.actions.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& action = receipt.actions[i];
+        w.Add("{\"plan_index\":");
+        w.Number(action.planIndex);
+        w.Add(",\"native_edge_interval\":[");
+        Number(w, action.nativeEdgeInterval[0]);
+        w.Add(",");
+        Number(w, action.nativeEdgeInterval[1]);
+        w.Add("]");
+        w.Add(",\"native_checks_passed\":");
+        w.Bool(action.nativeChecksPassed);
+        w.Add(",\"original_conflicts\":[");
+        for (std::size_t j = 0; j < action.originalConflicts.size(); ++j)
+        {
+            if (j)
+            {
+                w.Add(",");
+            }
+            const auto& conflict = action.originalConflicts[j];
+            w.Add("{\"source_pcurve\":");
+            w.String(conflict.pcurveId);
+            w.Add(",\"association_occurrence\":");
+            w.Number(conflict.associationOccurrence);
+            w.Add(",\"status\":");
+            w.String(conflict.status);
+            w.Add(",\"key\":");
+            w.String(conflict.key);
+            w.Add(",\"record_id\":");
+            w.String(conflict.recordId);
+            w.Add(",\"stage\":");
+            w.String(conflict.stage);
+            w.Add(",\"message\":");
+            w.String(conflict.message);
+            w.Add("}");
+        }
+        w.Add("]}");
+    }
+    w.Add("]}");
 }
 void TerminalDomainJson(Writer& w, const Report& report)
 {
@@ -1465,6 +1577,7 @@ void WriteReportJson(
             }
         }
         TerminalDomainJson(w, report);
+        SurfaceCurve3dJson(w, report);
         if (report.supportDomainRestrictionRequested)
         {
             w.Add(",\"support_domain_restriction_requested\":true");

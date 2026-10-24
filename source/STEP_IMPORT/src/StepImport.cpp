@@ -6,6 +6,7 @@
 #include "StepImportOrientationRepair.h"
 #include "StepImportPlan.h"
 #include "StepImportPublication.h"
+#include "StepImportSurfaceCurveSession.h"
 
 #include <algorithm>
 #include <charconv>
@@ -63,6 +64,7 @@ namespace
 {
 void Validate(const Options& options)
 {
+    detail::ValidateSurfaceCurve3dInterpretationOptions(options);
     if (options.terminalDomainInterpretation)
     {
         const auto& request = *options.terminalDomainInterpretation;
@@ -452,7 +454,7 @@ Result Import(
         {
             if (raw.source)
             {
-                if (auto bound = execution.BindTerminalDomainSource(*raw.source); !bound)
+                if (auto bound = execution.BindSourceInterpretations(*raw.source); !bound)
                 {
                     publish(std::move(bound));
                     return result;

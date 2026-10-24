@@ -21,6 +21,8 @@ class SmBrep;
 // Internal native-import interface. Imported snapshots expose no mutable native handles.
 namespace step_import
 {
+struct SurfaceCurve3dInterpretationRequest;
+struct SurfaceCurve3dInterpretationReceipt;
 using Point = std::array<double, 3>;
 using Bounds = std::array<Point, 2>;
 using Fraction = step_planar::Rational;
@@ -364,6 +366,8 @@ struct Options
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly;
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepair;
     std::optional<TerminalDomainInterpretationRequest> terminalDomainInterpretation; // Explicit file-bound development assumption; no default.
+    std::shared_ptr<const SurfaceCurve3dInterpretationRequest> surfaceCurve3dInterpretation; // Explicit original/edge-bound development choice; see
+                                                                                             // dedicated header.
     static Options PlanarFixture();
 };
 struct Statistics
@@ -536,6 +540,7 @@ public:
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const;
+    std::shared_ptr<const SurfaceCurve3dInterpretationReceipt> SurfaceCurve3dInterpretation() const; // Owning conditional source-choice evidence.
     void WriteNative(const std::filesystem::path& path) const; // Native target archive; original STEP/normalization metadata is not encoded.
     EditableCopyOutcome CopyForModeling() const; // Complete BRep-only requests; associated geometry requires an explicit body-copy choice.
     EditableCopyOutcome CopyBrepForModeling() const; // Explicit independent selected BRep copy; associated geometry is outside this scope.
@@ -684,6 +689,8 @@ struct Report
     std::shared_ptr<const CircleVertexBudgetReceipt> circleVertexBudget; // Request-wide receipt, never an import-success claim.
     std::shared_ptr<const TerminalDomainInterpretationReceipt> terminalDomainInterpretation;
     bool terminalDomainReceiptRoot = false; // Nested reports reference the one request-wide receipt rather than duplicating it.
+    std::shared_ptr<const SurfaceCurve3dInterpretationReceipt> surfaceCurve3dInterpretation;
+    bool surfaceCurve3dReceiptRoot = false;
     std::size_t cylindricalBandProofOperations = 0;
     std::string sourceEvidenceScope;
     std::vector<ProductDefinitionReport> definitions;

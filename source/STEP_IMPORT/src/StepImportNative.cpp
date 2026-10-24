@@ -2295,6 +2295,10 @@ std::shared_ptr<const TerminalDomainInterpretationReceipt> ModelSnapshot::Termin
 {
     return m_data->terminalDomainInterpretation;
 }
+std::shared_ptr<const SurfaceCurve3dInterpretationReceipt> ModelSnapshot::SurfaceCurve3dInterpretation() const
+{
+    return m_data->surfaceCurve3dInterpretation;
+}
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());

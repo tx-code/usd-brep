@@ -34,6 +34,14 @@ compose wrapper/basis and edge/loop senses explicitly. No source-priority
 override or auxiliary-conflict exception is introduced by this declared path.
 Reports distinguish the driving 3D curve from retained auxiliary parameters.
 
+Applications can separately select original-hash-bound 3D priority for an exact
+definition/shape/edge list. Original pcurve declarations and known comparison
+refusals remain in the owning receipt; their original consistency is explicitly
+unqualified. Actual target surfaces, topology, projection and working tolerances
+keep their selected budgets. All plan entries and final native checks must finish
+before complete publication as `AcceptedUnderInterpretation`; default source
+priority and strict auxiliary checks remain unchanged.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md).

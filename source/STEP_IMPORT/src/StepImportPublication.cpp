@@ -6,6 +6,7 @@
 #include "StepImportNativeData.h"
 #include "StepImportPlan.h"
 #include "StepImportReport.h"
+#include "StepImportSurfaceCurveSession.h"
 
 #include <algorithm>
 
@@ -171,6 +172,13 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     {
         return tl::unexpected(std::move(domains.error()));
     }
+    if (auto* choices = m_execution.SurfaceCurves())
+    {
+        if (auto complete = choices->Complete(); !complete)
+        {
+            return tl::unexpected(std::move(complete.error()));
+        }
+    }
     auto ready = m_execution.Check(Phase::NativeReady);
     if (!ready)
     {
@@ -180,6 +188,7 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     // Choose this result before either report and final arbitration; after
     // Commit the sole remaining action remains the owning transfer.
     bool interpreted = m_report.terminalDomainInterpretation && !m_report.terminalDomainInterpretation->actions.empty();
+    interpreted = interpreted || (m_report.surfaceCurve3dInterpretation && !m_report.surfaceCurve3dInterpretation->actions.empty());
     bool isolated = false;
     {
         // Release this temporary source owner before the commit region. The
