@@ -373,6 +373,10 @@ class Reference
 public:
 
     Net net;
+    // ReadSource captures these exact bounds before its ordinary outward
+    // computational envelope is extended. Only an unrequested source curve
+    // can authorize a source-domain restriction, never an interpreted domain.
+    std::optional<std::array<R, 2>> originalCurveDomain;
 };
 namespace
 {
@@ -642,7 +646,7 @@ Result<std::array<R, 2>> Requested(const SourceAxis& source, const std::vector<R
     TS_TRY(b, math.Binary(high));
     return std::array<R, 2>{ std::move(a), std::move(b) };
 }
-Result<Net> ReadSource(const Source& source, Arithmetic& math)
+Result<Net> ReadSource(const Source& source, Arithmetic& math, std::optional<std::array<R, 2>>& originalCurveDomain)
 {
     if (!source.v && source.countV != 1)
     {
@@ -660,6 +664,10 @@ Result<Net> ReadSource(const Source& source, Arithmetic& math)
     net.nv = source.countV;
     TS_TRY(u, SourceKnots(source.u, net.nu, math));
     net.u = std::move(u);
+    if (!source.v && !source.u.requested)
+    {
+        originalCurveDomain = std::array<R, 2>{ net.u[net.p], net.u[net.nu] };
+    }
     if (source.v)
     {
         TS_TRY(v, SourceKnots(*source.v, net.nv, math));
@@ -1227,6 +1235,127 @@ Result<bool> VisitPolePatch(
     return VisitPolePatch(right, pole, radiusSquared, visits, state, remainingDepth - 1, math);
 }
 
+Result<void> RestrictCurve(Net& net, const R& low, const R& high, Arithmetic& math)
+{
+    if (Compare(low, net.u[net.p]) == 0 && Compare(high, net.u[net.nu]) == 0)
+    {
+        return {};
+    }
+    // Refine at both exact binary64 cuts to degree multiplicity. The selected
+    // consecutive Bezier pieces then share their actual C0 endpoint poles.
+    // Adding one endpoint knot produces a clamped subcurve in the SAME t;
+    // no native snapping, rounded Euclidean conversion or reverse is involved.
+    TS_OK(math.Reserve(2));
+    const std::vector<R> cuts{ low, high };
+    TS_OK(Refine(net, true, cuts, math));
+    const auto afterLow = std::upper_bound(
+        net.u.begin(),
+        net.u.end(),
+        low,
+        [](const R& a, const R& b)
+        {
+            return Compare(a, b) < 0;
+        }
+    );
+    const auto beforeHigh = std::lower_bound(
+        net.u.begin(),
+        net.u.end(),
+        high,
+        [](const R& a, const R& b)
+        {
+            return Compare(a, b) < 0;
+        }
+    );
+    const auto lowOffset = std::size_t(afterLow - net.u.begin());
+    const auto end = std::size_t(beforeHigh - net.u.begin());
+    if (lowOffset <= net.p || end > net.nu)
+    {
+        return tl::unexpected(Error("TerminalSplineRestrictionSpan"));
+    }
+    const auto first = lowOffset - net.p - 1;
+    if (end <= first || end - first < net.p + 1)
+    {
+        return tl::unexpected(Error("TerminalSplineRestrictionSpan"));
+    }
+    const auto count = end - first;
+    TS_OK(math.Reserve(count));
+    Net selected;
+    selected.p = net.p;
+    selected.nu = count;
+    selected.v = net.v;
+    selected.u.reserve(count + net.p + 1);
+    for (unsigned i = 0; i <= net.p; ++i)
+    {
+        TS_OK(math.Spend());
+        selected.u.push_back(low);
+    }
+    for (auto knot = afterLow; knot != beforeHigh; ++knot)
+    {
+        TS_OK(math.Spend());
+        selected.u.push_back(*knot);
+    }
+    for (unsigned i = 0; i <= net.p; ++i)
+    {
+        TS_OK(math.Spend());
+        selected.u.push_back(high);
+    }
+    selected.cp.reserve(count);
+    for (std::size_t i = first; i < end; ++i)
+    {
+        TS_OK(math.Spend());
+        selected.cp.push_back(net.cp[i]);
+    }
+    TS_OK(ValidateKnots(selected.u, selected.p, selected.nu, math));
+    net = std::move(selected);
+    return {};
+}
+Result<Proof> CertifyNets(Net& a, Net& b, const R& allowed, Arithmetic& math)
+{
+    // Both callers must arrive with exactly matching domains and degrees.
+    // The ordinary Certify entry keeps its original whole-domain refusal;
+    // restriction changes only its PRIVATE exact reference before this gate.
+    if (a.p != b.p || a.q != b.q || Compare(a.u[a.p], b.u[b.p]) || Compare(a.u[a.nu], b.u[b.nu]) || Compare(a.v[a.q], b.v[b.q]) ||
+        Compare(a.v[a.nv], b.v[b.nv]))
+    {
+        return tl::unexpected(Error("TerminalSplineActualDomainOrDegree"));
+    }
+    TS_TRY(u, KnotUnion(a.u, b.u, math));
+    TS_TRY(v, KnotUnion(a.v, b.v, math));
+    TS_OK(Refine(a, true, u, math));
+    TS_OK(Refine(a, false, v, math));
+    TS_OK(Refine(b, true, u, math));
+    TS_OK(Refine(b, false, v, math));
+    Proof proof;
+    R maximum;
+    for (std::size_t i = a.p; i < a.nu; ++i)
+    {
+        if (Compare(a.u[i], a.u[i + 1]) < 0)
+        {
+            TS_TRY(bu, Span(b.u, b.p, b.nu, a.u[i], a.u[i + 1], math));
+            for (std::size_t j = a.q; j < a.nv; ++j)
+            {
+                if (Compare(a.v[j], a.v[j + 1]) < 0)
+                {
+                    TS_TRY(bv, Span(b.v, b.q, b.nv, a.v[j], a.v[j + 1], math));
+                    TS_TRY(bound, Patch(a, b, i, j, bu, bv, math));
+                    if (Compare(bound, maximum) > 0)
+                    {
+                        maximum = std::move(bound);
+                    }
+                    ++proof.patches;
+                }
+            }
+        }
+    }
+    if (!proof.patches)
+    {
+        return tl::unexpected(Error("TerminalSplineNoPatches"));
+    }
+    TS_TRY(upper, math.Outward(maximum, true));
+    proof.maximumMm = upper;
+    proof.established = Compare(maximum, allowed) <= 0;
+    return proof;
+}
 template <class T, class F>
 Result<T> Guard(const Limits& limits, const Charge& charge, F&& body)
 {
@@ -1254,10 +1383,12 @@ Result<Prepared> Extend(const Source& source, const Limits& limits, const Charge
         charge,
         [&](Arithmetic& math) -> Result<Prepared>
         {
-            TS_TRY(net, ReadSource(source, math));
+            std::optional<std::array<R, 2>> originalCurveDomain;
+            TS_TRY(net, ReadSource(source, math, originalCurveDomain));
             TS_TRY(target, Emit(net, math));
             auto reference = std::make_shared<Reference>();
             reference->net = std::move(net);
+            reference->originalCurveDomain = std::move(originalCurveDomain);
             return Prepared{ std::move(target), std::move(reference) };
         }
     );
@@ -1284,47 +1415,45 @@ Result<Proof> Certify(
             TS_OK(math.Reserve(reference->net.cp.size()));
             Net a = reference->net;
             TS_TRY(b, ReadBinary(actual, math));
-            if (a.p != b.p || a.q != b.q || Compare(a.u[a.p], b.u[b.p]) || Compare(a.u[a.nu], b.u[b.nu]) || Compare(a.v[a.q], b.v[b.q]) ||
-                Compare(a.v[a.nv], b.v[b.nv]))
+            return CertifyNets(a, b, allowed, math);
+        }
+    );
+}
+Result<Proof> CertifyCurveRestriction(
+    const std::shared_ptr<const Reference>& reference,
+    const BinaryNet& actual,
+    const IntegerRatio& maximumMm,
+    const Limits& limits,
+    const Charge& charge
+)
+{
+    return Guard<Proof>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<Proof>
+        {
+            if (!reference)
             {
-                return tl::unexpected(Error("TerminalSplineActualDomainOrDegree"));
+                return tl::unexpected(Error("TerminalSplineReferenceMissing"));
             }
-            TS_TRY(u, KnotUnion(a.u, b.u, math));
-            TS_TRY(v, KnotUnion(a.v, b.v, math));
-            TS_OK(Refine(a, true, u, math));
-            TS_OK(Refine(a, false, v, math));
-            TS_OK(Refine(b, true, u, math));
-            TS_OK(Refine(b, false, v, math));
-            Proof proof;
-            R maximum;
-            for (std::size_t i = a.p; i < a.nu; ++i)
+            if (!reference->originalCurveDomain || reference->net.q || reference->net.nv != 1 || actual.basis.degreeV || actual.basis.countV != 1 ||
+                !actual.basis.knotsV.empty())
             {
-                if (Compare(a.u[i], a.u[i + 1]) < 0)
-                {
-                    TS_TRY(bu, Span(b.u, b.p, b.nu, a.u[i], a.u[i + 1], math));
-                    for (std::size_t j = a.q; j < a.nv; ++j)
-                    {
-                        if (Compare(a.v[j], a.v[j + 1]) < 0)
-                        {
-                            TS_TRY(bv, Span(b.v, b.q, b.nv, a.v[j], a.v[j + 1], math));
-                            TS_TRY(bound, Patch(a, b, i, j, bu, bv, math));
-                            if (Compare(bound, maximum) > 0)
-                            {
-                                maximum = std::move(bound);
-                            }
-                            ++proof.patches;
-                        }
-                    }
-                }
+                return tl::unexpected(Error("TerminalSplineRestrictionCurveReference", Status::Unsupported));
             }
-            if (!proof.patches)
+            TS_TRY(allowed, math.Ratio(maximumMm));
+            TS_OK(math.Reserve(reference->net.cp.size())); // The immutable resident reference also counts.
+            TS_OK(math.Reserve(reference->net.cp.size()));
+            Net a = reference->net;
+            TS_TRY(b, ReadBinary(actual, math));
+            const auto& low = b.u[b.p];
+            const auto& high = b.u[b.nu];
+            if (Compare(low, (*reference->originalCurveDomain)[0]) < 0 || Compare(high, (*reference->originalCurveDomain)[1]) > 0)
             {
-                return tl::unexpected(Error("TerminalSplineNoPatches"));
+                return tl::unexpected(Error("TerminalSplineRestrictionOutsideSourceDomain"));
             }
-            TS_TRY(upper, math.Outward(maximum, true));
-            proof.maximumMm = upper;
-            proof.established = Compare(maximum, allowed) <= 0;
-            return proof;
+            TS_OK(RestrictCurve(a, low, high, math));
+            return CertifyNets(a, b, allowed, math);
         }
     );
 }

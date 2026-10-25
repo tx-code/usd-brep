@@ -127,6 +127,29 @@ struct PoleVisitProof
     const Limits& limits,
     const Charge& charge
 );
+// Compare a CURVE's actual stored definition on its whole natural subdomain
+// against an original source reference made by Extend with no requested range.
+// The actual binary64 endpoints must lie inside the ORIGINAL exact source
+// domain, not merely its outward computational envelope. Exact homogeneous
+// Boehm restriction and the same common-refinement/Bernstein engine retain the
+// original scalar parameter; there is no extension, reparameterization or
+// second mm allowance. The reference and actual input remain unchanged.
+// The caller separately binds the actual interval and orientation to its
+// requested source trim/use. A different valid subcurve can also have zero
+// error here; this evidence alone cannot establish the selection contract.
+//
+// Scope is the existing degree 1..17, clamped C0-or-better positive-weight
+// curve representation. This checks that basis, not geometric nonclosure or
+// an unavailable native periodic flag. Prepare and proof must charge the same
+// caller ledger; allocation, exact-capacity and cancellation contracts match
+// Certify. Neither endpoint samples nor the chosen work resolution certify it.
+[[nodiscard]] Result<Proof> CertifyCurveRestriction(
+    const std::shared_ptr<const Reference>& reference,
+    const BinaryNet& actual,
+    const IntegerRatio& maximumMm,
+    const Limits& limits,
+    const Charge& charge
+);
 // Prove, on the WHOLE selected interval of a continuous positive-weight CURVE,
 // that the closed pole-ball preimage has only components attached to allowed
 // first/last endpoints. At least one point must be strictly outside the ball;
