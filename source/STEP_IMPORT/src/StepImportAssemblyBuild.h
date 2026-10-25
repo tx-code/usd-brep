@@ -10,6 +10,7 @@ struct AssemblyNativeDefinition
 {
     std::size_t sourceDefinition;
     std::vector<NativeCandidate> bodies;
+    NativeCandidate wireframe{}; // Geometry-only owner; never exposed as a ModelSnapshot/BRep.
 };
 struct AssemblyNativeCandidate
 {

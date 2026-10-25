@@ -34,6 +34,7 @@ void Aggregate(Report& parent, const Members& members)
             [](const auto& member)
             {
                 return member.checks->sourceEvidenceScope == "AssemblyPlacementWrapper" ||
+                       member.checks->sourceEvidenceScope == "AssemblyWireframeDefinition" ||
                        (member.checks->numericalIntegration && member.checks->numericalIntegration->completed);
             }
         );
@@ -42,9 +43,17 @@ void Aggregate(Report& parent, const Members& members)
             members.end(),
             [](const auto& member)
             {
-                return member.checks->sourceEvidenceScope != "AssemblyPlacementWrapper";
+                return member.checks->sourceEvidenceScope != "AssemblyPlacementWrapper" &&
+                       member.checks->sourceEvidenceScope != "AssemblyWireframeDefinition";
             }
         );
+        if (geometry == members.end())
+        {
+            // A complete geometry-only assembly has no face integral at all.
+            // Do not report a completed zero or an unexplained pending integral.
+            parent.numericalIntegration.reset();
+            return;
+        }
         parent.numericalIntegration->completed = geometry != members.end() && completed;
         if (parent.numericalIntegration->completed)
         {
@@ -223,11 +232,18 @@ template <class Source>
             }
         );
         const bool wrapper = assembly && definition.shapeRole == "AssemblyPlacementWrapper" && definition.shapes.empty();
-        if (owner == definition.roles.end() || (definition.shapes.empty() && !wrapper))
+        const bool wireframe = assembly && definition.shapeRole == "WireframeModel" && definition.shapes.empty();
+        if (owner == definition.roles.end() || (definition.shapes.empty() && !wrapper && !wireframe))
         {
             throw std::logic_error("UnqualifiedDocumentDefinition");
         }
-        auto checks = Child(parent, wrapper ? "AssemblyPlacementWrapper" : assembly ? "AssemblyDefinitionRoot" : "ProductDocumentRoot");
+        auto checks = Child(
+            parent,
+            wrapper   ? "AssemblyPlacementWrapper" :
+            wireframe ? "AssemblyWireframeDefinition" :
+            assembly  ? "AssemblyDefinitionRoot" :
+                        "ProductDocumentRoot"
+        );
         parent.definitions.push_back({ owner->recordIndex, false, checks });
         const auto index = parent.definitions.size() - 1;
         DefinitionCounter counter(*checks, execution);

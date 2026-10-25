@@ -417,18 +417,30 @@ struct ClosestPoint
     Point pointMm{};
     double distanceMm = 0;
 };
+struct CurveTrimEvidence
+{
+    std::array<std::string, 2> sourceParameters; // Original trim_1/trim_2 tokens, before binary conversion.
+    double definitionErrorUpperMm = 0;
+    std::optional<double> sourceConsistencyUpperMm;
+    std::size_t proofPatches = 0;
+    // The actual native endpoint domain is in WireframeCurveInfo. The defining
+    // proof uses its affine correspondence with the exact source endpoint pair;
+    // this is parameter rounding evidence, not source repair or endpoint fitting.
+};
 struct WireframeCurveInfo
 {
     std::string sourceId, basisId;
     std::size_t nativeIndex = 0; // Detached curve index in the native part archive; not a topological edge.
     std::array<double, 2> parameterDomain{}; // Actual native evaluator parameters, not STEP analytic angles.
     bool sourceForwardInNative = true;
+    std::optional<CurveTrimEvidence> trimEvidence = {};
 };
 struct WireframePointInfo
 {
     std::string sourceId;
-    std::size_t nativeIndex = 0; // Archive point adapter BRep follows the material BRep at index nativeIndex+1.
+    std::size_t nativeIndex = 0; // Point adapter index after the optional BRep in its native part archive.
     Point pointMm{};
+    std::optional<double> definitionErrorUpperMm = {};
 };
 struct WireframeInfo
 {
@@ -452,6 +464,7 @@ public:
 private:
 
     friend class ModelSnapshot;
+    friend class WireframeModelSnapshot;
     explicit WireframeView(std::shared_ptr<detail::ModelData> data, std::size_t set);
     std::shared_ptr<detail::ModelData> m_data;
     std::size_t m_set = 0;

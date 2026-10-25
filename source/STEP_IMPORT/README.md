@@ -1,20 +1,30 @@
 # STEP_IMPORT（内部 C++20）
 
-源层已能保留装配中的独立 `WireframeModel` 定义，它不是材料实体、表面 BRep 或空装配容器。
-当前原生装配构建尚未资格化这种定义的 owning 曲线／点，因此在分配任何 BRep 前以
-`AssemblyWireframeConstructionUnimplemented` 拒绝整个请求。不会跳过线框零件、伪造空实体，
-或只发布同文件中已有的 BRep。源类型／单位／完整归属通过不表示原生导入完成；
-取消仍由原有执行检查裁决。公开混合装配的 source/native 边界由
-`step_import_wireframe_source_contracts` 验证。已有 BRep 旁附线框的单零件资格保持原范围。
+显式通用装配入口支持固定 AP214 范围内独立的 `WireframeModel` 定义。每个定义拥有
+本地毫米坐标下的曲线／点，实例共享只读定义及独立变换；`BodyCount` 为零，通过
+`AssemblySnapshot::WireframeModel` 取得 owning 快照。源实体、单位、参数及全部 GCS
+成员保留，不推断连接或材料角色；整份装配成功后才发布。
 
-内部 `terminal_spline::CertifyCurveRestriction` 为后续裁剪工厂提供独立的定义误差证据：
-在原始精确源域内，以实际目标的 binary64 端点对私有参考作精确齐次 Boehm 限制，
-再用共同节点细化和 Bernstein 界比较整个实际自然子域，保留同一原参数。
-调用者仍须独立核对本次源 trim 选择、实际端域和方向；另一正确子区间也能获得零误差证据。
-原有 `Certify` 仍只接纳相同完整域；原始域外的计算包络和显式延拓参考不能借此获得裁剪资格。
-准备与证明累计使用同一工作账本和原毫米预算，源参考与目标输入均不改写。
-公开数学合同覆盖多跨、有理定义、原十进制／单位、错网与换参、资源和取消。
-该辅助证明不自动增加 STEP 原生裁剪、坐标反解、存档或装配发布范围。
+快照提供 owning `WireframeView`、源与单位信息和 native part 存档，清空 outcome／报告后
+仍可查询。裁剪 B 样条保留 trim_1／trim_2 原 lexeme 和方向；实际 native 自然域须匹配
+源参数的 binary64 转换，拒绝吸附、静默改域或归一化为 [0,1]。当前接纳 `PARAMETER`／
+两端有参数的 `UNSPECIFIED`；坐标优先／仅坐标的 B 样条裁剪反解资格尚未建立。
+
+`CertifyCurveTrim` 先限制精确源参考，再将其私有参数域仿射对应到 binary64 端域。
+共同细化与 Bernstein 界覆盖整段切点舍入及构造误差，共用原 `definitionMm`。双表示的
+精确源一致性上界与实际欧氏量测分别记录；快照 `trimEvidence` 保留证据和原切点。
+独立点也检查原十进制与精确单位转换后的定义误差。准备、证明、原生操作累计收费；
+取消／资源不足／报告不足释放整个未发布候选，仍为 `Repair=None`。
+原 `Certify` 整域和 `CertifyCurveRestriction` 实际子域证明合同保持。
+
+构建检查每条曲线 LEVEL2 和实际所有权；面积、体积、材料分类及 BRep 指针检查对独立
+线框不适用。存档复制并回读核对类型、节点、控制网及裁剪域；点用明确的 vertex-only
+格式适配器，索引从零开始，不伪称源拓扑或材料体。native 存档不继承 STEP 验收资格。
+公开 wireframe_model／wireframe_source／trimmed_spline 合同覆盖独立真值、方向、双表示、
+快照寿命、复制回读、取消和预算。这些检查不授予完整 EXPRESS 或全部建模资格。
+
+当前装配查看器的场景格式仍只有 BRep；遇到独立线框在写出 body 场景前明确失败，
+不会显示删去线框后的不完整装配。native 导入能力和 GUI 场景资格分别判定。
 
 通用开发构建器按已检查的源角色分别构建材料实体、`OpenSurfaceModel` 和
 `ClosedSurfaceModel`。曲面角色不获得材料体积或 InsideSolid 资格；源层的 pcurve／旋转面

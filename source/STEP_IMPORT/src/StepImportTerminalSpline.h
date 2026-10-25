@@ -150,6 +150,35 @@ struct PoleVisitProof
     const Limits& limits,
     const Charge& charge
 );
+// Exact source trim parameters, increasing in the basis parameter (source
+// sense is recorded by the caller), compared to the ACTUAL stored curve.
+// Source cuts must lie inside the unrequested original source domain. Its
+// private exact restriction is affinely mapped to the nearest-binary64 cut
+// interval solely for error comparison; neither source nor native parameters
+// are edited. The actual natural interval must equal those converted cuts.
+// One whole-domain mm bound includes cut rounding AND defining-net error;
+// a same-t certificate or endpoint samples cannot replace this proof.
+[[nodiscard]] Result<Proof> CertifyCurveTrim(
+    const std::shared_ptr<const Reference>& reference,
+    const std::array<std::string, 2>& exactSourceCuts,
+    const BinaryNet& actual,
+    const IntegerRatio& maximumMm,
+    const Limits& limits,
+    const Charge& charge
+);
+// Outward L1 difference between the original exact source curve at an exact
+// source parameter and a Cartesian source point times its exact mm ratio.
+// This is a selector-consistency upper bound, not a sampled Euclidean residual
+// or a full-curve error certificate. The unrequested curve reference/domain
+// restrictions and callback/capacity contracts match CertifyCurveTrim.
+[[nodiscard]] Result<double> SourceCurvePointDifferenceUpper(
+    const std::shared_ptr<const Reference>& reference,
+    const std::string& exactParameter,
+    const std::array<std::string, 3>& sourcePoint,
+    const IntegerRatio& lengthToMm,
+    const Limits& limits,
+    const Charge& charge
+);
 // Prove, on the WHOLE selected interval of a continuous positive-weight CURVE,
 // that the closed pole-ball preimage has only components attached to allowed
 // first/last endpoints. At least one point must be strictly outside the ball;

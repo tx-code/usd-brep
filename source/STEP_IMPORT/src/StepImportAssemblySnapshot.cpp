@@ -60,6 +60,43 @@ std::shared_ptr<const ModelSnapshot> AssemblySnapshot::Body(std::size_t definiti
 {
     return detail::Access::Snapshot(m_data->native.definitions.at(definition).bodies.at(body));
 }
+std::shared_ptr<const WireframeModelSnapshot> AssemblySnapshot::WireframeModel(std::size_t definition) const
+{
+    const auto& data = m_data->native.definitions.at(definition).wireframe;
+    return data ? std::shared_ptr<const WireframeModelSnapshot>(new WireframeModelSnapshot(data)) : nullptr;
+}
+WireframeModelSnapshot::WireframeModelSnapshot(std::shared_ptr<detail::ModelData> data) : m_data(std::move(data))
+{
+    if (!m_data || m_data->brep || !m_data->source || m_data->source->PartDefinition().shapeRole != "WireframeModel" || !m_data->context ||
+        !m_data->lengthUnits || m_data->wireframes.empty())
+    {
+        throw std::logic_error("Wireframe snapshot requires complete independent geometry ownership");
+    }
+}
+std::shared_ptr<const step_semantics::Snapshot> WireframeModelSnapshot::Source() const
+{
+    return m_data->source;
+}
+UnitNormalization WireframeModelSnapshot::LengthUnits() const
+{
+    return *m_data->lengthUnits;
+}
+std::vector<WireframeView> WireframeModelSnapshot::Wireframes() const
+{
+    std::vector<WireframeView> result;
+    result.reserve(m_data->wireframes.size());
+    for (std::size_t i = 0; i < m_data->wireframes.size(); ++i)
+    {
+        result.push_back(WireframeView(m_data, i));
+    }
+    return result;
+}
+void WireframeModelSnapshot::WriteNative(const std::filesystem::path& path) const
+{
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard modelLock(m_data->mutex);
+    detail::WriteWireframeArchive(*m_data, path);
+}
 std::size_t AssemblySnapshot::InstanceCount() const
 {
     return m_data->native.instances.instances.size();

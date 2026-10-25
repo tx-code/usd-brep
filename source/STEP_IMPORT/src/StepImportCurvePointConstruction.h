@@ -6,6 +6,11 @@
 
 namespace step_import::detail
 {
+// Shared native type scope only. Detailed trims, units, numerical evidence and
+// publication still belong to construction; a true result is not acceptance.
+// Registered-type guards keep an absent catalog branch from becoming a query
+// error, and prevent independent builders from drifting to different lists.
+bool SupportsDetachedCurve(const step_semantics::Snapshot& source, std::size_t record);
 // One request's construction module. Append performs source-identity reuse,
 // owning registration, parameter correspondence and role-specific evidence.
 // Callers retain the original per-item execution checkpoint and source order;

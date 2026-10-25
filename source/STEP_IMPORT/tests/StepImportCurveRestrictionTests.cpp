@@ -201,6 +201,110 @@ void DecimalSourceDomain()
         "the outward envelope is never mistaken for the original exact source domain"
     );
 }
+void DecimalTrimCorrespondence()
+{
+    Source line;
+    line.u = { 1, { "0", "1" }, { 2, 2 }, {} };
+    line.countU = 2;
+    line.controls = { { "0", "0", "0" }, { "1", "0", "0" } };
+    const auto prepared = Extend(line, Capacity(), Work);
+    Require(bool(prepared), "exact unit line for decimal endpoint conversion");
+    const std::array<std::string, 2> cuts{ "0.1", "0.9" };
+    BinaryNet actual{ { 1, 0, 2, 1, { .1, .1, .9, .9 }, {} }, { { .1, 0, 0, 1 }, { .9, 0, 0, 1 } } };
+    RequireExact(
+        CertifyCurveRestriction(prepared->reference, actual, { "1", "1000000000000" }, Capacity(), Work),
+        1,
+        "same-t identity alone cannot detect rounding of selected decimal endpoints"
+    );
+    auto proof = CertifyCurveTrim(prepared->reference, cuts, actual, { "1", "1000000000000" }, Capacity(), Work);
+    Require(
+        proof && proof->established && proof->maximumMm && *proof->maximumMm > 0 && *proof->maximumMm < 1e-15,
+        "declared full-domain endpoint correspondence includes nonzero binary conversion error"
+    );
+    const auto before = actual;
+    actual.basis.knotsU = { .2, .2, .9, .9 };
+    auto refused = CertifyCurveTrim(prepared->reference, cuts, actual, { "1", "1000000000000" }, Capacity(), Work);
+    Require(!refused && refused.error().key == "TerminalSplineTrimNativeDomainMismatch", "an arbitrary target interval cannot hide in the affine map");
+    actual = before;
+    refused = CertifyCurveTrim(prepared->reference, { "-0.1", "0.9" }, actual, { "1", "1000000000000" }, Capacity(), Work);
+    Require(!refused && refused.error().key == "TerminalSplineTrimOutsideSourceDomain", "source decimal cuts cannot extend the original domain");
+    refused = CertifyCurveTrim(prepared->reference, { "0.1", "0.1000000000000000001" }, actual, { "1", "1000000000000" }, Capacity(), Work);
+    Require(!refused && refused.error().key == "TerminalSplineTrimBinaryIntervalCollapsed", "distinct decimals cannot collapse the target range");
+    refused = CertifyCurveTrim(prepared->reference, { "0.9", "0.1" }, actual, { "1", "1000000000000" }, Capacity(), Work);
+    Require(
+        !refused && refused.error().key == "TerminalSplineTrimSourceRange",
+        "proof consumes an increasing basis range, never guesses source sense"
+    );
+
+    // C(t)=2^40*t: the same parameter rounding is now micrometres of physical
+    // displacement. Every homogeneous value is still an exact binary number;
+    // this counterexample cannot be dismissed as a rounded native control net.
+    line.controls[1][0] = "1099511627776";
+    const auto amplified = Extend(line, Capacity(), Work);
+    Require(bool(amplified), "large derivative source line");
+    actual.homogeneous = { { std::ldexp(.1, 40), 0, 0, 1 }, { std::ldexp(.9, 40), 0, 0, 1 } };
+    RequireExact(
+        CertifyCurveRestriction(amplified->reference, actual, { "1", "1000000000" }, Capacity(), Work),
+        1,
+        "large-derivative same-t identity remains mathematically exact"
+    );
+    proof = CertifyCurveTrim(amplified->reference, cuts, actual, { "1", "1000000000" }, Capacity(), Work);
+    Require(
+        proof && !proof->established && proof->maximumMm && *proof->maximumMm > 1e-6,
+        "large derivatives cannot amplify cut conversion outside the single original defining budget"
+    );
+
+    const auto quadratic = Extend(Quadratic(), Capacity(), Work);
+    Require(bool(quadratic), "source point selector reference");
+    auto selector = SourceCurvePointDifferenceUpper(quadratic->reference, "2.75", { "0.5", "0.75", "0" }, { "1", "1" }, Capacity(), Work);
+    Require(selector && *selector == 0, "exact source parameter and exact Cartesian selector coincide");
+    selector = SourceCurvePointDifferenceUpper(quadratic->reference, "2.75", { "0.51", "0.75", "0" }, { "1", "1" }, Capacity(), Work);
+    Require(selector && *selector >= .01 && *selector < .01000000000000001, "exact declared selector discrepancy is reported as an outward bound");
+    selector = SourceCurvePointDifferenceUpper(quadratic->reference, "2.75", { "0.25", "0.375", "0" }, { "2", "1" }, Capacity(), Work);
+    Require(selector && *selector == 0, "selector coordinates use their exact physical length conversion once");
+    selector = SourceCurvePointDifferenceUpper(quadratic->reference, "1", { "0", "0", "0" }, { "1", "1" }, Capacity(), Work);
+    Require(
+        !selector && selector.error().key == "TerminalSplinePointOutsideSourceDomain",
+        "point checks cannot evaluate an undeclared source extension"
+    );
+    const auto rational = Extend(Quadratic(true), Capacity(), Work);
+    Require(bool(rational), "positive nonuniform rational point selector reference");
+    selector = SourceCurvePointDifferenceUpper(
+        rational->reference,
+        "2.75",
+        { "0.63636363636363636", "1.0909090909090909", "0" },
+        { "1", "1" },
+        Capacity(),
+        Work
+    );
+    Require(selector && *selector > 0 && *selector < 1e-15, "rational de Boor compares the exact source point before decimal or native rounding");
+    std::size_t total = 0;
+    const auto run = [&](std::size_t maximum, std::size_t& spent) -> Result<Proof>
+    {
+        const Charge charge = [&](std::size_t units) -> Result<void>
+        {
+            if (units > maximum - spent)
+            {
+                return tl::unexpected(Failure{ Status::ResourceLimit, "TrimCallerBudget", "public cumulative limit", 43, "PublicTrimBudget" });
+            }
+            spent += units;
+            return {};
+        };
+        const auto source = Extend(line, Capacity(), charge);
+        if (!source)
+        {
+            return tl::unexpected(source.error());
+        }
+        return CertifyCurveTrim(source->reference, cuts, actual, { "1", "1" }, Capacity(), charge);
+    };
+    const auto observed = run(std::numeric_limits<std::size_t>::max(), total);
+    Require(observed && observed->established && total > 0, "prepare and endpoint-correspondence proof share a caller ledger");
+    std::size_t exact = 0;
+    Require(bool(run(total, exact)) && exact == total, "exact endpoint-correspondence work budget succeeds");
+    std::size_t limitedUnits = 0;
+    const auto limited = run(total - 1, limitedUnits);
+    Require(!limited && limited.error().key == "TrimCallerBudget", "N-1 endpoint-correspondence work budget cannot publish a certificate");
+}
 void Refusals()
 {
     const auto made = Extend(Quadratic(), Capacity(), Work);
@@ -352,6 +456,7 @@ int main()
         AnalyticQuadratics();
         MultipleSpans();
         DecimalSourceDomain();
+        DecimalTrimCorrespondence();
         Refusals();
         Boundaries();
         std::cout << "Exact source curve-restriction contracts passed\n";

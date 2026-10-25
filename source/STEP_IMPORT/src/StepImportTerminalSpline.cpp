@@ -1356,6 +1356,68 @@ Result<Proof> CertifyNets(Net& a, Net& b, const R& allowed, Arithmetic& math)
     proof.established = Compare(maximum, allowed) <= 0;
     return proof;
 }
+Result<void> MapCurveParameter(Net& net, const R& sourceLow, const R& sourceHigh, const R& targetLow, const R& targetHigh, Arithmetic& math)
+{
+    if (Compare(sourceLow, targetLow) == 0 && Compare(sourceHigh, targetHigh) == 0)
+    {
+        return {};
+    }
+    TS_TRY(sourceLength, math.Sub(sourceHigh, sourceLow));
+    TS_TRY(targetLength, math.Sub(targetHigh, targetLow));
+    for (auto& knot : net.u)
+    {
+        TS_TRY(offset, math.Sub(knot, sourceLow));
+        TS_TRY(fraction, math.Div(offset, sourceLength));
+        TS_TRY(mappedOffset, math.Mul(fraction, targetLength));
+        TS_TRY(mapped, math.Add(targetLow, mappedOffset));
+        knot = std::move(mapped);
+    }
+    return ValidateKnots(net.u, net.p, net.nu, math);
+}
+Result<H> EvaluateCurve(const Net& net, const R& parameter, Arithmetic& math)
+{
+    std::size_t span = net.nu - 1;
+    if (Compare(parameter, net.u[net.nu]) < 0)
+    {
+        const auto after = std::upper_bound(
+            net.u.begin(),
+            net.u.end(),
+            parameter,
+            [](const R& a, const R& b)
+            {
+                return Compare(a, b) < 0;
+            }
+        );
+        if (after == net.u.begin())
+        {
+            return tl::unexpected(Error("TerminalSplinePointParameter"));
+        }
+        span = std::size_t(after - net.u.begin() - 1);
+    }
+    if (span < net.p || span >= net.nu)
+    {
+        return tl::unexpected(Error("TerminalSplinePointParameter"));
+    }
+    TS_OK(math.Reserve(net.p + 1));
+    std::vector<H> work(net.cp.begin() + std::ptrdiff_t(span - net.p), net.cp.begin() + std::ptrdiff_t(span + 1));
+    // Exact homogeneous de Boor at ONE declared selector, including an
+    // original endpoint or interior knot. This is not a sampled whole-curve
+    // qualification; every scalar operation retains the caller's exact ledger.
+    for (unsigned level = 1; level <= net.p; ++level)
+    {
+        for (unsigned j = net.p; j >= level; --j)
+        {
+            const auto index = span - net.p + j;
+            TS_TRY(offset, math.Sub(parameter, net.u[index]));
+            TS_TRY(length, math.Sub(net.u[index + net.p - level + 1], net.u[index]));
+            TS_TRY(alpha, math.Div(offset, length));
+            TS_TRY(other, math.Sub(R{ 1, 1 }, alpha));
+            TS_TRY(point, Mix(work[j - 1], work[j], alpha, other, math));
+            work[j] = std::move(point);
+        }
+    }
+    return work[net.p];
+}
 template <class T, class F>
 Result<T> Guard(const Limits& limits, const Charge& charge, F&& body)
 {
@@ -1454,6 +1516,110 @@ Result<Proof> CertifyCurveRestriction(
             }
             TS_OK(RestrictCurve(a, low, high, math));
             return CertifyNets(a, b, allowed, math);
+        }
+    );
+}
+Result<Proof> CertifyCurveTrim(
+    const std::shared_ptr<const Reference>& reference,
+    const std::array<std::string, 2>& exactSourceCuts,
+    const BinaryNet& actual,
+    const IntegerRatio& maximumMm,
+    const Limits& limits,
+    const Charge& charge
+)
+{
+    return Guard<Proof>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<Proof>
+        {
+            if (!reference)
+            {
+                return tl::unexpected(Error("TerminalSplineReferenceMissing"));
+            }
+            if (!reference->originalCurveDomain || reference->net.q || reference->net.nv != 1 || actual.basis.degreeV || actual.basis.countV != 1 ||
+                !actual.basis.knotsV.empty())
+            {
+                return tl::unexpected(Error("TerminalSplineRestrictionCurveReference", Status::Unsupported));
+            }
+            TS_TRY(low, math.Decimal(exactSourceCuts[0]));
+            TS_TRY(high, math.Decimal(exactSourceCuts[1]));
+            if (Compare(low, high) >= 0)
+            {
+                return tl::unexpected(Error("TerminalSplineTrimSourceRange"));
+            }
+            if (Compare(low, (*reference->originalCurveDomain)[0]) < 0 || Compare(high, (*reference->originalCurveDomain)[1]) > 0)
+            {
+                return tl::unexpected(Error("TerminalSplineTrimOutsideSourceDomain"));
+            }
+            TS_TRY(roundedLow, math.Rounded(low));
+            TS_TRY(roundedHigh, math.Rounded(high));
+            TS_TRY(targetLow, math.Binary(roundedLow));
+            TS_TRY(targetHigh, math.Binary(roundedHigh));
+            if (Compare(targetLow, targetHigh) >= 0)
+            {
+                return tl::unexpected(Error("TerminalSplineTrimBinaryIntervalCollapsed"));
+            }
+            TS_TRY(allowed, math.Ratio(maximumMm));
+            TS_OK(math.Reserve(reference->net.cp.size()));
+            TS_OK(math.Reserve(reference->net.cp.size()));
+            Net a = reference->net;
+            TS_TRY(b, ReadBinary(actual, math));
+            if (Compare(b.u[b.p], targetLow) || Compare(b.u[b.nu], targetHigh))
+            {
+                return tl::unexpected(Error("TerminalSplineTrimNativeDomainMismatch"));
+            }
+            // Endpoint conversion is a declared representation correspondence,
+            // not a source extension or a native reparameterization. Comparing
+            // the complete mapped reference catches derivative-amplified cut
+            // rounding and native construction error in ONE defining budget.
+            TS_OK(RestrictCurve(a, low, high, math));
+            TS_OK(MapCurveParameter(a, low, high, targetLow, targetHigh, math));
+            return CertifyNets(a, b, allowed, math);
+        }
+    );
+}
+Result<double> SourceCurvePointDifferenceUpper(
+    const std::shared_ptr<const Reference>& reference,
+    const std::string& exactParameter,
+    const std::array<std::string, 3>& sourcePoint,
+    const IntegerRatio& lengthToMm,
+    const Limits& limits,
+    const Charge& charge
+)
+{
+    return Guard<double>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<double>
+        {
+            if (!reference || !reference->originalCurveDomain || reference->net.q || reference->net.nv != 1)
+            {
+                return tl::unexpected(Error("TerminalSplineRestrictionCurveReference", Status::Unsupported));
+            }
+            TS_TRY(parameter, math.Decimal(exactParameter));
+            if (Compare(parameter, (*reference->originalCurveDomain)[0]) < 0 || Compare(parameter, (*reference->originalCurveDomain)[1]) > 0)
+            {
+                return tl::unexpected(Error("TerminalSplinePointOutsideSourceDomain"));
+            }
+            TS_OK(math.Reserve(reference->net.cp.size()));
+            TS_TRY(point, EvaluateCurve(reference->net, parameter, math));
+            if (point[3].n <= 0)
+            {
+                return tl::unexpected(Error("TerminalSplineRefinedWeight"));
+            }
+            TS_TRY(scale, math.Ratio(lengthToMm));
+            R maximum;
+            for (std::size_t axis = 0; axis < 3; ++axis)
+            {
+                TS_TRY(source, math.Decimal(sourcePoint[axis]));
+                TS_TRY(mm, math.Mul(source, scale));
+                TS_TRY(curvePoint, math.Div(point[axis], point[3]));
+                TS_TRY(delta, math.Sub(curvePoint, mm));
+                TS_TRY(sum, math.Add(maximum, Absolute(std::move(delta))));
+                maximum = std::move(sum);
+            }
+            return math.Outward(maximum, true);
         }
     );
 }

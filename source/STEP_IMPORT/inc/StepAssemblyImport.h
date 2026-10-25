@@ -23,6 +23,23 @@ struct AssemblyInstanceInfo
     std::array<Point, 3> rotationToRoot;
     Point translationToRootMm;
 };
+class WireframeModelSnapshot
+{
+public:
+
+    // Definition-local mm geometry. Views keep this owner alive independently
+    // of the assembly/result. No BRep, area, volume or material API is implied.
+    std::shared_ptr<const step_semantics::Snapshot> Source() const;
+    UnitNormalization LengthUnits() const;
+    std::vector<WireframeView> Wireframes() const;
+    void WriteNative(const std::filesystem::path& path) const;
+
+private:
+
+    friend class AssemblySnapshot;
+    explicit WireframeModelSnapshot(std::shared_ptr<detail::ModelData> data);
+    std::shared_ptr<detail::ModelData> m_data;
+};
 class AssemblySnapshot
 {
 public:
@@ -33,6 +50,9 @@ public:
     std::size_t BodyCount(std::size_t definition) const;
     // Owning read-only definition geometry in local mm, never transformed in place.
     std::shared_ptr<const ModelSnapshot> Body(std::size_t definition, std::size_t body) const;
+    // Null for BRep definitions/placement wrappers. Wire-only definitions have
+    // BodyCount==0 and this distinct owning geometry; they are not empty bodies.
+    std::shared_ptr<const WireframeModelSnapshot> WireframeModel(std::size_t definition) const;
     std::size_t InstanceCount() const;
     AssemblyInstanceInfo Instance(std::size_t index) const;
     std::shared_ptr<const step_semantics::AssemblyDocument> Source() const;

@@ -5,9 +5,14 @@ change: feature
 The fixed AP214 assembly source checker retains direct bounded-wireframe product
 definitions as `WireframeModel`, without inventing BRep shapes or placement-only
 wrappers. Necessary source predicates, units and complete document ownership
-remain mandatory. Native assembly import explicitly refuses these definitions
-before body allocation until independent owning geometry is implemented; it
-never drops wire leaves or publishes only the BRep subset.
+remain mandatory. Native assembly import gives these definitions an independent
+owning curve/point snapshot with zero BRep bodies. Parameter-preferred trimmed
+splines retain their selected intervals, original cuts and direction, with one
+whole-domain definition bound covering endpoint conversion and construction.
+Queries and checked native archives retain the trim; cancellation and report
+limits still gate the complete assembly. The current BRep-only scene exporter
+explicitly refuses wire assemblies rather than dropping required geometry.
+Native consumers must rebuild for the extended wire observation/assembly APIs.
 
 Native STEP import accepts an explicit source-hash-bound terminal NURBS domain
 interpretation plan on the general development path. Source definitions and UV

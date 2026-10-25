@@ -836,6 +836,13 @@ int Run(
             }
             auto model = loaded.assembly;
             Good(model->Source()->Inputs().Bindings().structure->Roots().size() == 1, "AssemblyDisplayRequiresSingleRoot");
+            // The current assembly scene contract carries BRep bodies only.
+            // Native wire ownership must not become a silently omitted scene
+            // definition while its instances still appear in the receipt.
+            for (std::size_t i = 0; i < model->DefinitionCount(); ++i)
+            {
+                Good(!model->WireframeModel(i), "AssemblyWireframeDisplayNotImplemented");
+            }
             asciiApplied = model->Source()->Inputs().SourceFields().Source().HasAsciiInvariantDataAssumption();
             step_view::DisplayBudget budget;
             std::vector<BodyScene> scenes;

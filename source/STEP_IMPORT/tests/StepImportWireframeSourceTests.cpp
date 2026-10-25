@@ -3,6 +3,7 @@
 #include "StepAssemblyImport.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -33,18 +34,28 @@ int main(int argc, char** argv)
         const AssemblyLimits limits{ 8, 8, 8 };
         const auto result = ImportAssemblyBytes(text, options, limits);
         Require(
-            result.status == Status::Unsupported && !result.assembly && result.report.nativeCalls == 0 &&
-                std::any_of(
-                    result.report.diagnostics.begin(),
-                    result.report.diagnostics.end(),
-                    [](const auto& diagnostic)
-                    {
-                        return diagnostic.source.key == "AssemblyWireframeConstructionUnimplemented" && diagnostic.source.recordId == "967";
-                    }
-                ),
-            "qualified source geometry cannot become an empty body, skipped leaf or partially published assembly"
+            result.status == Status::Accepted && result.assembly && result.assembly->DefinitionCount() == 3 &&
+                result.assembly->InstanceCount() == 4 && result.assembly->BodyCount(0) == 1 && result.assembly->BodyCount(1) == 0 &&
+                result.assembly->BodyCount(2) == 0 && result.assembly->WireframeModel(2) && !result.assembly->WireframeModel(0),
+            "complete source geometry remains in distinct BRep, wrapper and wire definition owners"
         );
-        Require(!result.report.json.empty(), "explicit missing native capability retains its complete failure report");
+        Require(!result.report.json.empty(), "complete mixed assembly retains its mandatory report");
+        const auto view = result.assembly->WireframeModel(2)->Wireframes().at(0);
+        const auto a = view.EvaluateCurve(1, 3.), b = view.EvaluateCurve(1, 4.);
+        Require(
+            std::hypot(a[0] - 68. / 9., a[1] + 7. / 9., a[2] - 5.) < 1e-9 && std::hypot(b[0] - 98. / 9., b[1] - 53. / 9., b[2] - 5.) < 1e-9,
+            "independent mixed-fixture quadratic endpoint equations"
+        );
+        auto outside = text;
+        const auto at = outside.find("PARAMETER_VALUE(4.)");
+        Require(at != std::string::npos, "public late-wire defect target");
+        outside.replace(at, std::string("PARAMETER_VALUE(4.)").size(), "PARAMETER_VALUE(6.)");
+        const auto failed = ImportAssemblyBytes(outside, options, limits);
+        Require(
+            !failed.assembly && failed.report.candidateDiscarded && failed.report.definitions.size() == 3 &&
+                failed.report.definitions[0].checksPassed && !failed.report.definitions[2].checksPassed,
+            "late wire failure disposes earlier BRep definitions without partial publication"
+        );
         for (const auto phase : { Phase::SemanticsChecked, Phase::BeforeNativeCall })
         {
             auto cancelledOptions = options;

@@ -620,17 +620,44 @@ void DetachedCurveJson(Writer& w, const WireframeCurveInfo& curve)
     Number(w, curve.parameterDomain[1]);
     w.Add("],\"source_forward_in_native\":");
     w.Bool(curve.sourceForwardInNative);
+    if (curve.trimEvidence)
+    {
+        const auto& proof = *curve.trimEvidence;
+        w.Add(",\"trim_evidence\":{\"parameter_map\":\"AffineEndpointRounding\",\"source_parameters\":[");
+        w.String(proof.sourceParameters[0]);
+        w.Add(",");
+        w.String(proof.sourceParameters[1]);
+        w.Add("],\"definition_error_upper_mm\":");
+        Number(w, proof.definitionErrorUpperMm);
+        w.Add(",\"source_consistency_upper_mm\":");
+        if (proof.sourceConsistencyUpperMm)
+        {
+            Number(w, *proof.sourceConsistencyUpperMm);
+        }
+        else
+        {
+            w.Add("null");
+        }
+        w.Add(",\"patches\":");
+        w.Number(proof.proofPatches);
+        w.Add("}");
+    }
     w.Add("}");
 }
 
-void PointMappingJson(Writer& w, const WireframePointInfo& point)
+void PointMappingJson(Writer& w, const WireframePointInfo& point, std::size_t bodyOffset = 1)
 {
     w.Add("{\"source_id\":");
     w.String(point.sourceId);
     w.Add(",\"archive_point_brep_index\":");
-    w.Number(point.nativeIndex + 1);
+    w.Number(point.nativeIndex + bodyOffset);
     w.Add(",\"point_mm\":");
     PointJson(w, point.pointMm);
+    if (point.definitionErrorUpperMm)
+    {
+        w.Add(",\"definition_error_upper_mm\":");
+        Number(w, *point.definitionErrorUpperMm);
+    }
     w.Add("}");
 }
 void SupportingJson(Writer& w, const std::vector<SupportingGeometryInfo>& groups)
@@ -899,7 +926,8 @@ void GeneralNativeEvidenceJson(Writer& w, const Report& report)
         w.Add("}");
     }
     w.Add("],\"material_census\":{\"applicability\":");
-    const bool surface = report.sourceShape && report.sourceShape->role != "MaterialSolid";
+    const bool surface = report.sourceEvidenceScope == "AssemblyWireframeDefinition" ||
+                         (report.sourceShape && report.sourceShape->role != "MaterialSolid");
     w.String(surface ? "NotApplicable" : report.solidRegions ? "Applicable" : "NotRun");
     w.Add(",\"solid_regions\":");
     if (report.solidRegions)
@@ -1152,7 +1180,21 @@ void AssemblyJson(Writer& w, const AssemblyEvidence& evidence)
             }
             id(d.shapes[j]);
         }
-        w.Add("]}");
+        w.Add("]");
+        if (!d.wireframeSets.empty())
+        {
+            w.Add(",\"source_wireframe_sets\":[");
+            for (std::size_t j = 0; j < d.wireframeSets.size(); ++j)
+            {
+                if (j)
+                {
+                    w.Add(",");
+                }
+                id(d.wireframeSets[j]);
+            }
+            w.Add("]");
+        }
+        w.Add("}");
     }
     w.Add("],\"contexts\":[");
     for (std::size_t i = 0; i < tree.placements.contexts.size(); ++i)
@@ -1313,7 +1355,8 @@ void WriteReportJson(
             nestedBody ?
                 (report.sourceEvidenceScope == "RepairParent" ?
                      "{\"format_version\":\"step-repair-original-attempt.v1\",\"scope\":\"WithinRepairRequest\",\"status\":" :
-                 report.sourceEvidenceScope == "AssemblyDefinitionRoot" || report.sourceEvidenceScope == "AssemblyPlacementWrapper" ?
+                 report.sourceEvidenceScope == "AssemblyDefinitionRoot" || report.sourceEvidenceScope == "AssemblyPlacementWrapper" ||
+                         report.sourceEvidenceScope == "AssemblyWireframeDefinition" ?
                      "{\"format_version\":\"step-assembly-definition-checks.v1\",\"scope\":\"WithinAssembly\",\"status\":" :
                  report.sourceEvidenceScope == "ProductDocumentRoot" ?
                      "{\"format_version\":\"step-product-definition-checks.v1\",\"scope\":\"WithinProductDocument\",\"status\":" :
@@ -2082,12 +2125,21 @@ void WriteReportJson(
         {
             StatisticsJson(w, *report.native, true);
         }
+        else if (report.sourceEvidenceScope == "AssemblyWireframeDefinition" && IsAcceptedReportStatus(status))
+        {
+            w.Add("{\"kind\":\"OwningReadOnlyWireframeSnapshot\",\"role\":\"WireframeModel\",\"brep_body_count\":0}");
+        }
         else
         {
             w.Add("null");
         }
         GeneralNativeEvidenceJson(w, report);
-        w.Add(",\"validations\":{\"pointer_reports\":");
+        w.Add(",\"validations\":{");
+        if (report.sourceEvidenceScope == "AssemblyWireframeDefinition")
+        {
+            w.Add("\"scope\":\"DetachedCurves\",\"face_integration\":\"NotApplicable\",\"material_classification\":\"NotApplicable\",");
+        }
+        w.Add("\"pointer_reports\":");
         if (report.pointerReports)
         {
             w.Number(*report.pointerReports);
@@ -2354,7 +2406,8 @@ void WriteReportJson(
         w.Add("]");
         if (!report.wireframes.empty())
         {
-            w.Add(",\"linked_wireframes\":[");
+            const bool standalone = report.sourceEvidenceScope == "AssemblyWireframeDefinition";
+            w.Add(standalone ? ",\"wireframes\":[" : ",\"linked_wireframes\":[");
             for (std::size_t i = 0; i < report.wireframes.size(); ++i)
             {
                 if (i)
@@ -2365,10 +2418,19 @@ void WriteReportJson(
                 w.Add("{\"source_representation\":");
                 w.String(group.representationId);
                 w.Add(",\"source_relationship\":");
-                w.String(group.relationshipId);
+                if (standalone)
+                {
+                    w.Add("null");
+                }
+                else
+                {
+                    w.String(group.relationshipId);
+                }
                 w.Add(",\"source_set\":");
                 w.String(group.setId);
-                w.Add(",\"role\":\"IndependentAssociatedWireframe\",\"material_boundary\":false,\"bounds_mm\":[");
+                w.Add(",\"role\":");
+                w.String(standalone ? "DefinitionWireframe" : "IndependentAssociatedWireframe");
+                w.Add(",\"material_boundary\":false,\"bounds_mm\":[");
                 PointJson(w, group.boundsMm[0]);
                 w.Add(",");
                 PointJson(w, group.boundsMm[1]);
@@ -2388,7 +2450,7 @@ void WriteReportJson(
                     {
                         w.Add(",");
                     }
-                    PointMappingJson(w, group.points[j]);
+                    PointMappingJson(w, group.points[j], standalone ? 0 : 1);
                 }
                 w.Add("]}");
             }

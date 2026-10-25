@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportCurvePointConstruction.h"
 #include "StepImportGeometryConstruction.h"
+#include "StepImportTrimmedSplineConstruction.h"
 
 #include <SmLine.h>
 #include <map>
@@ -9,6 +10,24 @@
 
 namespace step_import::detail
 {
+bool SupportsDetachedCurve(const step_semantics::Snapshot& source, std::size_t record)
+{
+    if (record >= source.Source().Records().size())
+    {
+        return false;
+    }
+    const auto is = [&](std::size_t geometry, std::string_view type)
+    {
+        const auto registered = source.RegisteredTypes();
+        return std::find(registered.begin(), registered.end(), type) != registered.end() && source.IsA(geometry, type);
+    };
+    if (is(record, "TRIMMED_CURVE"))
+    {
+        const auto basis = source.Field(record, "basis_curve").ReferenceTarget();
+        return is(basis, "LINE") || is(basis, "CIRCLE") || is(basis, "ELLIPSE") || is(basis, "B_SPLINE_CURVE_WITH_KNOTS");
+    }
+    return is(record, "CIRCLE") || is(record, "ELLIPSE") || is(record, "B_SPLINE_CURVE_WITH_KNOTS");
+}
 class OwnedCurvePointDefinitions::CurveDefinition
 {
 public:
@@ -123,7 +142,7 @@ public:
             );
         };
         const bool measuredSourceTrim = trimmed && (hasPointCut("trim_1") || hasPointCut("trim_2"));
-        WireframeCurveInfo info{ Id(record), Id(basis), m_owned.m_curves.size(), {}, !trimmed || B(record, "sense_agreement") };
+        WireframeCurveInfo info{ Id(record), Id(basis), m_owned.m_curves.size(), {}, !trimmed || B(record, "sense_agreement"), {} };
         std::unique_ptr<SmCurve> curve;
         ParameterMapping mapping;
         mapping.sourceGeometryId = Id(record);
@@ -360,8 +379,41 @@ public:
                 mapping.parameters.push_back({ "angle_parameter_to_rad", { *trim.angleScale } });
             }
         }
+        else if (trimmed && Is(basis, "B_SPLINE_CURVE_WITH_KNOTS"))
+        {
+            auto made = MakeTrimmedSplineDefinition(*this, record);
+            if (!made)
+            {
+                return tl::unexpected(std::move(made.error()));
+            }
+            curve = std::move(made->curve);
+            sourceConsistency = made->measuredSourceResidualMm;
+            expectedEnds = made->nativeBasisEnds;
+            info.trimEvidence = std::move(made->evidence);
+            mapping.kind = role == Role::Supporting ? "SupportingTrimmedSplineEndpointRounding" : "WireframeTrimmedSplineEndpointRounding";
+            // Preserve the original decimal trim selectors in the owning
+            // snapshot. The affine correspondence exists only in the defining
+            // error comparison; neither the source nor native t was rewritten.
+            mapping.equation =
+                "source_basis_t=source_low_decimal+(native_t-native_low)*(source_high_decimal-source_low_decimal)/(native_high-native_low); "
+                "source_trim_1_decimal=" +
+                info.trimEvidence->sourceParameters[0] + "; source_trim_2_decimal=" + info.trimEvidence->sourceParameters[1] +
+                "; source_wrapper_s=sign*(source_basis_t-source_trim_1_decimal); "
+                "native_domain_is_nearest_binary_source_cuts; whole_curve_error_is_certified_not_sampled";
+            mapping.parameters = { { "basis_trim_parameters_binary64", { made->binarySourceCuts[0], made->binarySourceCuts[1] } },
+                                   { "certified_whole_curve_definition_l1_upper_mm", { info.trimEvidence->definitionErrorUpperMm } },
+                                   { "certified_whole_curve_proof_patches", { double(info.trimEvidence->proofPatches) } } };
+            if (info.trimEvidence->sourceConsistencyUpperMm)
+            {
+                mapping.parameters.push_back({ "certified_source_selector_l1_upper_mm", { *info.trimEvidence->sourceConsistencyUpperMm } });
+            }
+        }
         else
         {
+            if (trimmed)
+            {
+                return tl::unexpected(Fail("GeneralWireTrimmedBasisUnsupported", record, Status::Unsupported));
+            }
             auto created = MakeSplineCurve(basis, record);
             if (!created)
             {

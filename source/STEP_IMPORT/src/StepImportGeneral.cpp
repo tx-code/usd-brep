@@ -892,9 +892,7 @@ private:
     }
     bool DetachedCurveSupported(Index geometry) const
     {
-        const auto basis = Is(geometry, "TRIMMED_CURVE") ? Ref(geometry, "basis_curve") : geometry;
-        return Is(geometry, "TRIMMED_CURVE") ? Is(basis, "LINE") || Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") :
-                                               Is(basis, "CIRCLE") || Is(basis, "ELLIPSE") || Is(basis, "B_SPLINE_CURVE_WITH_KNOTS");
+        return SupportsDetachedCurve(*m_source, geometry);
     }
     [[nodiscard]] Result<void> PrepareRole()
     {

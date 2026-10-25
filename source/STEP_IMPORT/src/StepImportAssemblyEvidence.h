@@ -10,6 +10,7 @@ struct AssemblyDefinitionEvidence
     std::size_t definition;
     std::string role;
     std::vector<std::size_t> shapes;
+    std::vector<std::size_t> wireframeSets{};
 };
 struct AssemblyEvidence
 {

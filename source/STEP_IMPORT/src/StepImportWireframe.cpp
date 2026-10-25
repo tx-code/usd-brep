@@ -341,7 +341,7 @@ namespace detail
 {
 void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path)
 {
-    // SRR does not imply containment or union. Store the material BRep first,
+    // SRR does not imply containment or union. Store an existing BRep first,
     // independent curves in their own part array, and one point adapter BRep
     // per source point. Even equal coordinates keep distinct source identities.
     // These vertex-only BReps are an archive format adapter, not STEP vertices.
@@ -374,10 +374,14 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
         surfaces.Add(copy.get());
         surfaceOwners.push_back(std::move(copy));
     }
-    std::unique_ptr<SmBrep> body(new (*context) SmBrep(*model.brep, nullptr, nullptr, TRUE, FALSE));
-    brepOwners.push_back(std::move(body)); // Own before any vector growth can fail.
-    Require(brepOwners.back()->GetContext() == context.get(), "Linked archive BRep copy context mismatch");
-    breps.Add(brepOwners.back().get());
+    const ULONG pointOffset = model.brep ? 1 : 0;
+    if (model.brep)
+    {
+        std::unique_ptr<SmBrep> body(new (*context) SmBrep(*model.brep, nullptr, nullptr, TRUE, FALSE));
+        brepOwners.push_back(std::move(body)); // Own before any vector growth can fail.
+        Require(brepOwners.back()->GetContext() == context.get(), "Linked archive BRep copy context mismatch");
+        breps.Add(brepOwners.back().get());
+    }
     for (const auto& point : model.curvePointDefinitions.Points())
     {
         std::unique_ptr<SmBrep> ownedAdapter(new (*context) SmBrep());
@@ -410,6 +414,11 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     {
         Require(read.curves[i], "Linked archive curve missing");
         CompareCurve(model.curvePointDefinitions.CurveAt(CurveIndex{ i }), *read.curves[i], archiveToleranceMm);
+        if (!model.brep)
+        {
+            SmAssertArray deep;
+            Require(read.curves[i]->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0, "Standalone wire archive curve validity changed");
+        }
     }
     for (ULONG i = 0; i < surfaces.GetSize(); ++i)
     {
@@ -419,8 +428,8 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     for (ULONG i = 0; i < read.breps.GetSize(); ++i)
     {
         Require(read.breps[i], "Linked archive BRep missing");
-        Validate(*read.breps[i], i ? "point adapter after read" : "material BRep after read");
-        if (i)
+        Validate(*read.breps[i], i >= pointOffset ? "point adapter after read" : "material BRep after read");
+        if (i >= pointOffset)
         {
             SmTArray<SmVertex*> vertices;
             SmTArray<SmEdge*> edges;
@@ -430,20 +439,23 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
             read.breps[i]->GetFaces(faces);
             Require(vertices.GetSize() == 1 && edges.GetSize() == 0 && faces.GetSize() == 0, "Linked point adapter topology changed");
             Require(
-                Distance(Coordinates(vertices[0]->GetPoint()), model.curvePointDefinitions.Points()[i - 1].pointMm) <= archiveToleranceMm,
+                Distance(Coordinates(vertices[0]->GetPoint()), model.curvePointDefinitions.Points()[i - pointOffset].pointMm) <= archiveToleranceMm,
                 "Linked archive point changed"
             );
         }
     }
-    SmBrepCompareResult comparison;
-    comparison.dVertexTolerance = archiveToleranceMm;
-    Good(model.brep->CompareBreps(read.breps[0], comparison));
-    Require(
-        comparison.lFaceCountA == comparison.lFaceCountB && comparison.lEdgeCountA == comparison.lEdgeCountB &&
-            comparison.lVertexCountA == comparison.lVertexCountB && comparison.lCurveTypeMismatches == 0 &&
-            comparison.dMaxVertexGap <= archiveToleranceMm,
-        "Linked archive material boundary changed"
-    );
+    if (model.brep)
+    {
+        SmBrepCompareResult comparison;
+        comparison.dVertexTolerance = archiveToleranceMm;
+        Good(model.brep->CompareBreps(read.breps[0], comparison));
+        Require(
+            comparison.lFaceCountA == comparison.lFaceCountB && comparison.lEdgeCountA == comparison.lEdgeCountB &&
+                comparison.lVertexCountA == comparison.lVertexCountB && comparison.lCurveTypeMismatches == 0 &&
+                comparison.dMaxVertexGap <= archiveToleranceMm,
+            "Linked archive material boundary changed"
+        );
+    }
 }
 } // namespace detail
 } // namespace step_import
