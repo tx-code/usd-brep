@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportPcurveLineSession.h"
 
+#include "StepImportPcurveBoundaryCurve.h"
+#include "StepImportPcurveLineWindow.h"
+
 #include <SmCrvOnSurf.h>
 #include <SmEdge.h>
 #include <SmSTEPSurface.h>
@@ -48,6 +51,34 @@ Result<void> VerifyPcurveLineBindings(
                 checked.error().record = binding.sourceRecord;
             }
             return tl::unexpected(std::move(checked.error()));
+        }
+        const auto& chart = binding.window->affineSourceChart;
+        const auto certificatesNeeded = chart ? unsigned(chart->axes[0].requiresBoundaryCurveCertificate) +
+                                                    unsigned(chart->axes[1].requiresBoundaryCurveCertificate) :
+                                                0U;
+        const auto& certificate = binding.boundaryCertificate;
+        if ((certificatesNeeded != 0) != bool(certificate) || certificatesNeeded > 1 ||
+            (certificate && (certificate->FixedAxis() > 1 || chart->axes[certificate->FixedAxis()].fixedSourceBoundary != certificate->FixedEnd() ||
+                             !chart->axes[1 - certificate->FixedAxis()].requiresBoundaryCurveCertificate)))
+        {
+            return tl::unexpected(
+                Failure{ Status::PostcheckFailure,
+                         "PcurveBoundaryCertificateBindingChanged",
+                         "Pending boundary conversion needs its owning source/native certificate",
+                         binding.sourceRecord,
+                         "PcurveLine" }
+            );
+        }
+        if (certificate)
+        {
+            if (auto checked = certificate->Verify(*binding.surface, callbacks(binding.sourceRecord)); !checked)
+            {
+                if (!checked.error().record)
+                {
+                    checked.error().record = binding.sourceRecord;
+                }
+                return tl::unexpected(std::move(checked.error()));
+            }
         }
     }
     return {};

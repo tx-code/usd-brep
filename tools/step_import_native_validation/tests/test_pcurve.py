@@ -79,6 +79,22 @@ def surface_curve_trimmed_arc(trim_forward=True, edge_forward=True, master_3d=Tr
 
 
 class PcurveNativeTests(unittest.TestCase):
+    def test_boundary_node_rounding_requires_original_source_curve_certificate(self):
+        fixture = (Path(__file__).resolve().parents[3]
+                   / 'source/STEP_IMPORT/tests/fixtures/source_line_pcurve_converted_boundary.step')
+        run, report = self.invoke(fixture.read_bytes())
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
+        self.assertAlmostEqual(36, report['model']['area_mm2'], delta=1e-7)
+        window = next(m for m in report['parameter_mappings'] if m['kind'] == 'SourcePcurveLineWindow')
+        self.assertIn('not exact whole-node covariance', window['equation'])
+        self.assertEqual([1, 0], window['parameters']['certified_fixed_boundary_axis_end'])
+        error = window['parameters']['maximum_source_boundary_definition_error_mm'][0]
+        self.assertGreater(error, 0)
+        self.assertLess(error, 1e-12)
+        self.assertEqual([0], window['parameters']['maximum_lift_error_mm'])
+        self.assertGreater(window['parameters']['source_boundary_certificate_patches'][0], 0)
+
     def test_decimal_source_boundary_uses_clamped_restriction_without_snapping(self):
         fixture = (Path(__file__).resolve().parents[3]
                    / 'source/STEP_IMPORT/tests/fixtures/source_line_pcurve_decimal_boundary.step')

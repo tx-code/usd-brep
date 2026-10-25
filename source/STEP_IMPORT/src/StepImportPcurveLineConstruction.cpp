@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportGeometryConstruction.h"
 #include "StepImportInterval.h"
+#include "StepImportPcurveBoundaryCurve.h"
 #include "StepImportPcurveConstruction.h"
 #include "StepImportPcurveLineWindow.h"
 #include "StepImportSplineSurfaceConstruction.h"
@@ -177,7 +178,26 @@ public:
         // otherwise manufacture an out-of-domain source error.
         checkedChart.degrees = { *uDegree, *vDegree };
         auto planned = PlanPcurveLineWindow(generator, checkedChart, rectangle, limits, exactCallbacks);
-        if (!planned)
+        std::optional<PendingBoundaryPcurveLineWindow> pendingBoundary;
+        if (!planned && planned.error().key == "PcurveLineWindowKnotChartUnestablished")
+        {
+            // This is an alternative source-conversion proof, not a retry of
+            // native validation. A pending proposal cannot qualify geometry.
+            auto proposal = PlanBoundaryPcurveLineWindow(generator, checkedChart, rectangle, limits, exactCallbacks);
+            if (!proposal)
+            {
+                if (!proposal.error().record)
+                {
+                    proposal.error().record = parameterCurve;
+                }
+                return tl::unexpected(std::move(proposal.error()));
+            }
+            if (*proposal)
+            {
+                pendingBoundary = std::move(**proposal);
+            }
+        }
+        if (!planned && !pendingBoundary)
         {
             if (!planned.error().record)
             {
@@ -185,11 +205,11 @@ public:
             }
             return tl::unexpected(std::move(planned.error()));
         }
-        if (!*planned)
+        if (!pendingBoundary && !*planned)
         {
             return tl::unexpected(Fail("GeneralPcurveLineFiniteWindowUnestablished", pcurve, Status::Indeterminate));
         }
-        const auto& window = **planned;
+        const auto& window = pendingBoundary ? pendingBoundary->ProposedWindow() : **planned;
         SmTArray<SmPoint3d> cp;
         for (const auto& endpoint : window.uvEnds)
         {
@@ -217,7 +237,7 @@ public:
         {
             return tl::unexpected(Fail("GeneralPcurveParameterAllocation", parameterCurve));
         }
-        const double definitionAllowance = Enclose(m_options.quality.definitionMm).low;
+        const double definitionAllowance = pendingBoundary ? 0. : Enclose(m_options.quality.definitionMm).low;
         auto lift = ProvePcurveLineLift(*surface, *uv, window.uvEnds, window.maximumRoundingUpperUv, definitionAllowance, nativeCallbacks);
         if (!lift)
         {
@@ -226,6 +246,20 @@ public:
                 lift.error().record = pcurve;
             }
             return tl::unexpected(std::move(lift.error()));
+        }
+        std::shared_ptr<const PcurveBoundaryCurveWitness> boundaryCertificate;
+        if (pendingBoundary)
+        {
+            auto certificate = CertifySourcePcurveBoundary(*this, pcurve, use, *pendingBoundary, *surface, nativeCallbacks);
+            if (!certificate)
+            {
+                return tl::unexpected(std::move(certificate.error()));
+            }
+            boundaryCertificate = std::move(*certificate);
+            if (auto checked = (*lift)->Verify(*surface, *uv, nativeCallbacks); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
         }
         SmTArray<SmPoint3d> points;
         SmTArray<double> weights;
@@ -288,6 +322,8 @@ public:
             const std::string coordinate = axis ? "v" : "u";
             map.equation += "; native_" + coordinate + "=" + RatioText(chart.scale) + "*source_" + coordinate + "+" + RatioText(chart.offset);
             map.equation += chart.fixedSourceBoundary ? "; clamped source boundary maps to corresponding stored boundary; no full-axis affine claim" :
+                            chart.requiresBoundaryCurveCertificate ?
+                                                        "; source boundary conversion certified continuously; not exact whole-node covariance" :
                                                         "; every source knot maps exactly to stored native knot";
         }
         map.parameters = { { "native_parameter_interval", { 0, 1 } },
@@ -300,6 +336,17 @@ public:
             { "source_to_native_chart_knots_checked",
               { double(window.affineSourceChart->axes[0].knotsChecked), double(window.affineSourceChart->axes[1].knotsChecked) } }
         );
+        if (boundaryCertificate)
+        {
+            map.parameters.push_back(
+                { "certified_fixed_boundary_axis_end", { double(boundaryCertificate->FixedAxis()), double(boundaryCertificate->FixedEnd()) } }
+            );
+            map.parameters.push_back({ "maximum_source_boundary_definition_error_mm", { boundaryCertificate->MaximumMm() } });
+            map.parameters.push_back({ "source_boundary_certificate_patches", { double(boundaryCertificate->Patches()) } });
+            map.equation +=
+                "; original source boundary XYZ/weights/units/knots compared to actual raw native boundary net; "
+                "endpoint-affine correspondence; zero UV rounding; one definitionMm allowance, not a whole-surface proof";
+        }
         if (const auto derivatives = (*lift)->DerivativeBoundsMmPerUv())
         {
             map.parameters.push_back({ "whole_domain_derivative_bounds_mm_per_uv", { (*derivatives)[0], (*derivatives)[1] } });
@@ -316,7 +363,8 @@ public:
                   boundUv,
                   static_cast<const SmCrvOnSurf*>(composition.get()),
                   std::move(map),
-                  mappingIndex }
+                  mappingIndex,
+                  boundaryCertificate }
             );
         }
         ParameterMapping compositionMap;

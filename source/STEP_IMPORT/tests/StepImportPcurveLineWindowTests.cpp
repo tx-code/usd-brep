@@ -14,6 +14,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
 #    include <xmmintrin.h>
@@ -30,6 +32,11 @@ using Exact = boost::multiprecision::cpp_rational;
 using Pair = std::array<double, 2>;
 using Rectangle = std::array<double, 4>;
 using ExactPair = std::array<Exact, 2>;
+static_assert(!std::is_default_constructible_v<PendingBoundaryPcurveLineWindow>);
+static_assert(!std::is_constructible_v<PendingBoundaryPcurveLineWindow, PcurveLineWindow, std::size_t, unsigned>);
+static_assert(!std::is_convertible_v<PendingBoundaryPcurveLineWindow, PcurveLineWindow>);
+static_assert(std::is_copy_constructible_v<PendingBoundaryPcurveLineWindow>);
+static_assert(std::is_same_v<decltype(std::declval<const PendingBoundaryPcurveLineWindow&>().ProposedWindow()), const PcurveLineWindow&>);
 
 void Require(bool condition, const char* message)
 {
@@ -473,6 +480,7 @@ std::string Fingerprint(const PcurveLineWindow& plan)
             ratio(axis.sourceDomainExact[1]);
             text << axis.knotsChecked << ';';
             text << bool(axis.fixedSourceBoundary) << ';';
+            text << axis.requiresBoundaryCurveCertificate << ';';
             if (axis.fixedSourceBoundary)
             {
                 text << *axis.fixedSourceBoundary << ';';
@@ -909,6 +917,227 @@ void ClampedBoundaryRestriction()
         );
     }
 }
+void PendingBoundaryProposal()
+{
+    const std::array<std::string_view, 5> sourceU{ ".1", ".1", ".2", ".3", ".3" };
+    const std::array<double, 5> nativeU{ .1, .1, .2, .3, .3 };
+    const std::array<std::string_view, 4> sourceV{ "-1", "-1", "3", "3" };
+    const std::array<double, 4> nativeV{ -1., -1., 3., 3. };
+    const PcurveLineKnotChartInput input{ { sourceU, sourceV }, { nativeU, nativeV }, { 1, 1 } };
+    const Rectangle rectangle{ .1, -1., .3, 3. };
+    const ExactDecimalPcurveLineGenerator generator{ { "-.3", "3" }, { ".2", "0" } };
+    Ledger strict;
+    auto notProven = PlanPcurveLineWindow(generator, input, rectangle, Capacity(), strict.Callbacks());
+    Require(
+        !notProven && notProven.error().key == "PcurveLineWindowKnotChartUnestablished",
+        "strict third overload still refuses nonaffine knots on the varying axis"
+    );
+    Ledger oldBoundary;
+    auto alreadyEstablished = PlanPcurveLineWindow(
+        ExactDecimalPcurveLineGenerator{ { ".1", "11" }, { "0", "-4" } },
+        input,
+        rectangle,
+        Capacity(),
+        oldBoundary.Callbacks()
+    );
+    Require(
+        alreadyEstablished && alreadyEstablished->has_value() &&
+            !(**alreadyEstablished).affineSourceChart->axes[0].requiresBoundaryCurveCertificate &&
+            !(**alreadyEstablished).affineSourceChart->axes[1].requiresBoundaryCurveCertificate,
+        "existing strict fixed-boundary/full-variable-axis proof never acquires a pending marker"
+    );
+    Ledger baseline;
+    auto proposed = PlanBoundaryPcurveLineWindow(generator, input, rectangle, Capacity(), baseline.Callbacks());
+    Require(proposed && proposed->has_value(), "nearest converted boundary spline can produce an unapproved proposal");
+    const auto& pending = **proposed;
+    const auto& plan = pending.ProposedWindow();
+    Require(pending.FixedAxis() == 1 && pending.FixedEnd() == 1 && plan.affineSourceChart, "explicit fixed V maximum");
+    const auto& axes = plan.affineSourceChart->axes;
+    Require(
+        !axes[0].fixedSourceBoundary && axes[0].requiresBoundaryCurveCertificate && axes[1].fixedSourceBoundary == 1 &&
+            !axes[1].requiresBoundaryCurveCertificate && axes[0].knotsChecked == 5 && axes[1].knotsChecked == 4,
+        "only variable U requires the missing continuous source-boundary curve certificate"
+    );
+    RatioIs(plan.generatorWindowExact[0], "2", "1");
+    RatioIs(plan.generatorWindowExact[1], "3", "1");
+    RatioIs(plan.generatorSpanExact, "1", "1");
+    RatioIs(axes[1].scale, "1", "1");
+    RatioIs(axes[1].offset, "0", "1");
+    Require(
+        plan.uvEnds == std::array<Pair, 2>{ Pair{ .1, 3. }, Pair{ .3, 3. } } && !plan.hasUvRounding && plan.maximumRoundingUpperUv == Pair{ 0., 0. },
+        "full endpoint-domain window uses exact native boundaries without inward movement or endpoint rounding"
+    );
+    const Exact a = Read(axes[0].scale), b = Read(axes[0].offset);
+    Require(a * Canonical(Integer(1), Integer(5)) + b != Binary(.2), "pending endpoint map is not an interior knot equivalence");
+    CheckWholeIntersection(
+        plan,
+        { a * Canonical(Integer(-3), Integer(10)) + b, Exact(3) },
+        { a * Canonical(Integer(1), Integer(5)), Exact(0) },
+        rectangle
+    );
+    for (const auto& endpoint : plan.endpointRoundingUpperUv)
+    {
+        Require(endpoint == Pair{ 0., 0. }, "both axes of both pending native endpoints are exact");
+    }
+
+    Ledger lowerLedger;
+    auto lower = PlanBoundaryPcurveLineWindow(
+        ExactDecimalPcurveLineGenerator{ { "-.3", "-1" }, { ".2", "0" } },
+        input,
+        rectangle,
+        Capacity(),
+        lowerLedger.Callbacks()
+    );
+    Require(lower && lower->has_value() && (**lower).FixedEnd() == 0, "minimum fixed boundary is separately identified");
+    Require((**lower).ProposedWindow().uvEnds == std::array<Pair, 2>{ Pair{ .1, -1. }, Pair{ .3, -1. } }, "fixed V minimum keeps all endpoints");
+    Ledger reverseLedger;
+    auto reverse = PlanBoundaryPcurveLineWindow(
+        ExactDecimalPcurveLineGenerator{ { ".7", "3" }, { "-.2", "0" } },
+        input,
+        rectangle,
+        Capacity(),
+        reverseLedger.Callbacks()
+    );
+    Require(reverse && reverse->has_value(), "negative source U direction retains its original increasing q");
+    RatioIs((**reverse).ProposedWindow().generatorWindowExact[0], "2", "1");
+    RatioIs((**reverse).ProposedWindow().generatorWindowExact[1], "3", "1");
+    Require(
+        (**reverse).ProposedWindow().uvEnds == std::array<Pair, 2>{ Pair{ .3, 3. }, Pair{ .1, 3. } },
+        "negative raw direction is never normalized or flipped"
+    );
+    Ledger swappedLedger;
+    auto swapped = PlanBoundaryPcurveLineWindow(
+        ExactDecimalPcurveLineGenerator{ { "3", "-.3" }, { "0", ".2" } },
+        PcurveLineKnotChartInput{ { sourceV, sourceU }, { nativeV, nativeU }, { 1, 1 } },
+        Rectangle{ -1., .1, 3., .3 },
+        Capacity(),
+        swappedLedger.Callbacks()
+    );
+    Require(
+        swapped && swapped->has_value() && (**swapped).FixedAxis() == 0 && (**swapped).FixedEnd() == 1 &&
+            (**swapped).ProposedWindow().affineSourceChart->axes[1].requiresBoundaryCurveCertificate,
+        "fixed U and variable V follow the same symmetric proposal contract"
+    );
+    for (const auto& ineligible :
+         std::array<ExactDecimalPcurveLineGenerator, 5>{ ExactDecimalPcurveLineGenerator{ { "-.3", "3.000000000000000000000001" }, { ".2", "0" } },
+                                                         ExactDecimalPcurveLineGenerator{ { "-.3", "2" }, { ".2", "0" } },
+                                                         ExactDecimalPcurveLineGenerator{ { "-.3", "3" }, { ".2", "1E-400" } },
+                                                         ExactDecimalPcurveLineGenerator{ { "-.3", "3" }, { ".2", "1" } },
+                                                         ExactDecimalPcurveLineGenerator{ { "-.3", "3" }, { "0", "0" } } })
+    {
+        Ledger absent;
+        auto result = PlanBoundaryPcurveLineWindow(ineligible, input, rectangle, Capacity(), absent.Callbacks());
+        Require(result && !result->has_value(), "noneligible, near-boundary and nonzero-near-zero directions return absence without snapping");
+    }
+    Ledger unauthenticated;
+    auto noDegrees = PlanBoundaryPcurveLineWindow(
+        generator,
+        PcurveLineKnotChartInput{ { sourceU, sourceV }, { nativeU, nativeV } },
+        rectangle,
+        Capacity(),
+        unauthenticated.Callbacks()
+    );
+    Require(noDegrees && !noDegrees->has_value(), "missing shared-degree attestation cannot yield a pending boundary proposal");
+
+    const auto rejectStructure = [&](const PcurveLineKnotChartInput& changed, const char* message)
+    {
+        Ledger invalid;
+        auto result = PlanBoundaryPcurveLineWindow(generator, changed, rectangle, Capacity(), invalid.Callbacks());
+        Require(!result && result.error().key == "PcurveLineWindowBoundaryPendingStructure", message);
+    };
+    const std::array<std::string_view, 6> mergeU{ ".1", ".1", ".199999999999999999999", ".2", ".3", ".3" };
+    const std::array<double, 6> mergedU{ .1, .1, .2, .2, .3, .3 };
+    rejectStructure({ { mergeU, sourceV }, { mergedU, nativeV }, { 1, 1 } }, "nearest conversion cannot merge variable-axis source knot groups");
+    const std::array<std::string_view, 6> splitU{ ".1", ".1", ".2", ".2", ".3", ".3" };
+    const std::array<double, 6> splitNativeU{ .1, .1, .2, std::nextafter(.2, 1.), .3, .3 };
+    rejectStructure({ { splitU, sourceV }, { splitNativeU, nativeV }, { 1, 1 } }, "pending plans cannot split source knot groups");
+    const std::array<std::string_view, 6> mergeV{ "-1", "-1", ".199999999999999999999", ".2", "3", "3" };
+    const std::array<double, 6> mergedV{ -1., -1., .2, .2, 3., 3. };
+    rejectStructure({ { sourceU, mergeV }, { nativeU, mergedV }, { 1, 1 } }, "fixed-axis source knot groups also remain intact");
+    const std::array<std::string_view, 5> nonclampedSource{ ".1", ".15", ".2", ".3", ".3" };
+    const std::array<double, 5> nonclampedNative{ .1, .15, .2, .3, .3 };
+    rejectStructure({ { nonclampedSource, sourceV }, { nativeU, nativeV }, { 1, 1 } }, "source array must be exactly clamped");
+    rejectStructure({ { sourceU, sourceV }, { nonclampedNative, nativeV }, { 1, 1 } }, "actual native array must be exactly clamped");
+    rejectStructure({ { sourceU, sourceV }, { nativeU, nativeV }, { 2, 1 } }, "degree attestation must agree with full clamped counts");
+    auto notNearest = nativeU;
+    notNearest[2] = std::nextafter(.2, 1.);
+    Ledger conversion;
+    auto changedKnot = PlanBoundaryPcurveLineWindow(
+        generator,
+        PcurveLineKnotChartInput{ { sourceU, sourceV }, { notNearest, nativeV }, { 1, 1 } },
+        rectangle,
+        Capacity(),
+        conversion.Callbacks()
+    );
+    Require(
+        !changedKnot && changedKnot.error().key == "PcurveLineWindowBoundaryPendingKnotConversion",
+        "well-structured but non-nearest native variable knot is a distinct error"
+    );
+    const std::array<double, 4> shortNative{ .1, .1, .3, .3 };
+    Ledger shape;
+    auto badShape = PlanBoundaryPcurveLineWindow(
+        generator,
+        PcurveLineKnotChartInput{ { sourceU, sourceV }, { shortNative, nativeV }, { 1, 1 } },
+        rectangle,
+        Capacity(),
+        shape.Callbacks()
+    );
+    Require(!badShape && badShape.error().key == "PcurveLineWindowKnotChartStructure", "mismatched full arrays remain errors, not normal absence");
+
+    const auto fingerprint = Fingerprint(plan);
+    for (std::size_t count : { baseline.work, baseline.work - 1 })
+    {
+        auto limits = Capacity();
+        limits.workUnits = count;
+        Ledger bounded;
+        auto result = PlanBoundaryPcurveLineWindow(generator, input, rectangle, limits, bounded.Callbacks());
+        if (count == baseline.work)
+        {
+            Require(
+                result && result->has_value() && Fingerprint((**result).ProposedWindow()) == fingerprint,
+                "one exact ledger includes all pending full-node checks, rounding, intersection and receipt output"
+            );
+        }
+        else
+        {
+            Require(!result && result.error().key == "PcurveLineWindowWorkLimit", "pending N-1 does not turn a resource failure into absence");
+        }
+    }
+    for (std::size_t at : { std::size_t(1), baseline.checks / 2, baseline.checks })
+    {
+        Ledger cancelled;
+        cancelled.cancelAt = at;
+        auto result = PlanBoundaryPcurveLineWindow(generator, input, rectangle, Capacity(), cancelled.Callbacks());
+        Require(
+            !result && result.error().status == Status::Cancelled && result.error().key == "PublicCancelSentinel" && result.error().record == 197,
+            "pending preparation, middle work and final handoff preserve cancellation identity"
+        );
+    }
+    auto outputLimit = Capacity();
+    outputLimit.outputCharacters = OutputCharacters(plan) - 1;
+    Ledger output;
+    auto noReceipt = PlanBoundaryPcurveLineWindow(generator, input, rectangle, outputLimit, output.Callbacks());
+    Require(!noReceipt && noReceipt.error().key == "PcurveLineWindowOutputCapacity", "pending receipt shares the finite output allowance");
+    Ledger exceptional;
+    auto callbacks = exceptional.Callbacks();
+    callbacks.chargeWork = [](std::size_t) -> Result<void>
+    {
+        throw std::overflow_error("pending caller overflow sentinel");
+    };
+    bool propagated = false;
+    try
+    {
+        (void)PlanBoundaryPcurveLineWindow(generator, input, rectangle, Capacity(), callbacks);
+    }
+    catch (const std::overflow_error& error)
+    {
+        propagated = std::string(error.what()) == "pending caller overflow sentinel";
+    }
+    Require(propagated, "pending planning never translates a real callback exception into evidence refusal");
+    auto owned = pending;
+    proposed = {};
+    Require(Fingerprint(owned.ProposedWindow()) == fingerprint, "pending value owns its complete proposal after result release");
+}
 void BudgetsAndCancellation()
 {
     const Pair p{ -1., 0. }, v{ 3., 2. };
@@ -1204,6 +1433,7 @@ int main()
         AbsenceAndInvalid();
         WholeKnotAffineChart();
         ClampedBoundaryRestriction();
+        PendingBoundaryProposal();
         BudgetsAndCancellation();
         ConfigurationAndEnvironment();
         GradualUnderflowCallbacks();

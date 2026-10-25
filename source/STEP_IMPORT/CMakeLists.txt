@@ -53,7 +53,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportSplineSurfaceConstruction.cpp s
 target_sources(STEP_IMPORT PRIVATE src/StepImportSplineChart.cpp src/StepImportSplineChartSession.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportPcurveLineWindow.cpp src/StepImportPcurveLineLift.cpp src/StepImportPcurveLineSession.cpp
-    src/StepImportPcurveLineConstruction.cpp)
+    src/StepImportPcurveLineConstruction.cpp src/StepImportPcurveBoundaryCurve.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportTerminalDomainRequest.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSurfaceCurveSession.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSurfacePrecisionSession.cpp)
@@ -246,6 +246,10 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_include_directories(step_import_pcurve_line_window_tests PRIVATE src)
     target_link_libraries(step_import_pcurve_line_window_tests PRIVATE STEP_IMPORT usd_brep_expected usd_brep_multiprecision)
     add_test(NAME step_import_pcurve_line_window_contracts COMMAND step_import_pcurve_line_window_tests)
+    add_executable(step_import_original_spline_reference_tests tests/StepImportOriginalSplineReferenceTests.cpp)
+    target_include_directories(step_import_original_spline_reference_tests PRIVATE src)
+    target_link_libraries(step_import_original_spline_reference_tests PRIVATE STEP_IMPORT usd_brep_expected usd_brep_multiprecision)
+    add_test(NAME step_import_original_spline_reference_contracts COMMAND step_import_original_spline_reference_tests)
     add_executable(step_import_pcurve_line_lifecycle_tests tests/StepImportPcurveLineLifecycleTests.cpp)
     target_include_directories(step_import_pcurve_line_lifecycle_tests PRIVATE src)
     target_include_directories(step_import_pcurve_line_lifecycle_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
@@ -258,6 +262,9 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_pcurve_line_boundary_lifecycle_contracts COMMAND step_import_pcurve_line_lifecycle_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_line_pcurve_decimal_boundary.step"
         "${CMAKE_CURRENT_BINARY_DIR}/pcurve-line-boundary-lifecycle-output/$<CONFIG>" --boundary)
+    add_test(NAME step_import_pcurve_boundary_conversion_contracts COMMAND step_import_pcurve_line_lifecycle_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_line_pcurve_converted_boundary.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/pcurve-boundary-conversion-output/$<CONFIG>" --converted-boundary)
     add_executable(step_import_spline_chart_lifecycle_tests tests/StepImportSplineChartLifecycleTests.cpp)
     target_include_directories(step_import_spline_chart_lifecycle_tests PRIVATE src)
     target_include_directories(step_import_spline_chart_lifecycle_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)

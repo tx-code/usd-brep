@@ -8,6 +8,7 @@ class SmCrvOnSurf;
 namespace step_import::detail
 {
 struct PcurveLineWindow; // Exact-planner changes do not invalidate unrelated geometry factories.
+class PcurveBoundaryCurveWitness;
 struct PcurveLineBinding
 {
     std::size_t sourceRecord = 0;
@@ -18,6 +19,7 @@ struct PcurveLineBinding
     const SmCrvOnSurf* carrier = nullptr;
     ParameterMapping mapping;
     std::size_t reportMapping = 0;
+    std::shared_ptr<const PcurveBoundaryCurveWitness> boundaryCertificate;
 };
 // Only defining carriers enter this session. Auxiliary comparison curves are
 // temporary and must never leave borrowed pointers in publication evidence.

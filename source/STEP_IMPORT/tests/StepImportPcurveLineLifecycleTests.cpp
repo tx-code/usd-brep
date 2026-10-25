@@ -6,6 +6,7 @@
 #include <SmAssertArray.h>
 #include <SmBrepData.h>
 #include <SmNativeArchive.h>
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -44,7 +45,7 @@ void Surface(const SmSurface& surface, bool boundary)
         );
     }
 }
-void Verify(SmBrep& brep, bool boundary)
+void Verify(SmBrep& brep, bool boundary, bool converted)
 {
     SmAssertArray pointers, findings;
     Require(brep.ValidatePointers(&pointers) == SM_SUCCESS && pointers.GetSize() == 0, "LINE-pcurve model pointer check");
@@ -57,7 +58,7 @@ void Verify(SmBrep& brep, bool boundary)
     brep.GetEdges(edges);
     brep.GetVertices(vertices);
     Require(faces.GetSize() == 1 && edges.GetSize() == 3 && vertices.GetSize() == 3, "original open triangle topology");
-    Surface(*faces[0]->GetSurface(), boundary);
+    Surface(*faces[0]->GetSurface(), boundary || converted);
     std::size_t found = 0;
     for (ULONG i = 0; i < edges.GetSize(); ++i)
     {
@@ -69,7 +70,7 @@ void Verify(SmBrep& brep, bool boundary)
         ++found;
         const auto* wrapper = dynamic_cast<const SmSTEPSurface*>(composition->GetBaseSurface());
         Require(composition->OwnsBaseSurface() && wrapper && wrapper->OwnsBaseSurface(), "definition owns independent STEP carrier");
-        Surface(*wrapper->GetBaseSurface(), boundary);
+        Surface(*wrapper->GetBaseSurface(), boundary || converted);
         const auto* uv = dynamic_cast<const SmBSplineCurve*>(composition->GetUVCurve());
         Require(uv && uv->GetDim() == 2 && uv->GetDegree() == 1 && !uv->IsRational(), "degree-one parameter window definition");
         SmTArray<SmPoint3d> points;
@@ -77,8 +78,11 @@ void Verify(SmBrep& brep, bool boundary)
         Require(uv->GetControlPolygon(points, weights) == SM_SUCCESS && points.GetSize() == 2, "both complete UV endpoints");
         Require(uv->GetKnotsAll(knots) == SM_SUCCESS && knots.GetSize() == 4, "complete finite work-parameter knots");
         Require(
-            points[0].x == (boundary ? .1 : -1) && points[0].y == (boundary ? 3 : -1) && points[1].x == (boundary ? .1 : 2) &&
-                points[1].y == (boundary ? -1 : 3),
+            points[0].x == (boundary || converted ? .1 : -1) && points[0].y == (boundary ? 3 : -1) &&
+                points[1].x == (boundary  ? .1 :
+                                converted ? .3 :
+                                            2) &&
+                points[1].y == (boundary || converted ? -1 : 3),
             "whole line-carrier intersection retained"
         );
         for (ULONG j = 0; j < 4; ++j)
@@ -92,17 +96,17 @@ void Verify(SmBrep& brep, bool boundary)
             SmVector3d values[3];
             Require(composition->Evaluate(t, 2, TRUE, values) == SM_SUCCESS, "actual composition evaluation");
             Near(values[0].x, boundary ? -2 : -2 + 6 * t, 1e-12, "analytic LINE x");
-            Near(values[0].y, boundary ? 9 - 12 * t : -3 + 12 * t, 1e-12, "analytic LINE y");
+            Near(values[0].y, boundary ? 9 - 12 * t : converted ? -3 : -3 + 12 * t, 1e-12, "analytic LINE y");
             Near(values[0].z, 0, 1e-12, "analytic LINE z");
             Near(values[1].x, boundary ? 0 : 6, 1e-12, "mapped tau derivative x");
-            Near(values[1].y, boundary ? -12 : 12, 1e-12, "mapped tau derivative y");
+            Near(values[1].y, boundary ? -12 : converted ? 0 : 12, 1e-12, "mapped tau derivative y");
             Near(values[2].x, 0, 1e-12, "linear second derivative x");
             Near(values[2].y, 0, 1e-12, "linear second derivative y");
         }
     }
     Require(found == 1, "one source-priority LINE composition retained");
 }
-void Run(const std::filesystem::path& fixture, const std::filesystem::path& directory, bool boundary)
+void Run(const std::filesystem::path& fixture, const std::filesystem::path& directory, bool boundary, bool converted)
 {
     std::ifstream input(fixture, std::ios::binary);
     const std::string source{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
@@ -126,13 +130,35 @@ void Run(const std::filesystem::path& fixture, const std::filesystem::path& dire
     Require(!model->MaterialVolumeMm3(), "triangle has no material-volume qualification");
     const auto mappings = model->PcurveLineWindows();
     Require(mappings.size() == 1 && mappings[0].targetEdgeIndex, "owning window bound to actual target edge");
-    Require(mappings[0].equation.find("(2/1)+(1/1)*native_tau") != std::string::npos, "exact q window and affine map");
+    Require(
+        mappings[0].equation.find(converted ? "(2/5)+(1/5)*native_tau" : "(2/1)+(1/1)*native_tau") != std::string::npos,
+        "exact q window and affine map"
+    );
+    if (converted)
+    {
+        const auto maximum = std::find_if(
+            mappings[0].parameters.begin(),
+            mappings[0].parameters.end(),
+            [](const auto& p)
+            {
+                return p.first == "maximum_source_boundary_definition_error_mm";
+            }
+        );
+        Require(
+            maximum != mappings[0].parameters.end() && maximum->second.size() == 1 && maximum->second[0] > 0 && maximum->second[0] < 1e-12,
+            "owning nonzero continuous source-boundary conversion bound"
+        );
+        Require(
+            mappings[0].equation.find("not exact whole-node covariance") != std::string::npos,
+            "approximate knot conversion is not exact normalization"
+        );
+    }
     Require(mappings[0].equation.find("source_VECTOR_magnitude") != std::string::npos, "source t is not native tau identity");
     auto copy = model->CopyForModeling();
     Require(copy.status == Status::Accepted && copy.model, "independent full modeling copy");
-    const auto verify = [boundary](SmBrep& brep)
+    const auto verify = [boundary, converted](SmBrep& brep)
     {
-        Verify(brep, boundary);
+        Verify(brep, boundary, converted);
     };
     copy.model->Edit(verify);
     std::filesystem::create_directories(directory);
@@ -165,7 +191,7 @@ void Run(const std::filesystem::path& fixture, const std::filesystem::path& dire
             SmNativeArchive::ReadPartFromFile(context, path.c_str(), curves, surfaces, trees, bodies, format) == SM_SUCCESS && bodies.GetSize() == 1,
             "LINE composition archive replay"
         );
-        Verify(*bodies[0], boundary);
+        Verify(*bodies[0], boundary, converted);
     }
     const auto reportSize = result.report.json.size();
     Require(result.report.exactGeometryWork && result.report.exactGeometryWork->usedUnits > 0, "exact LINE-window work charged");
@@ -202,14 +228,33 @@ void Run(const std::filesystem::path& fixture, const std::filesystem::path& dire
     bounded.nativeLimits.reportBytes = reportSize - 1;
     const auto limited = ImportBytes(source, bounded);
     Require(limited.status == Status::ResourceLimit && !limited.model, "required LINE map report refuses without partial publication");
+    if (converted)
+    {
+        auto tight = options;
+        tight.quality.id = "Q-public-boundary-tight-definition";
+        tight.quality.definitionMm = Fraction(1, 1000000000000000000LL);
+        const auto refused = ImportBytes(source, tight);
+        Require(
+            refused.status == Status::Indeterminate && !refused.model && refused.report.candidateDiscarded,
+            "unestablished continuous boundary error never publishes"
+        );
+        const auto repeated = ImportBytes(source, options);
+        Require(repeated.status == Status::Accepted && repeated.model, "failed boundary certificate cleans up before next import");
+    }
 }
 } // namespace
 int main(int argc, char** argv)
 {
     try
     {
-        Require(argc == 3 || (argc == 4 && std::string_view(argv[3]) == "--boundary"), "fixture and disposable archive directory required");
-        Run(argv[1], argv[2], argc == 4);
+        Require(
+            argc == 3 || (argc == 4 && (std::string_view(argv[3]) == "--boundary" || std::string_view(argv[3]) == "--converted-boundary")),
+            "fixture and disposable archive directory required"
+        );
+        Run(argv[1],
+            argv[2],
+            argc == 4 && std::string_view(argv[3]) == "--boundary",
+            argc == 4 && std::string_view(argv[3]) == "--converted-boundary");
         return 0;
     }
     catch (const std::exception& error)

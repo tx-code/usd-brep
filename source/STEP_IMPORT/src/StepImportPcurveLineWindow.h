@@ -59,8 +59,9 @@ struct PcurveLineKnotChartInput
 struct PcurveLineKnotChartAxis
 {
     // native_parameter = scale*source_parameter + offset, with scale > 0.
-    // Unless fixedSourceBoundary is present, every expanded knot must satisfy
-    // this equality EXACTLY. This is not fitted/approximate knot conversion.
+    // Unless fixedSourceBoundary or requiresBoundaryCurveCertificate is set,
+    // every expanded knot must satisfy this equality EXACTLY. A pending
+    // boundary proposal is not fitted/approximate whole-axis equivalence.
     PcurveLineWindowRatio scale;
     PcurveLineWindowRatio offset;
     std::array<PcurveLineWindowRatio, 2> sourceDomainExact;
@@ -72,6 +73,10 @@ struct PcurveLineKnotChartAxis
     // coordinate equivalence. It relies on clamped boundary basis identity and
     // the caller's binding of the complete unchanged control net and degrees.
     std::optional<unsigned> fixedSourceBoundary;
+    // Pending planner only: A/B map the endpoint domains, not all interior
+    // knots. The owning caller MUST establish a continuous source-boundary
+    // curve error certificate before adopting this proposed representation.
+    bool requiresBoundaryCurveCertificate = false;
 };
 struct PcurveLineKnotChart
 {
@@ -101,6 +106,29 @@ struct PcurveLineWindow
     std::array<double, 2> maximumRoundingUpperUv{};
     bool hasUvRounding = false;
     std::optional<PcurveLineKnotChart> affineSourceChart;
+};
+
+class PendingBoundaryPcurveLineWindow
+{
+public:
+
+    const PcurveLineWindow& ProposedWindow() const noexcept;
+    std::size_t FixedAxis() const noexcept;
+    unsigned FixedEnd() const noexcept; // 0=min, 1=max.
+
+private:
+
+    PendingBoundaryPcurveLineWindow(PcurveLineWindow window, std::size_t fixedAxis, unsigned fixedEnd);
+    PcurveLineWindow m_window;
+    std::size_t m_fixedAxis;
+    unsigned m_fixedEnd;
+    friend Result<std::optional<PendingBoundaryPcurveLineWindow>> PlanBoundaryPcurveLineWindow(
+        const ExactDecimalPcurveLineGenerator&,
+        const PcurveLineKnotChartInput&,
+        const std::array<double, 4>&,
+        const PcurveLineWindowLimits&,
+        const PcurveLineWindowCallbacks&
+    );
 };
 
 // Rectangle order is {u_min,v_min,u_max,v_max}; both widths must be positive.
@@ -146,6 +174,27 @@ struct PcurveLineWindow
 // The geometry/control-net/degree/weight binding of a surface to these knots
 // belongs to the caller; knot correspondence alone is not a surface proof.
 [[nodiscard]] Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
+    const ExactDecimalPcurveLineGenerator& generator,
+    const PcurveLineKnotChartInput& chart,
+    const std::array<double, 4>& nativeDomain,
+    const PcurveLineWindowLimits& limits,
+    const PcurveLineWindowCallbacks& callbacks
+);
+
+// Independent, UNAPPROVED boundary proposal; never an established knot chart.
+// Exactly one source direction component must be zero, and that fixed source
+// coordinate must equal a clamped endpoint exactly. Both full knot arrays must
+// be clamped, ordered, have matching counts/degrees and adjacent-equality
+// patterns. The caller attests matching source/native degrees in chart.degrees.
+// Variable-axis native knots must individually be nearest-even conversions of
+// the source knots; their interior values need not share the endpoint A/B map.
+// Fixed-axis A=1,B maps only the chosen boundary. Variable-axis A/B is merely
+// a proposal and requiresBoundaryCurveCertificate=true marks its missing proof.
+// The result owns its window and is constructible only by this entry point.
+// Normal ineligibility is nullopt; malformed knot structure/conversion and all
+// resource/cancellation/caller failures remain distinct errors. The same exact
+// arithmetic, finite capacities, numeric environment and work ledger apply.
+[[nodiscard]] Result<std::optional<PendingBoundaryPcurveLineWindow>> PlanBoundaryPcurveLineWindow(
     const ExactDecimalPcurveLineGenerator& generator,
     const PcurveLineKnotChartInput& chart,
     const std::array<double, 4>& nativeDomain,

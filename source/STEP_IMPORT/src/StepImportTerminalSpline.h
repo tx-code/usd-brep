@@ -110,6 +110,17 @@ struct PoleVisitProof
 // retain their actual meaning. No source, kernel object or global state changes.
 [[nodiscard]] Result<Prepared> Extend(const Source& source, const Limits& limits, const Charge& charge);
 
+// Capture an original exact CURVE definition for comparison only: v must be
+// absent, countV=1 and u.requested absent. This performs the same bounded exact
+// knot/XYZ/weight/unit reading, but NO outward envelope, terminal extension or
+// binary constructor emission. Positive weights are checked only on the
+// original clamped continuous domain. No target definition is constructed.
+// The immutable reference retains originalCurveDomain for CertifyCurveTrim;
+// that existing proof still binds actual native endpoints to nearest-rounded
+// exact source cuts and charges the SAME caller ledger as this capture.
+// This is not a surface certificate, repair, parameter selection or publication.
+[[nodiscard]] Result<std::shared_ptr<const Reference>> CaptureOriginalReference(const Source& source, const Limits& limits, const Charge& charge);
+
 // Compare the actual native binary64 definition against the exact interpreted
 // SOURCE reference on the WHOLE actual natural domain. Degrees/domain must match
 // the prepared computational envelope; distinct source/native interior knots

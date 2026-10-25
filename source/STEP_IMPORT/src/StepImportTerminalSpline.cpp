@@ -646,7 +646,7 @@ Result<std::array<R, 2>> Requested(const SourceAxis& source, const std::vector<R
     TS_TRY(b, math.Binary(high));
     return std::array<R, 2>{ std::move(a), std::move(b) };
 }
-Result<Net> ReadSource(const Source& source, Arithmetic& math, std::optional<std::array<R, 2>>& originalCurveDomain)
+Result<Net> ReadOriginalSourceNet(const Source& source, Arithmetic& math, std::optional<std::array<R, 2>>& originalCurveDomain)
 {
     if (!source.v && source.countV != 1)
     {
@@ -701,6 +701,14 @@ Result<Net> ReadSource(const Source& source, Arithmetic& math, std::optional<std
             net.cp[i][axis] = std::move(h);
         }
     }
+    return net;
+}
+Result<Net> ReadSource(const Source& source, Arithmetic& math, std::optional<std::array<R, 2>>& originalCurveDomain)
+{
+    // Share the original exact reading without introducing a second parser.
+    // Keep the established extension/constructor path and charge sequence:
+    // original net, requested outward envelope, terminal extension, Emit.
+    TS_TRY(net, ReadOriginalSourceNet(source, math, originalCurveDomain));
     TS_TRY(ur, Requested(source.u, net.u, net.nu, math));
     TS_OK(ExtendRange(net, true, ur, math));
     if (source.v)
@@ -1452,6 +1460,30 @@ Result<Prepared> Extend(const Source& source, const Limits& limits, const Charge
             reference->net = std::move(net);
             reference->originalCurveDomain = std::move(originalCurveDomain);
             return Prepared{ std::move(target), std::move(reference) };
+        }
+    );
+}
+Result<std::shared_ptr<const Reference>> CaptureOriginalReference(const Source& source, const Limits& limits, const Charge& charge)
+{
+    return Guard<std::shared_ptr<const Reference>>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<std::shared_ptr<const Reference>>
+        {
+            if (source.v || source.countV != 1 || source.u.requested)
+            {
+                return tl::unexpected(Error("TerminalSplineOriginalCurveReference", Status::Unsupported));
+            }
+            std::optional<std::array<R, 2>> originalCurveDomain;
+            TS_TRY(net, ReadOriginalSourceNet(source, math, originalCurveDomain));
+            // ReadOriginalSourceNet has already charged the resident exact net.
+            // Moving it into immutable ownership creates no second control net
+            // and deliberately skips Requested/ExtendRange/Emit. The later
+            // certificate counts both this resident reference and its copy.
+            auto reference = std::make_shared<Reference>();
+            reference->net = std::move(net);
+            reference->originalCurveDomain = std::move(originalCurveDomain);
+            return std::shared_ptr<const Reference>(std::move(reference));
         }
     );
 }

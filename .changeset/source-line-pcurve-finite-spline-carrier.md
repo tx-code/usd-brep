@@ -15,6 +15,14 @@ restriction. The latter preserves the source use without claiming an affine map 
 the entire axis. It prevents a decimal boundary from being falsely rejected against
 an independently rounded native domain; no snapping or physical allowance is added.
 
+When a fixed clamped boundary's varying knots require numerical conversion,
+import can certify its original exact curve against the actual stored homogeneous
+boundary over the whole interval. This separate certificate preserves source
+coordinates, weights, units, knot groups and endpoint parameter correspondence.
+UV endpoint conversion must be exact, so the original definition allowance is
+spent once. Pending plans, failed certificates and cancellation never publish
+a partial model; this does not assert whole-surface source accuracy.
+
 ## Scope
 
 [Finite-carrier LINE pcurves](../source/STEP_IMPORT/README.md#有限-b-样条载体上的-line-参数曲线).
