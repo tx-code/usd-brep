@@ -203,6 +203,25 @@ void Verify(SmBrep& brep, bool lune, bool minimum, bool cone, bool composed = fa
             lines == (cone ? 2u : 0u) - (composed && cone ? 1u : 0u) && compositions == (composed ? 1u : 0u) && poleVertices == (lune ? 2u : 1u),
         "complete original curves and pole-vertex inventory"
     );
+    if (composed)
+    {
+        // Re-establish actual stored-curve evidence after each independent Copy
+        // and archive read too. Native 2D storage may use NL_NOZ rather than zero
+        // for its absent third coordinate; it is not a physical coefficient.
+        std::vector<SmVertex*> original(vertices.GetDataArray(), vertices.GetDataArray() + vertices.GetSize());
+        std::size_t work = 0;
+        auto proof = detail::CheckRevolutionPoleVisits(
+            *faces[0], original, { 200000, 4096, 1234 },
+            [&](std::size_t units) -> detail::Result<void>
+            {
+                Require(units <= 2000000 - work, "bounded copied/archive composed proof");
+                work += units;
+                return {};
+            },
+            []() -> detail::Result<void> { return {}; }
+        );
+        Require(proof && proof->composedEdges > 0, "copied/archive 2D semantics retain continuous defining-curve evidence");
+    }
 }
 void RoundTrips(
     const std::shared_ptr<const ModelSnapshot>& model,
@@ -606,6 +625,22 @@ int main(int argc, char** argv)
         carrierPrecisionStudy = argc == 4 && std::string_view(argv[3]) == "precision";
         std::ifstream input(argv[1], std::ios::binary);
         const std::string source{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+        if (carrierPrecisionStudy)
+        {
+            for (const bool topology : { false, true })
+            {
+                auto unsupported = Config();
+                unsupported.normalizePeriodicFaces = topology;
+                unsupported.restrictUnusedSupportDomains = !topology;
+                bool refused = false;
+                try { (void)ImportBytes(source, unsupported); }
+                catch (const std::invalid_argument& error)
+                {
+                    refused = std::string_view(error.what()).find("Pcurve carrier precision combinations") != std::string_view::npos;
+                }
+                Require(refused, "unqualified precision/correspondence combination refuses before construction");
+            }
+        }
         std::filesystem::create_directories(argv[2]);
         Check(
             source,

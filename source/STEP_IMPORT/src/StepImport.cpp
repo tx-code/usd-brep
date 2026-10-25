@@ -261,6 +261,15 @@ void Validate(const Options& options)
     {
         throw std::invalid_argument("Explicit positive general pcurve carrier resolution must not exceed the topology work zone");
     }
+    if (q.pcurveCarrierWorkToleranceMm &&
+        (options.normalizePeriodicFaces || options.restrictUnusedSupportDomains || options.faceOrientationRepair ||
+         options.cylindricalBandRepair || options.definitionSelection || options.sourceErrorIsolation))
+    {
+        // The owning receipt currently addresses unchanged original edge
+        // indices. Source-to-many topology, altered supports and repair trials
+        // require their own correspondence validation before combination.
+        throw std::invalid_argument("Pcurve carrier precision combinations with topology/support changes, repair or selection are unqualified");
+    }
     if (options.faceOrientationRepair)
     {
         const auto& r = *options.faceOrientationRepair;

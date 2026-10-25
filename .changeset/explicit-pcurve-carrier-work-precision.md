@@ -25,6 +25,12 @@ Continuous pole-visit proofs reuse endpoint enclosures and tighten single-span
 rational curves with restricted positive Bezier hulls. All added work is charged;
 the cumulative quota, geometric budgets, original derivative bounds and refusal
 conditions remain in force.
+Stored-curve proofs interpret the native 2D no-Z marker as an absent coordinate,
+so independent copies and native archive readback retain the same continuous
+UV/revolution evidence. Stored UV coefficients and parameter conventions remain
+unchanged.
+Unqualified combinations with periodic topology normalization, support-domain
+restriction, repairs or definition selection/isolation refuse before construction.
 
 ## Scope
 

@@ -66,7 +66,13 @@ Result<terminal_spline::BinaryNet> Read(SmBSplineCurve& curve, const terminal_sp
     net.homogeneous.reserve(count);
     for (ULONG i = 0; i < count; ++i)
     {
-        net.homogeneous.push_back({ values[4 * i], values[4 * i + 1], values[4 * i + 2], curve.IsRational() ? values[4 * i + 3] : 1 });
+        // GetControlPointsPointer documents the 2D third slot as NL_NOZ or
+        // zero; GetControlPolygon likewise normalizes that absent coordinate.
+        // An archive can restore the sentinel even when construction used zero.
+        // Embed UV in the neutral proof net with Z=0, without editing native
+        // storage or interpreting its marker as a huge physical coefficient.
+        const double z = curve.GetDim() == 2 ? 0 : values[4 * i + 2];
+        net.homogeneous.push_back({ values[4 * i], values[4 * i + 1], z, curve.IsRational() ? values[4 * i + 3] : 1 });
     }
     return net;
 }
