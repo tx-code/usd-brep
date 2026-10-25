@@ -2,6 +2,13 @@
 change: feature
 ---
 
+The fixed AP214 assembly source checker retains direct bounded-wireframe product
+definitions as `WireframeModel`, without inventing BRep shapes or placement-only
+wrappers. Necessary source predicates, units and complete document ownership
+remain mandatory. Native assembly import explicitly refuses these definitions
+before body allocation until independent owning geometry is implemented; it
+never drops wire leaves or publishes only the BRep subset.
+
 Native STEP import accepts an explicit source-hash-bound terminal NURBS domain
 interpretation plan on the general development path. Source definitions and UV
 remain immutable; complete new-domain defining geometry evidence shares the

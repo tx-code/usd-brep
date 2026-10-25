@@ -192,12 +192,12 @@ struct Part
         std::size_t shape, shell; // Source record indices; never native handles or selected-largest substitutes.
         std::string role; // The individual source role, independent of the collection's aggregate role.
     };
-    std::vector<Shape> shapes; // Complete representation item order; shared source definitions retain their identities.
+    std::vector<Shape> shapes; // Complete BRep shape-item order; wire sets remain in their source representation, with no shell invented.
     std::vector<Role> roles; // Singleton role map. Collections use shapes, never duplicate shape/shell role keys.
     std::vector<PropertyAttachment> propertyAttachments;
     std::vector<std::size_t> deferredRegionFaces; // Source faces only; no bound has been relabeled or selected as outer.
     std::vector<std::size_t> deferredCylindricalBandRepairs; // Explicit FACE.WR2 failures; source remains invalid pending native repair proof.
-    std::string shapeRole; // MaterialSolid / OpenSurfaceModel / ClosedSurfaceModel: source claims only.
+    std::string shapeRole; // Source role only; WireframeModel and assembly wrappers contain no BRep shapes.
     std::string apdStatus;
     std::string apdSchemaClaim;
     std::string apdYear; // Exact INTEGER lexeme; never used to infer the HEADER edition.

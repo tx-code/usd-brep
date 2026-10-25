@@ -1,5 +1,31 @@
 # STEP source semantics: ticket 03
 
+## Independent wireframe definitions in assemblies
+
+The fixed AP214 general source subset can retain a product whose SDR directly
+selects a `GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION`. Its direct
+`GEOMETRIC_CURVE_SET` items have an explicit `Wireframe` definition-item role;
+the checked part is `WireframeModel` with no BRep `shapes`. It is distinct from
+an `AssemblyPlacementWrapper` and from wire geometry linked alongside a BRep.
+No shape relationship, shell, material volume or native topology is invented.
+
+The existing fixed-artifact GCS.WR1 and GBWSR.WR1--WR5 predicates, finite curve
+dependencies, source units, product chain and whole-document ownership/metadata
+influence checks still run. Original trim SELECTs, `master_representation`,
+`sense_agreement`, source parameters and units remain immutable. A successful
+`InspectAssemblyDefinitions` remains diagnostic `Deferred`; only
+`CheckAssemblySource` establishes the complete source ownership contract.
+Other profiles, mixed or linked definition forms retain their existing scope.
+This is source qualification only: native construction/export is a separate
+capability and must preserve every wire definition before an assembly publishes.
+
+The public `assembly_box_and_wireframe.step` fixture contains one box with two
+uses, one wrapper, and a separate wire leaf with a trimmed line, reverse trimmed
+quadratic spline and Cartesian point. `step_assembly_wireframe_contracts`
+checks roles, exact source fields/lifetime, N/N-1 work, rejected unbounded or
+surface set members, a missing unit and orphan geometry in strict and
+nongeometric interoperability modes. No private CAD is needed for these controls.
+
 ## Qualified selected source with excluded local failures
 
 `CheckSelectedIndependentProducts` is a separate opt-in from both ordinary checks

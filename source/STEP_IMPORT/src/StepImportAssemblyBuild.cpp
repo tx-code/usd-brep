@@ -5,6 +5,7 @@
 #include "StepImportGroupedBuild.h"
 #include "StepImportObservation.h"
 
+#include <algorithm>
 #include <numeric>
 #include <stdexcept>
 
@@ -58,6 +59,33 @@ Result<AssemblyNativeCandidate> BuildAssembly(
         if (auto step = execution.Check(Phase::BeforeNativeCall); !step)
         {
             return tl::unexpected(std::move(step.error()));
+        }
+        const auto& part = source->Definition(i)->PartDefinition();
+        if (part.shapeRole == "WireframeModel")
+        {
+            // Source qualification does not create BRep topology or qualify a
+            // detached curve factory. Until definition-owned native geometry
+            // is implemented, refuse the complete request before any body is
+            // allocated; never drop the wire leaf or call it a wrapper.
+            const auto root = std::find_if(
+                part.roles.begin(),
+                part.roles.end(),
+                [](const auto& role)
+                {
+                    return role.name == "representation";
+                }
+            );
+            if (root == part.roles.end())
+            {
+                throw std::logic_error("Wireframe definition requires its qualified source root");
+            }
+            return tl::unexpected(
+                Failure{ Status::Unsupported,
+                         "AssemblyWireframeConstructionUnimplemented",
+                         "Wireframe definitions require independent owning native geometry",
+                         root->recordIndex,
+                         "AssemblyBuild" }
+            );
         }
         for (const auto& role : source->Definition(i)->PartDefinition().roles)
         {

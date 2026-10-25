@@ -101,9 +101,19 @@ public:
                     "Definition context has not been checked by assembly input inspection"
                 );
             }
-            AssemblyDefinitionScope scope{
-                definition.definition, root.representation, root.context, {}, {}, {}, parents.contains(definition.definition), {}, false, {}, {}, {}
-            };
+            AssemblyDefinitionScope scope{ definition.definition,
+                                           root.representation,
+                                           root.context,
+                                           {},
+                                           {},
+                                           {},
+                                           parents.contains(definition.definition),
+                                           {},
+                                           false,
+                                           false,
+                                           {},
+                                           {},
+                                           {} };
             std::unordered_set<std::size_t> seen, relationships, items;
             std::unordered_map<std::size_t, std::vector<std::size_t>> memberships;
             std::vector<std::size_t> stack{ root.representation };
@@ -153,6 +163,7 @@ public:
             std::sort(scope.relationships.begin(), scope.relationships.end());
             std::sort(scope.directItems.begin(), scope.directItems.end());
             bool hasGeometry = false;
+            bool hasWireframe = false, hasBrep = false;
             for (const auto item : scope.directItems)
             {
                 Visit(item);
@@ -172,6 +183,17 @@ public:
                 {
                     role = AssemblyItemRole::SurfaceModel;
                 }
+                else if (
+                    (fields.SelectedProfile().kind == ProfileKind::Ap214e3Source || fields.SelectedProfile().kind == ProfileKind::Ap214MbxSource) &&
+                    fields.IsA(item, "GEOMETRIC_CURVE_SET")
+                )
+                {
+                    // AP214E3_2010.exp: a bounded wireframe representation can
+                    // define a product in its own right. Its curves/points are
+                    // physical geometry, not empty BRep topology or placements.
+                    // Membership predicates and whole-file closure still run.
+                    role = AssemblyItemRole::Wireframe;
+                }
                 else
                 {
                     Fail(
@@ -181,11 +203,35 @@ public:
                     );
                 }
                 hasGeometry |= role != AssemblyItemRole::Placement;
+                hasWireframe |= role == AssemblyItemRole::Wireframe;
+                hasBrep |= role == AssemblyItemRole::MaterialSolid || role == AssemblyItemRole::SurfaceModel;
                 auto& uses = memberships.at(item);
                 std::sort(uses.begin(), uses.end());
                 scope.items.push_back({ item, role, std::move(uses) });
             }
+            if (hasWireframe && (hasBrep || scope.representations.size() != 1 ||
+                                 !fields.IsA(scope.rootRepresentation, "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION")))
+            {
+                const auto wire = std::find_if(
+                    scope.items.begin(),
+                    scope.items.end(),
+                    [](const auto& item)
+                    {
+                        return item.role == AssemblyItemRole::Wireframe;
+                    }
+                );
+                // Project scope, not an EXPRESS prohibition: only direct
+                // wire-only definitions are qualified here. Do not indirectly
+                // enable the separate single-part linked-wireframe recipe for
+                // mixed assembly definitions through the new nominal role.
+                Fail(
+                    "AssemblyDefinitionItemUnsupported",
+                    wire->item,
+                    "Definition item requires an explicit supported geometry or placement role; it cannot be discarded"
+                );
+            }
             scope.placementOnly = !hasGeometry;
+            scope.wireframeOnly = hasWireframe && !hasBrep;
             if (scope.placementOnly && !scope.hasOccurrences)
             {
                 Fail("AssemblyLeafGeometryMissing", scope.definition, "A definition without child occurrences cannot stand in for missing geometry");

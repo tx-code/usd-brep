@@ -9,7 +9,8 @@ enum class AssemblyItemRole
 {
     Placement,
     MaterialSolid,
-    SurfaceModel
+    SurfaceModel,
+    Wireframe
 };
 struct AssemblyDefinitionItem
 {
@@ -24,6 +25,7 @@ struct AssemblyDefinitionScope
     bool hasOccurrences = false;
     std::vector<AssemblyDefinitionItem> items;
     bool placementOnly = false;
+    bool wireframeOnly = false; // Geometry without a BRep; never a placement-only wrapper.
     std::vector<std::size_t> dependencies, faces, deferredRegionFaces;
 };
 struct AssemblyDefinitionPlan

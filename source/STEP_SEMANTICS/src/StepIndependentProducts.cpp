@@ -100,6 +100,7 @@ public:
             if (assembly)
             {
                 scope.placementOnly = assemblyScopes.at(def.definition)->placementOnly;
+                scope.wireframeOnly = assemblyScopes.at(def.definition)->wireframeOnly;
             }
             const auto set = [&](std::string_view type, std::vector<std::size_t> values)
             {

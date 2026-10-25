@@ -405,7 +405,7 @@ public:
                     m_constructionRepresentation.reset();
                     try
                     {
-                        Product(scope.placementOnly);
+                        Product(scope.placementOnly, scope.wireframeOnly);
                     }
                     catch (Failure& failure)
                     {
@@ -2870,8 +2870,9 @@ private:
     {
         return Record(record).components.size() == 1 && Record(record).components.front().name == "REPRESENTATION";
     }
-    void Product(bool placementOnly = false)
+    void Product(bool placementOnly = false, bool wireframeOnly = false)
     {
+        Expects(!placementOnly || !wireframeOnly);
         std::optional<std::size_t> singleApplication;
         std::optional<Failure> distinctApplications;
         try
@@ -2975,11 +2976,13 @@ private:
         std::optional<std::size_t> shapeRelationship;
         std::optional<std::size_t> wireframeRelationship;
         std::optional<std::size_t> constructionRelationship;
-        if (placementOnly)
+        if (placementOnly || wireframeOnly)
         {
             // Only the explicit assembly scope planner can establish this role.
             // Still run all product-chain/administrative checks below. A wrapper
             // is not an empty material solid and cannot hide arbitrary items.
+            // A wireframe definition is distinct from a linked associated set:
+            // its SDR directly selects the geometry, with no invented SRR.
             Expects(m_assemblyDefinitionChecks);
             m_representation = Target(FieldValue(sdr, "used_representation"));
             definitionRepresentation = m_representation;
@@ -2987,9 +2990,22 @@ private:
             if (Population("REPRESENTATION").size() != 1 || !Population("SHAPE_REPRESENTATION_RELATIONSHIP").empty())
             {
                 Fail(
-                    "AssemblyWrapperRepresentationUnsupported",
+                    wireframeOnly ? "AssemblyWireframeRepresentationUnsupported" : "AssemblyWrapperRepresentationUnsupported",
                     "D2",
-                    "Placement-only wrapper requires one direct representation",
+                    wireframeOnly ? "Wire-only definition requires one direct representation" :
+                                    "Placement-only wrapper requires one direct representation",
+                    Record(m_representation).span,
+                    Status::Unsupported,
+                    m_representation
+                );
+            }
+            if (wireframeOnly && (!IsAp214SourceProfile(m_data->profile.kind) ||
+                                  !IsA(*m_data, m_representation, "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION")))
+            {
+                Fail(
+                    "AssemblyWireframeRepresentationUnsupported",
+                    "D2",
+                    "Wire-only definitions require a direct bounded wireframe representation in the fixed AP214 source subset",
                     Record(m_representation).span,
                     Status::Unsupported,
                     m_representation
@@ -3316,6 +3332,16 @@ private:
                 }
             }
             m_data->part.shapeRole = "AssemblyPlacementWrapper";
+            return;
+        }
+        if (wireframeOnly)
+        {
+            // Necessary GCS.WR1 and GBWSR.WR1--WR5 have already run in
+            // StepGeometryDependencies against the fixed EXPRESS artifact.
+            // Retain every item via the actual representation root. This role
+            // grants no shell, material, native curve or BRep qualification;
+            // final ownership and metadata influence checks remain mandatory.
+            m_data->part.shapeRole = "WireframeModel";
             return;
         }
         std::vector<std::size_t> shapes;

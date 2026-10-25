@@ -12,6 +12,7 @@ struct IndependentProductScope
 {
     std::size_t definition = 0;
     bool placementOnly = false;
+    bool wireframeOnly = false;
     std::map<std::size_t, std::vector<std::size_t>> populations;
 };
 struct IndependentProductPlan

@@ -1,5 +1,12 @@
 # STEP_IMPORT（内部 C++20）
 
+源层已能保留装配中的独立 `WireframeModel` 定义，它不是材料实体、表面 BRep 或空装配容器。
+当前原生装配构建尚未资格化这种定义的 owning 曲线／点，因此在分配任何 BRep 前以
+`AssemblyWireframeConstructionUnimplemented` 拒绝整个请求。不会跳过线框零件、伪造空实体，
+或只发布同文件中已有的 BRep。源类型／单位／完整归属通过不表示原生导入完成；
+取消仍由原有执行检查裁决。公开混合装配的 source/native 边界由
+`step_import_wireframe_source_contracts` 验证。已有 BRep 旁附线框的单零件资格保持原范围。
+
 通用开发构建器按已检查的源角色分别构建材料实体、`OpenSurfaceModel` 和
 `ClosedSurfaceModel`。曲面角色不获得材料体积或 InsideSolid 资格；源层的 pcurve／旋转面
 必要规则通过仍不代替对应原生工厂、几何一致性和完整发布验收。严格平面路径保留独立范围。
