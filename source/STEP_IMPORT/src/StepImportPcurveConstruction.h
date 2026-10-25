@@ -13,13 +13,22 @@ struct PcurveDefinition
 {
     std::unique_ptr<SmCurve> curve;
     Bounds conservativeBoundsMm;
+    bool sourceParameterIdentity = true; // LINE uses an explicit finite-window affine parameter map.
 };
-// Construct exact S(C(t)) from a qualified source PCURVE. Source UV coordinates
-// follow the basis surface's parameter units, not the 2D context's length unit.
+// Construct the owning native S(C(t)) definition from a qualified source
+// PCURVE. LINE-window conversion has its own explicit parameter/error map.
+// Source UV coordinates follow the basis surface's parameter units, not the
+// 2D context's length unit.
 [[nodiscard]] Result<PcurveDefinition> MakeSourcePcurve(
     const GeometryConstruction& inputs,
     std::size_t pcurve,
     std::size_t use,
     bool definingMaster = false
+);
+[[nodiscard]] Result<PcurveDefinition> MakeSourceLinePcurve(
+    const GeometryConstruction& inputs,
+    std::size_t pcurve,
+    std::size_t use,
+    bool definingMaster
 );
 } // namespace step_import::detail::construction

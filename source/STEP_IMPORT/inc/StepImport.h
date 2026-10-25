@@ -587,6 +587,7 @@ public:
     std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis extraction, separate from repair/topology changes.
     std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
     std::vector<ParameterMapping> SplineCharts() const; // Owning defining-carrier/face chart correspondence, independent of the report.
+    std::vector<ParameterMapping> PcurveLineWindows() const; // Owning source-generator/native-parameter maps; does not qualify modeling copies.
     std::vector<RevolutionPoleVisitInfo> RevolutionPoleVisits() const;
     std::vector<PcurveCarrierPrecisionInfo> PcurveCarrierPrecisions() const;
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.

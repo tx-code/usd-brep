@@ -79,6 +79,45 @@ def surface_curve_trimmed_arc(trim_forward=True, edge_forward=True, master_3d=Tr
 
 
 class PcurveNativeTests(unittest.TestCase):
+    def test_source_line_uses_complete_finite_carrier_window_and_explicit_parameter_map(self):
+        fixture = (Path(__file__).resolve().parents[3]
+                   / 'source/STEP_IMPORT/tests/fixtures/source_line_pcurve_bspline_triangle.step')
+        run, report = self.invoke(fixture.read_bytes())
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertEqual('Accepted', report['status'])
+        self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
+        self.assertAlmostEqual(36, report['model']['area_mm2'], delta=1e-7)
+        window = next(m for m in report['parameter_mappings'] if m['kind'] == 'SourcePcurveLineWindow')
+        self.assertEqual([2, 3], window['parameters']['raw_generator_interval_rounded'])
+        self.assertEqual([0, 0], window['parameters']['maximum_uv_endpoint_rounding'])
+        self.assertEqual([0], window['parameters']['maximum_lift_error_mm'])
+        self.assertIsNotNone(window['target_edge_index'])
+        self.assertIn('(2/1)+(1/1)*native_tau', window['equation'])
+        master = next(m for m in report['parameter_mappings'] if m['kind'] == 'SurfaceCurveMasterPcurve')
+        self.assertNotIn('source_t=native_t', master['equation'])
+
+    def test_nonbinary_line_window_conversion_has_continuous_physical_bound(self):
+        fixture = (Path(__file__).resolve().parents[3]
+                   / 'source/STEP_IMPORT/tests/fixtures/source_line_pcurve_bspline_triangle.step')
+        source = fixture.read_bytes().replace(b"DIRECTION('',(3.,4.))", b"DIRECTION('',(3.,5.))")
+        # Keep the carrier's original physical net. Only distinct source
+        # boundary points change: q=[2,12/5], UV ends=(-1,1),(1/5,3).
+        # S=(2u,3v), so the independent triangle area is (12/5)*6/2=36/5.
+        source = source.replace(b"#41=VERTEX_POINT('',#31)", b"#41=VERTEX_POINT('',#73)")
+        source = source.replace(b"#42=VERTEX_POINT('',#34)", b"#42=VERTEX_POINT('',#74)")
+        source = source.replace(b"#70=LINE('',#31,#71)", b"#70=LINE('',#73,#71)")
+        source = source.replace(b"#53=LINE('',#34,#54)", b"#53=LINE('',#74,#54)")
+        source = source.replace(b"DIRECTION('',(1.,2.,0.))", b"DIRECTION('',(2.,5.,0.))")
+        source = append_records(source, b"#73=CARTESIAN_POINT('',(-2.,3.,0.));\n#74=CARTESIAN_POINT('',(0.4,9.,0.));\n")
+        run, report = self.invoke(source)
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertAlmostEqual(36 / 5, report['model']['area_mm2'], delta=1e-7)
+        window = next(m for m in report['parameter_mappings'] if m['kind'] == 'SourcePcurveLineWindow')
+        self.assertIn('(2/1)+(2/5)*native_tau', window['equation'])
+        self.assertGreater(window['parameters']['maximum_uv_endpoint_rounding'][0], 0)
+        self.assertGreater(window['parameters']['maximum_lift_error_mm'][0], 0)
+        self.assertLess(window['parameters']['maximum_lift_error_mm'][0], 1e-12)
+
     def test_native_failure_distinguishes_defining_pcurve_and_derived_uv(self):
         fixture = (Path(__file__).resolve().parents[3]
                    / 'source/STEP_IMPORT/tests/fixtures/source_pcurve_anisotropic_bspline_patch.step')

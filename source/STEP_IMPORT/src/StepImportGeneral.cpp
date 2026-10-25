@@ -609,6 +609,29 @@ public:
             // Raw native links remain borrowed from this same owning ModelData.
             m_model->splineChartEvidence = std::make_shared<const SplineChartSession>(*m_splineCharts);
         }
+        if (!m_pcurveLines->bindings.empty())
+        {
+            auto verified = VerifyPcurveLineBindings(
+                *m_pcurveLines,
+                *m_context,
+                [&](Index record)
+                {
+                    return SplineChartCallbacks{ [&, record]
+                                                 {
+                                                     return Step(record);
+                                                 },
+                                                 [&, record](std::size_t work)
+                                                 {
+                                                     return m_execution.SpendExactGeometryWork(m_report, work, record);
+                                                 } };
+                }
+            );
+            if (!verified)
+            {
+                return tl::unexpected(std::move(verified.error()));
+            }
+            m_model->pcurveLineEvidence = std::make_shared<const PcurveLineSession>(*m_pcurveLines);
+        }
         for (const auto action : m_surfaceCurveActions)
         {
             if (auto checked = m_execution.SurfaceCurves()->MarkNativeChecked(action); !checked)
@@ -1609,6 +1632,7 @@ private:
                 }
             }
             comparisons.push_back(std::move(comparison));
+            bool selectedSourceParameterIdentity = true;
             for (Index i = 0; i < associated.size(); ++i)
             {
                 if (!Is(associated[i], "PCURVE"))
@@ -1617,6 +1641,7 @@ private:
                 }
                 const auto precisionBegin = m_report.pcurveCarrierPrecisions.size();
                 const auto chartBegin = m_splineCharts->bindings.size();
+                const auto lineBegin = m_pcurveLines->bindings.size();
                 auto made = MakeSourcePcurve(*this, associated[i], c.record, i == selected);
                 if (!made)
                 {
@@ -1624,6 +1649,7 @@ private:
                 }
                 if (i == selected)
                 {
+                    selectedSourceParameterIdentity = made->sourceParameterIdentity;
                     c.native = std::move(made->curve);
                     c.bounds = made->conservativeBoundsMm;
                     m_report.parameterMappings.back().targetEdgeIndex = ei.at(c.record);
@@ -1636,6 +1662,12 @@ private:
                     for (auto at = precisionBegin; at < m_report.pcurveCarrierPrecisions.size(); ++at)
                     {
                         m_report.pcurveCarrierPrecisions[at].targetEdgeIndex = ei.at(c.record);
+                    }
+                    for (auto at = lineBegin; at < m_pcurveLines->bindings.size(); ++at)
+                    {
+                        auto& binding = m_pcurveLines->bindings[at];
+                        binding.mapping.targetEdgeIndex = ei.at(c.record);
+                        m_report.parameterMappings.at(binding.reportMapping) = binding.mapping;
                     }
                 }
                 else
@@ -1669,7 +1701,10 @@ private:
                 }
             }
             mapping.kind = "SurfaceCurveMasterPcurve";
-            mapping.equation = "source_t=native_t of selected " + preference + "; auxiliary images observed independently, not assumed to share t";
+            mapping.equation = selectedSourceParameterIdentity ? "source_t=native_t of selected " + preference +
+                                                                     "; auxiliary images observed independently, not assumed to share t" :
+                                                                 "native_tau follows the explicit SourcePcurveLineWindow map of selected " +
+                                                                     preference + "; auxiliary images observed independently, not assumed to share t";
             mapping.parameters = { { "selected_source_pcurve_occurrence", { double(selected + 1) } } };
         }
         else if (Is(g, "LINE"))

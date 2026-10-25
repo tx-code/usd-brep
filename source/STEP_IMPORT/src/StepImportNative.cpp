@@ -5,6 +5,7 @@
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
 #include "StepImportNativeStatus.h"
+#include "StepImportPcurveLineSession.h"
 #include "StepImportPlan.h"
 #include "StepImportPointClassification.h"
 #include "StepImportSplineChartSession.h"
@@ -2299,6 +2300,18 @@ std::vector<ParameterMapping> ModelSnapshot::SplineCharts() const
 std::vector<RevolutionPoleVisitInfo> ModelSnapshot::RevolutionPoleVisits() const
 {
     return m_data->revolutionPoleVisits;
+}
+std::vector<ParameterMapping> ModelSnapshot::PcurveLineWindows() const
+{
+    std::vector<ParameterMapping> mappings;
+    if (m_data->pcurveLineEvidence)
+    {
+        for (const auto& binding : m_data->pcurveLineEvidence->bindings)
+        {
+            mappings.push_back(binding.mapping);
+        }
+    }
+    return mappings;
 }
 std::vector<PcurveCarrierPrecisionInfo> ModelSnapshot::PcurveCarrierPrecisions() const
 {

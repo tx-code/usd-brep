@@ -51,6 +51,9 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionPole.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportComposedPole.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSplineSurfaceConstruction.cpp src/StepImportPcurveConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSplineChart.cpp src/StepImportSplineChartSession.cpp)
+
+target_sources(STEP_IMPORT PRIVATE src/StepImportPcurveLineWindow.cpp src/StepImportPcurveLineLift.cpp src/StepImportPcurveLineSession.cpp
+    src/StepImportPcurveLineConstruction.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportTerminalDomainRequest.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSurfaceCurveSession.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSurfacePrecisionSession.cpp)
@@ -232,6 +235,26 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_compile_definitions(step_import_spline_chart_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
     add_test(NAME step_import_spline_chart_contracts COMMAND step_import_spline_chart_tests)
+    add_executable(step_import_pcurve_line_lift_tests tests/StepImportPcurveLineLiftTests.cpp)
+    target_include_directories(step_import_pcurve_line_lift_tests PRIVATE src)
+    target_include_directories(step_import_pcurve_line_lift_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_link_libraries(step_import_pcurve_line_lift_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_compile_definitions(step_import_pcurve_line_lift_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_pcurve_line_lift_contracts COMMAND step_import_pcurve_line_lift_tests)
+    add_executable(step_import_pcurve_line_window_tests tests/StepImportPcurveLineWindowTests.cpp)
+    target_include_directories(step_import_pcurve_line_window_tests PRIVATE src)
+    target_link_libraries(step_import_pcurve_line_window_tests PRIVATE STEP_IMPORT usd_brep_expected usd_brep_multiprecision)
+    add_test(NAME step_import_pcurve_line_window_contracts COMMAND step_import_pcurve_line_window_tests)
+    add_executable(step_import_pcurve_line_lifecycle_tests tests/StepImportPcurveLineLifecycleTests.cpp)
+    target_include_directories(step_import_pcurve_line_lifecycle_tests PRIVATE src)
+    target_include_directories(step_import_pcurve_line_lifecycle_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_link_libraries(step_import_pcurve_line_lifecycle_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_compile_definitions(step_import_pcurve_line_lifecycle_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_pcurve_line_lifecycle_contracts COMMAND step_import_pcurve_line_lifecycle_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_line_pcurve_bspline_triangle.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/pcurve-line-lifecycle-output/$<CONFIG>")
     add_executable(step_import_spline_chart_lifecycle_tests tests/StepImportSplineChartLifecycleTests.cpp)
     target_include_directories(step_import_spline_chart_lifecycle_tests PRIVATE src)
     target_include_directories(step_import_spline_chart_lifecycle_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)

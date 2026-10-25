@@ -35,6 +35,10 @@ public:
         const auto basis = Ref(pcurve, "basis_surface");
         const auto representation = Ref(pcurve, "reference_to_curve");
         const auto parameterCurve = Refs(representation, "items").at(0);
+        if (Is(parameterCurve, "LINE"))
+        {
+            return MakeSourceLinePcurve(*this, pcurve, use, definingMaster);
+        }
         if (!Is(parameterCurve, "B_SPLINE_CURVE_WITH_KNOTS") || Is(parameterCurve, "RATIONAL_B_SPLINE_CURVE"))
         {
             // Rational parameter curves need a physical lift-error bound for
