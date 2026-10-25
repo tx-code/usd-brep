@@ -21,11 +21,28 @@ radius of curvature is `b*b/a = 1e-6`, with a nonzero tangent. The old validator
 computed radius candidates but compared its unchanged sentinel to the threshold,
 so it accepted this curve without a radius diagnostic.
 
-The tests preserve the existing threshold `boundingBoxDiagonal / parameterLength
-/ 10000`. That expression has speed units and is also historically used for the
-radius comparison. It is parameter dependent; in UV it is not a physical length
-criterion. These tests lock down the existing validator quality policy and its
-diagnostics, not a universal definition of valid geometry or import correctness.
+Speed retains the threshold `boundingBoxDiagonal / parameterLength / 10000`.
+Radius uses the separate threshold `boundingBoxDiagonal / 10000`, preserving the
+old radius threshold at a unit parameter span. The former shared threshold
+compared a geometric radius with a speed, so merely scaling the knots could
+reject a regular curve or hide an existing small-radius finding. This is an
+intentional behavior correction: the `.001` minor-radius ellipse now produces
+the same radius diagnostic with parameter spans 1 and 1000. Infinite curves
+retain the existing absolute threshold `1e-3` for each property.
+
+These are coordinate-space validator quality criteria, not a universal definition
+of valid geometry or import correctness. In particular, a UV radius is measured
+in chart coordinates and is not a physical mm radius. The existing GPA search
+and solution-separation policy remain unchanged; this correction does not claim
+that every extreme parameter range has an established numerical result.
+
+Public polynomial controls independently use `C(t)=(a*x,x*x,0)`, where
+`x=2*t/T-1`. Their minimum radius is exactly `a*a/2`, independent of the knot
+span `T`. For `a=1`, spans 1 and `2^-12` both pass; for `a=2^-8`, spans 1 and 256
+both retain the small-radius diagnostic. Each case runs in 2D and 3D through
+the concrete B-spline and a registered forwarding evaluator, with LEVEL2,
+selected-radius, unrelated and empty test requests. The tests compare native
+pole/knot/domain bits and owner/context identities before and after validation.
 
 Additional coverage includes full rational circles with four Bezier spans;
 homogeneous weight scaling; deterministic positive-weight curves of degrees
@@ -70,8 +87,9 @@ checks.
 Local min/max property results must pair the scalar with the returned parameter,
 which can differ from Brent's cached current iterate. The property seam now
 re-evaluates that parameter before returning a witness; an unevaluable or
-nonfinite candidate cannot supply a scalar. This does not prove global minimality
-or change validation thresholds.
+nonfinite candidate cannot supply a scalar. That scalar/parameter correction does
+not prove global minimality; the separate radius/speed threshold correction is
+described above.
 
 Public deterministic monotone-X cubic splines compare each returned radius with
 `|C′|^3/|C′ x C″|` evaluated independently at that parameter. A five-pole case

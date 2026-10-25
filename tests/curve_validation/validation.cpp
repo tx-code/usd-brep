@@ -4,10 +4,13 @@
 #include <SmAssertArray.h>
 #include <SmBSplineCurve.h>
 #include <SmContext.h>
+#include <SmExtent3d.h>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <nurbs.h>
+#include <type_traits>
 #include <vector>
 
 #if defined(_M_X64) || defined(__SSE2__)
@@ -291,6 +294,136 @@ bool checkEllipse(SmContext& context, ULONG dimension, double minorRadius, doubl
     return fullValid && emptyValid && emptyReports.GetSize() == 0;
 }
 
+std::vector<std::uint64_t> definingBits(const SmBSplineCurve& curve)
+{
+    // Observe the actual native definition, not the original constructor
+    // arrays. Validation may populate caches but must not rewrite this data.
+    const auto* native = curve.GetGwNurbPointer();
+    std::vector<std::uint64_t> bits{ curve.GetDim(), std::uint64_t(native->p), std::uint64_t(native->pol->n), std::uint64_t(native->knt->m) };
+    const auto append = [&](double value)
+    {
+        bits.push_back(std::bit_cast<std::uint64_t>(value));
+    };
+    for (NL_INDEX i = 0; i <= native->pol->n; ++i)
+    {
+        const auto& pole = native->pol->Pw[i];
+        append(pole.x);
+        append(pole.y);
+        append(pole.z);
+        append(pole.w);
+    }
+    for (NL_INDEX i = 0; i <= native->knt->m; ++i)
+    {
+        append(native->knt->U[i]);
+    }
+    const auto natural = curve.GetNaturalInterval();
+    append(natural.GetMin());
+    append(natural.GetMax());
+    const auto step = curve.GetSTEPInterval();
+    append(step.GetMin());
+    append(step.GetMax());
+    return bits;
+}
+
+template <class Curve>
+bool checkParabolaParameterScale(SmContext& context, ULONG dimension, double xScale, double parameterLength, bool expectedValid)
+{
+    // Exact dyadic controls: s=t/T, x=2*s-1, C(t)=(a*x,x*x,0).
+    // rho(x)=(a*a+4*x*x)^(3/2)/(2*a), so the independent global
+    // minimum is a*a/2 at t=T/2, for EVERY positive parameter length T.
+    // Only the knot range varies between controls; no curve is edited here.
+    gw_CPOINT points[] = { { -xScale, 1, 0, NL_NOW }, { 0, -1, 0, NL_NOW }, { xScale, 1, 0, NL_NOW } };
+    double knots[] = { 0, 0, 0, parameterLength, parameterLength, parameterLength };
+    Curve curve(dimension, 2, 5, 2, points, knots, &context);
+    SmExtent3d box;
+    if (curve.CalculateBoundingBox(curve.GetNaturalInterval(), &box) != SM_SUCCESS)
+    {
+        return false;
+    }
+    const double radiusTolerance = box.GetSize().Length() / 10000;
+    const auto definition = definingBits(curve);
+    const auto* native = curve.GetGwNurbPointer();
+    const auto* owner = curve.GetOwner();
+    const auto* actualContext = curve.GetContext();
+    const double minimumRadius = xScale * xScale / 2;
+    const ULONG radiusTest = dimension == 2 ? 13UL : 14UL;
+    const auto verify = [&](const SmAssertArray& reports, bool valid, const char* entry)
+    {
+        bool correct = valid == expectedValid && reports.GetSize() == (expectedValid ? 0UL : 1UL);
+        for (ULONG i = 0; i < reports.GetSize(); ++i)
+        {
+            correct &= reports[i]->GetOwner() == &curve && reports[i]->GetTestIndex() == radiusTest &&
+                       reports[i]->GetTol3d().val == radiusTolerance && std::abs(reports[i]->GetValue() - minimumRadius) < 1e-8 * (1 + minimumRadius);
+        }
+        if (!correct)
+        {
+            std::printf(
+                "parabola dim=%lu type=%lu a=%g domain=%g entry=%s valid=%d expected=%d reports=%lu radius=%g\n",
+                dimension,
+                static_cast<ULONG>(curve.GetType()),
+                xScale,
+                parameterLength,
+                entry,
+                valid,
+                expectedValid,
+                reports.GetSize(),
+                minimumRadius
+            );
+            for (ULONG i = 0; i < reports.GetSize(); ++i)
+            {
+                std::printf("  report=%lu value=%g\n", reports[i]->GetTestIndex(), reports[i]->GetValue());
+            }
+        }
+        return correct;
+    };
+    SmAssertArray fullReports;
+    bool passed = verify(fullReports, curve.AssertValid(&fullReports, SM_LEVEL_2, SM_NO_WALK) != FALSE, "LEVEL2");
+    SmTArray<ULONG> requested;
+    requested.Add(radiusTest);
+    SmAssertArray selectedReports;
+    passed &= verify(selectedReports, curve.AssertValid(&selectedReports, SM_LEVEL_GIVEN, SM_NO_WALK, &requested) != FALSE, "selected radius");
+    SmTArray<ULONG> unrelated;
+    unrelated.Add(7);
+    SmAssertArray unrelatedReports;
+    passed &= curve.AssertValid(&unrelatedReports, SM_LEVEL_GIVEN, SM_NO_WALK, &unrelated) != FALSE && unrelatedReports.GetSize() == 0;
+    SmTArray<ULONG> empty;
+    SmAssertArray emptyReports;
+    passed &= curve.AssertValid(&emptyReports, SM_LEVEL_GIVEN, SM_NO_WALK, &empty) != FALSE && emptyReports.GetSize() == 0;
+    if constexpr (std::is_same_v<Curve, ForwardingCurve>)
+    {
+        // The registered runtime type cannot use the concrete control-net
+        // proof. At least one real property evaluation must have occurred.
+        passed &= curve.higherDerivativeCalls > 0;
+    }
+    const bool unchanged = curve.GetGwNurbPointer() == native && curve.GetOwner() == owner && curve.GetContext() == actualContext &&
+                           definingBits(curve) == definition;
+    if (!unchanged)
+    {
+        std::printf("parabola defining data/owner changed dim=%lu a=%g domain=%g\n", dimension, xScale, parameterLength);
+    }
+    return passed && unchanged;
+}
+
+bool checkRadiusParameterScale(SmContext& context, ULONG dimension)
+{
+    bool passed = true;
+    // Before the threshold split, the short-domain regular parabola failed
+    // because its radius was compared to a speed. Conversely a long domain
+    // hid a genuinely small coordinate-space radius. Exercise both changes,
+    // with the concrete proof and with the unchanged evaluator/GPA fallback.
+    for (const double parameterLength : { 1., 0x1p-12 })
+    {
+        passed &= checkParabolaParameterScale<SmBSplineCurve>(context, dimension, 1., parameterLength, true);
+        passed &= checkParabolaParameterScale<ForwardingCurve>(context, dimension, 1., parameterLength, true);
+    }
+    for (const double parameterLength : { 1., 256. })
+    {
+        passed &= checkParabolaParameterScale<SmBSplineCurve>(context, dimension, 0x1p-8, parameterLength, false);
+        passed &= checkParabolaParameterScale<ForwardingCurve>(context, dimension, 0x1p-8, parameterLength, false);
+    }
+    return passed;
+}
+
 bool checkCurve(
     SmContext& context,
     ULONG dimension,
@@ -451,9 +584,11 @@ int main()
         // Its tangent is nonzero, so this isolates the unconsumed curvature result.
         passed &= checkEllipse(context, dimension, 0.001, 1.0, false);
         passed &= checkEllipse(context, dimension, 0.001, 1.0, true, false);
-        // Retain the validator's existing parameter-dependent threshold, rather
-        // than silently introducing a new quality policy during optimization.
-        passed &= checkEllipse(context, dimension, 0.001, 1000.0, true);
+        // Intentional behavior correction: stretching knots no longer hides
+        // the same genuinely small radius. The former expectation was true
+        // only to preserve the mixed-unit threshold during an earlier refactor.
+        passed &= checkEllipse(context, dimension, 0.001, 1000.0, false);
+        passed &= checkRadiusParameterScale(context, dimension);
         passed &= checkSpans(context, dimension);
         passed &= checkVariedPoles(context, dimension);
     }

@@ -110,7 +110,7 @@ Interval hull(Interval a, Interval b)
 using Pole = std::array<Interval, 4>;
 using Bezier = std::array<Pole, 4>;
 
-RegularityProof boundBezier(const Bezier& poles, int degree, int dimension, Interval length, double tolerance)
+RegularityProof boundBezier(const Bezier& poles, int degree, int dimension, Interval length, double speedTolerance, double radiusTolerance)
 {
     // Translate homogeneous coordinates before taking hulls to reduce interval
     // dependency on a large common origin. The origin may be any finite double:
@@ -179,14 +179,18 @@ RegularityProof boundBezier(const Bezier& poles, int degree, int dimension, Inte
     // Infinity norm is a lower bound for speed; 1-norm is an upper bound for
     // acceleration. rho=|C'|^3/|C' x C''| >= |C'|^2/|C''| in both 2D and 3D.
     // Cross-multiply with outward rounding; straight lines need no division by 0.
-    const bool speed = speedLower >= tolerance;
-    const bool radius = speed && std::isfinite(accelerationUpper) && lower(speedLower * speedLower) >= upper(tolerance * accelerationUpper);
+    // Speed retains the original knot-parameter units; radius has coordinate
+    // units and must not acquire an inverse parameter-span factor. The same
+    // distinction is used by AssertValid's GPA comparisons below.
+    const bool speed = speedLower >= speedTolerance;
+    const bool radius = speed && std::isfinite(accelerationUpper) && lower(speedLower * speedLower) >= upper(radiusTolerance * accelerationUpper);
     return { speed, radius };
 }
 
-RegularityProof subdivideBezier(const Bezier& poles, int degree, int dimension, Interval length, double tolerance, int depth)
+RegularityProof
+subdivideBezier(const Bezier& poles, int degree, int dimension, Interval length, double speedTolerance, double radiusTolerance, int depth)
 {
-    const RegularityProof whole = boundBezier(poles, degree, dimension, length, tolerance);
+    const RegularityProof whole = boundBezier(poles, degree, dimension, length, speedTolerance, radiusTolerance);
     if ((whole.speed && whole.radius) || depth == 0)
     {
         return whole;
@@ -209,8 +213,8 @@ RegularityProof subdivideBezier(const Bezier& poles, int degree, int dimension, 
         right[degree - level] = work[degree - level];
     }
     const Interval halfLength = length * point(0.5);
-    const RegularityProof a = subdivideBezier(left, degree, dimension, halfLength, tolerance, depth - 1);
-    const RegularityProof b = subdivideBezier(right, degree, dimension, halfLength, tolerance, depth - 1);
+    const RegularityProof a = subdivideBezier(left, degree, dimension, halfLength, speedTolerance, radiusTolerance, depth - 1);
+    const RegularityProof b = subdivideBezier(right, degree, dimension, halfLength, speedTolerance, radiusTolerance, depth - 1);
     return { whole.speed || (a.speed && b.speed), whole.radius || (a.radius && b.radius) };
 }
 #    ifdef _MSC_VER
@@ -218,7 +222,7 @@ RegularityProof subdivideBezier(const Bezier& poles, int degree, int dimension, 
 #    endif
 #endif
 
-RegularityProof proveBezierRegularity(const gw_CURVE* curve, ULONG dimension, double tolerance)
+RegularityProof proveBezierRegularity(const gw_CURVE* curve, ULONG dimension, double speedTolerance, double radiusTolerance)
 {
 #if (defined(_M_X64) || defined(__SSE2__)) && !defined(__FAST_MATH__) && !defined(_M_FP_FAST) &&                                                     \
     (!defined(__FINITE_MATH_ONLY__) || __FINITE_MATH_ONLY__ == 0)
@@ -226,7 +230,8 @@ RegularityProof proveBezierRegularity(const gw_CURVE* curve, ULONG dimension, do
     // caller floating-point state. Other architectures conservatively fall back.
     const unsigned arithmeticState = _mm_getcsr();
     if ((arithmeticState & ((1U << 15) | (1U << 6))) != 0 || (arithmeticState & 0x1F80U) != 0x1F80U || !std::numeric_limits<double>::is_iec559 ||
-        !curve || !curve->pol || !curve->knt || dimension < 2 || dimension > 3 || !std::isfinite(tolerance) || tolerance <= 0)
+        !curve || !curve->pol || !curve->knt || dimension < 2 || dimension > 3 || !std::isfinite(speedTolerance) || speedTolerance <= 0 ||
+        !std::isfinite(radiusTolerance) || radiusTolerance <= 0)
     {
         return {};
     }
@@ -293,7 +298,7 @@ RegularityProof proveBezierRegularity(const gw_CURVE* curve, ULONG dimension, do
         }
         // Bounds include one-sided derivatives at span joins. The existing
         // interior-knot continuity checks above still execute independently.
-        const RegularityProof span = subdivideBezier(poles, degree, static_cast<int>(dimension), length, tolerance, 3);
+        const RegularityProof span = subdivideBezier(poles, degree, static_cast<int>(dimension), length, speedTolerance, radiusTolerance, 3);
         result.speed &= span.speed;
         result.radius &= span.radius;
         if (!result.speed && !result.radius)
@@ -304,7 +309,7 @@ RegularityProof proveBezierRegularity(const gw_CURVE* curve, ULONG dimension, do
     return result;
 
 #else
-    SM_REF3(curve, dimension, tolerance);
+    SM_REF4(curve, dimension, speedTolerance, radiusTolerance);
     return {};
 #endif
 }
@@ -628,25 +633,25 @@ static       ULONG lFoundItem ;
       double dSizeXYZ = sBBox.GetSize().Length();
       double dSizeT   =  sDomain.GetLength() ;
 
-      // dTol: for finite   curves dTol and dMinSep are proportional to curve length
-      //       for infinite curves dTol and dMinSep are set to absolute values
-      double dTol    = IsBounded() ? (dSizeXYZ/dSizeT) / 10000        // dTol proportional to average curve speed
-                                   : 1e-03 ;                          // else dTol is absolute
+      // Keep the existing speed and solver-separation policies. Radius is a
+      // coordinate-space length, while speed includes the original parameter
+      // scale. Reusing the speed threshold for radius made affine knot scaling
+      // change tests 13/14 without changing the geometric curve. The radius
+      // policy retains the historical value at a unit parameter span. In UV,
+      // this is a chart-coordinate quality check, not a physical mm radius.
+      double speedTolerance = IsBounded() ? (dSizeXYZ/dSizeT) / 10000
+                                         : 1e-03 ;
       double dMinSep = IsBounded() ? dSizeXYZ / smos_Max(20., dSizeT) // 3dTol for GlobalPropertyAnalysis() to find minimum 1st derivs
                                    : 5.0 ;                            //     (sloppy here is OK and cheaper than tight)
-
-      // gwc:removed old tolerances in favor of tolerances proportional to average curve speed
-      //      double dTol    = IsBounded() ? dSizeXYZ / 10000                 // dTol proportional to length
-      //                                   : 1e-03 ;                          // else dTol is absolute
-      //      double dMinSep = IsBounded() ? dSizeXYZ / smos_Max(20., dSizeT) // min separation between solutions
-      //                                   : 5.0 ;                            //
+      double radiusTolerance = IsBounded() ? dSizeXYZ / 10000
+                                          : 1e-03 ;
 
       // Only the concrete B-spline evaluator is certified by its control data;
       // derived curve types may implement different parameter/evaluation rules.
       // SM_COMMON supplies the virtual runtime identity through GetType().
       // GetClassType() is static and always names this declaring class here.
       const RegularityProof proof = GetType() == SmBSplineCurve_TYPE
-                                        ? proveBezierRegularity(m_pNurb, GetDim(), dTol)
+                                        ? proveBezierRegularity(m_pNurb, GetDim(), speedTolerance, radiusTolerance)
                                         : RegularityProof{};
       SmSolutionArray rSolutionArray;
       if (!proof.speed)
@@ -676,7 +681,7 @@ static       ULONG lFoundItem ;
           double dDerivLength = sPtDer[1].Length();
 
           // check 1stDeriv > tolerance
-          if ( dDerivLength < dTol )
+          if ( dDerivLength < speedTolerance )
             {
               // save values for debugging
               dMin1stDerivParam = dParam ;
@@ -684,7 +689,7 @@ static       ULONG lFoundItem ;
               if(GetDim() == 2)
                 {
                   /* 11 */
-                  bRtn &= SM_ASSERT_VALUE_REPORT(11, SM_LEVEL_0, dDerivLength >= dTol, dTol, dDerivLength, _T("")) ;
+                  bRtn &= SM_ASSERT_VALUE_REPORT(11, SM_LEVEL_0, dDerivLength >= speedTolerance, speedTolerance, dDerivLength, _T("")) ;
                   SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMin1stDerivParam, 0.0)) ;
                   SM_ASSERT_SET_VALUE(dDerivLength) ;
                   // SM_ASSERT_MSG( FALSE, _T("2D Curve Warning: Vanishing first derivative" ));
@@ -692,7 +697,7 @@ static       ULONG lFoundItem ;
               if(GetDim() == 3)
                 {
                   /* 12 */
-                  bRtn &= SM_ASSERT_VALUE_REPORT(12, SM_LEVEL_0, dDerivLength >= dTol, dTol, dDerivLength, _T("")) ;
+                  bRtn &= SM_ASSERT_VALUE_REPORT(12, SM_LEVEL_0, dDerivLength >= speedTolerance, speedTolerance, dDerivLength, _T("")) ;
                   SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMin1stDerivParam, 0.0)) ;
                   SM_ASSERT_SET_VALUE(dDerivLength) ;
                   // SM_ASSERT_MSG( FALSE, _T("3D Curve Warning: Vanishing first derivative" ));
@@ -720,7 +725,6 @@ static       ULONG lFoundItem ;
       // request for an unrelated test does not acquire a new radius failure.
       if (!proof.radius && SM_ASSERT_TEST_NEED(GetDim() == 2 ? 13 : 14, SM_LEVEL_0))
         {
-        // Keep the historical threshold above, including its parameter dependence.
         // A small radius is a validator quality finding, not a claim that the
         // mathematical curve or its owning topology is invalid in every use.
         this->GlobalPropertyAnalysis(sDomain, SM_CP_MINIMIZE_RADIUS_OF_CURVATURE,
@@ -737,19 +741,19 @@ static       ULONG lFoundItem ;
                 dMinRadiusParam = candidate.m_vStart.m_adParameters[0];
               }
           }
-        if(dMinRadius < dTol)
+        if(dMinRadius < radiusTolerance)
           {
             if(GetDim() == 2)
               {
                 /* 13 */
-                bRtn &= SM_ASSERT_VALUE_REPORT(13, SM_LEVEL_0, dMinRadius >= dTol, dTol, dMinRadius, _T("")) ;
+                bRtn &= SM_ASSERT_VALUE_REPORT(13, SM_LEVEL_0, dMinRadius >= radiusTolerance, radiusTolerance, dMinRadius, _T("")) ;
                 SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMinRadiusParam, 0.0)) ;
                 // SM_ASSERT_MSG( FALSE, _T("2D Curve Warning: Extremely small radius of curvature") );
               }
             if(GetDim() == 3)
               {
                 /* 14 */
-                bRtn &= SM_ASSERT_VALUE_REPORT(14, SM_LEVEL_0, dMinRadius >= dTol, dTol, dMinRadius, _T("")) ;
+                bRtn &= SM_ASSERT_VALUE_REPORT(14, SM_LEVEL_0, dMinRadius >= radiusTolerance, radiusTolerance, dMinRadius, _T("")) ;
                 SM_ASSERT_SET_OWNER_PARAM(SmPoint2d(dMinRadiusParam, 0.0)) ;
 
                 // SM_ASSERT_MSG( FALSE, _T("3D Curve Warning: Extremely small radius of curvature") );
