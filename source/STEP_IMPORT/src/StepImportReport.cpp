@@ -1578,6 +1578,24 @@ void WriteReportJson(
         }
         TerminalDomainJson(w, report);
         SurfaceCurve3dJson(w, report);
+        if (!report.pcurveCarrierPrecisions.empty())
+        {
+            w.Add(",\"pcurve_carrier_precisions\":[");
+            for (std::size_t i = 0; i < report.pcurveCarrierPrecisions.size(); ++i)
+            {
+                if (i) { w.Add(","); }
+                const auto& info = report.pcurveCarrierPrecisions[i];
+                w.Add("{\"source_pcurve_id\":"); w.String(info.sourcePcurveId);
+                w.Add(",\"source_surface_id\":"); w.String(info.sourceSurfaceId);
+                w.Add(",\"source_use_id\":"); w.String(info.sourceUseId);
+                w.Add(",\"requested_mm\":"); Number(w, info.requestedMm);
+                w.Add(",\"effective_mm\":"); Number(w, info.effectiveMm);
+                w.Add(",\"target_edge_index\":");
+                if (info.targetEdgeIndex) { w.Number(*info.targetEdgeIndex); } else { w.Add("null"); }
+                w.Add(",\"geometry_changed\":false,\"topology_tolerance_changed\":false}");
+            }
+            w.Add("]");
+        }
         if (report.exactGeometryWork)
         {
             w.Add(",\"exact_geometry_work\":{\"maximum_units\":");
@@ -1713,6 +1731,11 @@ void WriteReportJson(
             w.String(name);
             w.Add(":");
             FractionJson(w, value);
+        }
+        if (quality.pcurveCarrierWorkToleranceMm)
+        {
+            w.Add(",\"pcurve_carrier_work_tolerance_mm\":");
+            FractionJson(w, *quality.pcurveCarrierWorkToleranceMm);
         }
         w.Add("}");
         if (report.units && !report.units->generalDefinitions.empty())
@@ -2435,6 +2458,11 @@ void WriteReportJson(
         w.String(name);
         w.Add(":");
         FractionJson(w, value);
+    }
+    if (quality.pcurveCarrierWorkToleranceMm)
+    {
+        w.Add(",\"pcurve_carrier_work_tolerance_mm\":");
+        FractionJson(w, *quality.pcurveCarrierWorkToleranceMm);
     }
     w.Add("}");
     w.Add(",\"native_calls\":");

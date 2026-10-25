@@ -117,3 +117,10 @@ tolerance. Use current `SmTol` accessors and the operation-specific contract:
 
 Record active build macros and operation state when diagnosing legacy/new tolerance-model
 differences.
+
+`SmCrvOnSurf::SetSupportWorkTolerance` explicitly narrows the work zone of an owned
+STEP/revolution support, independently of topology tolerances. Use its status-returning
+getter to distinguish an absent policy from malformed metadata. Copy and native archives
+retain the policy; positive uniform scale scales its stored length. The importer selects
+this through its documented quality configuration in `source/STEP_IMPORT/README.md`.
+It is numerical resolution, not permission to move geometry or enlarge an acceptance budget.

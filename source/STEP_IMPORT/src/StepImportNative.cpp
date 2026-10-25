@@ -2287,6 +2287,10 @@ std::vector<RevolutionPoleVisitInfo> ModelSnapshot::RevolutionPoleVisits() const
 {
     return m_data->revolutionPoleVisits;
 }
+std::vector<PcurveCarrierPrecisionInfo> ModelSnapshot::PcurveCarrierPrecisions() const
+{
+    return m_data->pcurveCarrierPrecisions;
+}
 std::optional<FaceOrientationRepairHistory> ModelSnapshot::Repairs() const
 {
     return m_data->repairs;

@@ -56,6 +56,13 @@ Quality Quality::GeneralFineWorkToleranceStudy()
     quality.initialWorkToleranceMm = quality.maximumWorkToleranceMm = Fraction(1, 10000);
     return quality;
 }
+Quality Quality::GeneralPcurveCarrierPrecisionStudy()
+{
+    auto quality = GeneralDevelopment();
+    quality.id = "Q-AP214-pcurve-carrier-precision-study-mm-01";
+    quality.pcurveCarrierWorkToleranceMm = Fraction(1, 100000000000LL);
+    return quality;
+}
 Options Options::PlanarFixture()
 {
     return { step_source::Limits::PlanarFixtures(), {}, {}, Quality::PlanarFixture(), {}, {} };
@@ -247,6 +254,13 @@ void Validate(const Options& options)
         throw std::invalid_argument("Source clause isolation requires explicit definition selection, positive budgets and no repair combination");
     }
     const auto& q = options.quality;
+    if (q.pcurveCarrierWorkToleranceMm &&
+        (!options.generalBrep || *q.pcurveCarrierWorkToleranceMm <= Fraction() ||
+         *q.pcurveCarrierWorkToleranceMm > q.initialWorkToleranceMm ||
+         !std::isfinite(double(q.pcurveCarrierWorkToleranceMm->Numerator()) / double(q.pcurveCarrierWorkToleranceMm->Denominator()))))
+    {
+        throw std::invalid_argument("Explicit positive general pcurve carrier resolution must not exceed the topology work zone");
+    }
     if (options.faceOrientationRepair)
     {
         const auto& r = *options.faceOrientationRepair;
@@ -329,7 +343,8 @@ void Validate(const Options& options)
             quality.toleranceGrowthMm,
             quality.queryMm,
             quality.areaMm2,
-            quality.volumeMm3
+            quality.volumeMm3,
+            quality.pcurveCarrierWorkToleranceMm
         );
     };
     if (q.id == "Q-P0-mm-01" && fields(q) != fields(Quality::PlanarFixture()))
@@ -340,6 +355,7 @@ void Validate(const Options& options)
         (q.id == "Q-AP214-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralToleranceStudy())) ||
         (q.id == "Q-AP214-work-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralWorkToleranceStudy())) ||
         (q.id == "Q-AP214-fine-work-tolerance-study-mm-01" && fields(q) != fields(Quality::GeneralFineWorkToleranceStudy())) ||
+        (q.id == "Q-AP214-pcurve-carrier-precision-study-mm-01" && fields(q) != fields(Quality::GeneralPcurveCarrierPrecisionStudy())) ||
         (options.generalBrep && q.id == "Q-P0-mm-01") || (!options.generalBrep && options.sourcePolicy != step_semantics::SourcePolicy::Strict))
     {
         throw std::invalid_argument("Explicit general geometry quality and source policy must match the selected import path");

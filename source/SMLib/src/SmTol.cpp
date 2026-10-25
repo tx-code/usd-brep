@@ -772,6 +772,18 @@ SmBoolean bDebugMe = FALSE ;
   // For Geometry objects (SmSurface, SmCurve)    note: SmPoint3d is handled as an overloaded SmTol::GetZoneTol3d() method                                                                         
   else if(cpObj->IsKindOf(SmSurface_TYPE))   { const SmSurface * pSurf = static_cast<const SmSurface *>(cpObj) ;
                               SM_OLDTOL_LINE   SmFace          * pFace = pSurf->GetFace() ;
+                              // An explicitly configured, actually owned STEP/SOR
+                              // carrier has its own narrower numerical work zone.
+                              // Never inherit an edge/face through a fake owner or
+                              // change the thread default/topology tolerances.
+                              SM_OLDTOL_LINE   if(!pFace)
+                              SM_OLDTOL_LINE   {
+                              SM_OLDTOL_LINE     const auto *curve = dynamic_cast<const SmCrvOnSurf *>(pSurf->GetOwner());
+                              SM_OLDTOL_LINE     double local = 0;
+                              SM_OLDTOL_LINE     if(curve && curve->GetBaseSurface() == pSurf &&
+                              SM_OLDTOL_LINE        curve->GetSupportWorkTolerance(local) == SM_SUCCESS && local > 0)
+                              SM_OLDTOL_LINE       { return SmZoneTol3d(smos_Min(double(GetZoneTol3d()), local)); }
+                              SM_OLDTOL_LINE   }
                               SM_OLDTOL_LINE   return(  pFace ? pFace->GetTolerance() : GetZoneTol3d()) ;
 
                               // LINUX does not like SM_SCALE_WHEN_SMALL

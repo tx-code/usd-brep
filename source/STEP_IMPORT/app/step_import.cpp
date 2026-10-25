@@ -197,11 +197,17 @@ int main(int argc, char** argv)
             {
                 const std::string_view id(argv[++i]);
                 quality = id == "Q-P0-mm-01" || id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" ||
-                          id == "Q-AP214-work-tolerance-study-mm-01" || id == "Q-AP214-fine-work-tolerance-study-mm-01";
+                          id == "Q-AP214-work-tolerance-study-mm-01" || id == "Q-AP214-fine-work-tolerance-study-mm-01" ||
+                          id == "Q-AP214-pcurve-carrier-precision-study-mm-01";
                 if (id == "Q-AP214-development-mm-01" || id == "Q-AP214-tolerance-study-mm-01" || id == "Q-AP214-work-tolerance-study-mm-01" ||
-                    id == "Q-AP214-fine-work-tolerance-study-mm-01")
+                    id == "Q-AP214-fine-work-tolerance-study-mm-01" || id == "Q-AP214-pcurve-carrier-precision-study-mm-01")
                 {
                     options.generalBrep = true;
+                    if (id == "Q-AP214-pcurve-carrier-precision-study-mm-01")
+                    {
+                        options.quality = step_import::Quality::GeneralPcurveCarrierPrecisionStudy();
+                        continue;
+                    }
                     options.quality = id == "Q-AP214-development-mm-01"               ? step_import::Quality::GeneralDevelopment() :
                                       id == "Q-AP214-fine-work-tolerance-study-mm-01" ? step_import::Quality::GeneralFineWorkToleranceStudy() :
                                       id == "Q-AP214-work-tolerance-study-mm-01"      ? step_import::Quality::GeneralWorkToleranceStudy() :

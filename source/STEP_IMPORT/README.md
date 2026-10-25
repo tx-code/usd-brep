@@ -1482,6 +1482,27 @@ STL／运行时实际产生的异常及外部回调异常另有传播或边界�
 不能用全局 `noexcept` 或禁用异常编译选项代替逐层迁移和验收。
 
 
+## 显式源 pcurve 载体工作精度
+
+`Quality::GeneralPcurveCarrierPrecisionStudy()` 是独立的开发质量配置，CLI 标识为
+`Q-AP214-pcurve-carrier-precision-study-mm-01`。它保留 `GeneralDevelopment` 的
+几何、派生 UV、查询、拓扑工作容差和修复预算，只为实际拥有的
+`SmCrvOnSurf` → `SmSTEPSurface` → `SmSurfOfRevolution` 载体显式选择 `1e-11 mm`
+数值工作区。该值是实验分辨能力，不是生产默认值或浮点误差证书；不由源 uncertainty
+推断，也不在失败后自动重试。未选择时，原生默认行为和报告字段保持不变。
+
+源生成线、源 pcurve、单位、参数域、优先声明及拓扑容差均不改变，不把近轴圆边界吸附为点。
+`SmTol` 对该拥有支撑读取显式值与系统区间的较小者；不改变线程／进程默认值。
+配置记录在曲线的唯一、单用户 COPY 属性中，以版本号和整数编码的 binary64 保存，
+避免文本存档的小数精度丢失。复制和两种存档保留该值；正均匀缩放同步缩放存储的长度，
+有效工作区仍不宽于系统默认。非均匀缩放、非正缩放和非刚性／非有限坐标架在编辑前拒绝。
+底层支撑或通知在编辑开始后失败仍沿用内核的非事务性合同，不承诺任意失败回滚。
+
+报告 `pcurve_carrier_precisions` 区分构造用的辅助比较载体与实际定义边；
+`ModelSnapshot::PcurveCarrierPrecisions()` 只交付后者的 owning 记录，独立于报告寿命。
+复制与原生存档仍不继承 STEP 资格。源一致性、完整 L2、最终 UV／区域、质量和预算、
+必要报告、取消及原子发布门槛全部保留；启用这项数值配置本身不代表完整原件导入成功。
+
 ## 显式终段 NURBS 参数域延拓（开发解释）
 
 `Options::terminalDomainInterpretation` 只在显式通用路径启用，绑定不可变原件 SHA256、

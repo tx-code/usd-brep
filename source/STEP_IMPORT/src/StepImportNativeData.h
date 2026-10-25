@@ -57,6 +57,7 @@ struct ModelData
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     std::vector<RevolutionChartInfo> revolutionCharts;
     std::vector<RevolutionPoleVisitInfo> revolutionPoleVisits;
+    std::vector<PcurveCarrierPrecisionInfo> pcurveCarrierPrecisions;
     SmRegion* material = nullptr;
     SmRegion* bounded = nullptr;
     SmShell* outside = nullptr;

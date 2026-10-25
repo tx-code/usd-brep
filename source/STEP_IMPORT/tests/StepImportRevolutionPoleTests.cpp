@@ -23,11 +23,12 @@ using step_import_test::Near;
 using step_import_test::Require;
 namespace
 {
+bool carrierPrecisionStudy = false; // Separate CTest process, explicit quality selection before any import.
 Options Config()
 {
     auto options = Options::PlanarFixture();
     options.generalBrep = true;
-    options.quality = Quality::GeneralDevelopment();
+    options.quality = carrierPrecisionStudy ? Quality::GeneralPcurveCarrierPrecisionStudy() : Quality::GeneralDevelopment();
     options.numericalIntegration = NumericalIntegrationSettings{ 1e-8 };
     return options;
 }
@@ -122,6 +123,9 @@ void Verify(SmBrep& brep, bool lune, bool minimum, bool cone, bool composed = fa
         {
             ++compositions;
             const auto& curve = *static_cast<SmCrvOnSurf*>(edges[i]->GetCurve());
+            double precision = 0;
+            Require(curve.GetSupportWorkTolerance(precision) == SM_SUCCESS && precision == (carrierPrecisionStudy ? 1e-11 : 0),
+                    "explicit carrier precision survives native copy/archive; default remains absent");
             Require(
                 curve.GetUVCurve()->GetType() == SmBSplineCurve_TYPE && curve.GetUVCurve()->GetDim() == 2 &&
                     curve.GetBaseSurface()->GetType() == SmSTEPSurface_TYPE,
@@ -377,6 +381,17 @@ void Check(const std::string& source, const std::filesystem::path& directory, bo
     auto result = ImportBytes(source, options);
     Require(result.status == Status::Accepted && result.model, "complete unmarked source revolution pole region");
     auto model = result.model;
+    if (carrierPrecisionStudy)
+    {
+        Require(!model->PcurveCarrierPrecisions().empty(), "owning retained-carrier precision receipt");
+        for (const auto& precision : model->PcurveCarrierPrecisions())
+        {
+            Require(precision.targetEdgeIndex && precision.requestedMm == 1e-11 && precision.effectiveMm <= precision.requestedMm,
+                    "retained edge carrier resolution distinct from unchanged topology zone");
+        }
+        Require(result.report.json.find("pcurve_carrier_work_tolerance_mm") != std::string::npos &&
+                    result.report.json.find("pcurve_carrier_precisions") != std::string::npos, "required precision report");
+    }
     const auto& info = model->Info();
     Require(
         info.shapeRole == "OpenSurfaceModel" && info.faces == 1 && info.edges == (lune ? 2u : 3u) && info.vertices == (lune ? 2u : 3u) &&
@@ -588,6 +603,7 @@ int main(int argc, char** argv)
     try
     {
         Require(argc == 3 || argc == 4, "public exact-pole STEP input and disposable archive directory");
+        carrierPrecisionStudy = argc == 4 && std::string_view(argv[3]) == "precision";
         std::ifstream input(argv[1], std::ios::binary);
         const std::string source{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
         std::filesystem::create_directories(argv[2]);

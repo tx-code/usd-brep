@@ -33,7 +33,14 @@ Archive modes also take a disposable output-directory argument.
 | `definition_cold`, `definition_warm` | Keep the exact composed definition before and after creating a source 3D approximation cache. Cache allocation identity and coefficients are not Copy requirements. |
 | `wrapper_archive_binary`, `wrapper_archive_ascii` | Copy the composed STEP wrapper, destroy its source, persist without spline conversion, read the standalone curve through `SmNativeArchive`, restore both owned-child backlinks, pass full native LEVEL_2 validation, retain independent analytic parameter/derivative results and reproduce the complete stored-definition archive bytes. |
 
-There are 25 independent modes. For a pre-fix red run, compile a matching
+The `precision_archive_binary` and `precision_archive_ascii` modes independently
+construct a near-axis frustum that fails the default pole-approximation check.
+An explicit local carrier zone preserves its defining generator and UV, passes
+LEVEL_2, leaves another carrier and the system zone unchanged, rejects duplicate
+or shared policy attributes, survives independent Copy and uniform scale, and
+round-trips an exactly encoded binary64 resolution through either archive type.
+
+There are 27 independent modes. For a pre-fix red run of the original Copy controls, compile a matching
 consumer from the same test sources using the baseline's `SmSTEPSurface`
 declaration. An isolated include overlay can supply that original header before
 the current include directory; retain the matching configuration, CRT and

@@ -97,6 +97,9 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_revolution_driven_pole_contracts COMMAND step_import_revolution_pole_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_driven_patch.step"
         "${CMAKE_CURRENT_BINARY_DIR}/revolution-driven-pole-output/$<CONFIG>")
+    add_test(NAME step_import_pcurve_carrier_precision_contracts COMMAND step_import_revolution_pole_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_driven_patch.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/pcurve-carrier-precision-output/$<CONFIG>" precision)
     add_test(NAME step_import_revolution_lune_contracts COMMAND step_import_revolution_pole_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_pcurve_revolution_pole_lune.step"
         "${CMAKE_CURRENT_BINARY_DIR}/revolution-lune-output/$<CONFIG>" lune)

@@ -231,6 +231,75 @@ void ContractCases()
         "a callback cannot invalidate the floating environment after the entry probe"
     );
 }
+void RestrictedHullCases()
+{
+    auto curve = Cone();
+    curve.uv = { { 2, 0, 3, 1, { 0, 0, 0, 1, 1, 1 }, {} }, { { 0, 0, 0, 1 }, { 120, 1.5, 0, 2 }, { 90, 1, 0, 1 } } };
+    curve.generator.homogeneous[0] = { 2, 0, 0, 2 };
+    auto query = End();
+    query.radiusMm = .001;
+    // Independently, V(t)=(3t-2t^2)/(1+2t-2t^2), with derivative numerator
+    // 2(t-1)^2+1 > 0. The weighted cone has R=2(1-V)/(2-V), Z=V/(2-V).
+    // Distance to (0,0,1) is sqrt(2)*R, strictly decreasing to zero: exactly
+    // one last-endpoint ball component. No interval-code oracle is repeated.
+    std::size_t used = 0, callbacks = 0;
+    const auto counted = [&](std::size_t n) -> Result<void>
+    {
+        if (n > 500000 - used)
+        {
+            return tl::unexpected(Failure{ Status::ResourceLimit, "PublicRestrictedHullBudget", "", {}, "PublicQuota" });
+        }
+        used += n;
+        ++callbacks;
+        return {};
+    };
+    auto proof = CheckComposedPoleVisits(curve, query, Capacity(), counted);
+    Require(proof && proof->established && callbacks > 32, "recursive rational proof fits unchanged bounded work, without redundant endpoint arithmetic");
+    for (unsigned fault = 0; fault < 3; ++fault)
+    {
+        const int saved = std::fegetround();
+        std::size_t count = 0;
+        bool threw = false;
+        try
+        {
+            proof = CheckComposedPoleVisits(curve, query, Capacity(), [&](std::size_t) -> Result<void>
+            {
+                if (++count == callbacks - 2)
+                {
+                    if (fault == 0) { return tl::unexpected(Failure{ Status::Cancelled, "LateCachedCancellation", "", 19, "PublicQuota" }); }
+                    if (fault == 1) { std::fesetround(FE_UPWARD); }
+                    if (fault == 2) { throw std::domain_error("LateCallerDomainError"); }
+                }
+                return {};
+            });
+        }
+        catch (const std::domain_error& error) { threw = std::string(error.what()) == "LateCallerDomainError"; }
+        std::fesetround(saved);
+        Require(count == callbacks - 2, "late callback executes after reusable endpoint bounds exist");
+        Require(fault == 2 ? threw : (!proof && proof.error().key == (fault == 0 ? "LateCachedCancellation" : "GeneralComposedPoleNumericEnvironment")),
+                "cached endpoints retain late cancellation, FENV and actual exception contracts");
+    }
+    for (auto& knot : curve.uv.basis.knotsU) { knot = -2 + 9 * knot; }
+    query.interval = { -1.3, 6.7 };
+    query.radiusMm = .125;
+    Check(curve, query, true, "nonzero natural domain and non-dyadic interior restriction fractions");
+    curve = Cone();
+    curve.uv = { { 2, 0, 5, 1, { 0, 0, 0, .5, .5, 1, 1, 1 }, {} },
+                 { { 0, 0, 0, 1 }, { 22.5, .25, 0, 1 }, { 45, .5, 0, 1 }, { 67.5, .75, 0, 1 }, { 90, 1, 0, 1 } } };
+    curve.generator = { { 2, 0, 5, 1, { 0, 0, 0, .5, .5, 1, 1, 1 }, {} },
+                        { { 1, 0, 0, 1 }, { .75, 0, .25, 1 }, { .5, 0, .5, 1 }, { .25, 0, .75, 1 }, { 0, 0, 1, 1 } } };
+    for (unsigned flags = 0; flags < 4; ++flags)
+    {
+        query = End();
+        query.firstAllowed = (flags & 1) != 0;
+        query.lastAllowed = (flags & 2) != 0;
+        Check(curve, query, query.lastAllowed, "C0 multiple knots with exact midpoint and independent endpoint permissions");
+    }
+    query.interval = { .5, 1 };
+    query.firstAllowed = false;
+    query.lastAllowed = true;
+    Check(curve, query, true, "selected endpoint at a C0 multiple knot retains both derivative sides");
+}
 void IndependentPolylineOracle()
 {
     // For this independently specified unit cone and pole (0,0,1),
@@ -282,6 +351,7 @@ int main()
         GeometryCases();
         IndependentPolylineOracle();
         ContractCases();
+        RestrictedHullCases();
     }
     catch (const std::exception& error)
     {

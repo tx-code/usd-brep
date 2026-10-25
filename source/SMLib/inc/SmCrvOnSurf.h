@@ -264,6 +264,15 @@ protected:
   const SmExtent2d& GetUVDomain()    const { return m_vUVDomain; }
   const double      GetBSApproxMaxGap3d() const { return m_dMaxGap3d; }
 
+  // Explicit resolution in model length units for an actually owned STEP/SOR
+  // support only. Zero clears it; positive values may only tighten the current
+  // system zone. Geometry, UV and topology tolerances are unchanged. Persistence
+  // uses the curve's COPY attribute; no class-layout or file-format change.
+  SmStatus SetSupportWorkTolerance(double value);
+  // Zero means absent. Invalid payload/ownership returns SM_ERR and fails this
+  // curve's AssertValid. The effective SmTol zone is min(system zone, value).
+  SmStatus GetSupportWorkTolerance(double &value) const;
+
   void              SetUVCurve( SmCurve *cpUVCurve );
   void              SetBaseSurface( SmSurface *cpBaseSurface ) { m_pSurface = cpBaseSurface; }
   void              SetUVDomain(const SmExtent2d& rUVDomain)   { m_vUVDomain = rUVDomain; }

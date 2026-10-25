@@ -349,6 +349,28 @@ public:
         std::unique_ptr<SmCurve> lifted(new (*m_context) SmCrvOnSurf(*uv, *wrapped, &allowed, 3, m_context));
         uv.release();
         wrapped.release();
+        if (revolution && m_options.quality.pcurveCarrierWorkToleranceMm)
+        {
+            // Selected before construction: this is a numerical work zone on
+            // the owned exact composition, not pole snapping, source repair,
+            // a topology tolerance change, or a retry after failed validation.
+            const auto requested = Q(*m_options.quality.pcurveCarrierWorkToleranceMm);
+            auto* composition = static_cast<SmCrvOnSurf*>(lifted.get());
+            if (auto operation = Step(pcurve); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto good = Good(composition->SetSupportWorkTolerance(requested)); !good)
+            {
+                return tl::unexpected(std::move(good.error()));
+            }
+            const double effective = SmTol::GetZoneTol3d(composition->GetBaseSurface());
+            if (!std::isfinite(effective) || effective <= 0 || effective > requested)
+            {
+                return tl::unexpected(Fail("GeneralPcurveCarrierPrecisionNotApplied", pcurve));
+            }
+            m_report.pcurveCarrierPrecisions.push_back({ Id(pcurve), Id(basis), Id(use), requested, effective });
+        }
         ParameterMapping mapping;
         mapping.kind = "SourcePcurveComposition";
         mapping.sourceGeometryId = Id(pcurve);

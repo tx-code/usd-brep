@@ -99,11 +99,16 @@ struct Quality
     Fraction definitionMm, consistencyMm, derivedUvMm;
     Fraction initialWorkToleranceMm, maximumWorkToleranceMm, toleranceGrowthMm;
     Fraction queryMm, areaMm2, volumeMm3;
+    // Explicit model-mm numerical resolution for owned source-pcurve STEP/SOR
+    // carriers. Absent keeps the native default. Never changes topology/error
+    // budgets or source priority; not selected automatically after a failure.
+    std::optional<Fraction> pcurveCarrierWorkToleranceMm;
     static Quality PlanarFixture(); // Explicit synthetic-test candidate, never a production default.
     static Quality GeneralDevelopment(); // Explicit development profile; production calibration remains open.
     static Quality GeneralToleranceStudy(); // Explicit 10-micrometre study, not an automatic source-uncertainty policy.
     static Quality GeneralWorkToleranceStudy(); // Same 10um geometry budgets; explicit 10->20um native zone study, never automatic.
     static Quality GeneralFineWorkToleranceStudy(); // General geometry budgets; fixed 0.1um native zone, explicit study only.
+    static Quality GeneralPcurveCarrierPrecisionStudy(); // General budgets and topology zones, explicit 1e-11mm carrier resolution only.
 };
 struct Limits
 {
@@ -128,6 +133,12 @@ struct RevolutionPoleVisitInfo
     // Certified stored-definition evidence for endpoint-connected visits to native
     // boundary-pole zones; not source exact-pole or whole-surface regularity.
     std::size_t composedEdges = 0, composedRegions = 0; // Subset using actual UV/SOR composition; not Bezier patch counts.
+};
+struct PcurveCarrierPrecisionInfo
+{
+    std::string sourcePcurveId, sourceSurfaceId, sourceUseId;
+    double requestedMm = 0, effectiveMm = 0;
+    std::optional<std::size_t> targetEdgeIndex; // Absent: constructed comparison only, not a retained model carrier.
 };
 struct NumericalIntegrationSettings
 {
@@ -552,6 +563,7 @@ public:
     std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis extraction, separate from repair/topology changes.
     std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
     std::vector<RevolutionPoleVisitInfo> RevolutionPoleVisits() const;
+    std::vector<PcurveCarrierPrecisionInfo> PcurveCarrierPrecisions() const;
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const;
@@ -722,6 +734,7 @@ struct Report
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     std::vector<RevolutionChartInfo> revolutionCharts;
     std::vector<RevolutionPoleVisitInfo> revolutionPoleVisits;
+    std::vector<PcurveCarrierPrecisionInfo> pcurveCarrierPrecisions;
     std::vector<WireframeInfo> wireframes; // Owning values/source identities only, never native owners.
     std::vector<SupportingGeometryInfo> supportingGeometry;
     std::string sourceSha256, sourceStatus, semanticStatus, planarStatus;

@@ -584,6 +584,10 @@ public:
                 return tl::unexpected(std::move(checked.error()));
             }
         }
+        for (const auto& precision : m_report.pcurveCarrierPrecisions)
+        {
+            if (precision.targetEdgeIndex) { m_model->pcurveCarrierPrecisions.push_back(precision); }
+        }
         return m_model;
     }
 
@@ -1564,6 +1568,7 @@ private:
                 {
                     return tl::unexpected(Fail("GeneralSurfaceCurveAssociationUnsupported", associated[i], Status::Unsupported));
                 }
+                const auto precisionBegin = m_report.pcurveCarrierPrecisions.size();
                 auto made = MakeSourcePcurve(*this, associated[i], c.record);
                 if (!made)
                 {
@@ -1574,6 +1579,10 @@ private:
                     c.native = std::move(made->curve);
                     c.bounds = made->conservativeBoundsMm;
                     m_report.parameterMappings.back().targetEdgeIndex = ei.at(c.record);
+                    for (auto at = precisionBegin; at < m_report.pcurveCarrierPrecisions.size(); ++at)
+                    {
+                        m_report.pcurveCarrierPrecisions[at].targetEdgeIndex = ei.at(c.record);
+                    }
                 }
                 else
                 {

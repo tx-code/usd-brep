@@ -6,6 +6,7 @@
 #include "StepImportProofEnvironment.h"
 
 #include <numeric>
+#include <optional>
 
 namespace step_import::detail
 {
@@ -340,6 +341,66 @@ struct Jet
 {
     V value{}, derivative{};
 };
+Result<V> BezierValueHull(const Spline& spline, I parameter, Work& work)
+{
+    const unsigned p = spline.degree;
+    const auto& knots = spline.source.basis.knotsU;
+    CP_OK(work.Reserve(3 * (p + 1)));
+    CP_OK(work.Spend(128 * (p + 1) * (p + 1)));
+    using Polygon = std::array<H, 18>;
+    Polygon polygon{};
+    for (unsigned i = 0; i <= p; ++i) { polygon[i] = spline.controls[i]; }
+    const auto unit = [](I x) -> I { return { std::max(0., x.low), std::min(1., x.high) }; };
+    const auto split = [&](Polygon input, I alpha, bool right) -> Polygon
+    {
+        // Every exact split coefficient is in [0,1]. Repeated occurrences of
+        // its outward interval may lose correlation, but cannot lose the exact
+        // restricted net. This is de Casteljau, not sampling or fitting.
+        alpha = unit(alpha);
+        const auto beta = unit(Sub(Exact(1), alpha));
+        Polygon result{};
+        result[right ? p : 0] = input[right ? p : 0];
+        for (unsigned level = 1; level <= p; ++level)
+        {
+            for (unsigned i = 0; i <= p - level; ++i)
+            {
+                for (unsigned a = 0; a < 4; ++a)
+                {
+                    input[i][a] = Add(Mul(beta, input[i][a]), Mul(alpha, input[i + 1][a]));
+                }
+            }
+            result[right ? p - level : level] = input[right ? p - level : 0];
+        }
+        return result;
+    };
+    const double first = knots[p], last = knots[spline.source.basis.countU];
+    if (parameter.high < last)
+    {
+        polygon = split(polygon, Divide(Sub(Exact(parameter.high), Exact(first)), Sub(Exact(last), Exact(first))), false);
+    }
+    if (parameter.low > first)
+    {
+        polygon = split(polygon, Divide(Sub(Exact(parameter.low), Exact(first)), Sub(Exact(parameter.high), Exact(first))), true);
+    }
+    V hull{};
+    for (unsigned i = 0; i <= p; ++i)
+    {
+        // Restricted weights are convex combinations of original positive
+        // weights. Intersect that independent bound before projecting the
+        // homogeneous control hull to Euclidean coordinates.
+        polygon[i][3] = { std::max(polygon[i][3].low, spline.minWeight), std::min(polygon[i][3].high, spline.maxWeight) };
+        if (!(polygon[i][3].low > 0) || polygon[i][3].low > polygon[i][3].high)
+        {
+            return Refuse("GeneralComposedPoleWeightBounds");
+        }
+        for (unsigned a = 0; a < 3; ++a)
+        {
+            const auto point = Divide(polygon[i][a], polygon[i][3]);
+            hull[a] = i ? Hull(hull[a], point) : point;
+        }
+    }
+    return hull;
+}
 // De Boor encloses an entire parameter interval on one nonzero knot span.
 // The homogeneous derivative net is evaluated separately; the positive-weight
 // hull supplies an independent denominator bound despite interval dependency.
@@ -406,6 +467,15 @@ Result<Jet> BoundSpan(const Spline& spline, std::size_t span, I parameter, Work&
     {
         jet.value[a] = Divide(value[a], value[3]);
         jet.derivative[a] = Divide(Sub(Mul(derivative[a], value[3]), Mul(value[a], derivative[3])), Square(value[3]));
+    }
+    if (spline.source.basis.countU == p + 1 && parameter.low < parameter.high)
+    {
+        CP_TRY(hull, BezierValueHull(spline, parameter, work));
+        for (unsigned a = 0; a < 3; ++a)
+        {
+            jet.value[a] = { std::max(jet.value[a].low, hull[a].low), std::min(jet.value[a].high, hull[a].high) };
+            if (jet.value[a].low > jet.value[a].high) { return Refuse("GeneralComposedPoleBezierHull"); }
+        }
     }
     return jet;
 }
@@ -534,11 +604,29 @@ struct State
     bool outside = false;
     ComposedPoleProof proof;
 };
+Result<Bounds> Endpoint(
+    const Spline& uv,
+    const Spline& generator,
+    const Geometry& geometry,
+    double parameter,
+    std::optional<Bounds>& cached,
+    Work& work
+)
+{
+    if (!cached)
+    {
+        CP_TRY(bound, Bound(uv, generator, geometry, Exact(parameter), work));
+        cached = bound; // Failed/cancelled bounds never enter the cache.
+    }
+    return *cached;
+}
 Result<bool> Visit(
     const Spline& uv,
     const Spline& generator,
     const Geometry& g,
     I interval,
+    std::optional<Bounds>& firstEndpoint,
+    std::optional<Bounds>& lastEndpoint,
     const terminal_spline::PoleVisits& visits,
     State& state,
     unsigned depth,
@@ -571,8 +659,8 @@ Result<bool> Visit(
     }
     // Endpoint enclosures are continuous interval proofs at exact stored t,
     // never samples used to accept a span. Unknown endpoint signs stay unknown.
-    CP_TRY(first, Bound(uv, generator, g, Exact(interval.low), work));
-    CP_TRY(last, Bound(uv, generator, g, Exact(interval.high), work));
+    CP_TRY(first, Endpoint(uv, generator, g, interval.low, firstEndpoint, work));
+    CP_TRY(last, Endpoint(uv, generator, g, interval.high, lastEndpoint, work));
     const bool increasing = bounds.derivative.low >= 0, decreasing = bounds.derivative.high <= 0;
     if ((increasing && first.distance.low > 0) || (decreasing && last.distance.low > 0))
     {
@@ -605,12 +693,18 @@ Result<bool> Visit(
     {
         return false;
     }
-    CP_TRY(left, Visit(uv, generator, g, { interval.low, middle }, visits, state, depth - 1, work));
+    // A parent's exact-t enclosure is the same mathematical query in either
+    // child. Share it lazily, including both one-sided knot derivatives from
+    // BoundSpline. Interval derivative bounds and traversal order stay intact.
+    // The fixed depth bounds this stack storage; saved arithmetic is not charged
+    // as performed work. Every actual Charge still rechecks the numeric FENV.
+    std::optional<Bounds> midpointEndpoint;
+    CP_TRY(left, Visit(uv, generator, g, { interval.low, middle }, firstEndpoint, midpointEndpoint, visits, state, depth - 1, work));
     if (!left)
     {
         return false;
     }
-    return Visit(uv, generator, g, { middle, interval.high }, visits, state, depth - 1, work);
+    return Visit(uv, generator, g, { middle, interval.high }, midpointEndpoint, lastEndpoint, visits, state, depth - 1, work);
 }
 } // namespace
 Result<ComposedPoleProof> CheckComposedPoleVisits(
@@ -688,7 +782,8 @@ Result<ComposedPoleProof> CheckComposedPoleVisits(
             {
                 continue;
             }
-            CP_TRY(valid, Visit(uv, generator, geometry, { first, last }, visits, state, 16, work));
+            std::optional<Bounds> firstEndpoint, lastEndpoint;
+            CP_TRY(valid, Visit(uv, generator, geometry, { first, last }, firstEndpoint, lastEndpoint, visits, state, 16, work));
             if (!valid)
             {
                 return state.proof;

@@ -8,11 +8,27 @@
 
 #include "StdAfx.h"
 #include <SmCrvOnSurf.h>
+#include <SmSTEPSurface.h>
+#include <SmSurfOfRevolution.h>
 
+#include <bit>
+#include <cmath>
+#include <cstdint>
 #include <memory>
 
 namespace
 {
+SmTArray<long> SmSupportToleranceWords(double value)
+{
+  // Each word fits both Windows' 32-bit long and the text integer codec.
+  // Fixed-precision text doubles cannot preserve tiny work resolutions.
+  const auto bits = std::bit_cast<std::uint64_t>(value);
+  SmTArray<long> words;
+  words.Add(1);
+  for(unsigned i = 0; i < 4; ++i)
+    { words.Add(static_cast<long>((bits >> (16 * i)) & 0xffff)); }
+  return words;
+}
 // Watch the output slot even while a virtual Copy is running: an implementation
 // can allocate before returning an error or throwing. Known borrowed aliases
 // are never candidates to delete. This guard owns only newly returned objects.
@@ -35,6 +51,79 @@ private:
   const T *m_pSource;
   const T *m_pAlsoBorrowed;
 };
+}
+
+SmStatus SmCrvOnSurf::GetSupportWorkTolerance(double &value) const
+{
+  value = 0;
+  const auto *attribute = FindAttribute(SM_AI_COS_SUPPORT_WORK_TOLERANCE);
+  if(!attribute) { return SM_SUCCESS; }
+  SmAttribute *attributeStorage[4];
+  SmTArray<SmAttribute *> attributes(4, attributeStorage);
+  FindSlewOfAttributes(SM_AI_COS_SUPPORT_WORK_TOLERANCE, attributes);
+  SmAObject *userStorage[4];
+  SmTArray<SmAObject *> users(4, userStorage);
+  attribute->GetUsers(users);
+  const auto *wrapper = dynamic_cast<const SmSTEPSurface *>(m_pSurface);
+  if(attributes.GetSize() != 1 || users.GetSize() != 1 || users[0] != this ||
+     !GetContext() || attribute->GetContext() != GetContext() ||
+     (m_lOwnerFlag != 2 && m_lOwnerFlag != 3) || !wrapper || wrapper->GetType() != SmSTEPSurface_TYPE ||
+     wrapper->GetOwner() != this || wrapper->GetContext() != GetContext() ||
+     !wrapper->GetBaseSurface() || wrapper->GetBaseSurface()->GetType() != SmSurfOfRevolution_TYPE ||
+     !wrapper->OwnsBaseSurface() || wrapper->GetBaseSurface()->GetContext() != GetContext() ||
+     (wrapper->GetBaseSurface()->GetOwner() && wrapper->GetBaseSurface()->GetOwner() != wrapper) ||
+     !dynamic_cast<const SmGenericAttribute *>(attribute) || attribute->GetBehavior() != SM_AB_COPY ||
+     attribute->GetNumLongElements() != 5 || attribute->GetNumDoubleElements() != 0 ||
+     attribute->GetNumCharacterElements() != 0)
+    { return SM_ERR; }
+  const auto *words = attribute->GetLongElementsAddress();
+  if(!words || words[0] != 1) { return SM_ERR; }
+  std::uint64_t bits = 0;
+  for(unsigned i = 0; i < 4; ++i)
+  {
+    if(words[i + 1] < 0 || words[i + 1] > 0xffff) { return SM_ERR; }
+    bits |= static_cast<std::uint64_t>(words[i + 1]) << (16 * i);
+  }
+  const auto decoded = std::bit_cast<double>(bits);
+  if(!std::isfinite(decoded) || decoded <= 0) { return SM_ERR; }
+  value = decoded;
+  return SM_SUCCESS;
+}
+
+SmStatus SmCrvOnSurf::SetSupportWorkTolerance(double value)
+{
+  if(!std::isfinite(value) || value < 0 || value > double(SmTol::GetZoneTol3d())) { return SM_ERR; }
+  auto *previous = FindAttribute(SM_AI_COS_SUPPORT_WORK_TOLERANCE);
+  double current = 0;
+  if(previous && GetSupportWorkTolerance(current) != SM_SUCCESS) { return SM_ERR; }
+  if(value == 0)
+  {
+    if(previous) { RemoveAttribute(previous); }
+    return SM_SUCCESS;
+  }
+  const auto *wrapper = dynamic_cast<const SmSTEPSurface *>(m_pSurface);
+  if(!GetContext() || (m_lOwnerFlag != 2 && m_lOwnerFlag != 3) || !wrapper || wrapper->GetType() != SmSTEPSurface_TYPE ||
+     wrapper->GetOwner() != this || wrapper->GetContext() != GetContext() ||
+     !wrapper->GetBaseSurface() || wrapper->GetBaseSurface()->GetType() != SmSurfOfRevolution_TYPE ||
+     !wrapper->OwnsBaseSurface() || wrapper->GetBaseSurface()->GetContext() != GetContext() ||
+     (wrapper->GetBaseSurface()->GetOwner() && wrapper->GetBaseSurface()->GetOwner() != wrapper))
+    { return SM_ERR; }
+  SmTArray<double> doubles;
+  SmTArray<char> chars;
+  auto words = SmSupportToleranceWords(value);
+  std::unique_ptr<SmGenericAttribute> next(new (*GetContext()) SmGenericAttribute(
+    SM_AI_COS_SUPPORT_WORK_TOLERANCE, SM_AB_COPY, words, doubles, chars));
+  if(previous) { RemoveAttribute(previous); }
+  try { AddAttribute(next.get()); }
+  catch(...)
+  {
+    // AddAttribute can install the pointer before its user-list allocation.
+    // Preserve the real exception and the curve's sole cleanup responsibility.
+    if(FindAttribute(SM_AI_COS_SUPPORT_WORK_TOLERANCE) == next.get()) { next.release(); }
+    throw;
+  }
+  next.release();
+  return SM_SUCCESS;
 }
 
 /*******************************************************************//**
@@ -326,6 +415,8 @@ SmStatus SmCrvOnSurf::Copy
   NER(m_pUVCurve);
   NER(m_pSurface);
   if(m_lOwnerFlag > 3) { SER(SM_ERR); }
+  double supportWorkTolerance = 0;
+  SER(GetSupportWorkTolerance(supportWorkTolerance));
 
   const SmBoolean bOwnUV = m_lOwnerFlag != 0;
   const SmBoolean bOwnSurface = m_lOwnerFlag == 2 || m_lOwnerFlag == 3;
@@ -1574,6 +1665,35 @@ SmStatus SmCrvOnSurf::Transform
 {
   SmVector3d sIdentityScale(1, 1, 1);
 
+  double workTolerance = 0;
+  SER(GetSupportWorkTolerance(workTolerance));
+  if(workTolerance != 0)
+  {
+    // This policy describes a length under a rigid frame and uniform scale,
+    // not arbitrary affine distortion. Check before caches or geometry mutate.
+    const auto &origin = crRotateNMove.GetOriginRef();
+    const auto &x = crRotateNMove.GetXAxisRef();
+    const auto &y = crRotateNMove.GetYAxisRef();
+    SmAssertArray frameFindings;
+    if(!std::isfinite(origin.x) || !std::isfinite(origin.y) || !std::isfinite(origin.z) ||
+       !std::isfinite(x.x) || !std::isfinite(x.y) || !std::isfinite(x.z) ||
+       !std::isfinite(y.x) || !std::isfinite(y.y) || !std::isfinite(y.z) ||
+       !crRotateNMove.AssertValid(&frameFindings, SM_LEVEL_2, SM_NO_WALK)) { return SM_ERR; }
+  }
+  SmTArray<long> scaledWords;
+  if(workTolerance != 0 && cpOptScale)
+  {
+    // Preflight before changing either support or cache. A work zone is a
+    // physical length, so a successful uniform scale scales it too. Anisotropy
+    // has no single length factor and is outside this explicit carrier policy.
+    const double factor = cpOptScale->x;
+    const double scaled = workTolerance * factor;
+    if(!std::isfinite(factor) || factor < SM_EFF_ZERO || factor != cpOptScale->y ||
+       factor != cpOptScale->z || !std::isfinite(scaled) || scaled <= 0)
+      { return SM_ERR; }
+    scaledWords = SmSupportToleranceWords(scaled);
+  }
+
   // no work - identity transform
   if (crRotateNMove.IsIdentity() && (cpOptScale == NULL || *cpOptScale == sIdentityScale))
   {
@@ -1594,6 +1714,19 @@ SmStatus SmCrvOnSurf::Transform
 
   // pass the call along to the surface
   SER(m_pSurface->Transform(crRotateNMove,cpOptScale));
+
+  if(scaledWords.GetSize())
+  {
+    // A valid local policy is a COPY generic attribute with five existing words.
+    // Commit the prepared scalar only after the owned support accepted the scale.
+    // Notify callbacks may remove/replace attributes or change ownership. Never
+    // dereference an entry captured before those callbacks; fail on a changed
+    // policy rather than silently restoring or overwriting application edits.
+    double unchanged = 0;
+    if(GetSupportWorkTolerance(unchanged) != SM_SUCCESS || unchanged != workTolerance) { return SM_ERR; }
+    auto *attribute = static_cast<SmGenericAttribute *>(FindAttribute(SM_AI_COS_SUPPORT_WORK_TOLERANCE));
+    for(ULONG i = 0; i < scaledWords.GetSize(); ++i) { attribute->SetLongElement(i, scaledWords[i]); }
+  }
 
   Notify(SM_NO_POST_EDIT, this, SM_NO_GET_OWNER(this), NULL);
 
@@ -2444,7 +2577,8 @@ SmAssertReportLabel sAssertCrvOnSurf_list[] =
  /*  3 */ {SM_AT_POINTER,     _T("Bad UVCurve Owner"),    _T("When owned by CrvOnSurf, ContainedUVCurve->owner must be this SmCrvOnSurf object") },
  /*  4 */ {SM_AT_POINTER,     _T("Bad Surface Owner"),    _T("When owned by CrvOnSurf, ContainedSurface->owner must be this SmCrvOnSurf object") },
  /*  5 */ {SM_AT_POINTER,     _T("Bad UVCurve Context"),    _T("When owned by CrvOnSurf, ContainedUVCurve->context must be this SmCrvOnSurf->context") },
- /*  6 */ {SM_AT_POINTER,     _T("Bad Surface Context"),    _T("When owned by CrvOnSurf, ContainedSurface->context must be this SmCrvOnSurf->context") } 
+ /*  6 */ {SM_AT_POINTER,     _T("Bad Surface Context"),    _T("When owned by CrvOnSurf, ContainedSurface->context must be this SmCrvOnSurf->context") },
+ /*  7 */ {SM_AT_GEOMETRIC,   _T("Bad Support Work Tolerance"), _T("Explicit owned STEP/revolution support work tolerance must have a valid persistent value") }
 } ;
 
 /*******************************************************************//**
@@ -2465,6 +2599,9 @@ SmBoolean SmCrvOnSurf::AssertValid
   SM_REF1(pTestRequests);
 
   SmBoolean bRtn = TRUE ; 
+
+  double supportWorkTolerance = 0;
+  bRtn &= SM_ASSERT_BOOLEAN_REPORT(7, SM_LEVEL_0, GetSupportWorkTolerance(supportWorkTolerance) == SM_SUCCESS, _T(""));
 
   // test contained curve
   bRtn &= SM_ASSERT_BOOLEAN_REPORT(0, SM_LEVEL_0, m_pUVCurve->AssertValid(pAList, eTestLevel, eWalkTree), _T("")) ;

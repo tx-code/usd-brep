@@ -64,6 +64,7 @@ public:
     {
         return m_pSurface;
     }
+    bool OwnsBaseSurface() const { return m_bOwnsSurface != FALSE; }
 
     virtual SmStatus EvaluatePoint
     (

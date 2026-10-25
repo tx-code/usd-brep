@@ -115,6 +115,10 @@ enum SmBooleanOperationType ;
 #define SM_AI_MESH_ATTRIBUTE                   311
 #define SM_AI_TESSELATION_POLY_EDGE_VERTEX_USE 312
 
+// Explicit work resolution of an owned STEP-parameterized revolution support.
+// Stored on its SmCrvOnSurf: version + four binary64 16-bit words (no text double rounding).
+#define SM_AI_COS_SUPPORT_WORK_TOLERANCE 313
+
 #define SM_AI_USER_1  10000
 #define SM_AI_USER_2  20000
 #define SM_AI_USER_3  30000

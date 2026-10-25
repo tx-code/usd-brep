@@ -19,6 +19,7 @@ namespace curve_copy_controls
 bool Ownership(unsigned flag);
 bool Definition(bool warm);
 bool WrapperArchive(const char* outputDirectory, bool ascii);
+bool PrecisionArchive(const char* outputDirectory, bool ascii);
 } // namespace curve_copy_controls
 
 namespace
@@ -647,6 +648,10 @@ int main(int argc, char** argv)
     if (argc == 3 && mode == "wrapper_archive_ascii")
     {
         return curve_copy_controls::WrapperArchive(argv[2], true) ? 0 : 1;
+    }
+    if (argc == 3 && (mode == "precision_archive_binary" || mode == "precision_archive_ascii"))
+    {
+        return curve_copy_controls::PrecisionArchive(argv[2], mode == "precision_archive_ascii") ? 0 : 1;
     }
     return 2;
 }

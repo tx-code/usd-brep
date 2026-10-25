@@ -25,6 +25,9 @@ struct ComposedPoleProof
 // No rational 3D cache, idealized frame, pole-axis coincidence or trigonometric
 // sample substitutes for the defining data. Whole control-hull containment
 // excludes native domain clamping. Failed bounds remain unestablished.
+// Single-span positive rational Bezier subcurves additionally use outward
+// de Casteljau control hulls to tighten values; original derivative enclosures
+// remain. Recursion reuses successful exact-t endpoint bounds on its fixed stack.
 //
 // Outward binary64 interval bounds require SurfaceProofNumericEnvironment.
 // They prove ideal stored defining geometry, not floating evaluator roundoff,
