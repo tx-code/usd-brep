@@ -89,8 +89,12 @@ def run_case(path, directory, options, caption):
     if mapping != 'DeclaredOnly':
         command.extend(['--complex-mapping-interpretation', mapping])
     if path.suffix.lower() in {'.step', '.stp'}:
+        from .execution import arguments as execution_arguments
+        command.extend(execution_arguments(options))
         from .integration import arguments as integration_arguments
         command.extend(integration_arguments(options))
+    if getattr(options, 'worker_timeout_seconds', 120) != 120:
+        command.extend(['--worker-timeout-seconds', str(options.worker_timeout_seconds)])
     for enabled, flag in [(options.normalize_periodic_faces, "--normalize-periodic-faces"),
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
                           (options.strict_source, "--strict-source"), (options.edges, "--edges"),
@@ -194,6 +198,9 @@ def run_case(path, directory, options, caption):
 
 
 def run_scan(options):
+    from .execution import arguments as execution_arguments
+    if execution_arguments(options) and options.timeout <= getattr(options, 'worker_timeout_seconds', 120):
+        raise ValueError('ScanTimeoutMustExceedExplicitWorkerTimeout')
     from .surface_curve import require_explicit_file
     require_explicit_file(options, None, scan=True)
     if (getattr(options, 'schema_source_sha256', '') or
@@ -297,6 +304,11 @@ def _summary(roots, records, count, started, options, complete, counts, *, inclu
         "outcomes": dict(counts), "elapsed_seconds": time.perf_counter() - started,
         "journal": "records.jsonl",
     }
+    from .execution import arguments as execution_arguments
+    if execution_arguments(options) or getattr(options, 'worker_timeout_seconds', 120) != 120:
+        result['settings']['max_exact_work_units'] = getattr(options, 'max_exact_work_units', None)
+        result['settings']['deadline_ms'] = getattr(options, 'deadline_ms', None)
+        result['settings']['worker_timeout_seconds'] = getattr(options, 'worker_timeout_seconds', 120)
     if include_records:
         result["records"] = records
     return result

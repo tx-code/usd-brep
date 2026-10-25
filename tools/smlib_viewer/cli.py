@@ -40,6 +40,10 @@ def main(argv=None):
                         help="显式假定 DATA 高位字节不表示 ASCII；保留未知文本和诊断")
     parser.add_argument("--report-budget-mib", type=int, choices=(16, 32, 64, 128, 256), default=16,
                         help="显式报告容量上限；不改变几何预算（默认 16 MiB）")
+    parser.add_argument('--max-exact-work-units', type=int, help='显式 STEP 精确计算工作量上限；不改变质量预算')
+    parser.add_argument('--deadline-ms', type=int, help='显式 STEP 合作执行时限（毫秒）；需要更长的 worker 等待时间')
+    parser.add_argument('--worker-timeout-seconds', type=int, default=120,
+                        help='隔离 worker 的硬等待上限（默认 120 秒）；不自动扩大或重试')
     parser.add_argument('--integration-relative-accuracy', type=float,
                         help='STEP 原生积分停止控制 [1e-8,1e-4]；未指定沿用 1e-4，不是几何误差保证')
     parser.add_argument("--edges", action="store_true", help="显示 BRep 边界（网格文件显示特征边）")
@@ -84,6 +88,10 @@ def main(argv=None):
     if options.assembly and (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
         parser.error('--assembly 当前需要一个显式 STEP 文件')
     try:
+        from .execution import arguments as execution_arguments
+        if execution_arguments(options) and not options.scan and (
+                not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
+            raise ValueError('ExecutionResourcesRequireStepInput')
         from .surface_curve import require_explicit_file
         require_explicit_file(options, options.file, scan=bool(options.scan))
         if (options.schema_interpretation == 'SourceBoundAp214As2010' and

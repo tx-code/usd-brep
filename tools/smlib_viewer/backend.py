@@ -23,6 +23,7 @@ from .quality import validate_receipt as validate_quality_receipt
 from .surface_curve import arguments as surface_curve_arguments, require_explicit_file
 from .surface_curve import validate_receipt as validate_surface_curve_receipt
 from .surface_curve import observe_failure_receipt as observe_surface_curve_failure
+from .execution import arguments as execution_arguments, validate_receipt as validate_execution_receipt
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -68,8 +69,11 @@ class ImportSettings:
     surface_curve_3d_source_sha256: str = ''
     maximum_surface_curve_3d_uses: int = 0
     surface_curve_3d_uses: tuple[str, ...] = ()
+    max_exact_work_units: int | None = None
+    deadline_ms: int | None = None
 
     def __post_init__(self):
+        execution_arguments(self)
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
@@ -150,12 +154,15 @@ class SceneLoader(QtCore.QObject):
             self.failed.emit('三维优先解释需要一个 STEP 文件', str(error))
             return
         generation = self.generation
+        if execution_arguments(self.settings) and path.suffix.lower() not in CAD_EXTENSIONS:
+            self.failed.emit('STEP 执行资源需要 STEP 文件', 'ExecutionResourcesRequireStepInput')
+            return
         directory = tempfile.TemporaryDirectory(prefix="brep-view-")
         process = QtCore.QProcess(self)
         timer = QtCore.QTimer(self)
         timer.setSingleShot(True)
         job = dict(process=process, timer=timer, directory=directory, path=path, stderr=b"",
-                   stopped=False, progress=ProgressReader(), guard=None)
+                   stopped=False, progress=ProgressReader(), guard=None, settings=self.settings)
         self.jobs[generation] = job
         if path.suffix.lower() in CAD_EXTENSIONS:
             program = native_worker()
@@ -179,7 +186,7 @@ class SceneLoader(QtCore.QObject):
             intent = (repair_arguments(self.settings) + selection_arguments(self.settings) +
                       complex_mapping_arguments(self.settings) + assembly_arguments(self.settings) +
                       integration_arguments(self.settings) + source_identity_arguments(self.settings) +
-                      surface_curve_arguments(self.settings))
+                      surface_curve_arguments(self.settings) + execution_arguments(self.settings))
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -221,7 +228,9 @@ class SceneLoader(QtCore.QObject):
             self._dispose(generation)
             return
         self.progress.emit(Progress("start"))
-        timer.start(self.settings.timeout_seconds * 1000)
+        # started/progress observers can prepare another configuration. This
+        # worker's already captured arguments and timer must stay paired.
+        timer.start(job['settings'].timeout_seconds * 1000)
         process.start()
 
     def _process_started(self, generation):
@@ -303,7 +312,16 @@ class SceneLoader(QtCore.QObject):
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
             self.worker_result = {**manifest, "exit_code": code}
+            resource_settings = job.get('settings', self.settings)
+            if execution_arguments(resource_settings) or resource_settings.timeout_seconds != 120:
+                self.worker_result['worker_timeout_seconds'] = resource_settings.timeout_seconds
             if code != 0 or manifest.get("status") != "Ready":
+                try:
+                    resources = validate_execution_receipt(directory, manifest, resource_settings, scene_file)
+                    if resources is not None:
+                        self.worker_result['execution_resources'] = resources
+                except (OSError, ValueError, TypeError) as error:
+                    self.worker_result['execution_resource_report_error'] = str(error)
                 try:
                     observation = observe_surface_curve_failure(directory, manifest, self.settings, scene_file)
                     if observation is not None:
@@ -327,6 +345,9 @@ class SceneLoader(QtCore.QObject):
                 validate_assembly_request(manifest, self.settings)
                 validate_vertex_manifest(manifest, self.settings)
                 validate_quality_receipt(manifest, self.settings)
+                resources = validate_execution_receipt(directory, manifest, resource_settings, scene_file)
+                if resources is not None:
+                    self.worker_result['execution_resources'] = resources
                 receipt = validate_surface_curve_receipt(directory, manifest, self.settings, scene_file)
                 if receipt is not None:
                     # Keep the complete native evidence as owning JSON values

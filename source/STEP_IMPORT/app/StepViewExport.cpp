@@ -4,6 +4,7 @@
 #include "StepAssemblyArguments.h"
 #include "StepComplexMappingArguments.h"
 #include "StepCylindricalBandArguments.h"
+#include "StepExecutionArguments.h"
 #include "StepImport.h"
 #include "StepIntegrationArguments.h"
 #include "StepRepairArguments.h"
@@ -255,6 +256,53 @@ void SurfaceCurve3dMarker(Writer& writer, const step_import::Report& report)
     writer.Add(",\"action_count\":");
     writer.Number(receipt.actions.size());
     writer.Add("}");
+}
+void ExecutionReceipt(const std::filesystem::path& output, const step_import_app::ExecutionArguments& request, const step_import::Report& report)
+{
+    if (!request.Explicit())
+    {
+        return;
+    }
+    // Bound the fixed application receipt separately from the full import
+    // report. Applied values come from the captured request; the observations
+    // below come from the ACTUAL core Report, never from rendered meshes.
+    std::string json;
+    Good(
+        Writer::Publish(
+            4096,
+            json,
+            [&](Writer& writer)
+            {
+                writer.Add("{\"format\":\"brep-view-execution.v1\",\"scope\":\"ApplicationResourcesOnly\",\"source_sha256\":");
+                writer.String(report.sourceSha256);
+                writer.Add(",\"max_exact_work_units\":");
+                writer.Number(request.Work());
+                writer.Add(",\"deadline_ms\":");
+                writer.Number(request.DeadlineMs());
+                writer.Add(",\"deadline_configured\":");
+                writer.Bool(report.deadlineConfigured);
+                writer.Add(",\"exact_geometry_work\":");
+                if (report.exactGeometryWork)
+                {
+                    writer.Add("{\"maximum_units\":");
+                    writer.Number(report.exactGeometryWork->maximumUnits);
+                    writer.Add(",\"used_units\":");
+                    writer.Number(report.exactGeometryWork->usedUnits);
+                    writer.Add("}");
+                }
+                else
+                {
+                    writer.Add("null");
+                }
+                writer.Add("}");
+            }
+        ),
+        "ExecutionResourceReceiptLimit"
+    );
+    std::ofstream stream(output / "execution-resources.json", std::ios::binary);
+    stream << json;
+    stream.close();
+    Good(bool(stream), "ExecutionResourceReceiptWriteFailed");
 }
 void Publish(
     std::string_view profile,
@@ -671,7 +719,8 @@ int Run(
     const step_import_app::AssemblyArguments& assemblyRequest = {},
     const std::optional<step_import::NumericalIntegrationSettings>& numericalIntegration = {},
     const std::string& schemaSourceIdentity = {},
-    const std::shared_ptr<const step_import::SurfaceCurve3dInterpretationRequest>& surfaceCurve3d = {}
+    const std::shared_ptr<const step_import::SurfaceCurve3dInterpretationRequest>& surfaceCurve3d = {},
+    const step_import_app::ExecutionArguments& executionRequest = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -721,7 +770,7 @@ int Run(
         options.sourceLimits.reportBytes = reportMiB * 1024 * 1024;
         options.nativeLimits.reportBytes = std::max<std::size_t>(32, reportMiB) * 1024 * 1024;
         options.nativeLimits.processPrivateBytes = 2ULL * 1024 * 1024 * 1024;
-        options.execution.deadline = std::chrono::steady_clock::now() + std::chrono::seconds(90);
+        executionRequest.Apply(options);
         const char* lastPhase = "";
         const char* repairPhase = nullptr;
         options.execution.progress = [&](step_import::Progress p)
@@ -846,6 +895,7 @@ int Run(
             report << result.report.json;
             report.close();
             Good(bool(report), "ImportReportWriteFailed");
+            ExecutionReceipt(output, executionRequest, result.report);
             if (!loaded.assembly)
             {
                 Publish(
@@ -984,6 +1034,7 @@ int Run(
         report << result.report.json;
         report.close();
         Good(bool(report), "ImportReportWriteFailed");
+        ExecutionReceipt(output, executionRequest, result.report);
         if (!model && !collection && !document)
         {
             Publish(
@@ -1173,10 +1224,13 @@ int wmain(int argc, wchar_t** argv)
         step_import_app::AssemblyArguments assemblyRequest;
         step_import_app::SelectionArgumentState selectionArguments;
         step_import_app::SurfaceCurve3dArguments surfaceCurveArguments;
+        step_import_app::ExecutionArguments executionArguments;
         for (int i = 13; i < argc; i += 2)
         {
+            auto resource = executionArguments.Parse(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string());
+            Good(bool(resource), "InvalidOrDuplicateExecutionResourceArgument");
             Good(
-                surfaceCurveArguments.Parse(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string()) ||
+                *resource || surfaceCurveArguments.Parse(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string()) ||
                     step_import_app::SourceIdentityArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -1234,7 +1288,8 @@ int wmain(int argc, wchar_t** argv)
             assemblyRequest,
             request.numericalIntegration,
             request.schemaInterpretation.sourceSha256,
-            surfaceCurveArguments.Request()
+            surfaceCurveArguments.Request(),
+            executionArguments
         );
     }
     catch (...)
@@ -1269,10 +1324,14 @@ int main(int argc, char** argv)
         step_import_app::AssemblyArguments assemblyRequest;
         step_import_app::SelectionArgumentState selectionArguments;
         step_import_app::SurfaceCurve3dArguments surfaceCurveArguments;
+        step_import_app::ExecutionArguments executionArguments;
         for (int i = 13; i < argc; i += 2)
         {
+            auto resource = executionArguments.Parse(argv[i], argv[i + 1]);
+            Good(bool(resource), "InvalidOrDuplicateExecutionResourceArgument");
             Good(
-                surfaceCurveArguments.Parse(argv[i], argv[i + 1]) || step_import_app::SourceIdentityArgument(argv[i], argv[i + 1], request) ||
+                *resource || surfaceCurveArguments.Parse(argv[i], argv[i + 1]) ||
+                    step_import_app::SourceIdentityArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::IntegrationArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::AssemblyArgument(
                         std::filesystem::path(argv[i]).string(),
@@ -1308,7 +1367,8 @@ int main(int argc, char** argv)
             assemblyRequest,
             request.numericalIntegration,
             request.schemaInterpretation.sourceSha256,
-            surfaceCurveArguments.Request()
+            surfaceCurveArguments.Request(),
+            executionArguments
         );
     }
     catch (...)

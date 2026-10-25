@@ -51,6 +51,31 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+STEP execution resources can be selected independently of the quality profile:
+
+```powershell
+.\brep-view.exe "D:\Models\part.step" --max-exact-work-units 512000000 `
+  --deadline-ms 600000 --worker-timeout-seconds 900 --report-budget-mib 256
+```
+
+Omission preserves the current preview policy: 2,000,000 exact-work units,
+a 90,000 ms cooperative native deadline and a 120-second isolated-worker timeout.
+An explicit deadline requires a separately chosen longer worker timeout; neither
+is increased or retried automatically. These are execution limits, not geometric
+error/working tolerances, repair budgets or production SDK defaults. The hard
+worker timeout covers import and display export, while the native deadline is
+checked cooperatively during import. Uninterruptible native calls still require
+the parent process timeout for isolation.
+
+A selected STEP resource request requires a bounded 4 KiB
+`execution-resources.json` capturing the applied options, source identity and
+actual native work/deadline observations. The loader owns and validates it
+before mesh decoding, and keeps it in the local result. Missing or mismatched
+resources preserve the previous scene. Default requests need no new sidecar.
+Scans forward these resources only to STEP children; their explicit whole-file
+`--timeout` must exceed the chosen worker timeout. Mesh input does not accept
+STEP work/deadline arguments, but can use the parent worker timeout.
+
 For one explicitly named STEP file, the viewer transports the native importer's
 existing original/use-bound three-dimensional priority request:
 

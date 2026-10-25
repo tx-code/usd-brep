@@ -80,7 +80,7 @@ if(STEP_BUILD_TOOLS)
     add_executable(step_native_import app/step_import.cpp)
     target_link_libraries(step_native_import PRIVATE STEP_IMPORT)
     add_executable(step_view_export app/StepViewExport.cpp)
-    target_link_libraries(step_view_export PRIVATE STEP_IMPORT)
+    target_link_libraries(step_view_export PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_view_export SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
     target_compile_definitions(step_view_export PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)

@@ -586,6 +586,9 @@ def run(options):
     application.styleHints().setColorScheme(QtCore.Qt.ColorScheme.Dark)
     settings = ImportSettings(options.profile, options.normalize_periodic_faces,
                               options.restrict_unused_support_domains, options.strict_source,
+                              timeout_seconds=getattr(options, 'worker_timeout_seconds', 120),
+                              max_exact_work_units=getattr(options, 'max_exact_work_units', None),
+                              deadline_ms=getattr(options, 'deadline_ms', None),
                               schema_interpretation=options.schema_interpretation,
                               schema_source_sha256=getattr(options, 'schema_source_sha256', ''),
                               surface_curve_3d_source_sha256=getattr(options, 'surface_curve_3d_source_sha256', ''),

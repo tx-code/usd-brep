@@ -7,6 +7,12 @@ surface-curve priority request. It verifies the complete native report before
 decoding display meshes, retains original conflicts and conditional qualification,
 and refuses incomplete or mismatched results without replacing the current scene.
 
+The viewer also accepts separately selected exact-work, native-deadline and
+worker-timeout limits. Applied resources and actual native observations are
+retained in a bounded local receipt and checked before decoding display geometry.
+Defaults and geometric quality profiles stay unchanged; exhaustion never retries
+with larger limits. Scans retain the request for STEP children.
+
 ## Scope
 
 [Standalone viewer input and quality scope](../tools/smlib_viewer/README.md#input-and-quality-scope).
