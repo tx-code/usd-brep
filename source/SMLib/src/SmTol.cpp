@@ -21,6 +21,7 @@
 #include <SmCurveClass.h>
 #include <SmPointClass.h>
 #include <SmCrvOnSurf.h>
+#include <SmSurfaceWorkPrecision.h>
 #include <SmCacheMgr.h>
 #include <SmContext.h>
 
@@ -771,6 +772,16 @@ SmBoolean bDebugMe = FALSE ;
 
   // For Geometry objects (SmSurface, SmCurve)    note: SmPoint3d is handled as an overloaded SmTol::GetZoneTol3d() method                                                                         
   else if(cpObj->IsKindOf(SmSurface_TYPE))   { const SmSurface * pSurf = static_cast<const SmSurface *>(cpObj) ;
+                              SM_OLDTOL_LINE   if(pSurf->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+                              SM_OLDTOL_LINE   {
+                              // Numerical work precision never changes the
+                              // geometric coincidence/approximation zone. Keep
+                              // the legacy direct-face or standalone value,
+                              // without following malformed owner chains.
+                              SM_OLDTOL_LINE     const auto *face = dynamic_cast<const SmFace *>(pSurf->GetOwner());
+                              SM_OLDTOL_LINE     const bool realFace = face && face->GetContext() == pSurf->GetContext() && face->GetSurface() == pSurf;
+                              SM_OLDTOL_LINE     return realFace ? face->GetTolerance() : GetZoneTol3d();
+                              SM_OLDTOL_LINE   }
                               SM_OLDTOL_LINE   SmFace          * pFace = pSurf->GetFace() ;
                               // An explicitly configured, actually owned STEP/SOR
                               // carrier has its own narrower numerical work zone.

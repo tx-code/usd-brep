@@ -7,6 +7,7 @@
 #include "StepImportPlan.h"
 #include "StepImportPublication.h"
 #include "StepImportSurfaceCurveSession.h"
+#include "StepImportSurfacePrecisionSession.h"
 
 #include <algorithm>
 #include <charconv>
@@ -72,6 +73,7 @@ namespace
 void Validate(const Options& options)
 {
     detail::ValidateSurfaceCurve3dInterpretationOptions(options);
+    detail::ValidateTargetSurfacePrecisionOptions(options);
     if (options.terminalDomainInterpretation)
     {
         const auto& request = *options.terminalDomainInterpretation;
@@ -118,8 +120,8 @@ void Validate(const Options& options)
                 }
             ) ||
             request.surfaces.empty() || !request.maximumSurfaces || request.surfaces.size() > request.maximumSurfaces ||
-            request.maximumSurfaces > options.sourceLimits.records || !request.maximumProofControls ||
-            request.maximumProofControls > 2000000 || !request.maximumProofWorkUnits || request.maximumProofWorkUnits > 100000000)
+            request.maximumSurfaces > options.sourceLimits.records || !request.maximumProofControls || request.maximumProofControls > 2000000 ||
+            !request.maximumProofWorkUnits || request.maximumProofWorkUnits > 100000000)
         {
             throw std::invalid_argument("Terminal-domain interpretation requires an explicit source-bound general plan and resource budgets");
         }
@@ -255,15 +257,13 @@ void Validate(const Options& options)
     }
     const auto& q = options.quality;
     if (q.pcurveCarrierWorkToleranceMm &&
-        (!options.generalBrep || *q.pcurveCarrierWorkToleranceMm <= Fraction() ||
-         *q.pcurveCarrierWorkToleranceMm > q.initialWorkToleranceMm ||
+        (!options.generalBrep || *q.pcurveCarrierWorkToleranceMm <= Fraction() || *q.pcurveCarrierWorkToleranceMm > q.initialWorkToleranceMm ||
          !std::isfinite(double(q.pcurveCarrierWorkToleranceMm->Numerator()) / double(q.pcurveCarrierWorkToleranceMm->Denominator()))))
     {
         throw std::invalid_argument("Explicit positive general pcurve carrier resolution must not exceed the topology work zone");
     }
-    if (q.pcurveCarrierWorkToleranceMm &&
-        (options.normalizePeriodicFaces || options.restrictUnusedSupportDomains || options.faceOrientationRepair ||
-         options.cylindricalBandRepair || options.definitionSelection || options.sourceErrorIsolation))
+    if (q.pcurveCarrierWorkToleranceMm && (options.normalizePeriodicFaces || options.restrictUnusedSupportDomains || options.faceOrientationRepair ||
+                                           options.cylindricalBandRepair || options.definitionSelection || options.sourceErrorIsolation))
     {
         // The owning receipt currently addresses unchanged original edge
         // indices. Source-to-many topology, altered supports and repair trials

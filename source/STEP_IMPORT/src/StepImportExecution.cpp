@@ -4,6 +4,7 @@
 
 #include "StepImportInterval.h"
 #include "StepImportSurfaceCurveSession.h"
+#include "StepImportSurfacePrecisionSession.h"
 
 #include <algorithm>
 #include <new>
@@ -72,7 +73,14 @@ Result<void> Execution::BindSourceInterpretations(const step_source::SourceSnaps
     {
         return tl::unexpected(std::move(bound.error()));
     }
-    return m_surfaceCurves ? m_surfaceCurves->BindSource(source) : Result<void>{};
+    if (m_surfaceCurves)
+    {
+        if (auto bound = m_surfaceCurves->BindSource(source); !bound)
+        {
+            return tl::unexpected(std::move(bound.error()));
+        }
+    }
+    return m_targetSurfaces ? m_targetSurfaces->BindSource(source) : Result<void>{};
 }
 Execution::Execution(const Options& options, Report& report)
     : m_options(options), m_report(report), m_control(options.execution.control ? options.execution.control : std::make_shared<ImportControl>())
@@ -84,6 +92,12 @@ Execution::Execution(const Options& options, Report& report)
     m_report.processPrivateLimitBytes = options.nativeLimits.processPrivateBytes;
     m_report.hardMemoryLimitBytes = options.nativeLimits.hardMemoryBytes;
     m_report.deadlineConfigured = bool(options.execution.deadline);
+    if (options.targetSurfacePrecision)
+    {
+        m_targetSurfaces = std::make_unique<TargetSurfacePrecisionSession>(options);
+        m_report.targetSurfacePrecision = m_targetSurfaces->Evidence();
+        m_report.targetSurfacePrecisionReceiptRoot = true;
+    }
     if (options.surfaceCurve3dInterpretation)
     {
         m_surfaceCurves = std::make_unique<SurfaceCurve3dInterpretationSession>(options);

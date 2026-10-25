@@ -23,6 +23,7 @@
 #include "StepImportSplineSurfaceConstruction.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportSurfaceCurveSession.h"
+#include "StepImportSurfacePrecisionSession.h"
 #include "StepImportTrimMeasurement.h"
 #include "StepImportUnits.h"
 
@@ -148,6 +149,11 @@ public:
         {
             m_model->surfaceCurve3dInterpretation = choices->Evidence();
             m_report.surfaceCurve3dInterpretation = m_model->surfaceCurve3dInterpretation;
+        }
+        if (auto* precisions = m_execution.TargetSurfaces())
+        {
+            m_model->targetSurfacePrecision = precisions->Evidence();
+            m_report.targetSurfacePrecision = m_model->targetSurfacePrecision;
         }
         m_model->queryTolerance = Q(m_options.quality.queryMm);
         m_model->definitionToleranceMm = Q(m_options.quality.definitionMm);
@@ -586,7 +592,23 @@ public:
         }
         for (const auto& precision : m_report.pcurveCarrierPrecisions)
         {
-            if (precision.targetEdgeIndex) { m_model->pcurveCarrierPrecisions.push_back(precision); }
+            if (precision.targetEdgeIndex)
+            {
+                m_model->pcurveCarrierPrecisions.push_back(precision);
+            }
+        }
+        for (const auto& [action, face] : m_targetSurfacePrecisionActions)
+        {
+            // Recheck the actual owning surface after every native consumer.
+            // A prior setter, property mask or report is not final evidence.
+            if (auto operation = Step(shape); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto checked = m_execution.TargetSurfaces()->Verify(action, *face); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
         }
         return m_model;
     }
@@ -594,6 +616,7 @@ public:
 private:
 
     std::shared_ptr<ModelData> m_model;
+    std::vector<std::pair<std::size_t, SmFace*>> m_targetSurfacePrecisionActions;
     std::set<Index> m_pendingToroidalSupports;
     std::map<Index, const SmTorus*> m_toroidalOriginals;
     std::shared_ptr<CylindricalBandRepairTrial> m_cylindricalBandTrial;
@@ -4447,6 +4470,22 @@ private:
         if (auto businessCheck = Need(surfaceOwned, "GeneralSurfaceOwnership", f.record); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (auto* precisions = m_execution.TargetSurfaces())
+        {
+            if (auto operation = Step(f.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            auto applied = precisions->Apply(Id(Role("definition")), Id(shape), Id(f.record), Id(f.surface), *nf.face, m_model->faces.size());
+            if (!applied)
+            {
+                return tl::unexpected(std::move(applied.error()));
+            }
+            if (*applied)
+            {
+                m_targetSurfacePrecisionActions.emplace_back(**applied, nf.face);
+            }
         }
         auto poleResult = MissingSpherePole(f);
         if (!poleResult)

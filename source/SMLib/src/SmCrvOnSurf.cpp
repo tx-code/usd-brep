@@ -9,6 +9,7 @@
 #include "StdAfx.h"
 #include <SmCrvOnSurf.h>
 #include <SmSTEPSurface.h>
+#include <SmSurfaceWorkPrecision.h>
 #include <SmSurfOfRevolution.h>
 
 #include <bit>
@@ -417,6 +418,10 @@ SmStatus SmCrvOnSurf::Copy
   if(m_lOwnerFlag > 3) { SER(SM_ERR); }
   double supportWorkTolerance = 0;
   SER(GetSupportWorkTolerance(supportWorkTolerance));
+  double surfaceWorkPrecision = 0;
+  const SmObject* sourceSurfaceOwner = m_pSurface->GetOwner();
+  if(m_pSurface->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+    { SER(SmSurfaceWorkPrecision::Get(*m_pSurface, surfaceWorkPrecision)); }
 
   const SmBoolean bOwnUV = m_lOwnerFlag != 0;
   const SmBoolean bOwnSurface = m_lOwnerFlag == 2 || m_lOwnerFlag == 3;
@@ -457,6 +462,17 @@ SmStatus SmCrvOnSurf::Copy
   // Only pCopy owns the cloned children now, including if SetOwner throws.
   if(bOwnUV) { pUV->SetOwner(pCopy.get()); }
   if(bOwnSurface) { pSurface->SetOwner(pCopy.get()); }
+  if(surfaceWorkPrecision > 0)
+    {
+      double current = 0, copied = 0;
+      SER(SmSurfaceWorkPrecision::Get(*m_pSurface, current));
+      SER(SmSurfaceWorkPrecision::Get(*pSurface, copied));
+      // The copied surface now has a real owning COS backlink and UV child.
+      // Check that inherited physical-mm metadata survived this transition;
+      // an invalid borrowed/fake owner must never become qualified by Copy.
+      if(current != surfaceWorkPrecision || copied != surfaceWorkPrecision || m_pSurface->GetOwner() != sourceSurfaceOwner)
+        { return SM_ERR; }
+    }
   rpNewCurve = pCopy.release();
   return SM_SUCCESS;
 
@@ -2351,6 +2367,13 @@ SmStatus SmCrvOnSurf::WriteToDB
   ULONG          lDBVersionNumber)   // in : database version to get proper sequence of writes                                                                       
  const
 {
+  // This inline geometry format has no nested attribute table. A derived COS
+  // may own a registered surface in memory, but serializing it here would lose
+  // its numerical policy. Refuse before writing bytes; native face-surface and
+  // standalone-surface archives retain their existing indexed attribute path.
+  if(m_pSurface && m_pSurface->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+    { return SM_ERR_INVALID_INPUT; }
+
   // file type, ASCII or BINARY
   SmFileType      eType    =  rDB.GetFileType();
   std::ostream  & rFileOut = *rDB.GetOutStreamPtr();

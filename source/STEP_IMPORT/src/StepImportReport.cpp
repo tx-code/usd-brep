@@ -4,6 +4,7 @@
 
 #include "StepImportAssemblyEvidence.h"
 #include "StepImportSurfaceCurveInterpretation.h"
+#include "StepImportSurfacePrecision.h"
 #include "StepSemanticReport.h"
 #include "StepSourceReport.h"
 
@@ -48,6 +49,133 @@ void Number(Writer& writer, double value)
         throw std::length_error("Native report number capacity");
     }
     writer.Add(std::string_view(buffer.data(), static_cast<std::size_t>(end.ptr - buffer.data())));
+}
+Result<void> ValidateTargetSurfacePrecisionReport(
+    Status status,
+    const Report& report,
+    const Quality& quality,
+    const step_source::InspectOutcome& source
+)
+{
+    const auto invalid = []() -> Result<void>
+    {
+        return tl::unexpected(
+            Failure{ Status::BuildFailure,
+                     "TargetSurfacePrecisionReceiptInvalid",
+                     "Accepted target-surface precision requires a complete source-bound request receipt and finite native observations",
+                     {},
+                     "SurfacePrecisionReport" }
+        );
+    };
+    if (!report.targetSurfacePrecision)
+    {
+        return report.targetSurfacePrecisionReceiptRoot ? invalid() : Result<void>{};
+    }
+    if (!report.targetSurfacePrecisionReceiptRoot || !IsAcceptedReportStatus(status))
+    {
+        return {};
+    }
+    // A nested construction report can reference the pending request-wide
+    // receipt. Only its root, after all ordinary native checks and request
+    // completion, may publish the complete interpretation as accepted.
+    const auto& receipt = *report.targetSurfacePrecision;
+    if (status != Status::AcceptedUnderInterpretation || !receipt.requestComplete || !source.source ||
+        receipt.sourceSha256 != source.source->Sha256() || receipt.sourceSha256 != report.sourceSha256 || receipt.qualityId != quality.id ||
+        !receipt.maximumFaces || receipt.plans.empty() || receipt.plans.size() > receipt.maximumFaces ||
+        receipt.actions.size() != receipt.plans.size() || receipt.workResolutionMm[0] <= 0 || receipt.workResolutionMm[1] <= 0)
+    {
+        return invalid();
+    }
+    std::unordered_set<std::size_t> completed;
+    const auto requestedMm = static_cast<double>(receipt.workResolutionMm[0]) / static_cast<double>(receipt.workResolutionMm[1]);
+    const auto topologyMm = static_cast<double>(quality.initialWorkToleranceMm.Numerator()) /
+                            static_cast<double>(quality.initialWorkToleranceMm.Denominator());
+    if (!std::isfinite(requestedMm) || !(requestedMm > 0) || !std::isfinite(topologyMm) || requestedMm > topologyMm)
+    {
+        return invalid();
+    }
+    for (const auto& action : receipt.actions)
+    {
+        if (action.planIndex >= receipt.plans.size() || !completed.insert(action.planIndex).second || !action.nativeChecksPassed ||
+            !std::isfinite(action.requestedMm) || action.requestedMm <= 0 || !std::isfinite(action.effectiveMm) || action.effectiveMm <= 0 ||
+            action.requestedMm != requestedMm || action.effectiveMm != requestedMm || !std::isfinite(action.topologyFaceToleranceMm) ||
+            action.topologyFaceToleranceMm != topologyMm)
+        {
+            return invalid();
+        }
+    }
+    return {};
+}
+void TargetSurfacePrecisionJson(Writer& w, const Report& report)
+{
+    if (!report.targetSurfacePrecision)
+    {
+        return;
+    }
+    const auto& receipt = *report.targetSurfacePrecision;
+    w.Add(",\"target_surface_precision\":{\"source_sha256\":");
+    w.String(receipt.sourceSha256);
+    if (!report.targetSurfacePrecisionReceiptRoot)
+    {
+        w.Add(",\"receipt_scope\":\"RequestRoot\"}");
+        return;
+    }
+    // This is an explicit calculation-resolution observation. It neither
+    // changes physical error allowances nor certifies surface regularity or
+    // a continuous floating-point/UV error bound.
+    w.Add(
+        ",\"interpretation\":\"ExplicitTargetSurfaceWorkResolution\",\"geometry_calculation_resolution_only\":true,\"source_definitions_rewritten\":false,\"source_uv_rewritten\":false,\"topology_tolerance_changed\":false,\"physical_budgets_changed\":false,\"strict_original_geometry_qualified\":false,\"surface_regularity_qualified\":false,\"continuous_error_bound_established\":false,\"request_complete\":"
+    );
+    w.Bool(receipt.requestComplete);
+    w.Add(",\"quality_id\":");
+    w.String(receipt.qualityId);
+    w.Add(",\"maximum_faces\":");
+    w.Number(receipt.maximumFaces);
+    w.Add(",\"work_resolution_mm\":[");
+    w.Number(receipt.workResolutionMm[0]);
+    w.Add(",");
+    w.Number(receipt.workResolutionMm[1]);
+    w.Add("],\"plans\":[");
+    for (std::size_t i = 0; i < receipt.plans.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& plan = receipt.plans[i];
+        w.Add("{\"source_definition\":");
+        w.String(plan.definitionId);
+        w.Add(",\"source_shape\":");
+        w.String(plan.shapeId);
+        w.Add(",\"source_face\":");
+        w.String(plan.faceId);
+        w.Add(",\"source_surface\":");
+        w.String(plan.surfaceId);
+        w.Add("}");
+    }
+    w.Add("],\"actions\":[");
+    for (std::size_t i = 0; i < receipt.actions.size(); ++i)
+    {
+        if (i)
+        {
+            w.Add(",");
+        }
+        const auto& action = receipt.actions[i];
+        w.Add("{\"plan_index\":");
+        w.Number(action.planIndex);
+        w.Add(",\"target_face_index\":");
+        w.Number(action.targetFaceIndex);
+        w.Add(",\"requested_mm\":");
+        Number(w, action.requestedMm);
+        w.Add(",\"effective_mm\":");
+        Number(w, action.effectiveMm);
+        w.Add(",\"topology_face_tolerance_mm\":");
+        Number(w, action.topologyFaceToleranceMm);
+        w.Add(",\"native_checks_passed\":");
+        w.Bool(action.nativeChecksPassed);
+        w.Add("}");
+    }
+    w.Add("]}");
 }
 void SurfaceCurve3dJson(Writer& w, const Report& report)
 {
@@ -1578,20 +1706,36 @@ void WriteReportJson(
         }
         TerminalDomainJson(w, report);
         SurfaceCurve3dJson(w, report);
+        TargetSurfacePrecisionJson(w, report);
         if (!report.pcurveCarrierPrecisions.empty())
         {
             w.Add(",\"pcurve_carrier_precisions\":[");
             for (std::size_t i = 0; i < report.pcurveCarrierPrecisions.size(); ++i)
             {
-                if (i) { w.Add(","); }
+                if (i)
+                {
+                    w.Add(",");
+                }
                 const auto& info = report.pcurveCarrierPrecisions[i];
-                w.Add("{\"source_pcurve_id\":"); w.String(info.sourcePcurveId);
-                w.Add(",\"source_surface_id\":"); w.String(info.sourceSurfaceId);
-                w.Add(",\"source_use_id\":"); w.String(info.sourceUseId);
-                w.Add(",\"requested_mm\":"); Number(w, info.requestedMm);
-                w.Add(",\"effective_mm\":"); Number(w, info.effectiveMm);
+                w.Add("{\"source_pcurve_id\":");
+                w.String(info.sourcePcurveId);
+                w.Add(",\"source_surface_id\":");
+                w.String(info.sourceSurfaceId);
+                w.Add(",\"source_use_id\":");
+                w.String(info.sourceUseId);
+                w.Add(",\"requested_mm\":");
+                Number(w, info.requestedMm);
+                w.Add(",\"effective_mm\":");
+                Number(w, info.effectiveMm);
                 w.Add(",\"target_edge_index\":");
-                if (info.targetEdgeIndex) { w.Number(*info.targetEdgeIndex); } else { w.Add("null"); }
+                if (info.targetEdgeIndex)
+                {
+                    w.Number(*info.targetEdgeIndex);
+                }
+                else
+                {
+                    w.Add("null");
+                }
                 w.Add(",\"geometry_changed\":false,\"topology_tolerance_changed\":false}");
             }
             w.Add("]");
@@ -2757,6 +2901,10 @@ void WriteReportJson(
     std::string& output
 )
 {
+    if (auto valid = ValidateTargetSurfacePrecisionReport(status, report, quality, source); !valid)
+    {
+        return valid;
+    }
     const bool complete = Writer::Publish(
         limit,
         output,
@@ -2782,6 +2930,10 @@ Result<void> SerializeAssemblyFailure(
     std::string& output
 )
 {
+    if (auto valid = ValidateTargetSurfacePrecisionReport(status, report, quality, source); !valid)
+    {
+        return valid;
+    }
     if (IsAcceptedReportStatus(status))
     {
         output.clear();
@@ -2812,6 +2964,10 @@ Result<void> SerializeAssembly(
     std::string& output
 )
 {
+    if (auto valid = ValidateTargetSurfacePrecisionReport(status, report, quality, source); !valid)
+    {
+        return valid;
+    }
     if (!report.generalBrep || !source.source || !report.source || report.sourceSha256 != source.source->Sha256() ||
         report.source->Sha256() != source.source->Sha256() || !assembly.instances.placements.source ||
         source.source->Sha256() != assembly.instances.placements.source->SourceFields().Source().Sha256())

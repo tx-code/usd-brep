@@ -8813,6 +8813,11 @@ SmStatus SmFace::CurveOnClassify
                                                      //      FALSE= don't try to create UVTrimCurves because they are not known to be valid, default:[TRUE]
  const
 {
+  // A failed seam/classification copy may leave the destination unchanged.
+  // Missing defining geometry is not an empty classification or permission
+  // to continue with a previous result. Reject before reset or dereference.
+  if(rCurveClassification.GetCurve() == NULL || GetSurface() == NULL)
+    { return SM_ERR_INVALID_INPUT; }
   // check input
 #ifdef SM_DEBUG_CODE
 SmBoolean bDebugMe = FALSE ;
@@ -15976,7 +15981,9 @@ static ULONG lCount      = 1 ; lCount++ ;
       // Build SeamConstU curve
       SmCrvOnSurf * pSeamConstU = NULL ;
 
-      pSurface->CreateSeamCurve(*pContext, SM_SP_U, pSeamConstU, bPeriodicU) ;
+      const auto seamStatusU = pSurface->CreateSeamCurve(*pContext, SM_SP_U, pSeamConstU, bPeriodicU);
+      if(seamStatusU != SM_SUCCESS || pSeamConstU == NULL || pSeamConstU->GetUVCurve() == NULL)
+        { delete pSeamConstU; return TRUE; } // Output seam enums remain UNKNOWN, never a passed check.
 
       // build SeamU classification object
       SmCurveInterval         aDataU[20] ;
@@ -16003,10 +16010,16 @@ static ULONG lCount      = 1 ; lCount++ ;
 
       // init output
       // Keep source ownership: assignment copies, rather than transfers, the curve.
+      const auto* previousCurveU = rCrvClassU.GetCurve();
       rCrvClassU = sCrvClassU;
+      // Assignment clones before releasing the old owned curve. A successful
+      // seam copy must therefore be distinct from both the source and old
+      // destination; failure cannot be consumed as a current classification.
+      if(rCrvClassU.GetCurve() == NULL || rCrvClassU.GetCurve() == previousCurveU ||
+         rCrvClassU.GetCurve() == pSeamConstU) { return TRUE; }
 
       // classify the SeamCurve3d against this face
-      CurveOnClassify(FALSE,                // in : TRUE =Do expensive PtClassification for Curves not XSecting any Face->Bndrys
+      const auto classificationStatus = CurveOnClassify(FALSE,                // in : TRUE =Do expensive PtClassification for Curves not XSecting any Face->Bndrys
                                             //      FALSE=classify such points as unknown. (good when Curve is known to be InFace)
                       rCrvClassU,           // i/o: contains m_cpCurve to classify, accumulates ivls as they are found.
                       bHasBigGaps_TRUE,     // in : TRUE = m_cpCurve and Face->Edges connect to Face where Edge/Face gaps are suspected to exceed XSectTol3d.
@@ -16027,6 +16040,8 @@ static ULONG lCount      = 1 ; lCount++ ;
                                             //      NULL to ignore, default:[NULL]
                       bUVSpaceOkay_FALSE) ; // in : TRUE = okay to try UVSpace Classification if 3Space classification is dodgey (tolerant cases)
                                             //      FALSE= don't use UVSpace because UVTrimCurves are not known to be valid, default:[TRUE]
+
+      if(classificationStatus != SM_SUCCESS) { return TRUE; }
 
       // How many times is the U Seam crossed by loop (can be crossed by an Edge or Edge->Vertex->Edge complex)
       rCrvClassU.GetLoopCrossings(sLoops, pFaceProps, &sCrossingCounts, &pFaceProps->m_sRawTouchListU, &pFaceProps->m_sDoneTouchListU) ;
@@ -16117,7 +16132,9 @@ static ULONG lCount      = 1 ; lCount++ ;
     {
       // Build SeamConstV curve
       SmCrvOnSurf * pSeamConstV = NULL ;
-      pSurface->CreateSeamCurve(*pContext, SM_SP_V, pSeamConstV, bPeriodicV) ;
+      const auto seamStatusV = pSurface->CreateSeamCurve(*pContext, SM_SP_V, pSeamConstV, bPeriodicV);
+      if(seamStatusV != SM_SUCCESS || pSeamConstV == NULL || pSeamConstV->GetUVCurve() == NULL)
+        { delete pSeamConstV; return TRUE; } // Output seam enums remain UNKNOWN, never a passed check.
      // SmObjDelete sObjCleapupCrv(pSeamConstV); // JLMCC added to attempt to address memory leak
 
       // build SeamV classification object
@@ -16147,11 +16164,17 @@ static ULONG lCount      = 1 ; lCount++ ;
 
       // init output
       // Keep source ownership: assignment copies, rather than transfers, the curve.
+      const auto* previousCurveV = rCrvClassV.GetCurve();
       rCrvClassV = sCrvClassV;
+      // Assignment clones before releasing the old owned curve. A successful
+      // seam copy must therefore be distinct from both the source and old
+      // destination; failure cannot be consumed as a current classification.
+      if(rCrvClassV.GetCurve() == NULL || rCrvClassV.GetCurve() == previousCurveV ||
+         rCrvClassV.GetCurve() == pSeamConstV) { return TRUE; }
 
 
       // classify the SeamCurve3d against this face (works for composites)
-      CurveOnClassify(FALSE,                // in : TRUE =Do expensive PtClassification for Curves not XSecting any Face->Bndrys
+      const auto classificationStatus = CurveOnClassify(FALSE,                // in : TRUE =Do expensive PtClassification for Curves not XSecting any Face->Bndrys
                                             //      FALSE=classify such points as unknown. (good when Curve is known to be InFace)
                       rCrvClassV,           // i/o: contains m_cpCurve to classify, accumulates ivls as they are found.
                       bHasBigGaps_TRUE,     // in : TRUE = m_cpCurve and Face->Edges connect to Face where Edge/Face gaps are suspected to exceed XSectTol3d.
@@ -16172,6 +16195,8 @@ static ULONG lCount      = 1 ; lCount++ ;
                                             //      NULL to ignore, default:[NULL]
                       bUVSpaceOkay_FALSE) ; // in : TRUE = okay to try UVSpace Classification if 3Space classification is dodgey (tolerant cases)
                                             //      FALSE= don't use UVSpace because UVTrimCurves are not known to be valid, default:[TRUE]
+
+      if(classificationStatus != SM_SUCCESS) { return TRUE; }
 
       // How many times is the V Seam crossed (Can be crossed by an Edge or and Edge->Vertex->Edge complex
       rCrvClassV.GetLoopCrossings(sLoops, pFaceProps, &sCrossingCounts, &pFaceProps->m_sRawTouchListV, &pFaceProps->m_sDoneTouchListV) ;

@@ -8,6 +8,7 @@
 #include "StepSelectionArguments.h"
 #include "StepSourceReport.h"
 #include "StepSurfaceCurveArguments.h"
+#include "StepSurfacePrecisionArguments.h"
 #include "StepTerminalDomainArguments.h"
 
 #include <charconv>
@@ -107,6 +108,7 @@ int main(int argc, char** argv)
         bool limits = false, quality = false;
         step_import_app::SelectionArgumentState selectionArguments;
         step_import_app::SurfaceCurve3dArguments surfaceCurveArguments;
+        step_import_app::TargetSurfacePrecisionArguments surfacePrecisionArguments;
         for (int i = 1; i < argc; ++i)
         {
             const std::string_view arg(argv[i]);
@@ -145,6 +147,14 @@ int main(int argc, char** argv)
                     throw std::invalid_argument("Surface-curve argument value required");
                 }
                 surfaceCurveArguments.Parse(arg, argv[++i]);
+            }
+            else if (step_import_app::IsTargetSurfacePrecisionArgument(arg))
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Target-surface work argument value required");
+                }
+                surfacePrecisionArguments.Parse(arg, argv[++i]);
             }
             else if (step_import_app::IsTerminalDomainArgument(arg))
             {
@@ -420,6 +430,7 @@ int main(int argc, char** argv)
         }
         step_import_app::ValidateSelectionArguments(options, selectionArguments);
         options.surfaceCurve3dInterpretation = surfaceCurveArguments.Request();
+        options.targetSurfacePrecision = surfacePrecisionArguments.Request();
         if (!limits || !quality || file.empty())
         {
             throw std::invalid_argument("Use --fixture-limits --quality Q-P0-mm-01 input.step [--query x y z]");

@@ -48,6 +48,7 @@
 #include <SmTopologySolver.h>
 #include <SmShape.h>
 #include <SmSurfOfRevolution.h>
+#include <SmSurfaceWorkPrecision.h>
 #include <SmHCR.h>
 #include <SmTess.h>
 #include <SmMerge.h>
@@ -97,6 +98,23 @@ static constexpr ULONG s_lDebugVertex = SM_BIG_ULONG;
 /*******************************************************************//**
    File Local Functions
 ***********************************************************************/
+
+static SmBoolean sm_HasSurfaceWorkPrecision(const SmBrep& crBrep)
+{
+  SmFace* storage[64];
+  SmTArray<SmFace*> faces(64, storage);
+  crBrep.GetFaces(faces);
+  for(ULONG i = 0; i < faces.GetSize(); ++i)
+    {
+      const SmSurface* surface = faces[i]->GetSurface();
+      // Inspect direct face surfaces, including an invalid backlink. A class
+      // conversion may neither drop this physical-mm policy nor copy it onto
+      // an unsupported surface class; refuse the whole request before edits.
+      if(surface && surface->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+        { return TRUE; }
+    }
+  return FALSE;
+}
 
 // For bad uv trim curves: 1: remove only; 2: remove and rebuild
 #define siRemove
@@ -29111,6 +29129,12 @@ SmStatus SmBrep::Transform
       return SM_SUCCESS;
   }
 
+  const bool convertsToNURBS = cpOptScale != NULL &&
+      (!SM_ARE_SAME(cpOptScale->x, cpOptScale->y) ||
+       !SM_ARE_SAME(cpOptScale->x, cpOptScale->z) || cpOptScale->x < SM_EFF_ZERO);
+  if(convertsToNURBS && sm_HasSurfaceWorkPrecision(*this))
+    { return SM_ERR_INVALID_INPUT; }
+
   // inform the public, Brep is about to be edited
   Notify(SM_NO_PRE_EDIT, this, NULL, NULL);  // notify Brep of editing operation
 
@@ -29121,7 +29145,7 @@ SmStatus SmBrep::Transform
          || cpOptScale->x < SM_EFF_ZERO))
     {
       WARN(_T("Transforming Brep with nonuniform scaling: Turning analytics to NURBs\n"));
-      this->TurnToNURBS();
+      SER(this->TurnToNURBS());
     } // end nonuniform Opt mscaling input check
 
   // We can scale and rotate a brep by transforming all of its 3D geometry
@@ -33069,7 +33093,7 @@ SmStatus SmBrep::TurnToNURBSAndSubdivide
    double dKnotSpacing)
 {
     // First turn it into a NURBS.
-    TurnToNURBS();
+    SER(TurnToNURBS());
 
     SM_PTR_ARRAY(sCurves,SmCurve,256);
     SM_PTR_ARRAY(sSurfaces,SmSurface,256);
@@ -33110,7 +33134,14 @@ NOTES:
 ***********************************************************************/
 SmStatus SmBrep::TurnToNURBS()
 {
+  if(sm_HasSurfaceWorkPrecision(*this))
+    { return SM_ERR_INVALID_INPUT; }
+
   Notify(SM_NO_PRE_EDIT, this, NULL, NULL);
+  // A notification may install policy after the preflight. Its effects and
+  // exceptions remain the callback's own; do not then change geometry class.
+  if(sm_HasSurfaceWorkPrecision(*this))
+    { return SM_ERR_INVALID_INPUT; }
 
 #ifdef SM_DEBUG_CODE
 SmBoolean bDebugMe = FALSE;

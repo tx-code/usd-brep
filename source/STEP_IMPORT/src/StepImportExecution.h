@@ -8,6 +8,7 @@
 namespace step_import::detail
 {
 class SurfaceCurve3dInterpretationSession;
+class TargetSurfacePrecisionSession;
 enum class NativeCallAccounting
 {
     General,
@@ -57,6 +58,10 @@ public:
     {
         return m_surfaceCurves.get();
     }
+    TargetSurfacePrecisionSession* TargetSurfaces() const
+    {
+        return m_targetSurfaces.get();
+    }
     [[nodiscard]] Result<void> SpendTerminalDomainWork(std::size_t units = 1);
     [[nodiscard]] Result<void> SpendExactGeometryWork(Report& bodyReport, std::size_t units, std::size_t sourceRecord);
     [[nodiscard]] Result<void> RecordTerminalDomainAction(std::size_t plan, TerminalDomainInterpretationAction action);
@@ -86,6 +91,7 @@ private:
     std::vector<std::string> m_terminalDomainPcurvesApplied;
     bool m_terminalDomainSourceBound = false;
     std::unique_ptr<SurfaceCurve3dInterpretationSession> m_surfaceCurves;
+    std::unique_ptr<TargetSurfacePrecisionSession> m_targetSurfaces;
     [[nodiscard]] Result<void> Cancel();
 };
 } // namespace step_import::detail

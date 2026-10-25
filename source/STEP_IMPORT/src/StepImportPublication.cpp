@@ -7,6 +7,7 @@
 #include "StepImportPlan.h"
 #include "StepImportReport.h"
 #include "StepImportSurfaceCurveSession.h"
+#include "StepImportSurfacePrecisionSession.h"
 
 #include <algorithm>
 
@@ -179,6 +180,13 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
             return tl::unexpected(std::move(complete.error()));
         }
     }
+    if (auto* precisions = m_execution.TargetSurfaces())
+    {
+        if (auto complete = precisions->Complete(); !complete)
+        {
+            return tl::unexpected(std::move(complete.error()));
+        }
+    }
     auto ready = m_execution.Check(Phase::NativeReady);
     if (!ready)
     {
@@ -189,6 +197,7 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     // Commit the sole remaining action remains the owning transfer.
     bool interpreted = m_report.terminalDomainInterpretation && !m_report.terminalDomainInterpretation->actions.empty();
     interpreted = interpreted || (m_report.surfaceCurve3dInterpretation && !m_report.surfaceCurve3dInterpretation->actions.empty());
+    interpreted = interpreted || (m_report.targetSurfacePrecision && !m_report.targetSurfacePrecision->actions.empty());
     bool isolated = false;
     {
         // Release this temporary source owner before the commit region. The

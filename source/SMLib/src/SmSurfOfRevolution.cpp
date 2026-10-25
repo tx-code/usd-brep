@@ -12,6 +12,7 @@
 
 #include <SmSurfOfRevolution.h>
 #include <SmSTEPSurface.h>
+#include <SmSurfaceWorkPrecision.h>
 #include <SmCone.h>
 #include <SmLine.h>
 #include <SmSphere.h>
@@ -27,6 +28,9 @@
 #include <SmGlobalSolver.h>
 #include <SmDatabaseIO.h>
 #include <SmAssertArray.h>
+
+#include <cmath>
+#include <memory>
 
 #ifdef SM_DEBUG_CODE
  #include <SmBrep.h>
@@ -388,9 +392,23 @@ SmStatus SmSurfOfRevolution::Copy
    SmSurface *& rpNewSurface)
   const
 {
-  SmSurfOfRevolution *pCopy = new(crContext) SmSurfOfRevolution(*this);
-  NER(pCopy);
-  rpNewSurface = pCopy;
+  rpNewSurface = NULL;
+  double precision = 0;
+  SER(SmSurfaceWorkPrecision::Get(*this, precision));
+  const SmObject *originalOwner = GetOwner();
+  std::unique_ptr<SmSurfOfRevolution> pCopy(new(crContext) SmSurfOfRevolution(*this));
+  NER(pCopy.get());
+  if(precision > 0)
+    {
+      // Copy attributes only after validating the source: ordinary attribute
+      // propagation can otherwise collapse duplicate IDs into a valid policy.
+      // Both the raw physical scalar and independent ownership must survive.
+      double current = 0, copied = 0;
+      SER(SmSurfaceWorkPrecision::Get(*this, current));
+      SER(SmSurfaceWorkPrecision::Get(*pCopy, copied));
+      if(current != precision || copied != precision || GetOwner() != originalOwner) { SER(SM_ERR); }
+    }
+  rpNewSurface = pCopy.release();
   return SM_SUCCESS;
 
 } // end SmSurfOfRevolution::Copy
@@ -5340,11 +5358,42 @@ SmStatus SmSurfOfRevolution::Transform
 {
   SmVector3d sIdentityScale(1, 1, 1);
 
+  double workPrecision = 0, scaledPrecision = 0;
+  SER(SmSurfaceWorkPrecision::Get(*this, workPrecision));
+  const SmObject *originalOwner = GetOwner();
+  if(workPrecision > 0)
+    {
+      // A physical millimetre resolution follows a finite rigid transform and
+      // one positive uniform scale. Preflight before changing any definition
+      // or cache; the unregistered legacy transformation path stays unchanged.
+      const auto &origin = crRotateNMove.GetOriginRef();
+      const auto &x = crRotateNMove.GetXAxisRef();
+      const auto &y = crRotateNMove.GetYAxisRef();
+      SmAssertArray frameFindings;
+      if(!std::isfinite(origin.x) || !std::isfinite(origin.y) || !std::isfinite(origin.z) ||
+         !std::isfinite(x.x) || !std::isfinite(x.y) || !std::isfinite(x.z) ||
+         !std::isfinite(y.x) || !std::isfinite(y.y) || !std::isfinite(y.z) ||
+         !crRotateNMove.AssertValid(&frameFindings, SM_LEVEL_2, SM_NO_WALK)) { SER(SM_ERR); }
+      const double factor = cpOptScale ? cpOptScale->x : 1;
+      scaledPrecision = workPrecision * factor;
+      if(!std::isfinite(factor) || factor < SM_EFF_ZERO ||
+         (cpOptScale && (factor != cpOptScale->y || factor != cpOptScale->z)) ||
+         !std::isfinite(scaledPrecision) || scaledPrecision <= 0) { SER(SM_ERR); }
+    }
+
   // no work - identity transform
   if (crRotateNMove.IsIdentity() && (cpOptScale == NULL || *cpOptScale == sIdentityScale))
   {
       return SM_SUCCESS;
   }
+
+  if(workPrecision > 0)
+    {
+      Notify(SM_NO_PRE_EDIT, this, SM_NO_GET_OWNER(this), NULL);
+      double current = 0;
+      SER(SmSurfaceWorkPrecision::Get(*this, current));
+      if(current != workPrecision || GetOwner() != originalOwner) { SER(SM_ERR); }
+    }
 
   // check input and get scaling value - only allow uniform scaling
   double dScale = 1.0 ;
@@ -5377,7 +5426,8 @@ SmStatus SmSurfOfRevolution::Transform
   m_vPosition  = sTmpA2P;
 
   // transform the GenCurve
-  m_pGenCurve->Transform(crRotateNMove, cpOptScale) ;
+  if(workPrecision > 0) { SER(m_pGenCurve->Transform(crRotateNMove, cpOptScale)); }
+  else { m_pGenCurve->Transform(crRotateNMove, cpOptScale); }
 
   // apply transformation to underlying Nurb
   if (m_pNurb)
@@ -5386,7 +5436,23 @@ SmStatus SmSurfOfRevolution::Transform
     }
 
   // update PolarConverter
-  RebuildPolarConverter() ;
+  if(workPrecision > 0) { SER(RebuildPolarConverter()); }
+  else { RebuildPolarConverter(); }
+
+  if(workPrecision > 0)
+    {
+      // Nested geometry notifications can run application code. Revalidate
+      // the current metadata and owner before writing, with no saved attribute
+      // pointer. A changed policy refuses; native edits already made are not
+      // rolled back, and real callback exceptions propagate unchanged.
+      double current = 0;
+      SER(SmSurfaceWorkPrecision::Get(*this, current));
+      if(current != workPrecision || GetOwner() != originalOwner) { SER(SM_ERR); }
+      SER(SmSurfaceWorkPrecision::Set(*this, scaledPrecision));
+      Notify(SM_NO_POST_EDIT, this, SM_NO_GET_OWNER(this), NULL);
+      SER(SmSurfaceWorkPrecision::Get(*this, current));
+      if(current != scaledPrecision || GetOwner() != originalOwner) { SER(SM_ERR); }
+    }
 
   //      SmBSplineCurve *pRotationIsoCrv = NULL ;
   //      SmPoint2d       sMidUV          = m_vAnalUVDomain.Evaluate(.5678, .5678) ;
@@ -6140,7 +6206,8 @@ SmAssertReportLabel sAssertSurfOfRevolution_list[] =
   /* 12 */ {SM_AT_DOMAIN,           _T("InsideOut PolarCurve"),_T("Bad PolarCurve bInsideOut bit values is not FALSE") },
   /* 13 */ {SM_AT_GEOMETRIC,        _T("Overlapping Domain"),  _T("Bad Analytic U Direction Domain too large: SurfOfRevolution can't overlap themselves") },
   /* 14 */ {SM_AT_POINTER,          _T("Bad GenCurve Owner"),  _T("Bad GenCurve owner is not this SmSurfOfRevolution object") },
-  /* 15 */ {SM_AT_SIZE,             _T("Size"),                _T("Bad GenCurve length degenerates SurfOfRevolution to an approximate circular curve") }
+  /* 15 */ {SM_AT_SIZE,             _T("Size"),                _T("Bad GenCurve length degenerates SurfOfRevolution to an approximate circular curve") },
+  /* 16 */ {SM_AT_GEOMETRIC,        _T("Surface Work Precision"), _T("Explicit surface work precision metadata and ownership must be valid") }
 } ;
 
 /*******************************************************************//**
@@ -6161,6 +6228,14 @@ SmBoolean SmSurfOfRevolution::AssertValid
 {
   SM_REF1(eWalkTree) ;
   SmBoolean bRtn = TRUE ;
+
+  double workPrecision = 0;
+  const bool precisionValid = SmSurfaceWorkPrecision::Get(*this, workPrecision) == SM_SUCCESS;
+  bRtn &= SM_ASSERT_BOOLEAN_REPORT(16, SM_LEVEL_0, precisionValid, _T(""));
+  // An invalid owner graph must not be followed by nested geometric tests.
+  // A valid policy grants no exemption from any existing surface predicate,
+  // including approximate-pole Test 5 and the complete ordinary LEVEL2 walk.
+  if(!precisionValid) { return FALSE; }
 
   // call the base class AssertValid
   if(m_pNurb)

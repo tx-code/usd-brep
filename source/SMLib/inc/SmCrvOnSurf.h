@@ -261,6 +261,9 @@ protected:
   const SmContext * FindContext()    const;
   const SmCurve   * GetUVCurve()     const { return m_pUVCurve; }
   const SmSurface * GetBaseSurface() const { return m_pSurface; }
+  // The ownership discriminator, not merely a surface backlink. Callers which
+  // rely on ownership must also verify the surface/UV contexts and backlinks.
+  bool              OwnsBaseSurface() const { return m_lOwnerFlag == 2 || m_lOwnerFlag == 3; }
   const SmExtent2d& GetUVDomain()    const { return m_vUVDomain; }
   const double      GetBSApproxMaxGap3d() const { return m_dMaxGap3d; }
 

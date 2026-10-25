@@ -9,6 +9,7 @@
 #include "StdAfx.h"
 
 #include <SmSurface.h>
+#include <SmSurfaceWorkPrecision.h>
 
 #ifndef __SMBREP_H__
 #include <SmBrep.h>
@@ -12415,6 +12416,18 @@ const                                           //      NULL to ignore, default:
   SmBoolean     bSingular ;
   SmBoolean     bApproxSingular ;
   SmApproxTol3d sApproxTol3d = SmTol::GetApproxTol3d(this) ;
+  if(FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+    {
+      double workPrecision = 0;
+      if(SmSurfaceWorkPrecision::GetEffective(*this, workPrecision) == SM_SUCCESS)
+        {
+          // This boundary-degeneracy calculation may use a finer numerical
+          // resolution in mm. It does not change source coincidence or any
+          // topological tolerance. Recompute all masks below normally; bad
+          // metadata retains the legacy threshold and still fails AssertValid.
+          sApproxTol3d = .5 * workPrecision;
+        }
+    }
 
 #ifdef SM_DEBUG_CODE
 SmBoolean bDebugMe = FALSE ;
@@ -34763,7 +34776,8 @@ SmAssertReportLabel sAssertSurface_list[] =
   /*  3 */ {SM_AT_GEOMETRIC,   _T("Bad Surf Degenerates to Curve"), _T("Surface has degenerated into a single curve") },
   /*  4 */ {SM_AT_GEOMETRIC,   _T("Bad Surf Discontinuity"),        _T("Surface sampled IsoLine contains a G1 or C0 discontinuity across a Knot Value") },
   /*  5 */ {SM_AT_GEOMETRIC,   _T("Bad Surf Pole Approximation"),   _T("Surface is close to singular at boundary - should be tightened to exactly singular") },
-  /*  6 */ {SM_AT_COINCIDENCE, _T("Bad Surf Coincidence at Seam"),  _T("Open surface has partially coincident boundaries") }
+  /*  6 */ {SM_AT_COINCIDENCE, _T("Bad Surf Coincidence at Seam"),  _T("Open surface has partially coincident boundaries") },
+  /*  7 */ {SM_AT_GEOMETRIC,   _T("Surface Work Precision"),      _T("Explicit surface work precision metadata, class and ownership must be valid") }
 } ;
 
 /*******************************************************************//**
@@ -35167,6 +35181,16 @@ SmBoolean SmSurface::AssertValid
  const
 {
   SM_REF1(eWalkTree) ;
+  if(FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+    {
+      double workPrecision = 0;
+      const bool precisionValid = SmSurfaceWorkPrecision::Get(*this, workPrecision) == SM_SUCCESS;
+      const SmBoolean precisionReport = SM_ASSERT_BOOLEAN_REPORT(7, SM_LEVEL_0, precisionValid, _T(""));
+      // COPY metadata can survive a change of native surface class. Reject
+      // that unsupported policy, or an unsafe owner graph, before geometric
+      // tests can follow it. Surfaces without the attribute keep their path.
+      if(!precisionValid || !precisionReport) { return FALSE; }
+    }
   // check base class validity
   SmBoolean bRtn = TRUE ;
 

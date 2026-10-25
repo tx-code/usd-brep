@@ -2307,6 +2307,10 @@ std::shared_ptr<const SurfaceCurve3dInterpretationReceipt> ModelSnapshot::Surfac
 {
     return m_data->surfaceCurve3dInterpretation;
 }
+std::shared_ptr<const TargetSurfacePrecisionReceipt> ModelSnapshot::TargetSurfacePrecision() const
+{
+    return m_data->targetSurfacePrecision;
+}
 void ModelSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard nativeLock(detail::NativeMutex());

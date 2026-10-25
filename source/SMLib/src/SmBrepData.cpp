@@ -10,6 +10,9 @@
 
 #include <SmBrepData.h>
 #include <SmNativeArchive.h>
+#include <SmSurface.h>
+#include <SmCrvOnSurf.h>
+#include <SmSurfaceWorkPrecision.h>
 
 #ifndef __SMBREP_H__
 #include <SmBrep.h>
@@ -1772,10 +1775,10 @@ SmStatus SmBrepData::WritePartToDB
         { std::ostream & fout = *rDB.GetOutStreamPtr();
           fout << "\n[Curve #" << i << "]\n";
         }
-      SmBrepData::WriteCurveToDB(*pContext, cr3DCurves[i],
+      SER(SmBrepData::WriteCurveToDB(*pContext, cr3DCurves[i],
                                   lWriteDBVersionNumber, sAllAttributes,
                                   sAttrMap, rDB,
-                                  bWriteAsBSplines, sApproxTol3d, TRUE);
+                                  bWriteAsBSplines, sApproxTol3d, TRUE));
     }
 
   // for every surface
@@ -1786,10 +1789,10 @@ SmStatus SmBrepData::WritePartToDB
           std::ostream & fout = *rDB.GetOutStreamPtr();
           fout << "\n[Surface #" << j << "]\n";
         }
-      SmBrepData::WriteSurfaceToDB(*pContext, crSurfaces[j],
+      SER(SmBrepData::WriteSurfaceToDB(*pContext, crSurfaces[j],
                                    lWriteDBVersionNumber, sAllAttributes,
                                    sAttrMap, rDB,
-                                   bWriteAsBSplines, sApproxTol3d, TRUE);
+                                   bWriteAsBSplines, sApproxTol3d, TRUE));
     }
 
   // add header for boolean trees
@@ -4264,10 +4267,10 @@ SmStatus SmBrepData::WriteToDB
              }
         } // end z != NL_NOZ check
 
-      SmBrepData::WriteCurveToDB(crContext, m_vUVCurves[i],
+      SER(SmBrepData::WriteCurveToDB(crContext, m_vUVCurves[i],
                                  lDBVersionNumber, rAllAttributes,
                                  rAttrMap, rDB,
-                                 bWriteAsBSplines, sApproxTol3d, bPersistAttribs);
+                                 bWriteAsBSplines, sApproxTol3d, bPersistAttribs));
     } // end iter every m_vUVCurves[i]
 
   // 3D-Curve Data
@@ -4290,10 +4293,10 @@ SmStatus SmBrepData::WriteToDB
           std::ostream & rFileOut = *rDB.GetOutStreamPtr();
           rFileOut << i << " - 3D-Curve\n";
         }
-      SmBrepData::WriteCurveToDB(crContext, m_v3DCurves[i],
+      SER(SmBrepData::WriteCurveToDB(crContext, m_v3DCurves[i],
                                  lDBVersionNumber, rAllAttributes,
                                  rAttrMap, rDB,
-                                 bWriteAsBSplines, sApproxTol3d, bPersistAttribs);
+                                 bWriteAsBSplines, sApproxTol3d, bPersistAttribs));
     } // end iter every m_v3DCurves[i]
 
   // Surface Data
@@ -4316,10 +4319,10 @@ SmStatus SmBrepData::WriteToDB
           std::ostream & rFileOut = *rDB.GetOutStreamPtr();
           rFileOut << i << " - Surface\n";
         }
-      SmBrepData::WriteSurfaceToDB(crContext,m_vSurfaces[i],
+      SER(SmBrepData::WriteSurfaceToDB(crContext,m_vSurfaces[i],
                                    lDBVersionNumber,rAllAttributes,
                                    rAttrMap, rDB,
-                                   bWriteAsBSplines, sApproxTol3d, bPersistAttribs);
+                                   bWriteAsBSplines, sApproxTol3d, bPersistAttribs));
     } // end iter every m_vSurfaces[i]
 
   // all done
@@ -5598,6 +5601,17 @@ SmStatus SmBrepData::WriteCurveToDB
                                                             //      0.0 = use m_sApproxTol3d, default:[0.0]
    SmBoolean                              bPersistAttribs)  // in : TRUE = write attributes, false = don't, default:[TRUE]
 {
+  NER(pCrv);
+  if(const auto* composed = dynamic_cast<const SmCrvOnSurf*>(pCrv))
+    {
+      // This legacy curve payload omits attributes of its nested support.
+      // A calculation policy must never silently disappear, including when
+      // an explicit BSpline export would change its supported surface class.
+      const auto* support = composed->GetBaseSurface();
+      if(support && support->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+        { return SM_ERR_INVALID_INPUT; }
+    }
+
   // SmFileType eType = rDB.GetFileType();
   // Note this method appends to file
 
@@ -5634,7 +5648,7 @@ SmStatus SmBrepData::WriteCurveToDB
             }
 
           // pass write along to SmBSplineCurve class
-          pBSC->SmBSplineCurve::WriteToDB(rDB, lDBVersionNumber) ;
+          SER(pBSC->SmBSplineCurve::WriteToDB(rDB, lDBVersionNumber)) ;
 
         } // end write as BSplineCurve branch
       else // write native formats
@@ -5645,7 +5659,7 @@ SmStatus SmBrepData::WriteCurveToDB
           rDB.WriteType(lType, &lDim) ;
 
           // pass write along to appropriate derived Curve type
-          pCrv->WriteToDB(rDB, lDBVersionNumber) ;
+          SER(pCrv->WriteToDB(rDB, lDBVersionNumber)) ;
         }
 
     } // end branch for database versions greater than 32
@@ -5855,6 +5869,15 @@ SmStatus SmBrepData::WriteSurfaceToDB
                                                            //      0.0 = use m_sApproxTol3d, default:[0.0]
   SmBoolean                              bPersistAttribs)  // in : TRUE = write attributes, false = don't, default:[TRUE]
 {
+    NER(pSrf);
+    if(pSrf->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+      {
+        double precision = 0;
+        if(SmSurfaceWorkPrecision::Get(*pSrf, precision) != SM_SUCCESS || bWriteAsBSplines ||
+           !bPersistAttribs || lDBVersionNumber <= 30)
+          { return SM_ERR_INVALID_INPUT; }
+      }
+
     SmFileType eType = rDB.GetFileType();
 
     // branch on database version
@@ -5884,7 +5907,7 @@ SmStatus SmBrepData::WriteSurfaceToDB
             // pass write along to SmBSplineSurface class
 		    if (pBSS) 
 			{ 
-            	pBSS->SmBSplineSurface::WriteToDB(rDB, lDBVersionNumber) ;
+            SER(pBSS->SmBSplineSurface::WriteToDB(rDB, lDBVersionNumber)) ;
 			}
           } // end write as BSplineSurface branch
         else // write native formats
@@ -5894,7 +5917,7 @@ SmStatus SmBrepData::WriteSurfaceToDB
             rDB.WriteType(lType) ;
 
             // pass write along to appropriate derived Surface type
-            pSrf->WriteToDB(rDB, lDBVersionNumber) ;
+            SER(pSrf->WriteToDB(rDB, lDBVersionNumber)) ;
           }
 
       } // end branch for database versions greater than 32
