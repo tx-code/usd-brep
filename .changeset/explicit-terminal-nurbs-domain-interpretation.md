@@ -15,6 +15,9 @@ instances in its v7 scene with source curve/point selection and native numerical
 lengths. Missing wire members refuse the complete scene; pure-wire assemblies
 retain zero BRep bodies. Older body-only scene formats remain supported.
 Native consumers must rebuild for the extended wire observation/assembly APIs.
+Failed native LEVEL2 diagnostics identify matched defining edge curves, defining
+pcurves and derived face UV with their source use. These are ownership matches
+after pointer validation, not a new source-error classification or repair waiver.
 
 Native STEP import accepts an explicit source-hash-bound terminal NURBS domain
 interpretation plan on the general development path. Source definitions and UV

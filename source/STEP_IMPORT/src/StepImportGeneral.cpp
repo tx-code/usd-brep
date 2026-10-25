@@ -34,6 +34,7 @@
 #include <SmBrepData.h>
 #include <SmCircle.h>
 #include <SmCone.h>
+#include <SmCrvOnSurf.h>
 #include <SmCurveClass.h>
 #include <SmCylinder.h>
 #include <SmEdge.h>
@@ -5588,6 +5589,50 @@ private:
         for (ULONG i = 0; i < std::min<ULONG>(reports.GetSize(), 128); ++i)
         {
             const auto problem = reports[i];
+            if (std::string_view(key) == "GeneralLevel2Validation" && m_report.pointerReports == 0)
+            {
+                // Only follow the known construction graph after pointer
+                // validation. The same 2D curve predicate can concern an exact
+                // source-pcurve composition or optional derived face UV; its
+                // test index alone cannot distinguish them or authorize repair.
+                for (const auto edge : TargetEdges())
+                {
+                    const auto* curve = edge->GetCurve();
+                    const auto* composed = dynamic_cast<const SmCrvOnSurf*>(curve);
+                    const char* role = problem->GetOwner() == curve                              ? "DefiningEdgeCurve" :
+                                       composed && problem->GetOwner() == composed->GetUVCurve() ? "DefiningPcurve" :
+                                                                                                   nullptr;
+                    if (role)
+                    {
+                        message += std::string("geometry_role=") + role + " ";
+                        if (const auto source = SourceCurveOf(edge))
+                        {
+                            message += "edge=" + Id(curves[*source].record) + " geometry=" + Id(curves[*source].geometry) + " ";
+                        }
+                    }
+                }
+                for (const auto& face : m_model->faces)
+                {
+                    for (const auto loop : face.loops)
+                    {
+                        SmTArray<SmEdgeuse*> uses;
+                        loop->GetEdgeuses(uses);
+                        for (const auto use : uses)
+                        {
+                            // Read existing UV only: never materialize a trim
+                            // or update a tolerance while explaining a failure.
+                            if (problem->GetOwner() == use->GetUVTrimCurvePointer())
+                            {
+                                message += "geometry_role=DerivedFaceUV face=" + face.faceId + " ";
+                                if (const auto source = SourceCurveOf(use->GetEdge()))
+                                {
+                                    message += "edge=" + Id(curves[*source].record) + " ";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             for (const auto& face : m_model->faces)
             {
                 if (problem->GetOwner() == face.face)

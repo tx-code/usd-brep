@@ -79,6 +79,30 @@ def surface_curve_trimmed_arc(trim_forward=True, edge_forward=True, master_3d=Tr
 
 
 class PcurveNativeTests(unittest.TestCase):
+    def test_native_failure_distinguishes_defining_pcurve_and_derived_uv(self):
+        fixture = (Path(__file__).resolve().parents[3]
+                   / 'source/STEP_IMPORT/tests/fixtures/source_pcurve_anisotropic_bspline_patch.step')
+        source = fixture.read_bytes()
+        run, report = self.invoke(source)
+        self.assertNotEqual(0, run.returncode)
+        self.assertEqual('PostcheckFailure', report['status'])
+        self.assertIsNone(report['model'])
+        failure = next(d for d in report['diagnostics'] if d['key'] == 'GeneralLevel2Validation')
+        self.assertIn('geometry_role=DefiningPcurve edge=52 geometry=44', failure['message'])
+        self.assertIn('geometry_role=DefiningEdgeCurve edge=52 geometry=44', failure['message'])
+        self.assertIn('geometry_role=DerivedFaceUV face=23 edge=52', failure['message'])
+
+        # Independently authored equivalent chart: surface U knots and defining
+        # pcurve U controls scale by exactly 256. XYZ surface/curve controls and
+        # topology are untouched. This control diagnoses representation scope;
+        # the product does not yet normalize the original input's carrier.
+        self.assertEqual(4, source.count(b'0.00390625'))
+        normalized = source.replace(b'-0.00390625', b'-1.').replace(b'0.00390625', b'1.')
+        run, report = self.invoke(normalized)
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
+        self.assertAlmostEqual(4 / 3, report['model']['area_mm2'], delta=1e-7)
+
     def invoke(self, data):
         with tempfile.TemporaryDirectory(prefix="public-native-pcurve-") as folder:
             path = Path(folder) / "source.step"
