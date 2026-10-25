@@ -25,6 +25,11 @@ def main(argv=None):
     parser.add_argument("--strict-source", action="store_true", help="禁用非几何互操作；默认保留已证明无关的原诊断")
     parser.add_argument("--schema-interpretation", choices=SCHEMA_POLICIES, default="DeclaredOnly")
     parser.add_argument('--schema-source-sha256', default='', help='原件限定协议解释的完整 SHA256；只用于一个显式 STEP 文件')
+    parser.add_argument('--surface-curve-3d-source-sha256', default='',
+                        help='显式三维优先请求的独立原件 SHA256；不推断策略或复用协议 SHA')
+    parser.add_argument('--max-surface-curve-3d-uses', type=int, default=0, dest='maximum_surface_curve_3d_uses')
+    parser.add_argument('--surface-curve-3d-use', action='append', default=[], dest='surface_curve_3d_uses',
+                        help='definition:shape:edge:surface-curve:curve3d:PCURVE_S1|PCURVE_S2:pcurve[:pcurve]')
     parser.add_argument("--unit-interpretation", choices=UNIT_POLICIES, default="DeclaredOnly")
     parser.add_argument('--complex-mapping-interpretation', choices=COMPLEX_MAPPING_POLICIES, default='DeclaredOnly',
                         help='显式按已登记组成项名称解释非标准复合实体顺序；保留原文与诊断')
@@ -79,6 +84,8 @@ def main(argv=None):
     if options.assembly and (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'}):
         parser.error('--assembly 当前需要一个显式 STEP 文件')
     try:
+        from .surface_curve import require_explicit_file
+        require_explicit_file(options, options.file, scan=bool(options.scan))
         if (options.schema_interpretation == 'SourceBoundAp214As2010' and
                 (options.scan or not options.file or Path(options.file).suffix.lower() not in {'.step', '.stp'})):
             raise ValueError('SourceBoundSchemaRequiresOneExplicitStepFile')

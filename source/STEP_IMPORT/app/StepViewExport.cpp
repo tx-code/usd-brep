@@ -10,6 +10,7 @@
 #include "StepSelectionArguments.h"
 #include "StepSourceIdentityArguments.h"
 #include "StepSourceReport.h"
+#include "StepSurfaceCurveArguments.h"
 #include "StepViewAuxiliary.h"
 #include "StepViewTopology.h"
 
@@ -227,6 +228,34 @@ std::pair<std::size_t, bool> RepairSummary(const step_import::Report& report)
     include(report.definitions);
     return { count, interpreted };
 }
+void SurfaceCurve3dMarker(Writer& writer, const step_import::Report& report)
+{
+    if (!report.surfaceCurve3dInterpretation)
+    {
+        return;
+    }
+    const auto& receipt = *report.surfaceCurve3dInterpretation;
+    // Keep the scene within its independent 64 KiB display bound. The complete
+    // native plans, original conflict diagnostics and exact budgets already
+    // belong to import-report.json; Python must bind/validate that report before
+    // decoding meshes or publishing any scene. No STEP interpretation is rebuilt.
+    writer.Add(
+        ",\"surface_curve_3d_interpretation\":{\"interpretation\":\"ExplicitCurve3dPriority\","
+        "\"report\":\"import-report.json\",\"source_sha256\":"
+    );
+    writer.String(receipt.sourceSha256);
+    writer.Add(",\"quality_id\":");
+    writer.String(receipt.qualityId);
+    writer.Add(",\"request_complete\":");
+    writer.Bool(receipt.requestComplete);
+    writer.Add(",\"maximum_uses\":");
+    writer.Number(receipt.maximumUses);
+    writer.Add(",\"plan_count\":");
+    writer.Number(receipt.plans.size());
+    writer.Add(",\"action_count\":");
+    writer.Number(receipt.actions.size());
+    writer.Add("}");
+}
 void Publish(
     std::string_view profile,
     const std::filesystem::path& output,
@@ -268,6 +297,7 @@ void Publish(
                                               "{\"format\":\"brep-view-scene.v1\",\"status\":"
                 );
                 w.String(status);
+                SurfaceCurve3dMarker(w, report);
                 if (info && profile == "fine-work-tolerance-study")
                 {
                     // A ready scene binds this explicit study to the profile
@@ -640,7 +670,8 @@ int Run(
     const std::optional<step_import::SourceErrorIsolationLimits>& sourceIsolation = {},
     const step_import_app::AssemblyArguments& assemblyRequest = {},
     const std::optional<step_import::NumericalIntegrationSettings>& numericalIntegration = {},
-    const std::string& schemaSourceIdentity = {}
+    const std::string& schemaSourceIdentity = {},
+    const std::shared_ptr<const step_import::SurfaceCurve3dInterpretationRequest>& surfaceCurve3d = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -668,6 +699,7 @@ int Run(
     {
         auto options = step_import::Options::PlanarFixture();
         options.generalBrep = true;
+        options.surfaceCurve3dInterpretation = surfaceCurve3d;
         options.numericalIntegration = numericalIntegration;
         options.faceOrientationRepair = repair;
         options.definitionSelection = selection;
@@ -1140,14 +1172,16 @@ int wmain(int argc, wchar_t** argv)
         step_import::Options request;
         step_import_app::AssemblyArguments assemblyRequest;
         step_import_app::SelectionArgumentState selectionArguments;
+        step_import_app::SurfaceCurve3dArguments surfaceCurveArguments;
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::SourceIdentityArgument(
-                    std::filesystem::path(argv[i]).string(),
-                    std::filesystem::path(argv[i + 1]).string(),
-                    request
-                ) ||
+                surfaceCurveArguments.Parse(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string()) ||
+                    step_import_app::SourceIdentityArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        request
+                    ) ||
                     step_import_app::IntegrationArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -1199,7 +1233,8 @@ int wmain(int argc, wchar_t** argv)
             request.sourceErrorIsolation,
             assemblyRequest,
             request.numericalIntegration,
-            request.schemaInterpretation.sourceSha256
+            request.schemaInterpretation.sourceSha256,
+            surfaceCurveArguments.Request()
         );
     }
     catch (...)
@@ -1233,10 +1268,11 @@ int main(int argc, char** argv)
         step_import::Options request;
         step_import_app::AssemblyArguments assemblyRequest;
         step_import_app::SelectionArgumentState selectionArguments;
+        step_import_app::SurfaceCurve3dArguments surfaceCurveArguments;
         for (int i = 13; i < argc; i += 2)
         {
             Good(
-                step_import_app::SourceIdentityArgument(argv[i], argv[i + 1], request) ||
+                surfaceCurveArguments.Parse(argv[i], argv[i + 1]) || step_import_app::SourceIdentityArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::IntegrationArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::AssemblyArgument(
                         std::filesystem::path(argv[i]).string(),
@@ -1271,7 +1307,8 @@ int main(int argc, char** argv)
             request.sourceErrorIsolation,
             assemblyRequest,
             request.numericalIntegration,
-            request.schemaInterpretation.sourceSha256
+            request.schemaInterpretation.sourceSha256,
+            surfaceCurveArguments.Request()
         );
     }
     catch (...)

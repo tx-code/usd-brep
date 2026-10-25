@@ -258,7 +258,9 @@ class ViewerWindow(QtWidgets.QMainWindow):
                     policy += f"\n隔离 {selection['isolated_source_failure_count']} 处未选定义的源错误"
                     if metadata.get('source_interpretation_applied'):
                         policy += '\n源解释模式 · 条件接受'
-            if metadata.get("native_import_status") == "AcceptedUnderInterpretation":
+            if metadata.get('_surface_curve_3d_receipt'):
+                policy += '\n原件限定三维优先 · 条件接受\n原 pcurve 一致性未获资格'
+            elif metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
             if metadata.get('repair_applied'):
                 if metadata.get('repair_kind') == 'CylindricalBandWithCircleVertices':
@@ -586,6 +588,9 @@ def run(options):
                               options.restrict_unused_support_domains, options.strict_source,
                               schema_interpretation=options.schema_interpretation,
                               schema_source_sha256=getattr(options, 'schema_source_sha256', ''),
+                              surface_curve_3d_source_sha256=getattr(options, 'surface_curve_3d_source_sha256', ''),
+                              maximum_surface_curve_3d_uses=getattr(options, 'maximum_surface_curve_3d_uses', 0),
+                              surface_curve_3d_uses=tuple(getattr(options, 'surface_curve_3d_uses', ())),
                               carrier_interpretation=options.carrier_interpretation,
                               report_budget_mib=options.report_budget_mib,
                               preserve_opaque_file_name_text=options.preserve_opaque_file_name_text,

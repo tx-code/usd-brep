@@ -51,6 +51,39 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+For one explicitly named STEP file, the viewer transports the native importer's
+existing original/use-bound three-dimensional priority request:
+
+```powershell
+.\brep-view.exe "D:\Models\part.step" --surface-curve-3d-source-sha256 HASH `
+  --max-surface-curve-3d-uses 1 `
+  --surface-curve-3d-use DEFINITION:SHAPE:EDGE:SURFACE_CURVE:CURVE3D:PCURVE_S1:PCURVE
+```
+
+Supply the lowercase original SHA-256 independently of any schema interpretation
+SHA. Repeat `--surface-curve-3d-use` for every explicitly selected source edge;
+`PCURVE_S2` requires both original associated pcurve IDs, and LIST order/repeated
+IDs remain significant. These are source labels, never native/display ordinals.
+The viewer does not choose a priority, infer a plan, copy a previous file's policy,
+retry a refusal, or use this request during a directory scan. Periodic-face
+normalization, unused-support restriction, repair, definition selection and
+source-error isolation cannot accompany it, matching the core contract.
+
+The scene carries only a small interpretation marker. Before decoding any mesh,
+the loader checks the complete local `import-report.json`: captured identity,
+conditional native status, profile/budgets, the exact ordered plans, one checked
+action per plan and the original conflict diagnostics. All four native disclaimers
+remain false: original geometry/pcurve consistency is not qualified and neither
+priority declarations nor source definitions were rewritten. The HUD labels this
+specific conditional interpretation once. Original conflict observations remain
+in the owning local result after the worker's temporary files are released.
+Report reading is bounded by the selected worker report capacity (at least
+32 MiB, at most 256 MiB); geometry budgets are unchanged. The Windows command-line
+limit refuses an oversized plan before starting a worker, without truncating uses.
+Missing/mismatched evidence, an older worker, failure or cancellation preserves
+the previous complete scene. Default requests and v7 wireframe transport retain
+their existing behavior. See the [native interpretation contract](../../source/STEP_IMPORT/README.md).
+
 `--integration-relative-accuracy 1e-8` explicitly forwards the native importer's
 existing dimensionless stopping control for fused material area/volume integrals.
 Finite values in `[1e-8,1e-4]` are supported; omission preserves the existing

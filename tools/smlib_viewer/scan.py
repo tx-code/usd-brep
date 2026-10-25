@@ -194,6 +194,8 @@ def run_case(path, directory, options, caption):
 
 
 def run_scan(options):
+    from .surface_curve import require_explicit_file
+    require_explicit_file(options, None, scan=True)
     if (getattr(options, 'schema_source_sha256', '') or
             getattr(options, 'schema_interpretation', 'DeclaredOnly') == 'SourceBoundAp214As2010'):
         raise ValueError('SourceBoundSchemaRequiresOneExplicitStepFile')

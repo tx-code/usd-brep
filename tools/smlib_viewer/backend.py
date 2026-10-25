@@ -20,6 +20,9 @@ from .definition_selection import arguments as selection_arguments, validate_man
 from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
 from .integration import arguments as integration_arguments, validate_receipt as validate_integration_receipt
 from .quality import validate_receipt as validate_quality_receipt
+from .surface_curve import arguments as surface_curve_arguments, require_explicit_file
+from .surface_curve import validate_receipt as validate_surface_curve_receipt
+from .surface_curve import observe_failure_receipt as observe_surface_curve_failure
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -62,6 +65,9 @@ class ImportSettings:
     unreferenced_placement_policy: str = 'Reject'
     integration_relative_accuracy: float | None = None
     schema_source_sha256: str = ''
+    surface_curve_3d_source_sha256: str = ''
+    maximum_surface_curve_3d_uses: int = 0
+    surface_curve_3d_uses: tuple[str, ...] = ()
 
     def __post_init__(self):
         if type(self.preserve_opaque_file_name_text) is not bool:
@@ -74,6 +80,10 @@ class ImportSettings:
         assembly_arguments(self)
         integration_arguments(self)
         source_identity_arguments(self)
+        surface_curve_arguments(self)
+        # Snapshot the explicit plan before a caller can mutate a supplied list
+        # while the worker is running. Native import deep-copies it again.
+        object.__setattr__(self, 'surface_curve_3d_uses', tuple(self.surface_curve_3d_uses))
         if type(self.report_budget_mib) is not int or self.report_budget_mib not in (16, 32, 64, 128, 256):
             raise ValueError("InvalidReportBudget")
 
@@ -134,6 +144,11 @@ class SceneLoader(QtCore.QObject):
         if source_identity_arguments(self.settings) and path.suffix.lower() not in CAD_EXTENSIONS:
             self.failed.emit("原件协议解释需要 STEP 文件", "绑定请求不能用于其他文件格式。")
             return
+        try:
+            require_explicit_file(self.settings, path)
+        except ValueError as error:
+            self.failed.emit('三维优先解释需要一个 STEP 文件', str(error))
+            return
         generation = self.generation
         directory = tempfile.TemporaryDirectory(prefix="brep-view-")
         process = QtCore.QProcess(self)
@@ -163,7 +178,8 @@ class SceneLoader(QtCore.QObject):
                     arguments.append(self.settings.unit_interpretation)
             intent = (repair_arguments(self.settings) + selection_arguments(self.settings) +
                       complex_mapping_arguments(self.settings) + assembly_arguments(self.settings) +
-                      integration_arguments(self.settings) + source_identity_arguments(self.settings))
+                      integration_arguments(self.settings) + source_identity_arguments(self.settings) +
+                      surface_curve_arguments(self.settings))
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -177,6 +193,16 @@ class SceneLoader(QtCore.QObject):
             self._dispose(generation)
             self.failed.emit("找不到导入进程", "请使用完整便携目录，或设置 BREP_VIEW_WORKER。")
             return
+        if surface_curve_arguments(self.settings) and sys.platform == 'win32':
+            import subprocess
+            # CreateProcess has a UTF-16 command-line bound including the NUL.
+            # Reject an oversized explicit plan before starting/capturing input;
+            # do not truncate uses or choose a smaller plan to make it fit.
+            command = subprocess.list2cmdline([str(program), *arguments])
+            if len(command.encode('utf-16-le')) // 2 + 1 > 32767:
+                self._dispose(generation)
+                self.failed.emit('三维优先请求过大', 'SurfaceCurve3dTransportCommandLimit')
+                return
         environment = QtCore.QProcessEnvironment.systemEnvironment()
         runtime = str(Path(getattr(sys, "_MEIPASS", program.parent)))
         environment.insert("PATH", os.pathsep.join([str(program.parent), runtime, environment.value("PATH")]))
@@ -258,6 +284,9 @@ class SceneLoader(QtCore.QObject):
             directory = Path(job["directory"].name)
             manifest_path = directory / "scene.json"
             if not manifest_path.is_file() or manifest_path.stat().st_size > 65536:
+                if not manifest_path.is_file() and code == 2 and surface_curve_arguments(self.settings):
+                    raise ValueError('SurfaceCurve3dWorkerRequestUnsupportedOrInvalid; '
+                                     'matching worker required; no fallback')
                 raise ValueError("WorkerFailedOrCrashed")
             with manifest_path.open('rb') as stream:
                 manifest_bytes = stream.read(65537)
@@ -275,6 +304,14 @@ class SceneLoader(QtCore.QObject):
             # temporary payloads are released. No borrowed paths escape here.
             self.worker_result = {**manifest, "exit_code": code}
             if code != 0 or manifest.get("status") != "Ready":
+                try:
+                    observation = observe_surface_curve_failure(directory, manifest, self.settings, scene_file)
+                    if observation is not None:
+                        self.worker_result['surface_curve_3d_failure_observation'] = observation
+                except (OSError, ValueError, TypeError) as error:
+                    # A damaged secondary report cannot replace the original
+                    # native refusal or grant publication of an unfinished plan.
+                    self.worker_result['surface_curve_3d_report_error'] = str(error)
                 messages = [f"{d['key']}: {d['message']}" for d in manifest.get("diagnostics", [])]
                 classifications = {d.get('classification') for d in manifest.get('diagnostics', [])}
                 title = ("面环方向检查未通过" if classifications == {'NativeFaceLoopOrientationFailure'}
@@ -290,6 +327,13 @@ class SceneLoader(QtCore.QObject):
                 validate_assembly_request(manifest, self.settings)
                 validate_vertex_manifest(manifest, self.settings)
                 validate_quality_receipt(manifest, self.settings)
+                receipt = validate_surface_curve_receipt(directory, manifest, self.settings, scene_file)
+                if receipt is not None:
+                    # Keep the complete native evidence as owning JSON values
+                    # after the temporary worker report is released. The marker
+                    # alone cannot establish a completed source-bound request.
+                    self.worker_result['surface_curve_3d_receipt'] = receipt
+                    manifest = dict(manifest, _surface_curve_3d_receipt=receipt)
             import pyvista as pv
             import numpy as np
             if manifest['format'] in {'brep-view-scene.v6', 'brep-view-scene.v7'}:
