@@ -16,6 +16,9 @@ report. Target-face trims are projected from the physical edge against the
 actual target surface. Final ownership and complete stored definitions are
 verified after native consumers and before publication.
 
+The surface resource cap applies to the total stored control count, so a long,
+narrow control net can qualify within the same maximum storage/work scope.
+
 ## Scope
 
 [STEP import contract](../source/STEP_IMPORT/README.md). The bounded plain,

@@ -325,6 +325,53 @@ void SessionOwnership()
     const auto rejected = VerifySplineChartBindings(session, context, callbacks);
     Require(!rejected && rejected.error().key == "SplineChartOwnershipChanged", "stale owner backlinks cannot substitute for actual ownership");
 }
+std::unique_ptr<SmBSplineSurface> StripSurface(SmContext& context, bool square = false)
+{
+    // Public bilinear plane represented as many collinear knot spans. A long
+    // axis does not imply a large stored net: 65x2 is smaller than 64x64.
+    const ULONG nu = 65, nv = square ? 65 : 2;
+    const auto knots = [](ULONG count, double scale)
+    {
+        std::vector<double> values(count + 2);
+        values[0] = values[1] = -scale;
+        values[count] = values[count + 1] = scale;
+        for (ULONG i = 1; i + 1 < count; ++i)
+        {
+            values[i + 1] = (-1. + 2. * i / (count - 1)) * scale;
+        }
+        return values;
+    };
+    auto u = knots(nu, 0x1p-8), v = knots(nv, 1.);
+    std::vector<std::vector<gw_CPOINT>> controls(nu, std::vector<gw_CPOINT>(nv));
+    std::vector<gw_CPOINT*> rows;
+    for (ULONG i = 0; i < nu; ++i)
+    {
+        for (ULONG j = 0; j < nv; ++j)
+        {
+            controls[i][j] = { -1. + 2. * i / (nu - 1), -1. + 2. * j / (nv - 1), 0, NL_NOW };
+        }
+        rows.push_back(controls[i].data());
+    }
+    return std::unique_ptr<SmBSplineSurface>(new (context) SmBSplineSurface(nu - 1, nv - 1, 1, 1, nu + 1, nv + 1, rows.data(), u.data(), v.data()));
+}
+void StoredNetBudget()
+{
+    SmContext context;
+    auto strip = StripSurface(context), square = StripSurface(context, true);
+    auto uv = Curve(context);
+    const auto original = Stored(*strip), outside = Stored(*square);
+    Ledger ledger;
+    auto candidate = TryConditionSplinePcurve(*strip, *uv, context, std::nullopt, ledger.Callbacks());
+    Require(candidate && candidate->has_value(), "skinny surface inside total stored-net budget receives exact chart");
+    Require((**candidate).chart.SurfaceControlCount() == 130, "complete long-axis net checked without raising total control budget");
+    Require(
+        bool((**candidate).witness->Verify(*(**candidate).surface, (**candidate).uv.get(), ledger.Callbacks())),
+        "whole skinny target net witness"
+    );
+    auto rejected = TryConditionSplinePcurve(*square, *uv, context, std::nullopt, ledger.Callbacks());
+    Require(rejected && !*rejected, "surface beyond the unchanged 4096-control total remains outside scope");
+    Require(Stored(*strip) == original && Stored(*square) == outside, "both source nets unchanged across total-budget decisions");
+}
 void NegativeScopes()
 {
     SmContext context;
@@ -470,6 +517,7 @@ int main()
     {
         Positive();
         SessionOwnership();
+        StoredNetBudget();
         NegativeScopes();
         BudgetsAndCancellation();
         WorkingToleranceBinding();

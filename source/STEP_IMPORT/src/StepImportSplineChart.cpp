@@ -23,7 +23,7 @@ namespace step_import::detail
 {
 namespace
 {
-constexpr std::size_t MaximumSurfaceAxis = 64, MaximumCurveControls = 4096, MaximumKnots = 8192;
+constexpr std::size_t MaximumSurfaceControls = 4096, MaximumCurveControls = 4096, MaximumKnots = 8192;
 using Pole = std::array<double, 4>;
 struct SurfaceNet
 {
@@ -262,8 +262,10 @@ Result<std::optional<SurfaceNet>> ReadSurface(const SmSurface& source, const Spl
         },
         "SplineChartSurfaceKnots"
     ));
-    if (!points || !u || !v || net.countU == 0 || net.countV == 0 || net.countU > MaximumSurfaceAxis || net.countV > MaximumSurfaceAxis || ku == 0 ||
-        kv == 0 || ku > MaximumKnots || kv > MaximumKnots - ku)
+    // Bound the actual stored net, independently of its aspect ratio. The
+    // division also avoids overflowing a product before establishing the cap.
+    if (!points || !u || !v || net.countU == 0 || net.countV == 0 || net.countU > MaximumSurfaceControls / net.countV || ku == 0 || kv == 0 ||
+        ku > MaximumKnots || kv > MaximumKnots - ku)
     {
         return std::nullopt;
     }

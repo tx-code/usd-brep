@@ -78,7 +78,7 @@ struct SplineChartCandidate
 
 // Narrow, equivalent coordinate representation: plain clamped B-spline surface
 // plus nonrational plain clamped 2D B-spline pcurve, both ownerless in context.
-// Caps: 64x64 surface controls, 4096 curve controls, 8192 knots per definition.
+// Caps: 4096 total surface controls, 4096 curve controls, 8192 knots per definition.
 // Scope/scalar nonreversibility returns nullopt; native API/postcondition,
 // resource and callback failures propagate. A preset is bound to the original
 // entire surface net and is never
