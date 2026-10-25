@@ -353,6 +353,162 @@ void Refusals()
     const auto refused = CertifyCurveRestriction(extended->reference, RestrictedQuadratic(), { "1", "1000000000" }, Capacity(), Work);
     Require(!refused && refused.error().key == "TerminalSplineRestrictionCurveReference", "interpreted reference is not original-source evidence");
 }
+void BoundedCurveRefinement()
+{
+    // Independent analytic truth: degree-one controls at their own knots
+    // define C(t)=(t,0,0), irrespective of the two different partitions. Their
+    // union has 32 positive spans. Refinement must not need a fresh full net
+    // for every inserted knot; the SAME 128-slot allowance covers both nets.
+    Source source;
+    source.u.degree = 1;
+    source.countU = 17;
+    for (unsigned i = 0; i <= 16; ++i)
+    {
+        const auto text = std::to_string(double(i) / 16);
+        source.u.knots.push_back(text);
+        source.u.multiplicities.push_back(i == 0 || i == 16 ? 2 : 1);
+        source.controls.push_back({ text, "0", "0" });
+    }
+    BinaryNet actual;
+    actual.basis.degreeU = 1;
+    actual.basis.countU = 18;
+    actual.basis.knotsU.push_back(0);
+    actual.homogeneous.push_back({ 0, 0, 0, 1 });
+    for (unsigned i = 0; i < 16; ++i)
+    {
+        const double knot = double(2 * i + 1) / 32;
+        actual.basis.knotsU.push_back(knot);
+        actual.homogeneous.push_back({ knot, 0, 0, 1 });
+    }
+    actual.basis.knotsU.insert(actual.basis.knotsU.begin(), 0);
+    actual.basis.knotsU.push_back(1);
+    actual.basis.knotsU.push_back(1);
+    actual.homogeneous.push_back({ 1, 0, 0, 1 });
+    const auto originalControls = source.controls;
+    const auto originalKnots = source.u.knots;
+    const auto actualBefore = actual;
+    auto capacity = Capacity();
+    capacity.controlSlots = 128;
+    auto reference = CaptureOriginalReference(source, capacity, Work);
+    Require(bool(reference), "bounded straight-line reference capture");
+    const auto certify = [&](const terminal_spline::Limits& limits, const Charge& charge)
+    {
+        return CertifyCurveTrim(*reference, { "0", "1" }, actual, { "1", "1000000000000" }, limits, charge);
+    };
+    RequireExact(certify(capacity, Work), 32, "different partitions certify the same line within bounded control storage");
+    actual.homogeneous[8][1] = .25;
+    const auto changed = certify(capacity, Work);
+    Require(
+        changed && !changed->established && changed->maximumMm && *changed->maximumMm > 0,
+        "refinement still detects an interior defining-control error"
+    );
+    actual = actualBefore;
+
+    // Resident reference 17 + private source copy 17 + actual 18 + the two
+    // newly allocated 33-control refinement buffers = 118 cumulative slots.
+    // Both old buffers are still counted; this is not a peak-only ledger.
+    capacity.controlSlots = 118;
+    RequireExact(certify(capacity, Work), 32, "exact cumulative control allocation N succeeds");
+    capacity.controlSlots = 117;
+    const auto shortStorage = certify(capacity, Work);
+    Require(
+        !shortStorage && shortStorage.error().status == Status::ResourceLimit && shortStorage.error().key == "TerminalSplineControlCapacity",
+        "N-1 control storage refuses without a partial proof"
+    );
+    capacity.controlSlots = 128;
+    std::size_t units = 0, calls = 0;
+    RequireExact(
+        certify(
+            capacity,
+            [&](std::size_t count) -> Result<void>
+            {
+                units += count;
+                ++calls;
+                return {};
+            }
+        ),
+        32,
+        "refinement work remains charged to the caller"
+    );
+    for (const auto limit : { units, units - 1 })
+    {
+        std::size_t spent = 0;
+        const auto result = certify(
+            capacity,
+            [&](std::size_t count) -> Result<void>
+            {
+                if (count > limit - spent)
+                {
+                    return tl::unexpected(Failure{ Status::ResourceLimit, "RefineWork", "public work", 19, "RefineCaller" });
+                }
+                spent += count;
+                return {};
+            }
+        );
+        if (limit == units)
+        {
+            RequireExact(result, 32, "exact refinement work N succeeds");
+        }
+        else
+        {
+            Require(!result && result.error().key == "RefineWork" && result.error().record == 19, "N-1 refinement work propagates");
+        }
+    }
+    for (const auto stop : { std::size_t(1), calls / 2, calls })
+    {
+        std::size_t visited = 0;
+        const auto stopped = certify(
+            capacity,
+            [&](std::size_t) -> Result<void>
+            {
+                if (++visited == stop)
+                {
+                    return tl::unexpected(Failure{ Status::Cancelled, "RefineCancel", "public cancellation", 20, "RefineCaller" });
+                }
+                return {};
+            }
+        );
+        Require(!stopped && stopped.error().key == "RefineCancel" && visited == stop, "refinement cooperates with cancellation");
+    }
+    RequireExact(certify(capacity, Work), 32, "reference remains reusable after cancellation and capacity refusal");
+    Require(
+        source.controls == originalControls && source.u.knots == originalKnots && actual.homogeneous == actualBefore.homogeneous &&
+            actual.basis.knotsU == actualBefore.basis.knotsU,
+        "refinement does not mutate source or stored-native inputs"
+    );
+
+    // A quadratic homogeneous insertion mixes TWO adjacent old poles. These
+    // independently calculated midpoint controls detect forward overwrite or
+    // moving a tail pole which the next blend still needs.
+    auto rational = Quadratic(true);
+    rational.u.knots = { "0", "1" };
+    const auto rationalReference = CaptureOriginalReference(rational, Capacity(), Work);
+    Require(bool(rationalReference), "rational alias control reference");
+    BinaryNet midpoint;
+    midpoint.basis = { 2, 0, 4, 1, { 0, 0, 0, .5, 1, 1, 1 }, {} };
+    midpoint.homogeneous = { { 0, 0, 0, 1 }, { 1, 2, 0, 1.5 }, { 2, 2, 0, 1.5 }, { 2, 0, 0, 1 } };
+    RequireExact(
+        CertifyCurveTrim(*rationalReference, { "0", "1" }, midpoint, { "1", "1000000000000" }, Capacity(), Work),
+        2,
+        "in-place quadratic refinement preserves both old blend dependencies"
+    );
+
+    Source oneSpan;
+    oneSpan.u = { 1, { "0", "1" }, { 2, 2 }, {} };
+    oneSpan.countU = 2;
+    oneSpan.controls = { { "0", "0", "0" }, { "1", "0", "0" } };
+    const auto shortReference = CaptureOriginalReference(oneSpan, Capacity(), Work);
+    Require(bool(shortReference), "single-span reference");
+    BinaryNet oneSpanActual;
+    oneSpanActual.basis = { 1, 0, 2, 1, { 0, 0, 1, 1 }, {} };
+    oneSpanActual.homogeneous = { { 0, 0, 0, 1 }, { 1, 0, 0, 1 } };
+    capacity.controlSlots = 6;
+    RequireExact(
+        CertifyCurveTrim(*shortReference, { "0", "1" }, oneSpanActual, { "1", "1000000000000" }, capacity, Work),
+        1,
+        "no missing knots require no extra control buffer beyond resident and two copies"
+    );
+}
 void Boundaries()
 {
     const auto source = Quadratic(true);
@@ -458,6 +614,7 @@ int main()
         DecimalSourceDomain();
         DecimalTrimCorrespondence();
         Refusals();
+        BoundedCurveRefinement();
         Boundaries();
         std::cout << "Exact source curve-restriction contracts passed\n";
         return 0;

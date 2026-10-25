@@ -854,8 +854,155 @@ Result<std::vector<R>> KnotUnion(const std::vector<R>& a, const std::vector<R>& 
     }
     return out;
 }
+Result<void> RefineCurve(Net& net, const std::vector<R>& values, Arithmetic& math)
+{
+    // All callers supply nondecreasing common knots or ordered restriction
+    // cuts. Merge that list with the ORIGINAL knot groups before allocating.
+    // Counting each distinct cut once also preserves repeated-cut behavior.
+    const auto originalCount = net.nu;
+    auto finalCount = originalCount;
+    auto knot = net.u.begin();
+    const R* previous = nullptr;
+    for (const auto& value : values)
+    {
+        TS_OK(math.Spend());
+        if (previous && Compare(value, *previous) < 0)
+        {
+            return tl::unexpected(Error("TerminalSplineRefinementOrder"));
+        }
+        const bool repeated = previous && Compare(value, *previous) == 0;
+        previous = &value;
+        if (repeated || Compare(value, net.u[net.p]) <= 0 || Compare(value, net.u[originalCount]) >= 0)
+        {
+            continue;
+        }
+        while (knot != net.u.end() && Compare(*knot, value) < 0)
+        {
+            TS_OK(math.Spend());
+            ++knot;
+        }
+        std::size_t multiplicity = 0;
+        while (knot != net.u.end() && Compare(*knot, value) == 0)
+        {
+            TS_OK(math.Spend());
+            ++knot;
+            ++multiplicity;
+        }
+        if (multiplicity > net.p)
+        {
+            return tl::unexpected(Error("TerminalSplineInsertionMultiplicity"));
+        }
+        const auto missing = net.p - multiplicity;
+        if (finalCount > math.limits.controlSlots || missing > math.limits.controlSlots - finalCount)
+        {
+            return tl::unexpected(Error("TerminalSplineControlCapacity", Status::ResourceLimit));
+        }
+        finalCount += missing;
+    }
+    if (finalCount == originalCount)
+    {
+        return {};
+    }
+    const auto added = finalCount - originalCount;
+    if (added > net.u.max_size() - net.u.size())
+    {
+        return tl::unexpected(Error("TerminalSplineControlCapacity", Status::ResourceLimit));
+    }
+    // This is still a CUMULATIVE allocation ledger: charge the complete new
+    // buffer, including the old net already counted by its reader/copy. Each
+    // following insertion reuses it instead of allocating successively larger
+    // full nets. Tensor refinement and terminal extension retain their path.
+    TS_OK(math.Reserve(finalCount));
+    std::vector<H> refined(finalCount);
+    TS_OK(math.Spend(originalCount));
+    std::move(net.cp.begin(), net.cp.end(), refined.begin());
+    net.cp = std::move(refined);
+    TS_OK(math.Spend(net.u.size() + added));
+    net.u.reserve(net.u.size() + added);
+    for (const auto& value : values)
+    {
+        TS_OK(math.Spend());
+        if (Compare(value, net.u[net.p]) <= 0 || Compare(value, net.u[net.nu]) >= 0)
+        {
+            continue;
+        }
+        // Charge the search itself. Replacing full-net allocation must not
+        // leave a hidden whole-knot scan outside the caller's work ledger.
+        std::size_t first = 0, last = net.u.size();
+        while (first < last)
+        {
+            TS_OK(math.Spend());
+            const auto middle = first + (last - first) / 2;
+            if (Compare(value, net.u[middle]) < 0)
+            {
+                last = middle;
+            }
+            else
+            {
+                first = middle + 1;
+            }
+        }
+        if (!first)
+        {
+            return tl::unexpected(Error("TerminalSplineInsertionDomain"));
+        }
+        auto k = first - 1;
+        std::size_t s = 0;
+        for (auto at = first; at; --at)
+        {
+            TS_OK(math.Spend());
+            if (Compare(net.u[at - 1], value) != 0)
+            {
+                break;
+            }
+            ++s;
+        }
+        while (s < net.p)
+        {
+            if (k < net.p || k < s || k - s >= net.nu || net.nu >= finalCount)
+            {
+                return tl::unexpected(Error("TerminalSplineInsertionMultiplicity"));
+            }
+            // Copy the tail BACKWARDS: moving P[k-s] would destroy an input of
+            // its own blend. Then blend backwards so every P[i-1],P[i] is read
+            // before either old pole is overwritten. This is the same exact
+            // homogeneous Boehm formula as Insert, with no rounded operations.
+            for (auto i = net.nu; i-- > k - s;)
+            {
+                TS_OK(math.Spend());
+                net.cp[i + 1] = net.cp[i];
+            }
+            for (auto i = k - s; i > k - net.p; --i)
+            {
+                TS_TRY(numerator, math.Sub(value, net.u[i]));
+                TS_TRY(denominator, math.Sub(net.u[i + net.p], net.u[i]));
+                TS_TRY(alpha, math.Div(numerator, denominator));
+                TS_TRY(other, math.Sub(R{ 1, 1 }, alpha));
+                TS_TRY(point, Mix(net.cp[i - 1], net.cp[i], alpha, other, math));
+                net.cp[i] = std::move(point);
+            }
+            TS_OK(math.Spend(net.u.size() - k)); // Shift existing knots and copy the new value.
+            net.u.insert(net.u.begin() + std::ptrdiff_t(k + 1), value);
+            ++net.nu;
+            ++k;
+            ++s;
+        }
+    }
+    // These nets are request-private copies. Any failure or cancellation
+    // above discards them; no immutable reference/actual input or published
+    // candidate can observe a partially updated control net.
+    if (net.nu != finalCount)
+    {
+        return tl::unexpected(Error("TerminalSplineRefinementCount"));
+    }
+    return {};
+}
 Result<void> Refine(Net& net, bool uAxis, const std::vector<R>& values, Arithmetic& math)
 {
+    if (uAxis && net.q == 0 && net.nv == 1)
+    {
+        return RefineCurve(net, values, math);
+    }
     const auto& knots = uAxis ? net.u : net.v;
     const unsigned p = uAxis ? net.p : net.q;
     for (const auto& value : values)
