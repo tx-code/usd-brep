@@ -51,6 +51,19 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+Native tessellation can return a regular single-loop polygon among its triangles.
+The display worker triangulates those cells with the existing native polygon
+routine before writing VTK. It preflights the complete projected triangle count
+against the unchanged model/assembly display capacity, preserves every stored
+vertex coordinate bit and original native-face label, and checks that internal
+diagonals cancel without changing the directed polygon boundary. Existing
+triangle cells keep their order. Unsupported loops/singular rings, failed
+conversion or changed vertices reject the whole display request.
+
+This is derived display conversion: it neither changes defining BRep/STEP
+geometry nor grants a continuous tessellation-error bound, repair permission,
+new import qualification or a larger quality/resource budget.
+
 STEP execution resources can be selected independently of the quality profile:
 
 ```powershell

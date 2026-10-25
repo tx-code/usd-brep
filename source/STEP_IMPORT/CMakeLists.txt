@@ -93,6 +93,13 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_view_mesh_tests tests/StepViewMeshTests.cpp)
+    target_link_libraries(step_view_mesh_tests PRIVATE SM_API SMLib usd_brep_expected)
+    target_include_directories(step_view_mesh_tests PRIVATE app)
+    target_include_directories(step_view_mesh_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_view_mesh_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_view_mesh_contracts COMMAND step_view_mesh_tests)
     foreach(precision_test surface_precision surface_precision_kernel)
         if(precision_test STREQUAL "surface_precision")
             set(precision_source tests/StepImportSurfacePrecisionTests.cpp)
@@ -649,7 +656,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_import_spline_chart_lifecycle_tests step_import_spline_chart_tests step_import_trimmed_spline_tests step_import_wireframe_model_tests step_import_curve_restriction_tests step_import_wireframe_source_tests step_import_surface_precision_tests step_import_surface_precision_kernel_tests step_import_trim_result_tests step_import_assembly_placement_tests step_import_business_failure_tests step_import_execution_tests step_import_observation_tests step_import_nested_observation_tests step_import_toroidal_support_tests step_import_ring_segmentation_tests step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_view_mesh_tests step_import_spline_chart_lifecycle_tests step_import_spline_chart_tests step_import_trimmed_spline_tests step_import_wireframe_model_tests step_import_curve_restriction_tests step_import_wireframe_source_tests step_import_surface_precision_tests step_import_surface_precision_kernel_tests step_import_trim_result_tests step_import_assembly_placement_tests step_import_business_failure_tests step_import_execution_tests step_import_observation_tests step_import_nested_observation_tests step_import_toroidal_support_tests step_import_ring_segmentation_tests step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD

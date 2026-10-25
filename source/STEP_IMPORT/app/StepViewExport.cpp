@@ -13,6 +13,7 @@
 #include "StepSourceReport.h"
 #include "StepSurfaceCurveArguments.h"
 #include "StepViewAuxiliary.h"
+#include "StepViewMesh.h"
 #include "StepViewTopology.h"
 
 #include <SmApiBrep.h>
@@ -79,6 +80,10 @@ void Mesh(SmBrep& body, const std::filesystem::path& output, std::size_t& triang
     SmTArray<SmPolyVertex*> vertices;
     SmTArray<SmPolyFace*> faces;
     mesh->GetPolyVertices(vertices);
+    Good(!budget || budget->meshCells <= 2000000, "DisplayMeshLimit");
+    Good(!budget || (budget->meshPoints <= 6000000 && vertices.GetSize() <= 6000000 - budget->meshPoints), "DisplayMeshLimit");
+    const auto converted = step_view::TriangulateDisplayMesh(*mesh, budget ? 2000000 - budget->meshCells : 2000000);
+    Good(bool(converted), converted ? "" : converted.error().data());
     mesh->GetPolyFaces(faces);
     points = vertices.GetSize();
     triangles = faces.GetSize();
