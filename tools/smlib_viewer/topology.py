@@ -7,10 +7,13 @@ from dataclasses import dataclass, field
 import json
 import math
 from pathlib import Path
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 import numpy as np
 import pyvista as pv
+
+if TYPE_CHECKING:
+    from .wireframe import WireframeScene
 
 MAX_TOPOLOGY_BYTES = 32 * 1024 * 1024
 MAX_FACES = 100000
@@ -82,6 +85,7 @@ class TopologyData:
     continuous_error_bound_established: bool = False
     bodies: tuple[BodyInfo, ...] = ()
     payload_bytes: int = field(default=0, repr=False, compare=False)
+    wireframe: WireframeScene | None = None
 
 
 def _object(pairs):

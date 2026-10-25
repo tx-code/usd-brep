@@ -230,18 +230,25 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 role = f"实体集合 · {metadata['body_count']} 件"
             if metadata.get('role') == 'Assembly':
                 role = f"装配 · {metadata['instance_count']} 个节点 / {metadata['body_count']} 个形状实例"
+                if metadata.get('wireframe_instance_count'):
+                    role += f" / {metadata['wireframe_instance_count']} 个线框实例"
                 if metadata.get('retained_source_record_count'):
                     role += f"\n保留 {metadata['retained_source_record_count']} 条未引用源声明"
             if metadata.get('_definitions'):
                 role = f"定义 {metadata['definition_index'] + 1}/{metadata['definition_count']} · 本地坐标\n" + role
+            topology = metadata.get('_topology')
+            wireframe = topology.wireframe if topology is not None else None
             unit = "mm" if metadata.get("units") == "mm" else "单位未声明"
-            dimensions = np.asarray(mesh.bounds)[1::2] - np.asarray(mesh.bounds)[::2]
+            dimension_bounds = self._scene_bounds if wireframe is not None else mesh.bounds
+            dimensions = np.asarray(dimension_bounds)[1::2] - np.asarray(dimension_bounds)[::2]
             size = " × ".join(f"{value:.5g}" for value in dimensions)
-            counts = f"{mesh.n_points:,} 点  ·  {mesh.n_cells:,} 面片"
+            counts = f"{mesh.n_points:,} 点  ·  {mesh.n_cells:,} 面片" if mesh.n_cells else "无 BRep 面片"
             if "faces" in metadata:
                 counts = (
                     f"BRep {metadata['faces']:,} 面 / {metadata['edges']:,} 边 / {metadata['vertices']:,} 点\n" + counts
                 )
+            if wireframe is not None:
+                counts += f"\n独立线框 {len(wireframe.curves):,} 条源曲线 / {len(wireframe.points):,} 个源点"
             study = self.loader.settings.profile != "development" and metadata.get("units") == "mm"
             policy = "\n研究配置" if study else ""
             selection = metadata.get('definition_selection')
@@ -323,7 +330,11 @@ class ViewerWindow(QtWidgets.QMainWindow):
         mesh.field_data["DisplayColor"] = np.array(SURFACE_COLOR)
         mode = DISPLAY_MODE_SHADED_MESH_WIREFRAME if self.wire_button.isChecked() else DISPLAY_MODE_SHADED
         self.picker.clear()
-        self.viewport.render_meshes([mesh], mode, COLOR_MODE_MATERIAL, render=False, preserve_sharp_edges=True)
+        # A wire-only assembly owns a genuinely empty face mesh. Rendering an
+        # empty dataset is invalid in PyVista; clearing with no surface actors
+        # keeps independent source geometry distinct from BRep topology.
+        self.viewport.render_meshes([mesh] if mesh.n_cells else [], mode, COLOR_MODE_MATERIAL,
+                                    render=False, preserve_sharp_edges=True)
         body_actor = next((a for a in self.plot.renderer.actors.values() if isinstance(a, pv.Actor)), None)
         for actor in self.plot.renderer.actors.values():
             if isinstance(actor, pv.Actor):
@@ -334,12 +345,23 @@ class ViewerWindow(QtWidgets.QMainWindow):
                                                     lighting=False, render=False, reset_camera=False)
             self.boundary_actor.SetVisibility(self.edges_button.isChecked())
         self.auxiliary_actors = []
+        self.wireframe_actors = []
+        topology = self.metadata.get('_topology')
+        wireframe = topology.wireframe if topology is not None else None
+        bounds = self.mesh.bounds if self.mesh.n_points else None
+        if wireframe is not None:
+            bounds = wireframe.combined_bounds(bounds)
+            self.wireframe_actors = wireframe.render(self.plot)
         auxiliary = self.metadata.get("_auxiliary")
-        self._scene_bounds = auxiliary.combined_bounds(self.mesh.bounds) if auxiliary else self.mesh.bounds
+        if auxiliary:
+            bounds = auxiliary.combined_bounds(bounds)
+        if bounds is None:
+            raise ValueError('EmptyViewerScene')
+        self._scene_bounds = bounds
         if auxiliary:
             self.auxiliary_actors = auxiliary.render(self.plot)
         self.plot.add_axes(color="#c8d0dc", viewport=(0.88, 0, 1, 0.16))
-        self.picker.set_scene(mesh, self.boundary, self.metadata.get("_topology"), body_actor)
+        self.picker.set_scene(mesh, self.boundary, topology, body_actor)
         # Selection keys survive a redraw of this snapshot only. A new successful
         # load clears them before rendering; stale picker hits never cross scenes.
         self.hover_hit = None
@@ -409,6 +431,16 @@ class ViewerWindow(QtWidgets.QMainWindow):
             if info is None:
                 continue
             prefix = "选中" if (hit.kind, hit.id) in self.selected else "悬停"
+            if hit.kind in ('curve', 'point'):
+                prefix += f" 实例 {info.instance_index + 1} ·"
+                if hit.kind == 'point':
+                    value = " · ".join(f"{coordinate:.7g}" for coordinate in info.point_mm)
+                    lines.append(f"{prefix} 源点 {info.source_id}：({value}) mm")
+                else:
+                    measure = (f"≈ {info.length_mm:.7g} mm" if info.length_mm is not None
+                               else f"不可用 ({info.measurement_status})")
+                    lines.append(f"{prefix} 源曲线 {info.source_id}：原生长度 {measure}")
+                continue
             local_id = info.local_id if info.local_id is not None else hit.id
             if info.local_id is not None:
                 origins = self.metadata['_topology'].bodies
@@ -426,7 +458,7 @@ class ViewerWindow(QtWidgets.QMainWindow):
                 measure = (f"≈ {value:.7g} {'mm²' if face else 'mm'}" if value is not None
                            else f"不可用 ({info.measurement_status})")
                 lines.append(f"{prefix} {'面' if face else '边'} {local_id}：{measure}")
-        if len(self.selected) == 2 and all(kind == "vertex" for kind, _ in self.selected):
+        if len(self.selected) == 2 and all(kind in ("vertex", "point") for kind, _ in self.selected):
             points = [self.picker.info(self.picker.resolve(kind, index)) for kind, index in self.selected]
             if all(point is not None for point in points):
                 distance = np.linalg.norm(np.array(points[0].point_mm) - points[1].point_mm)

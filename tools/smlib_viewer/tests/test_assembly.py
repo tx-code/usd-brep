@@ -101,7 +101,7 @@ class AssemblyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.read()
 
-    def test_wire_definition_cannot_disappear_from_a_brep_only_scene(self):
+    def test_wire_definition_survives_mixed_brep_scene(self):
         fixture = (Path(__file__).resolve().parents[3]
                    / 'source/STEP_SEMANTICS/tests/fixtures/assembly_box_and_wireframe.step')
         with tempfile.TemporaryDirectory(prefix='assembly-wire-scope-') as folder:
@@ -109,13 +109,17 @@ class AssemblyTests(unittest.TestCase):
             run = subprocess.run([str(native_worker()), str(fixture), str(output), 'development', '0', '0', '1',
                                   'DeclaredOnly', 'DeclaredOnly', '16', '0', '0', 'DeclaredOnly',
                                   '--assembly', '1'], input=b'start\n', capture_output=True, timeout=60)
-            self.assertNotEqual(0, run.returncode)
+            self.assertEqual(0, run.returncode, run.stdout or run.stderr)
             manifest = json.loads((output / 'scene.json').read_text(encoding='utf-8'))
-            self.assertEqual('DisplayFailure', manifest['status'])
-            self.assertIn('AssemblyWireframeDisplayNotImplemented', json.dumps(manifest))
+            self.assertEqual('Ready', manifest['status'])
+            self.assertEqual('brep-view-scene.v7', manifest['format'])
             report = json.loads((output / 'import-report.json').read_text(encoding='utf-8'))
             self.assertEqual('Accepted', report['status'])
-            self.assertFalse(list(output.glob('body-*')))
+            mesh, boundary, topology = read_assembly(output, manifest, scene_file)
+            self.assertEqual(12, len(topology.faces))
+            self.assertEqual(2, len(topology.bodies))
+            self.assertEqual((2, 1), (len(topology.wireframe.curves), len(topology.wireframe.points)))
+            np.testing.assert_allclose(topology.wireframe.points[0].point_mm, (-39, 2, 3), rtol=0, atol=1e-12)
 
     def test_multiple_bodies_per_repeated_definition_keep_progress_and_inventory(self):
         fixture = (Path(__file__).resolve().parents[3]

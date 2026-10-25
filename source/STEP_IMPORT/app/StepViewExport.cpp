@@ -248,7 +248,8 @@ void Publish(
     std::string_view unitInterpretation = "DeclaredOnly",
     std::size_t definitionCount = 0,
     const step_import::AssemblySnapshot* assembly = nullptr,
-    const step_import_app::AssemblyArguments& assemblyRequest = {}
+    const step_import_app::AssemblyArguments& assemblyRequest = {},
+    std::size_t wireframeInstances = 0
 )
 {
     std::string json;
@@ -259,6 +260,7 @@ void Publish(
             [&](Writer& w)
             {
                 w.Add(
+                    wireframeInstances      ? "{\"format\":\"brep-view-scene.v7\",\"status\":" :
                     assemblyRequest.enabled ? "{\"format\":\"brep-view-scene.v6\",\"status\":" :
                     definitionCount         ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
                     bodyScenes              ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
@@ -275,6 +277,11 @@ void Publish(
                 }
                 if (assemblyRequest.enabled)
                 {
+                    if (wireframeInstances)
+                    {
+                        w.Add(",\"wireframe_required\":true,\"wireframe\":\"wireframes.json\",\"wireframe_instance_count\":");
+                        w.Number(wireframeInstances);
+                    }
                     w.Add(",\"requested_unreferenced_placement_policy\":");
                     w.String(
                         assemblyRequest.placements == step_semantics::UnreferencedPlacementPolicy::RetainDisconnected ? "RetainDisconnected" :
@@ -836,13 +843,6 @@ int Run(
             }
             auto model = loaded.assembly;
             Good(model->Source()->Inputs().Bindings().structure->Roots().size() == 1, "AssemblyDisplayRequiresSingleRoot");
-            // The current assembly scene contract carries BRep bodies only.
-            // Native wire ownership must not become a silently omitted scene
-            // definition while its instances still appear in the receipt.
-            for (std::size_t i = 0; i < model->DefinitionCount(); ++i)
-            {
-                Good(!model->WireframeModel(i), "AssemblyWireframeDisplayNotImplemented");
-            }
             asciiApplied = model->Source()->Inputs().SourceFields().Source().HasAsciiInvariantDataAssumption();
             step_view::DisplayBudget budget;
             std::vector<BodyScene> scenes;
@@ -898,7 +898,14 @@ int Run(
                     scenes.push_back(std::move(scene));
                 }
             }
-            Good(!scenes.empty(), "AssemblyDisplayGeometryMissing");
+            step_view::AuxiliaryExport wireExporter(
+                [](std::size_t done, std::size_t total)
+                {
+                    Progress("auxiliary", done, total);
+                }
+            );
+            const auto wireInstances = wireExporter.WriteAssembly(*model, output);
+            Good(!scenes.empty() || wireInstances, "AssemblyDisplayGeometryMissing");
             Progress("bodies", bodyInstances, bodyInstances);
             Publish(
                 profile,
@@ -921,7 +928,8 @@ int Run(
                 unitInterpretation,
                 model->DefinitionCount(),
                 model.get(),
-                assemblyRequest
+                assemblyRequest,
+                wireInstances
             );
             return 0;
         }

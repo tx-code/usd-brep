@@ -68,7 +68,18 @@ file. It preserves repeated/nested instance identities and uses transformed priv
 display copies in the single source root's millimetre frame. Hover and selection
 retain instance ownership; face areas, edge lengths and vertex coordinates come
 from those native display copies. Meshes are appended without welding coincident
-instances. Parent placement wrappers and retained unused declarations create no
+instances. Independent wire-only definitions use a v7 scene with one source-set
+membership per instance, retaining their native parameter domain and direction.
+Source curves and points have separate hover/selection identities from BRep
+edges and vertices. Curves show native numerical lengths with an explicit
+`1e-5 mm` stopping control; unavailable queries are labelled, never measured from
+the display polyline. Pure-wire assemblies have zero BRep bodies and still fit,
+render and select normally; the boundary-lines toggle does not hide them.
+All wire payloads must match the complete native source receipt before adoption.
+Point transforms use a floating-operation enclosure, not a new geometric tolerance.
+The wire payload limit is 16 MiB, 10,000 groups/members and 200,000 display samples;
+combined body/wire provenance remains bounded by 32 MiB. These observations do
+not establish continuous display accuracy or import qualification. Parent placement wrappers and retained unused declarations create no
 display geometry. The HUD shows instance nodes and displayed shape instances.
 
 The optional `--unreferenced-placement-policy RetainDisconnected` preserves only

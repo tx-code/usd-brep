@@ -23,8 +23,11 @@
 公开 wireframe_model／wireframe_source／trimmed_spline 合同覆盖独立真值、方向、双表示、
 快照寿命、复制回读、取消和预算。这些检查不授予完整 EXPRESS 或全部建模资格。
 
-当前装配查看器的场景格式仍只有 BRep；遇到独立线框在写出 body 场景前明确失败，
-不会显示删去线框后的不完整装配。native 导入能力和 GUI 场景资格分别判定。
+装配查看器的 v7 场景独立保存线框定义的每个实例及源集合成员；曲线、点不冒充 BRep
+边或顶点。显示值按已检查的刚体实例变换转入根坐标，保留 native 参数域和源方向；
+`WireframeView::CurveLength` 提供显式毫米精度的原生数值积分。该测量和显示采样均不
+构成连续误差证明。场景读取完整检查全部源成员、实例归属及点变换的浮点运算包围，
+才发布整份场景；缺少线框不能退回删件后的 BRep 显示。纯线框也保留零 BRep 库存。
 
 通用开发构建器按已检查的源角色分别构建材料实体、`OpenSurfaceModel` 和
 `ClosedSurfaceModel`。曲面角色不获得材料体积或 InsideSolid 资格；源层的 pcurve／旋转面

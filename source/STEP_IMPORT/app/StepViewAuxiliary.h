@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include "StepImport.h"
+#include "StepAssemblyImport.h"
 #include "StepSourceReport.h"
 
 #include <algorithm>
@@ -16,6 +16,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -222,12 +223,92 @@ public:
         return true;
     }
 
+    std::size_t WriteAssembly(const step_import::AssemblySnapshot& model, const std::filesystem::path& output)
+    {
+        std::size_t instances = 0, groups = 0;
+        for (std::size_t i = 0; i < model.InstanceCount(); ++i)
+        {
+            if (const auto wire = model.WireframeModel(model.Instance(i).definitionIndex))
+            {
+                ++instances;
+                for (const auto& view : wire->Wireframes())
+                {
+                    ++groups;
+                    const auto info = view.Info();
+                    m_total += info.curves.size() + info.points.size();
+                }
+            }
+        }
+        if (!instances)
+        {
+            return 0;
+        }
+        Need(groups <= 10000 && m_total <= 10000, "AuxiliaryPrimitiveLimit");
+        std::string json;
+        Need(
+            Writer::Publish(
+                16 * 1024 * 1024,
+                json,
+                [&](Writer& writer)
+                {
+                    m_points = m_completed = 0;
+                    writer.Add(
+                        "{\"format\":\"brep-view-wires.v1\",\"units\":\"mm\",\"coordinate_scope\":\"AssemblyRoot\","
+                        "\"continuous_error_bound_established\":false,\"curve_chord_observation_mm\":0.01,\"source_sha256\":"
+                    );
+                    writer.String(model.Source()->Inputs().SourceFields().Source().Sha256());
+                    writer.Add(",\"groups\":[");
+                    bool comma = false;
+                    for (std::size_t i = 0; i < model.InstanceCount(); ++i)
+                    {
+                        const auto node = model.Instance(i);
+                        const auto wire = model.WireframeModel(node.definitionIndex);
+                        if (!wire)
+                        {
+                            continue;
+                        }
+                        for (const auto& view : wire->Wireframes())
+                        {
+                            if (comma)
+                            {
+                                writer.Add(",");
+                            }
+                            comma = true;
+                            Group(writer, view, "DefinitionWireframe", &node);
+                            writer.Add(",\"instance\":");
+                            writer.Number(i);
+                            writer.Add(",\"definition\":");
+                            writer.Number(node.definitionIndex);
+                            writer.Add(",\"source_definition_id\":");
+                            writer.String(model.SourceDefinitionId(node.definitionIndex));
+                            writer.Add(",\"set_id\":");
+                            writer.String(view.Info().setId);
+                            writer.Add("}");
+                        }
+                    }
+                    writer.Add("]}");
+                }
+            ),
+            "AuxiliaryReportLimit"
+        );
+        CheckDeadline();
+        std::ofstream file(output / "wireframes.json", std::ios::binary);
+        file << json;
+        file.close();
+        Need(bool(file), "AuxiliaryWriteFailed");
+        return instances;
+    }
+
 private:
 
+    void CheckDeadline() const
+    {
+        Need(std::chrono::steady_clock::now() < m_deadline, "AuxiliaryPreviewDeadline");
+    }
     void Tick()
     {
         Need(++m_evaluations <= 500000, "AuxiliaryEvaluationLimit");
-        Need(std::chrono::steady_clock::now() < m_deadline, "AuxiliaryPreviewDeadline");
+        CheckDeadline();
     }
     void Completed()
     {
@@ -245,8 +326,38 @@ private:
         const double t = length2 > 0 ? std::clamp(projection / length2, 0., 1.) : 0.;
         return std::hypot(point[0] - std::lerp(a[0], b[0], t), point[1] - std::lerp(a[1], b[1], t), point[2] - std::lerp(a[2], b[2], t));
     }
+    static Point ToRoot(const Point& point, const step_import::AssemblyInstanceInfo* node)
+    {
+        if (!node)
+        {
+            return point;
+        }
+        // The checked assembly contract currently admits rigid placements.
+        // Only display values are transformed; source definitions, native
+        // parameter domains and shared owners remain in local coordinates.
+        Point result = node->translationToRootMm;
+        for (std::size_t i = 0; i < 3; ++i)
+        {
+            for (std::size_t j = 0; j < 3; ++j)
+            {
+                result[i] += node->rotationToRoot[i][j] * point[j];
+            }
+        }
+        Need(
+            std::all_of(
+                result.begin(),
+                result.end(),
+                [](double v)
+                {
+                    return std::isfinite(v);
+                }
+            ),
+            "AuxiliaryTransformRange"
+        );
+        return result;
+    }
     template <class View>
-    void Group(Writer& writer, const View& view, const char* role)
+    void Group(Writer& writer, const View& view, const char* role, const step_import::AssemblyInstanceInfo* node = nullptr)
     {
         const auto info = view.Info();
         writer.Add("{\"role\":");
@@ -254,7 +365,14 @@ private:
         writer.Add(",\"material_boundary\":false,\"representation_id\":");
         writer.String(info.representationId);
         writer.Add(",\"relationship_id\":");
-        writer.String(info.relationshipId);
+        if (node)
+        {
+            writer.Add("null");
+        }
+        else
+        {
+            writer.String(info.relationshipId);
+        }
         writer.Add(",\"points\":[");
         for (std::size_t i = 0; i < info.points.size(); ++i)
         {
@@ -265,7 +383,7 @@ private:
             writer.Add("{\"source_id\":");
             writer.String(info.points[i].sourceId);
             writer.Add(",\"point_mm\":");
-            Vector(writer, info.points[i].pointMm);
+            Vector(writer, ToRoot(info.points[i].pointMm, node));
             writer.Add("}");
             Completed();
         }
@@ -287,7 +405,7 @@ private:
             const auto evaluate = [&](double t)
             {
                 Tick();
-                return Sample{ t, view.EvaluateCurve(i, t) };
+                return Sample{ t, ToRoot(view.EvaluateCurve(i, t), node) };
             };
             std::vector<Sample> samples;
             const auto append = [&](const Sample& sample)
@@ -333,6 +451,41 @@ private:
             writer.String(curve.sourceId);
             writer.Add(",\"basis_id\":");
             writer.String(curve.basisId);
+            if constexpr (std::is_same_v<View, step_import::WireframeView>)
+            {
+                if (node)
+                {
+                    // A display polyline nominates an item but cannot provide
+                    // its length. Query the native defining curve with an
+                    // explicit mm stopping control; rigid placement preserves
+                    // that length. Query failure is unavailable, never zero.
+                    Tick();
+                    std::optional<double> length;
+                    try
+                    {
+                        length = view.CurveLength(i, 1e-5);
+                    }
+                    catch (const std::runtime_error&)
+                    {
+                    }
+                    // Even the final query may exhaust the display deadline.
+                    // A late answer must not become a Ready scene merely
+                    // because no subsequent evaluator call checks the clock.
+                    CheckDeadline();
+                    writer.Add(",\"length_mm\":");
+                    if (length)
+                    {
+                        Scalar(writer, *length);
+                    }
+                    else
+                    {
+                        writer.Add("null");
+                    }
+                    writer.Add(",\"measurement_status\":");
+                    writer.String(length ? "Available" : "NativeQueryFailed");
+                    writer.Add(",\"length_absolute_accuracy_mm\":0.00001");
+                }
+            }
             writer.Add(",\"native_domain\":[");
             Scalar(writer, lo);
             writer.Add(",");

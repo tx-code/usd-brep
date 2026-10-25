@@ -259,10 +259,17 @@ class SceneLoader(QtCore.QObject):
             manifest_path = directory / "scene.json"
             if not manifest_path.is_file() or manifest_path.stat().st_size > 65536:
                 raise ValueError("WorkerFailedOrCrashed")
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            with manifest_path.open('rb') as stream:
+                manifest_bytes = stream.read(65537)
+            if len(manifest_bytes) > 65536:
+                raise ValueError('WorkerFailedOrCrashed')
+            from .topology import _object, _invalid_constant
+            manifest = json.loads(manifest_bytes.decode('utf-8'), object_pairs_hook=_object,
+                                  parse_constant=_invalid_constant)
             if (not isinstance(manifest, dict)
                     or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3",
-                                                      "brep-view-scene.v4", "brep-view-scene.v5", "brep-view-scene.v6"}):
+                                                      "brep-view-scene.v4", "brep-view-scene.v5", "brep-view-scene.v6",
+                                                      "brep-view-scene.v7"}):
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -285,13 +292,17 @@ class SceneLoader(QtCore.QObject):
                 validate_quality_receipt(manifest, self.settings)
             import pyvista as pv
             import numpy as np
-            if manifest['format'] == 'brep-view-scene.v6':
+            if manifest['format'] in {'brep-view-scene.v6', 'brep-view-scene.v7'}:
                 mesh, boundary, topology = read_assembly(directory, manifest, scene_file)
                 metadata = dict(manifest, _topology=topology)
                 self.worker_result['topology_inventory'] = dict(faces=len(topology.faces), edges=len(topology.edges),
                     vertices=len(topology.vertices), bodies=len(topology.bodies), instances=manifest['instance_count'],
                     definitions=manifest['definition_count'], face_labels_complete=topology.face_labels_complete)
                 self.worker_result['display_scope'] = 'AssemblyRoot'
+                if topology.wireframe is not None:
+                    self.worker_result['wireframe_inventory'] = dict(
+                        curves=len(topology.wireframe.curves), points=len(topology.wireframe.points),
+                        groups=topology.wireframe.group_count, instances=topology.wireframe.instance_count)
                 self.progress.emit(Progress('render'))
                 if generation == self.generation and not job['stopped']:
                     self.loaded.emit(str(job['path']), mesh, boundary, metadata)

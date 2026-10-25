@@ -215,8 +215,9 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_wireframe_source_contracts COMMAND step_import_wireframe_source_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/../STEP_SEMANTICS/tests/fixtures/assembly_box_and_wireframe.step")
     add_executable(step_import_wireframe_model_tests tests/StepImportWireframeModelTests.cpp)
+    target_include_directories(step_import_wireframe_model_tests PRIVATE src)
     target_include_directories(step_import_wireframe_model_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
-    target_link_libraries(step_import_wireframe_model_tests PRIVATE STEP_IMPORT)
+    target_link_libraries(step_import_wireframe_model_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_compile_definitions(step_import_wireframe_model_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
         $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
     add_test(NAME step_import_wireframe_model_contracts COMMAND step_import_wireframe_model_tests

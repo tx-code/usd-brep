@@ -10,8 +10,10 @@ owning curve/point snapshot with zero BRep bodies. Parameter-preferred trimmed
 splines retain their selected intervals, original cuts and direction, with one
 whole-domain definition bound covering endpoint conversion and construction.
 Queries and checked native archives retain the trim; cancellation and report
-limits still gate the complete assembly. The current BRep-only scene exporter
-explicitly refuses wire assemblies rather than dropping required geometry.
+limits still gate the complete assembly. The viewer retains standalone wire
+instances in its v7 scene with source curve/point selection and native numerical
+lengths. Missing wire members refuse the complete scene; pure-wire assemblies
+retain zero BRep bodies. Older body-only scene formats remain supported.
 Native consumers must rebuild for the extended wire observation/assembly APIs.
 
 Native STEP import accepts an explicit source-hash-bound terminal NURBS domain

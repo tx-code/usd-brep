@@ -21,20 +21,20 @@ import pyvista as pv
 from vtkmodules.vtkCommonDataModel import vtkStaticCellLocator
 from vtkmodules.vtkRenderingCore import vtkCellPicker
 
-from .topology import EdgeInfo, FaceInfo, TopologyData, VertexInfo
+from .topology import TopologyData
 
 
 @dataclass(frozen=True, slots=True)
 class Hit:
-    """An ID in one native display copy, not a STEP ID or a live kernel handle."""
+    """A feature ID in one owning display snapshot, not a live kernel handle."""
 
-    kind: Literal["face", "edge", "vertex"]
+    kind: Literal["face", "edge", "vertex", "curve", "point"]
     id: int
     _scene_key: object | None = field(default=None, repr=False, compare=False)
 
 
 class TopologyPicker:
-    """Pick only the supplied visible body, prioritizing native vertices/edges.
+    """Pick the body and independent wire geometry, prioritizing points/lines.
 
     Pixel tolerance is a display affordance in device pixels, separate from every
     native geometry/measurement tolerance. Occlusion uses the first intersection
@@ -59,6 +59,7 @@ class TopologyPicker:
         self.clear_highlight()
         self._scene_key = object()
         self._mesh = self._boundary = self._topology = self._body_actor = None
+        self._wire_curves, self._wire_points = {}, {}
         self._dataset = self._locator = None
         self._picker.InitializePickList()
         self._picker.RemoveAllLocators()
@@ -66,11 +67,16 @@ class TopologyPicker:
         self._boundary_points = np.empty((0, 3), dtype=float)
         self._segments = np.empty((0, 2), dtype=np.int64)
         self._segment_ids = np.empty(0, dtype=np.int64)
+        self._segment_kinds = np.empty(0, dtype=object)
+        self._point_ids = np.empty(0, dtype=np.int64)
+        self._point_kinds = np.empty(0, dtype=object)
+        self._native_vertex_count = self._native_boundary_point_count = 0
         self._projection_key = None
         self._vertex_display = np.empty((0, 3), dtype=float)
         self._vertex_valid = np.empty(0, dtype=bool)
         self._segment_display = np.empty((0, 2, 3), dtype=float)
         self._visible_segment_ids = np.empty(0, dtype=np.int64)
+        self._visible_segment_kinds = np.empty(0, dtype=object)
 
     def set_scene(self, mesh, boundary, topology: TopologyData | None, body_actor) -> None:
         """Adopt same-world-mm display geometry; mesh-only scenes have no CAD picks.
@@ -84,26 +90,26 @@ class TopologyPicker:
             return
         if topology.units != "mm" or topology.identity_scope != "NativeDisplayCopy":
             raise ValueError("InvalidPickTopologyScope")
-        if body_actor is None or mesh is None:
-            return
-        mapper = body_actor.GetMapper()
-        if mapper is None:
-            return
-        mapper.Update()
-        dataset = mapper.GetInput()
-        if dataset is None or dataset.GetNumberOfCells() == 0:
-            return
         self._mesh, self._boundary, self._topology = mesh, boundary, topology
-        self._body_actor, self._dataset = body_actor, dataset
-        self._vertex_points = np.asarray([vertex.point_mm for vertex in topology.vertices], dtype=float).reshape(-1, 3)
-        self._picker.AddPickList(body_actor)
-        self._locator = vtkStaticCellLocator()
-        self._locator.SetDataSet(dataset)
-        self._locator.BuildLocator()
-        self._picker.AddLocator(self._locator)
-        if boundary is not None and boundary.n_cells:
+        mapper = body_actor.GetMapper() if body_actor is not None else None
+        if mapper is not None:
+            mapper.Update()
+            dataset = mapper.GetInput()
+            if dataset is not None and dataset.GetNumberOfCells():
+                self._body_actor, self._dataset = body_actor, dataset
+                self._picker.AddPickList(body_actor)
+                self._locator = vtkStaticCellLocator()
+                self._locator.SetDataSet(dataset)
+                self._locator.BuildLocator()
+                self._picker.AddLocator(self._locator)
+                self._vertex_points = np.asarray(
+                    [vertex.point_mm for vertex in topology.vertices], dtype=float).reshape(-1, 3)
+        self._native_vertex_count = len(self._vertex_points)
+        self._point_ids = np.arange(self._native_vertex_count, dtype=np.int64)
+        self._point_kinds = np.full(self._native_vertex_count, "vertex", dtype=object)
+        segments, labels, kinds = [], [], []
+        if self._dataset is not None and boundary is not None and boundary.n_cells:
             self._boundary_points = np.array(boundary.points, dtype=float, copy=True)
-            segments, labels = [], []
             for cell_index in range(boundary.n_cells):
                 edge_id = self._label(boundary, "TopoEdge", cell_index, len(topology.edges))
                 cell = boundary.GetCell(cell_index)
@@ -112,8 +118,34 @@ class TopologyPicker:
                 for index in range(cell.GetNumberOfPoints() - 1):
                     segments.append((cell.GetPointId(index), cell.GetPointId(index + 1)))
                     labels.append(edge_id)
-            self._segments = np.asarray(segments, dtype=np.int64).reshape(-1, 2)
-            self._segment_ids = np.asarray(labels, dtype=np.int64)
+                    kinds.append("edge")
+        self._native_boundary_point_count = len(self._boundary_points)
+        wireframe = topology.wireframe
+        if wireframe is not None:
+            self._wire_curves = {curve.id: curve for curve in wireframe.curves}
+            self._wire_points = {point.id: point for point in wireframe.points}
+            points = np.asarray([point.point_mm for point in wireframe.points], dtype=float).reshape(-1, 3)
+            self._vertex_points = np.concatenate((self._vertex_points, points))
+            self._point_ids = np.concatenate((self._point_ids, [point.id for point in wireframe.points])).astype(
+                np.int64, copy=False)
+            self._point_kinds = np.concatenate((self._point_kinds, np.full(len(points), "point", dtype=object)))
+            # Independent source geometry is already in AssemblyRoot mm. Its
+            # display samples nominate curve IDs only; they never create BRep
+            # edges/vertices or supply a replacement for the native length.
+            curve_points = [self._boundary_points]
+            offset = len(self._boundary_points)
+            for curve in wireframe.curves:
+                points = np.asarray(curve.polyline_mm, dtype=float).reshape(-1, 3)
+                curve_points.append(points)
+                for index in range(len(points) - 1):
+                    segments.append((offset + index, offset + index + 1))
+                    labels.append(curve.id)
+                    kinds.append("curve")
+                offset += len(points)
+            self._boundary_points = np.concatenate(curve_points)
+        self._segments = np.asarray(segments, dtype=np.int64).reshape(-1, 2)
+        self._segment_ids = np.asarray(labels, dtype=np.int64)
+        self._segment_kinds = np.asarray(kinds, dtype=object)
 
     @staticmethod
     def _label(dataset, name: str, cell: int, count: int) -> int | None:
@@ -136,9 +168,7 @@ class TopologyPicker:
         """
         if self._topology is None or type(id) is not int:
             return None
-        table = {"face": self._topology.faces, "edge": self._topology.edges,
-                 "vertex": self._topology.vertices}.get(kind)
-        if table is None or not 0 <= id < len(table) or table[id].id != id:
+        if self._entry(kind, id) is None:
             return None
         return Hit(kind, id, self._scene_key)
 
@@ -146,17 +176,22 @@ class TopologyPicker:
         """Reject stale IDs even if the next display copy reuses the same numbers."""
         if hit is None or self._topology is None or hit._scene_key is not self._scene_key:
             return False
-        table = {"face": self._topology.faces, "edge": self._topology.edges,
-                 "vertex": self._topology.vertices}.get(hit.kind)
-        return table is not None and 0 <= hit.id < len(table) and table[hit.id].id == hit.id
+        return type(hit.id) is int and self._entry(hit.kind, hit.id) is not None
 
-    def info(self, hit: Hit | None) -> FaceInfo | EdgeInfo | VertexInfo | None:
+    def _entry(self, kind, id):
+        if kind in ("curve", "point"):
+            return (self._wire_curves if kind == "curve" else self._wire_points).get(id)
+        if self._dataset is None:
+            return None
+        table = {"face": self._topology.faces, "edge": self._topology.edges,
+                 "vertex": self._topology.vertices}.get(kind)
+        return table[id] if table is not None and 0 <= id < len(table) and table[id].id == id else None
+
+    def info(self, hit: Hit | None):
         """Return only the precomputed native payload, including unavailable status."""
         if not self.is_current(hit):
             return None
-        table = {"face": self._topology.faces, "edge": self._topology.edges,
-                 "vertex": self._topology.vertices}[hit.kind]
-        return table[hit.id]
+        return self._entry(hit.kind, hit.id)
 
     @staticmethod
     def _matrix(value) -> np.ndarray:
@@ -173,7 +208,7 @@ class TopologyPicker:
         renderer = self.plot.renderer
         projection = self._matrix(renderer.GetActiveCamera().GetCompositeProjectionTransformMatrix(
             renderer.GetTiledAspectRatio(), 0., 1.))
-        body = self._matrix(self._body_actor.GetMatrix())
+        body = self._matrix(self._body_actor.GetMatrix()) if self._body_actor is not None else np.eye(4)
         self._origin = renderer.GetOrigin()
         self._size = renderer.GetSize()
         key = (tuple(projection.ravel()), tuple(body.ravel()), self._origin, self._size)
@@ -181,8 +216,7 @@ class TopologyPicker:
             return
         self._projection_key = key
         self._projection = projection
-        combined = projection @ body
-        vertices = np.column_stack((self._vertex_points, np.ones(len(self._vertex_points)))) @ combined.T
+        vertices = self._clip_points(self._vertex_points, self._native_vertex_count, body)
         self._vertex_valid = (np.isfinite(vertices).all(axis=1) & (vertices[:, 3] > 0.)
                               & (vertices[:, 2] >= 0.) & (vertices[:, 2] <= vertices[:, 3])
                               & (np.abs(vertices[:, :2]) <= vertices[:, 3, None]).all(axis=1))
@@ -191,8 +225,9 @@ class TopologyPicker:
         if not len(self._segments):
             self._segment_display = np.empty((0, 2, 3))
             self._visible_segment_ids = np.empty(0, dtype=np.int64)
+            self._visible_segment_kinds = np.empty(0, dtype=object)
             return
-        points = np.column_stack((self._boundary_points, np.ones(len(self._boundary_points)))) @ combined.T
+        points = self._clip_points(self._boundary_points, self._native_boundary_point_count, body)
         starts, ends = points[self._segments[:, 0]], points[self._segments[:, 1]]
         low, high = np.zeros(len(starts)), np.ones(len(starts))
         valid = np.isfinite(starts).all(axis=1) & np.isfinite(ends).all(axis=1)
@@ -218,8 +253,20 @@ class TopologyPicker:
                   & np.isfinite(clipped_a).all(axis=1) & np.isfinite(clipped_b).all(axis=1))
         self._segment_display = np.stack((self._display(clipped_a[valid]), self._display(clipped_b[valid])), axis=1)
         self._visible_segment_ids = self._segment_ids[valid]
+        self._visible_segment_kinds = self._segment_kinds[valid]
+
+    def _clip_points(self, points, native_count, body):
+        world = np.column_stack((points, np.ones(len(points))))
+        world[:native_count] = world[:native_count] @ body.T
+        return world @ self._projection.T
+
+    def _body_visible(self):
+        return (self._body_actor is not None and self._body_actor.GetVisibility()
+                and self._body_actor.GetPickable() and self.plot.renderer.HasViewProp(self._body_actor))
 
     def _surface_at(self, x: float, y: float) -> tuple[float, int | None] | None:
+        if not self._body_visible():
+            return None
         if not self._picker.Pick(float(x), float(y), 0., self.plot.renderer):
             return None
         # This private pick list contains exactly the body actor. Do not compare
@@ -242,9 +289,7 @@ class TopologyPicker:
 
     def pick(self, x: float, y: float) -> Hit | None:
         """Nominate a visible native ID; no interaction events are consumed."""
-        if (self._topology is None or self._body_actor is None or not math.isfinite(x) or not math.isfinite(y)
-                or not self._body_actor.GetVisibility() or not self._body_actor.GetPickable()
-                or not self.plot.renderer.HasViewProp(self._body_actor)
+        if (self._topology is None or not math.isfinite(x) or not math.isfinite(y)
                 or x < 0. or y < 0.
                 or not self.plot.renderer.IsInViewport(int(x), int(y))):
             return None
@@ -255,11 +300,14 @@ class TopologyPicker:
         cursor = np.array((x, y))
         tolerance_squared = self.pixel_tolerance ** 2
         distances = np.sum((self._vertex_display[:, :2] - cursor) ** 2, axis=1)
-        candidates = np.flatnonzero(self._vertex_valid & (distances <= tolerance_squared))
+        point_valid = self._vertex_valid.copy()
+        if not self._body_visible():
+            point_valid[:self._native_vertex_count] = False
+        candidates = np.flatnonzero(point_valid & (distances <= tolerance_squared))
         order = np.lexsort((candidates, self._vertex_display[candidates, 2], distances[candidates]))
         for index in candidates[order]:
             if self._visible(self._vertex_display[index]):
-                return Hit("vertex", int(index), self._scene_key)
+                return Hit(self._point_kinds[index], int(self._point_ids[index]), self._scene_key)
         if len(self._segment_display):
             a, b = self._segment_display[:, 0], self._segment_display[:, 1]
             directions = b[:, :2] - a[:, :2]
@@ -279,8 +327,11 @@ class TopologyPicker:
             order = np.lexsort((self._visible_segment_ids[candidates], closest[candidates, 2],
                                 distances[candidates]))
             for index in candidates[order]:
+                if self._visible_segment_kinds[index] == "edge" and not self._body_visible():
+                    continue
                 if self._visible(closest[index]):
-                    return Hit("edge", int(self._visible_segment_ids[index]), self._scene_key)
+                    return Hit(self._visible_segment_kinds[index], int(self._visible_segment_ids[index]),
+                               self._scene_key)
         surface = self._surface_at(x, y)
         if surface is not None and surface[1] is not None:
             return Hit("face", surface[1], self._scene_key)
@@ -306,9 +357,12 @@ class TopologyPicker:
                 continue
             seen.add((hit.kind, hit.id))
             options = dict(color=color, lighting=False, reset_camera=False, render=False, pickable=False)
-            if hit.kind == "vertex":
-                geometry = pv.PolyData(np.array([self._topology.vertices[hit.id].point_mm]))
+            if hit.kind in ("vertex", "point"):
+                geometry = pv.PolyData(np.array([self.info(hit).point_mm]))
                 options.update(point_size=12, render_points_as_spheres=True)
+            elif hit.kind == "curve":
+                geometry = pv.lines_from_points(np.asarray(self.info(hit).polyline_mm, dtype=float))
+                options.update(line_width=4, render_lines_as_tubes=True)
             else:
                 dataset = self._dataset if hit.kind == "face" else self._boundary
                 label = "TopoFace" if hit.kind == "face" else "TopoEdge"
@@ -329,6 +383,7 @@ class TopologyPicker:
                 # normal depth testing still hides occluded selected surfaces.
                 actor.mapper.SetResolveCoincidentTopologyToPolygonOffset()
                 actor.mapper.SetRelativeCoincidentTopologyPolygonOffsetParameters(-1, -1)
-            actor.SetUserMatrix(self._body_actor.GetMatrix())
+            if hit.kind in ("face", "edge", "vertex"):
+                actor.SetUserMatrix(self._body_actor.GetMatrix())
             actors.append(actor)
         self._highlights[slot] = actors

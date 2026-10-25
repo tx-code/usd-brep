@@ -459,6 +459,12 @@ public:
     bool HasAsciiInvariantDataAssumption() const; // Snapshot-owned evidence survives releasing the import result.
     step_semantics::UnitInterpretation AppliedUnitInterpretation() const; // Source-owned dimensional interpretation evidence.
     Point EvaluateCurve(std::size_t curve, double parameter) const;
+    // Numerical native length over this retained curve's actual domain, in mm.
+    // Positive absolute stopping accuracy is explicit; no continuous bound or
+    // mesh measurement is implied. Invalid queries, native failures, numerical
+    // roundoff or capacity/deadline exhaustion throw, as with EvaluateCurve;
+    // the owning immutable definition is not edited. No chord fallback.
+    double CurveLength(std::size_t curve, double absoluteAccuracyMm) const;
     ClosestPoint Closest(const Point& pointMm) const; // Only this source set; neither material classification nor a certified global error bound.
 
 private:

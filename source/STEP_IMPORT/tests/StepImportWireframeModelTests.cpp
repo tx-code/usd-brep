@@ -1,17 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAssemblyImport.h"
+#include "StepImportWireframeLength.h"
 
+#include <SmBSplineCurve.h>
 #include <SmBrep.h>
 #include <SmContext.h>
 #include <SmCurve.h>
 #include <SmNativeArchive.h>
 #include <SmSurface.h>
 #include <SmVertex.h>
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <limits>
+#include <memory>
 #include <stdexcept>
 
 namespace
@@ -98,6 +103,59 @@ void Archive(const WireframeModelSnapshot& m, const std::filesystem::path& path,
         Near({ p.x, p.y, p.z }, { 7, 8, 9 });
     }
 }
+void TinyNativeLength(double expected)
+{
+    // A separate, caller-owned native curve tests numerical parameter scaling
+    // without claiming that the STEP factory accepts this parameter range.
+    // This quadratic Bezier is the SAME selected parabola, with endpoint chord
+    // 1 mm and analytic length (sqrt(2)+asinh(1))/2 mm.
+    SmContext context;
+    SmTArray<SmPoint3d> controls;
+    controls.Add(SmPoint3d(.5, .75, 0));
+    controls.Add(SmPoint3d(1, 1.25, 0));
+    controls.Add(SmPoint3d(1.5, .75, 0));
+    SmTArray<ULONG> multiplicities;
+    multiplicities.Add(3);
+    multiplicities.Add(3);
+    SmTArray<double> knots;
+    knots.Add(0);
+    knots.Add(1);
+    SmBSplineCurve* raw = nullptr;
+    const auto created =
+        SmBSplineCurve::CreateCanonical(context, 3, 2, controls, SM_CF_UNSPECIFIED, multiplicities, knots, SM_KT_UNSPECIFIED, nullptr, nullptr, raw);
+    std::unique_ptr<SmBSplineCurve> curve(raw);
+    Require(created == SM_SUCCESS && curve && curve->GetContext() == &context && !curve->GetOwner(), "independent native quadratic ownership");
+    const std::array<double, 2> interval{ 2.75e-14, 4.25e-14 };
+    // EditParameterization delegates to N_BasisReparam, which assigns these
+    // endpoint knots directly. This disposable control is not an imported
+    // snapshot or a source normalization; the query itself must not edit it.
+    Require(curve->EditParameterization(SmExtent1d(interval[0], interval[1])) == SM_SUCCESS, "native tiny parameter control");
+    Require(
+        curve->GetNaturalInterval().GetMin() == interval[0] && curve->GetNaturalInterval().GetMax() == interval[1],
+        "native control retains the exact requested tiny domain"
+    );
+    auto length = detail::QueryWireframeCurveLength(*curve, interval, 1e-8);
+    if (!length)
+    {
+        throw std::runtime_error(length.error().key);
+    }
+    Require(
+        std::abs(*length - expected) < 1e-8 && std::abs(*length - 1) > .1,
+        "tiny native parameter interval retains its nonstraight physical length, not the endpoint chord"
+    );
+    SmTArray<SmPoint3d> after;
+    SmTArray<double> weights;
+    Require(curve->GetControlPolygon(after, weights) == SM_SUCCESS && after.GetSize() == controls.GetSize(), "native control polygon survives query");
+    for (ULONG i = 0; i < controls.GetSize(); ++i)
+    {
+        Near({ after[i].x, after[i].y, after[i].z }, { controls[i].x, controls[i].y, controls[i].z });
+    }
+    Require(
+        curve->GetNaturalInterval().GetMin() == interval[0] && curve->GetNaturalInterval().GetMax() == interval[1] &&
+            curve->GetContext() == &context && !curve->GetOwner(),
+        "length integration preserves actual native parameters and ownership"
+    );
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -124,6 +182,63 @@ int main(int argc, char** argv)
         Require(info.relationshipId.empty() && info.curves.size() == 2 && info.points.size() == 1, "no invented associated relationship");
         Near(views[0].EvaluateCurve(0, info.curves[0].parameterDomain[0]), { 2, 0, 0 });
         Near(views[0].EvaluateCurve(0, info.curves[0].parameterDomain[1]), { 6, 0, 0 });
+        Require(std::abs(views[0].CurveLength(0, 1e-8) - 4) < 1e-8, "trimmed line length, not complete basis");
+        // x=2s,y=4s(1-s), s=[1/4,3/4]. Integrate sqrt(4+(4-8s)^2)
+        // analytically; orientation reverses the traversal, not its length.
+        const double parabolaLength = (std::sqrt(2.) + std::asinh(1.)) / 2.;
+        Require(std::abs(views[0].CurveLength(1, 1e-8) - parabolaLength) < 1e-8, "analytic trimmed parabola length");
+        for (const double accuracy : { 0., -1., std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN() })
+        {
+            bool invalidAccuracy = false;
+            try
+            {
+                (void)views[0].CurveLength(0, accuracy);
+            }
+            catch (const std::invalid_argument&)
+            {
+                invalidAccuracy = true;
+            }
+            Require(invalidAccuracy, "measurement accuracy must be explicit, finite and positive");
+        }
+        bool unestablished = false;
+        try
+        {
+            (void)views[0].CurveLength(1, 1e-30);
+        }
+        catch (const std::runtime_error& error)
+        {
+            unestablished = std::string_view(error.what()) == "LinkedCurveLengthAccuracyUnestablished";
+        }
+        Require(unestablished, "an accuracy below numerical roundoff refuses instead of asserting or returning chord/zero");
+        Require(
+            model->Source()->Source().Bytes() == text && views[0].Info().curves[1].parameterDomain == info.curves[1].parameterDomain &&
+                views[0].Info().curves[1].sourceForwardInNative == info.curves[1].sourceForwardInNative &&
+                views[0].Info().curves[1].trimEvidence->sourceParameters == info.curves[1].trimEvidence->sourceParameters &&
+                views[0].Info().curves[1].trimEvidence->definitionErrorUpperMm == info.curves[1].trimEvidence->definitionErrorUpperMm,
+            "successful and failed length queries preserve source, native parameters, sense and defining evidence"
+        );
+        // A tiny STEP parameter range is still outside the current factory's
+        // established support. Keep that refusal separate from the native
+        // numerical regression; no source qualification is bypassed here.
+        const auto tinyParameters = Replace(
+            Replace(Replace(text, "(3,3),(2.,5.)", "(3,3),(2.E-14,5.E-14)"), "PARAMETER_VALUE(4.25)", "PARAMETER_VALUE(4.25E-14)"),
+            "PARAMETER_VALUE(2.75)",
+            "PARAMETER_VALUE(2.75E-14)"
+        );
+        auto tiny = Import(tinyParameters, General());
+        Require(
+            tiny.status == Status::Indeterminate && !tiny.assembly &&
+                std::any_of(
+                    tiny.report.diagnostics.begin(),
+                    tiny.report.diagnostics.end(),
+                    [](const auto& diagnostic)
+                    {
+                        return diagnostic.source.key == "GeneralWireSplineTrimOutsideNativeBasis";
+                    }
+                ),
+            "tiny STEP domain retains the existing source-factory refusal without publishing geometry"
+        );
+        TinyNativeLength(parabolaLength);
         Require(
             info.curves[1].parameterDomain == std::array<double, 2>{ 2.75, 4.25 } && !info.curves[1].sourceForwardInNative,
             "source knot t and reverse sense"

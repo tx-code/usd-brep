@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportNativeData.h"
+#include "StepImportResult.h"
+#include "StepImportWireframeLength.h"
 
 #include <SmAssertArray.h>
 #include <SmBSplineCurve.h>
@@ -10,8 +12,10 @@
 #include <SmSurface.h>
 #include <SmVertex.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <stdexcept>
 
 namespace step_import
@@ -51,6 +55,224 @@ double Distance(Point a, Point b)
 {
     return std::hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 }
+class LengthQuery
+{
+public:
+
+    LengthQuery(const SmCurve& curve, std::array<double, 2> interval, double accuracy) : m_curve(curve), m_interval(interval), m_accuracy(accuracy)
+    {
+    }
+    detail::Result<double> Run()
+    {
+        if (!std::isfinite(m_interval[0]) || !std::isfinite(m_interval[1]) || !(m_interval[1] > m_interval[0]))
+        {
+            return Refuse("LinkedCurveLengthInterval");
+        }
+        SmTArray<double> knots;
+        if (m_curve.GetKnots(knots) != SM_SUCCESS)
+        {
+            return Refuse("LinkedCurveLengthNativeKnots");
+        }
+        if (knots.GetSize() > MaximumSpans + 1)
+        {
+            return Refuse("LinkedCurveLengthSpanBudget");
+        }
+        std::vector<double> cuts{ m_interval[0] };
+        for (const auto knot : knots)
+        {
+            if (!std::isfinite(knot))
+            {
+                return Refuse("LinkedCurveLengthNativeKnots");
+            }
+            if (knot > m_interval[0] && knot < m_interval[1] && knot != cuts.back())
+            {
+                if (knot < cuts.back())
+                {
+                    return Refuse("LinkedCurveLengthNativeKnots");
+                }
+                cuts.push_back(knot);
+            }
+        }
+        cuts.push_back(m_interval[1]);
+        const auto spans = cuts.size() - 1;
+        // Half the explicit absolute stopping allowance is reserved for
+        // aggregation/roundoff. This is numerical quadrature evidence, not a
+        // continuous integration/evaluator error certificate.
+        const double seedAccuracy = m_accuracy / (2. * double(spans) * Seeds);
+        if (!std::isfinite(seedAccuracy) || !(seedAccuracy > 0))
+        {
+            return Refuse("LinkedCurveLengthAccuracyUnestablished");
+        }
+        double total = 0, compensation = 0;
+        for (std::size_t span = 0; span < spans; ++span)
+        {
+            m_low = cuts[span];
+            m_high = cuts[span + 1];
+            m_width = m_high - m_low;
+            if (!std::isfinite(m_width) || !(m_width > 0))
+            {
+                return Refuse("LinkedCurveLengthParameterRange");
+            }
+            auto first = Speed(0);
+            if (!first)
+            {
+                return tl::unexpected(std::move(first.error()));
+            }
+            for (unsigned seed = 0; seed < Seeds; ++seed)
+            {
+                const double a = double(seed) / Seeds, b = double(seed + 1) / Seeds, middle = std::midpoint(a, b);
+                auto center = Speed(middle);
+                if (!center)
+                {
+                    return tl::unexpected(std::move(center.error()));
+                }
+                auto last = Speed(b);
+                if (!last)
+                {
+                    return tl::unexpected(std::move(last.error()));
+                }
+                const double estimate = Simpson(a, b, *first, *center, *last);
+                auto length = Refine(a, b, *first, *center, *last, estimate, seedAccuracy, 0);
+                if (!length)
+                {
+                    return tl::unexpected(std::move(length.error()));
+                }
+                const double increment = *length - compensation, sum = total + increment;
+                compensation = (sum - total) - increment;
+                total = sum;
+                first = std::move(last);
+            }
+        }
+        if (auto guard = Check(); !guard)
+        {
+            return tl::unexpected(std::move(guard.error()));
+        }
+        if (!std::isfinite(total) || !(total > 0) || m_accuracy <= 256 * std::numeric_limits<double>::epsilon() * total)
+        {
+            return Refuse("LinkedCurveLengthAccuracyUnestablished");
+        }
+        return total;
+    }
+
+private:
+
+    static constexpr unsigned Seeds = 8, MaximumDepth = 20;
+    static constexpr std::size_t MaximumEvaluations = 100000, MaximumSpans = 4096;
+    const SmCurve& m_curve;
+    std::array<double, 2> m_interval;
+    double m_accuracy, m_low = 0, m_high = 0, m_width = 0;
+    std::size_t m_evaluations = 0;
+    std::chrono::steady_clock::time_point m_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    static tl::unexpected<detail::Failure> Refuse(const char* key)
+    {
+        return tl::unexpected(
+            detail::Failure{ Status::Indeterminate, key, "Bounded native derivative length query is unestablished", {}, "WireframeQuery" }
+        );
+    }
+    detail::Result<void> Check() const
+    {
+        if (std::chrono::steady_clock::now() >= m_deadline)
+        {
+            return Refuse("LinkedCurveLengthDeadline");
+        }
+        return {};
+    }
+    detail::Result<double> Speed(double u)
+    {
+        if (auto guard = Check(); !guard)
+        {
+            return tl::unexpected(std::move(guard.error()));
+        }
+        if (m_evaluations == MaximumEvaluations)
+        {
+            return Refuse("LinkedCurveLengthEvaluationBudget");
+        }
+        ++m_evaluations;
+        const double t = std::lerp(m_low, m_high, u);
+        if ((u > 0 && !(t > m_low)) || (u < 1 && !(t < m_high)))
+        {
+            return Refuse("LinkedCurveLengthParameterResolution");
+        }
+        SmVector3d derivatives[2];
+        // SmCurve::Evaluate defaults to manufactured nonzero tangents. Length
+        // needs the ACTUAL derivative magnitude, and one-sided derivatives at
+        // each original knot. No physical shape is inferred from a tiny t span.
+        const auto status = m_curve.Evaluate(t, 1, u == 1 ? FALSE : TRUE, derivatives, FALSE);
+        if (auto guard = Check(); !guard)
+        {
+            return tl::unexpected(std::move(guard.error()));
+        }
+        if (status != SM_SUCCESS || !std::isfinite(derivatives[0].x) || !std::isfinite(derivatives[0].y) || !std::isfinite(derivatives[0].z) ||
+            !std::isfinite(derivatives[1].x) || !std::isfinite(derivatives[1].y) || !std::isfinite(derivatives[1].z))
+        {
+            return Refuse("LinkedCurveLengthNativeDerivative");
+        }
+        const double speed = std::hypot(derivatives[1].x * m_width, derivatives[1].y * m_width, derivatives[1].z * m_width);
+        if (!std::isfinite(speed))
+        {
+            return Refuse("LinkedCurveLengthDerivativeRange");
+        }
+        return speed;
+    }
+    static double Simpson(double a, double b, double first, double center, double last)
+    {
+        return (b - a) * (first / 6 + (2. / 3.) * center + last / 6);
+    }
+    detail::Result<double> Refine(double a, double b, double first, double center, double last, double estimate, double accuracy, unsigned depth)
+    {
+        const double middle = std::midpoint(a, b), leftMiddle = std::midpoint(a, middle), rightMiddle = std::midpoint(middle, b);
+        if (!(leftMiddle > a && leftMiddle < middle && rightMiddle > middle && rightMiddle < b))
+        {
+            return Refuse("LinkedCurveLengthParameterResolution");
+        }
+        auto leftSpeed = Speed(leftMiddle);
+        if (!leftSpeed)
+        {
+            return tl::unexpected(std::move(leftSpeed.error()));
+        }
+        auto rightSpeed = Speed(rightMiddle);
+        if (!rightSpeed)
+        {
+            return tl::unexpected(std::move(rightSpeed.error()));
+        }
+        const double left = Simpson(a, middle, first, *leftSpeed, center), right = Simpson(middle, b, center, *rightSpeed, last);
+        const double refined = left + right, delta = refined - estimate;
+        const double roundoff = 64 * std::numeric_limits<double>::epsilon() * (std::abs(refined) + std::abs(estimate));
+        if (!std::isfinite(refined) || !std::isfinite(delta) || !std::isfinite(roundoff) || !(accuracy > roundoff))
+        {
+            return Refuse("LinkedCurveLengthAccuracyUnestablished");
+        }
+        if (std::abs(delta) / 15 <= accuracy - roundoff)
+        {
+            const double corrected = refined + delta / 15;
+            if (!std::isfinite(corrected) || corrected < 0)
+            {
+                return Refuse("LinkedCurveLengthIntegrationRange");
+            }
+            return corrected;
+        }
+        if (depth == MaximumDepth || !(accuracy / 2 > 0))
+        {
+            return Refuse("LinkedCurveLengthRefinementBudget");
+        }
+        auto leftLength = Refine(a, middle, first, *leftSpeed, center, left, accuracy / 2, depth + 1);
+        if (!leftLength)
+        {
+            return tl::unexpected(std::move(leftLength.error()));
+        }
+        auto rightLength = Refine(middle, b, center, *rightSpeed, last, right, accuracy / 2, depth + 1);
+        if (!rightLength)
+        {
+            return tl::unexpected(std::move(rightLength.error()));
+        }
+        const double length = *leftLength + *rightLength;
+        if (!std::isfinite(length))
+        {
+            return Refuse("LinkedCurveLengthIntegrationRange");
+        }
+        return length;
+    }
+};
 // The part reader returns independent owning arrays. Its failure can also leave
 // partial output: clear every array before its allocating context in all paths.
 // This owner is used only under NativeMutex, just like the snapshot writer.
@@ -133,6 +355,36 @@ void Validate(SmBrep& brep, const char* role)
 }
 } // namespace
 
+namespace detail
+{
+Result<double> QueryWireframeCurveLength(const SmCurve& curve, std::array<double, 2> interval, double absoluteAccuracyMm)
+{
+    if (!std::isfinite(absoluteAccuracyMm) || !(absoluteAccuracyMm > 0))
+    {
+        return tl::unexpected(
+            Failure{ Status::Indeterminate,
+                     "LinkedCurveLengthAccuracyUnestablished",
+                     "Positive finite linked curve length accuracy required",
+                     {},
+                     "WireframeQuery" }
+        );
+    }
+    const auto natural = curve.GetNaturalInterval();
+    if (!std::isfinite(natural.GetMin()) || !std::isfinite(natural.GetMax()) || !(natural.GetMax() > natural.GetMin()) ||
+        interval[0] < natural.GetMin() || interval[1] > natural.GetMax())
+    {
+        return tl::unexpected(
+            Failure{ Status::Indeterminate,
+                     "LinkedCurveLengthInterval",
+                     "Length query must remain in the actual native curve domain",
+                     {},
+                     "WireframeQuery" }
+        );
+    }
+    return LengthQuery(curve, interval, absoluteAccuracyMm).Run();
+}
+} // namespace detail
+
 WireframeView::WireframeView(std::shared_ptr<detail::ModelData> data, std::size_t set) : m_data(std::move(data)), m_set(set)
 {
 }
@@ -180,6 +432,31 @@ Point WireframeView::EvaluateCurve(std::size_t curve, double parameter) const
     const auto result = Coordinates(point);
     FinitePoint(result);
     return result;
+}
+double WireframeView::CurveLength(std::size_t curve, double absoluteAccuracyMm) const
+{
+    if (!std::isfinite(absoluteAccuracyMm) || absoluteAccuracyMm <= 0)
+    {
+        throw std::invalid_argument("Positive finite linked curve length accuracy required");
+    }
+    const auto& info = m_data->wireframes.at(m_set).curves.at(curve);
+    // Native integral caches are shared mutable implementation state even
+    // though the defining curve is immutable. Match evaluator lock ordering.
+    std::lock_guard nativeLock(detail::NativeMutex());
+    std::lock_guard lock(m_data->mutex);
+    // The legacy SmCurve::Length can return an endpoint chord after a failed
+    // tessellation, and its integrator can hide an ODE failure as zero. Use
+    // bounded derivative quadrature with checked status, preserving actual t.
+    auto length = detail::QueryWireframeCurveLength(
+        m_data->curvePointDefinitions.CurveAt(detail::CurveIndex{ info.nativeIndex }),
+        info.parameterDomain,
+        absoluteAccuracyMm
+    );
+    if (!length)
+    {
+        throw std::runtime_error(length.error().key);
+    }
+    return *length;
 }
 ClosestPoint WireframeView::Closest(const Point& point) const
 {
