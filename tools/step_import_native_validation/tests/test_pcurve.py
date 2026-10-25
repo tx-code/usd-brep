@@ -79,6 +79,19 @@ def surface_curve_trimmed_arc(trim_forward=True, edge_forward=True, master_3d=Tr
 
 
 class PcurveNativeTests(unittest.TestCase):
+    def test_decimal_source_boundary_uses_clamped_restriction_without_snapping(self):
+        fixture = (Path(__file__).resolve().parents[3]
+                   / 'source/STEP_IMPORT/tests/fixtures/source_line_pcurve_decimal_boundary.step')
+        run, report = self.invoke(fixture.read_bytes())
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
+        self.assertAlmostEqual(36, report['model']['area_mm2'], delta=1e-7)
+        window = next(m for m in report['parameter_mappings'] if m['kind'] == 'SourcePcurveLineWindow')
+        self.assertIn('clamped source boundary maps to corresponding stored boundary', window['equation'])
+        self.assertIn('no full-axis affine claim', window['equation'])
+        self.assertEqual([5, 4], window['parameters']['source_to_native_chart_knots_checked'])
+        self.assertEqual([0], window['parameters']['maximum_lift_error_mm'])
+
     def test_source_line_uses_complete_finite_carrier_window_and_explicit_parameter_map(self):
         fixture = (Path(__file__).resolve().parents[3]
                    / 'source/STEP_IMPORT/tests/fixtures/source_line_pcurve_bspline_triangle.step')

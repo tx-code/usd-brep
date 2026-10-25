@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -43,6 +44,40 @@ struct ExactDecimalPcurveLineGenerator
     std::array<std::string_view, 2> velocity;
 };
 
+struct PcurveLineKnotChartInput
+{
+    // Paired full EXPANDED knots, in U/V order. These are borrowed only for
+    // this call; no source text or native knot storage is mutated or retained.
+    // The paired U+V count is bounded to 8192, before reading any knot values.
+    std::array<std::span<const std::string_view>, 2> sourceKnots;
+    std::array<std::span<const double>, 2> nativeKnots;
+    // A positive value authorizes only the separately checked fixed-boundary
+    // restriction below. The caller must first establish that source/native
+    // surface degrees agree; zero does not authorize that restricted proof.
+    std::array<unsigned, 2> degrees{};
+};
+struct PcurveLineKnotChartAxis
+{
+    // native_parameter = scale*source_parameter + offset, with scale > 0.
+    // Unless fixedSourceBoundary is present, every expanded knot must satisfy
+    // this equality EXACTLY. This is not fitted/approximate knot conversion.
+    PcurveLineWindowRatio scale;
+    PcurveLineWindowRatio offset;
+    std::array<PcurveLineWindowRatio, 2> sourceDomainExact;
+    std::array<double, 2> targetDomain{};
+    std::size_t knotsChecked = 0;
+    // 0=min, 1=max: ONLY the fixed source boundary use is established. Then
+    // scale=1 and offset is the exact boundary-coordinate difference. Interior
+    // knots may have no common affine chart; never use this as a whole-axis
+    // coordinate equivalence. It relies on clamped boundary basis identity and
+    // the caller's binding of the complete unchanged control net and degrees.
+    std::optional<unsigned> fixedSourceBoundary;
+};
+struct PcurveLineKnotChart
+{
+    std::array<PcurveLineKnotChartAxis, 2> axes;
+};
+
 struct PcurveLineWindow
 {
     // The generator is P + q*D, without direction normalization. q is not
@@ -65,6 +100,7 @@ struct PcurveLineWindow
     // These are UV bounds; a physical 3D lift needs separate surface evidence.
     std::array<double, 2> maximumRoundingUpperUv{};
     bool hasUvRounding = false;
+    std::optional<PcurveLineKnotChart> affineSourceChart;
 };
 
 // Rectangle order is {u_min,v_min,u_max,v_max}; both widths must be positive.
@@ -91,6 +127,28 @@ struct PcurveLineWindow
 [[nodiscard]] Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
     const ExactDecimalPcurveLineGenerator& generator,
     const std::array<double, 4>& domain,
+    const PcurveLineWindowLimits& limits,
+    const PcurveLineWindowCallbacks& callbacks
+);
+
+// First attempts WHOLE expanded source/native knot correspondence before using
+// the chart on the exact source LINE. With an explicit shared positive degree,
+// a failing whole-axis proof may establish a narrower fixed-boundary use:
+// D=0 and P EXACTLY equals the source endpoint; both full knot arrays must be
+// valid and exactly clamped with degree+1 endpoint multiplicities. The curve
+// then uses the same first/last control row independently of interior knots.
+// This is separately marked fixedSourceBoundary, never a whole-axis claim.
+// nativeDomain must equal the two
+// actual native knot end domains. q remains the original generator parameter:
+// P'=A*P+B, D'=A*D; no direction normalization, inward crop or source rewrite.
+// Failure to establish a positive exact common affine chart is Indeterminate;
+// bad capacities/callbacks retain the same contracts as the other overloads.
+// The geometry/control-net/degree/weight binding of a surface to these knots
+// belongs to the caller; knot correspondence alone is not a surface proof.
+[[nodiscard]] Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
+    const ExactDecimalPcurveLineGenerator& generator,
+    const PcurveLineKnotChartInput& chart,
+    const std::array<double, 4>& nativeDomain,
     const PcurveLineWindowLimits& limits,
     const PcurveLineWindowCallbacks& callbacks
 );

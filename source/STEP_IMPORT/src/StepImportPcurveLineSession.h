@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImportPcurveLineLift.h"
-#include "StepImportPcurveLineWindow.h"
 
 #include <vector>
 class SmCrvOnSurf;
 namespace step_import::detail
 {
+struct PcurveLineWindow; // Exact-planner changes do not invalidate unrelated geometry factories.
 struct PcurveLineBinding
 {
     std::size_t sourceRecord = 0;

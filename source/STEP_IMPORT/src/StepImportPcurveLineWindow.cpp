@@ -400,6 +400,221 @@ public:
 };
 
 using ExactPair = std::array<Ratio, 2>;
+struct ExactKnotChart
+{
+    ExactPair scale, offset;
+    std::array<ExactPair, 2> sourceDomains;
+    std::array<std::size_t, 2> counts{};
+    std::array<std::optional<unsigned>, 2> fixedBoundary;
+};
+Result<bool> ClampedBoundaryKnots(
+    std::span<const std::string_view> source,
+    std::span<const double> native,
+    unsigned degree,
+    const ExactPair& sourceDomain,
+    const ExactPair& nativeDomain,
+    Arithmetic& math
+)
+{
+    const auto p = std::size_t(degree);
+    LW_OK(math.Spend());
+    // Same expanded count and an attested common degree imply the same number
+    // of basis controls. Strict interior knots ensure exactly p+1 endpoint
+    // repeats. No claimed C0/native qualification is inferred from this check.
+    if (!p || source.size() < 2 || p >= source.size() / 2 || source.size() != native.size())
+    {
+        return false;
+    }
+    ExactPair previous;
+    std::array<std::size_t, 2> repeats{};
+    for (std::size_t i = 0; i < source.size(); ++i)
+    {
+        LW_TRY(sourceKnot, math.Decimal(source[i]));
+        LW_TRY(nativeKnot, math.Binary(native[i]));
+        const ExactPair current{ std::move(sourceKnot), std::move(nativeKnot) };
+        std::array<bool, 2> samePrevious{};
+        for (std::size_t which = 0; which < 2; ++which)
+        {
+            const auto& domain = which ? nativeDomain : sourceDomain;
+            LW_TRY(lower, math.Compare(current[which], domain[0]));
+            LW_TRY(upper, math.Compare(current[which], domain[1]));
+            if ((i <= p && lower != 0) || (i >= source.size() - p - 1 && upper != 0) ||
+                (i > p && i < source.size() - p - 1 && !(lower > 0 && upper < 0)))
+            {
+                return false;
+            }
+            if (i)
+            {
+                LW_TRY(step, math.Compare(previous[which], current[which]));
+                if (step > 0)
+                {
+                    return false;
+                }
+                samePrevious[which] = step == 0;
+                repeats[which] = step == 0 ? repeats[which] + 1 : 1;
+            }
+            else
+            {
+                repeats[which] = 1;
+            }
+            if (repeats[which] > p + 1)
+            {
+                return false;
+            }
+        }
+        // Boundary restriction is narrower than whole-axis covariance, but
+        // does not authorize merging or splitting source knot groups. Preserve
+        // the exact adjacent-equality pattern as well as each side's validity.
+        if (i && samePrevious[0] != samePrevious[1])
+        {
+            return false;
+        }
+        previous = current;
+    }
+    return true;
+}
+Result<ExactKnotChart> ProveKnotChart(
+    const PcurveLineKnotChartInput& input,
+    const ExactPair& point,
+    const ExactPair& velocity,
+    const std::array<Ratio, 4>& rectangle,
+    Arithmetic& math
+)
+{
+    constexpr std::size_t maximumPairedKnots = 8192;
+    std::size_t total = 0;
+    for (std::size_t axis = 0; axis < 2; ++axis)
+    {
+        const auto count = input.sourceKnots[axis].size();
+        if (count > maximumPairedKnots - total || input.nativeKnots[axis].size() > maximumPairedKnots - total)
+        {
+            return tl::unexpected(WindowError("PcurveLineWindowKnotCapacity", Status::ResourceLimit));
+        }
+        if (count < 2 || count != input.nativeKnots[axis].size())
+        {
+            return tl::unexpected(WindowError("PcurveLineWindowKnotChartStructure"));
+        }
+        total += count;
+    }
+    // Account for both borrowed expanded arrays before inspecting any knot.
+    // No per-knot allocation is needed: previous values suffice to check order.
+    LW_OK(math.Spend(2 * total));
+    ExactKnotChart result;
+    for (std::size_t axis = 0; axis < 2; ++axis)
+    {
+        const auto source = input.sourceKnots[axis];
+        const auto native = input.nativeKnots[axis];
+        LW_TRY(sourceLo, math.Decimal(source.front()));
+        LW_TRY(sourceHi, math.Decimal(source.back()));
+        LW_TRY(nativeLo, math.Binary(native.front()));
+        LW_TRY(nativeHi, math.Binary(native.back()));
+        LW_TRY(sourceOrder, math.Compare(sourceLo, sourceHi));
+        LW_TRY(nativeOrder, math.Compare(nativeLo, nativeHi));
+        LW_TRY(lowerDomain, math.Compare(nativeLo, rectangle[axis]));
+        LW_TRY(upperDomain, math.Compare(nativeHi, rectangle[axis + 2]));
+        if (sourceOrder >= 0 || nativeOrder >= 0 || lowerDomain != 0 || upperDomain != 0)
+        {
+            return tl::unexpected(WindowError("PcurveLineWindowKnotChartDomain"));
+        }
+        LW_TRY(sourceWidth, math.Sub(sourceHi, sourceLo));
+        LW_TRY(nativeWidth, math.Sub(nativeHi, nativeLo));
+        LW_TRY(scale, math.Div(nativeWidth, sourceWidth));
+        LW_TRY(scaledLo, math.Mul(scale, sourceLo));
+        LW_TRY(offset, math.Sub(nativeLo, scaledLo));
+        LW_TRY(positive, math.Compare(scale, Ratio{}));
+        if (positive <= 0)
+        {
+            return tl::unexpected(WindowError("PcurveLineWindowKnotChartUnestablished"));
+        }
+        std::optional<unsigned> fixedBoundary;
+        if (input.degrees[axis] && velocity[axis].n == 0)
+        {
+            LW_TRY(atMinimum, math.Compare(point[axis], sourceLo));
+            LW_TRY(atMaximum, math.Compare(point[axis], sourceHi));
+            if (atMinimum == 0)
+            {
+                fixedBoundary = 0;
+            }
+            else if (atMaximum == 0)
+            {
+                fixedBoundary = 1;
+            }
+        }
+        bool wholeAxis = true;
+        Ratio previousSource, previousNative;
+        for (std::size_t i = 0; i < source.size(); ++i)
+        {
+            LW_TRY(sourceKnot, math.Decimal(source[i]));
+            LW_TRY(nativeKnot, math.Binary(native[i]));
+            if (i)
+            {
+                LW_TRY(sourceStep, math.Compare(previousSource, sourceKnot));
+                LW_TRY(nativeStep, math.Compare(previousNative, nativeKnot));
+                if (sourceStep > 0 || nativeStep > 0)
+                {
+                    return tl::unexpected(WindowError("PcurveLineWindowKnotChartOrder"));
+                }
+            }
+            LW_TRY(scaled, math.Mul(scale, sourceKnot));
+            LW_TRY(mapped, math.Add(scaled, offset));
+            LW_TRY(equal, math.Compare(mapped, nativeKnot));
+            if (equal != 0)
+            {
+                if (!fixedBoundary)
+                {
+                    return tl::unexpected(WindowError("PcurveLineWindowKnotChartUnestablished"));
+                }
+                wholeAxis = false;
+            }
+            previousSource = std::move(sourceKnot);
+            previousNative = std::move(nativeKnot);
+        }
+        if (!wholeAxis)
+        {
+            LW_TRY(clamped, ClampedBoundaryKnots(source, native, input.degrees[axis], { sourceLo, sourceHi }, { nativeLo, nativeHi }, math));
+            if (!clamped)
+            {
+                return tl::unexpected(WindowError("PcurveLineWindowBoundaryRestrictionUnestablished"));
+            }
+            // A clamped B-spline at its exact minimum/maximum selects ONLY its
+            // first/last control row. Interior knots on that fixed axis have
+            // no contribution. This proves this LINE use, not an interior
+            // coordinate map; preserve that distinction in the owned receipt.
+            LW_TRY(boundaryOffset, math.Sub(*fixedBoundary ? nativeHi : nativeLo, *fixedBoundary ? sourceHi : sourceLo));
+            LW_TRY(identity, math.Normalize(Big(1), Big(1)));
+            scale = std::move(identity);
+            offset = std::move(boundaryOffset);
+            result.fixedBoundary[axis] = fixedBoundary;
+        }
+        // Otherwise ALL expanded knots, including multiplicities, obey the
+        // same A,B: unchanged degree/XYZ/W then give full-axis covariance.
+        result.scale[axis] = std::move(scale);
+        result.offset[axis] = std::move(offset);
+        result.sourceDomains[axis] = { std::move(sourceLo), std::move(sourceHi) };
+        result.counts[axis] = source.size();
+    }
+    return result;
+}
+Result<PcurveLineKnotChart> ChartText(const ExactKnotChart& chart, const std::array<double, 4>& domain, Arithmetic& math)
+{
+    PcurveLineKnotChart text;
+    for (std::size_t axis = 0; axis < 2; ++axis)
+    {
+        LW_TRY(scale, math.Text(chart.scale[axis]));
+        LW_TRY(offset, math.Text(chart.offset[axis]));
+        text.axes[axis].scale = std::move(scale);
+        text.axes[axis].offset = std::move(offset);
+        for (std::size_t end = 0; end < 2; ++end)
+        {
+            LW_TRY(sourceEnd, math.Text(chart.sourceDomains[axis][end]));
+            text.axes[axis].sourceDomainExact[end] = std::move(sourceEnd);
+        }
+        text.axes[axis].targetDomain = { domain[axis], domain[axis + 2] };
+        text.axes[axis].knotsChecked = chart.counts[axis];
+        text.axes[axis].fixedSourceBoundary = chart.fixedBoundary[axis];
+    }
+    return text;
+}
 Result<std::optional<PcurveLineWindow>> Intersect(
     const ExactPair& point,
     const ExactPair& velocity,
@@ -538,6 +753,7 @@ Result<std::optional<PcurveLineWindow>> Run(
     const std::array<double, 2>* binaryPoint,
     const std::array<double, 2>* binaryVelocity,
     const ExactDecimalPcurveLineGenerator* decimal,
+    const PcurveLineKnotChartInput* knots,
     const std::array<double, 4>& domain,
     const PcurveLineWindowLimits& limits,
     const PcurveLineWindowCallbacks& callbacks
@@ -561,7 +777,26 @@ Result<std::optional<PcurveLineWindow>> Run(
             LW_TRY(bound, math.Binary(domain[i]));
             rectangle[i] = std::move(bound);
         }
+        std::optional<ExactKnotChart> chart;
+        if (knots)
+        {
+            LW_TRY(proof, ProveKnotChart(*knots, point, velocity, rectangle, math));
+            for (std::size_t axis = 0; axis < 2; ++axis)
+            {
+                LW_TRY(scaledPoint, math.Mul(proof.scale[axis], point[axis]));
+                LW_TRY(mappedPoint, math.Add(scaledPoint, proof.offset[axis]));
+                LW_TRY(mappedVelocity, math.Mul(proof.scale[axis], velocity[axis]));
+                point[axis] = std::move(mappedPoint);
+                velocity[axis] = std::move(mappedVelocity);
+            }
+            chart = std::move(proof);
+        }
         LW_TRY(result, Intersect(point, velocity, rectangle, math));
+        if (chart && result)
+        {
+            LW_TRY(text, ChartText(*chart, domain, math));
+            result->affineSourceChart = std::move(text);
+        }
         LW_OK(math.Spend()); // Complete handoff, also for normal absence.
         return result;
     }
@@ -586,7 +821,7 @@ Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
     const PcurveLineWindowCallbacks& callbacks
 )
 {
-    return Run(&point, &velocity, nullptr, domain, limits, callbacks);
+    return Run(&point, &velocity, nullptr, nullptr, domain, limits, callbacks);
 }
 Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
     const ExactDecimalPcurveLineGenerator& generator,
@@ -595,6 +830,16 @@ Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
     const PcurveLineWindowCallbacks& callbacks
 )
 {
-    return Run(nullptr, nullptr, &generator, domain, limits, callbacks);
+    return Run(nullptr, nullptr, &generator, nullptr, domain, limits, callbacks);
+}
+Result<std::optional<PcurveLineWindow>> PlanPcurveLineWindow(
+    const ExactDecimalPcurveLineGenerator& generator,
+    const PcurveLineKnotChartInput& chart,
+    const std::array<double, 4>& nativeDomain,
+    const PcurveLineWindowLimits& limits,
+    const PcurveLineWindowCallbacks& callbacks
+)
+{
+    return Run(nullptr, nullptr, &generator, &chart, nativeDomain, limits, callbacks);
 }
 } // namespace step_import::detail

@@ -79,6 +79,54 @@ public:
         }
         const auto allowed = surface->GetSTEPUVDomain();
         const std::array<double, 4> rectangle{ allowed.GetMin().x, allowed.GetMin().y, allowed.GetMax().x, allowed.GetMax().y };
+        const auto* controlSurface = dynamic_cast<const SmBSplineSurface*>(surface.get());
+        if (!controlSurface)
+        {
+            return tl::unexpected(Fail("GeneralPcurveBasisBoundsUnestablished", basis, Status::Unsupported));
+        }
+        std::array<std::vector<std::string_view>, 2> sourceKnots;
+        std::size_t totalKnots = 0;
+        for (std::size_t axis = 0; axis < 2; ++axis)
+        {
+            const auto& values = F(basis, axis ? "v_knots" : "u_knots").children;
+            auto multiplicities = Multiplicities(basis, axis ? "v_multiplicities" : "u_multiplicities");
+            if (!multiplicities)
+            {
+                return tl::unexpected(std::move(multiplicities.error()));
+            }
+            if (multiplicities->GetSize() != values.size())
+            {
+                return tl::unexpected(Fail("GeneralPcurveLineSourceKnotShape", basis));
+            }
+            for (std::size_t i = 0; i < values.size(); ++i)
+            {
+                const auto count = (*multiplicities)[ULONG(i)];
+                if (count > 8192 - totalKnots)
+                {
+                    return tl::unexpected(Fail("GeneralPcurveLineSourceKnotCapacity", basis, Status::ResourceLimit));
+                }
+                if (auto charged = m_execution.SpendExactGeometryWork(m_report, count, use); !charged)
+                {
+                    return tl::unexpected(std::move(charged.error()));
+                }
+                sourceKnots[axis].insert(sourceKnots[axis].end(), count, values[i].text);
+                totalKnots += count;
+            }
+        }
+        double *nativeU = nullptr, *nativeV = nullptr;
+        ULONG ku = 0, kv = 0;
+        if (auto operation = Step(basis); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        if (auto good = Good(controlSurface->GetKnotsPointers(ku, kv, nativeU, nativeV)); !good)
+        {
+            return tl::unexpected(std::move(good.error()));
+        }
+        if (!nativeU || !nativeV || ku != sourceKnots[0].size() || kv != sourceKnots[1].size())
+        {
+            return tl::unexpected(Fail("GeneralPcurveLineSourceKnotShape", basis));
+        }
         const SplineChartCallbacks nativeCallbacks{ [&]
                                                     {
                                                         return Step(use);
@@ -99,7 +147,36 @@ public:
         // Per-operation capacities stay below the request-wide exact-work
         // ledger. These are computational/storage bounds, not new mm defaults.
         const PcurveLineWindowLimits limits{ 4096, m_options.nativeLimits.exactWorkUnits, 32768, 1234 };
-        auto planned = PlanPcurveLineWindow(generator, rectangle, limits, exactCallbacks);
+        const PcurveLineKnotChartInput chartInput{ { std::span<const std::string_view>(sourceKnots[0]),
+                                                     std::span<const std::string_view>(sourceKnots[1]) },
+                                                   { std::span<const double>(nativeU, ku), std::span<const double>(nativeV, kv) } };
+        auto uDegree = Degree(basis, "u_degree"), vDegree = Degree(basis, "v_degree");
+        if (!uDegree || !vDegree)
+        {
+            return tl::unexpected(!uDegree ? std::move(uDegree.error()) : std::move(vDegree.error()));
+        }
+        if (auto operation = Step(basis); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        const auto nativeUDegree = controlSurface->GetDegree(SM_SP_U);
+        if (auto operation = Step(basis); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        const auto nativeVDegree = controlSurface->GetDegree(SM_SP_V);
+        if (nativeUDegree != *uDegree || nativeVDegree != *vDegree)
+        {
+            return tl::unexpected(Fail("GeneralPcurveLineCarrierDegreeChanged", basis));
+        }
+        auto checkedChart = chartInput;
+        // Decimal source knots and stored binary knots are different coordinate
+        // carriers. Establish the complete knot map, or the exact original
+        // clamped-boundary restriction, before intersecting the LINE. Comparing
+        // an exact decimal boundary directly with a rounded native endpoint can
+        // otherwise manufacture an out-of-domain source error.
+        checkedChart.degrees = { *uDegree, *vDegree };
+        auto planned = PlanPcurveLineWindow(generator, checkedChart, rectangle, limits, exactCallbacks);
         if (!planned)
         {
             if (!planned.error().record)
@@ -149,11 +226,6 @@ public:
                 lift.error().record = pcurve;
             }
             return tl::unexpected(std::move(lift.error()));
-        }
-        const auto* controlSurface = dynamic_cast<const SmBSplineSurface*>(surface.get());
-        if (!controlSurface)
-        {
-            return tl::unexpected(Fail("GeneralPcurveBasisBoundsUnestablished", basis, Status::Unsupported));
         }
         SmTArray<SmPoint3d> points;
         SmTArray<double> weights;
@@ -206,12 +278,28 @@ public:
             "*native_tau; source_t=q*sqrt(source_Dx^2+source_Dy^2)/source_VECTOR_magnitude; "
             "complete LINE/stored-binary-carrier-rectangle intersection, no inward crop; source decimal P/D and units retained in immutable snapshot; "
             "native endpoint conversion bounded continuously in mm on the stored carrier";
+        if (!window.affineSourceChart)
+        {
+            return tl::unexpected(Fail("GeneralPcurveLineKnotChartMissing", pcurve));
+        }
+        for (std::size_t axis = 0; axis < 2; ++axis)
+        {
+            const auto& chart = window.affineSourceChart->axes[axis];
+            const std::string coordinate = axis ? "v" : "u";
+            map.equation += "; native_" + coordinate + "=" + RatioText(chart.scale) + "*source_" + coordinate + "+" + RatioText(chart.offset);
+            map.equation += chart.fixedSourceBoundary ? "; clamped source boundary maps to corresponding stored boundary; no full-axis affine claim" :
+                                                        "; every source knot maps exactly to stored native knot";
+        }
         map.parameters = { { "native_parameter_interval", { 0, 1 } },
                            { "raw_generator_interval_rounded", { window.generatorWindowRounded[0], window.generatorWindowRounded[1] } },
                            { "raw_generator_rounded_interval_collapsed", { window.generatorRoundingCollapsed ? 1. : 0. } },
                            { "native_uv_domain", { rectangle.begin(), rectangle.end() } },
                            { "maximum_uv_endpoint_rounding", { window.maximumRoundingUpperUv[0], window.maximumRoundingUpperUv[1] } },
                            { "maximum_lift_error_mm", { (*lift)->MaximumMm() } } };
+        map.parameters.push_back(
+            { "source_to_native_chart_knots_checked",
+              { double(window.affineSourceChart->axes[0].knotsChecked), double(window.affineSourceChart->axes[1].knotsChecked) } }
+        );
         if (const auto derivatives = (*lift)->DerivativeBoundsMmPerUv())
         {
             map.parameters.push_back({ "whole_domain_derivative_bounds_mm_per_uv", { (*derivatives)[0], (*derivatives)[1] } });
@@ -236,10 +324,8 @@ public:
         compositionMap.sourceGeometryId = Id(pcurve);
         compositionMap.sourceBasisGeometryId = Id(basis);
         compositionMap.sourceUseId = Id(use);
-        compositionMap.equation = "native C(tau)=basis_STEP(native_uv(tau)); source LINE parameter follows SourcePcurveLineWindow, not tau identity";
-        compositionMap.parameters = { { "source_uv_to_native_step_scale", { 1, 1 } },
-                                      { "source_uv_to_native_step_offset", { 0, 0 } },
-                                      { "native_parameter_interval", { 0, 1 } } };
+        compositionMap.equation = "native C(tau)=basis_STEP(native_uv(tau)); source UV and LINE parameter follow exact SourcePcurveLineWindow maps";
+        compositionMap.parameters = { { "native_parameter_interval", { 0, 1 } } };
         m_report.parameterMappings.push_back(std::move(compositionMap));
         return PcurveDefinition{ std::move(composition), box, false };
     }

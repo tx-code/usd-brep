@@ -1,0 +1,66 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('Public AP214 decimal clamped-boundary LINE control'),'2;1');
+FILE_NAME('public-boundary-line.step','2026-10-25T00:00:00',('P0'),('local'),'P0','synthetic analytic oracle','');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}'));
+ENDSEC;
+DATA;
+#1=APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies');
+#2=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2010,#1);
+#3=PRODUCT_CONTEXT('',#1,'mechanical');
+#4=PRODUCT('P0','Public analytic triangle',$,(#3));
+#5=PRODUCT_DEFINITION_FORMATION('A',$,#4);
+#6=PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design');
+#7=PRODUCT_DEFINITION('D1',$,#5,#6);
+#8=PRODUCT_DEFINITION_SHAPE('',$,#7);
+#9=SHAPE_DEFINITION_REPRESENTATION(#8,#20);
+#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));
+#11=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));
+#12=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'));
+/* Source carrier S(u,v)=(30u-5,3v,0), u in [0.1,0.3], v in [-1,3].
+   Its interior knot 0.2 prevents a common exact source/native U affine map.
+   LINE P=(0.1,11), raw D=(0,-4) lies EXACTLY on the original clamped U boundary.
+   q=[2,3] gives native tau=[0,1], C(tau)=(-2,9-12tau,0).
+   The clamped boundary curve is independent of interior U knots.
+   A=(-2,9), B=(-2,-3), C=(4,9) bounds the same analytic 36 mm^2 triangle. */
+#20=MANIFOLD_SURFACE_SHAPE_REPRESENTATION('',(#21),#12);
+#21=SHELL_BASED_SURFACE_MODEL('',(#22));
+#22=OPEN_SHELL('',(#23));
+#23=ADVANCED_FACE('',(#24),#30,.T.);
+#24=FACE_OUTER_BOUND('',#25,.T.);
+#25=EDGE_LOOP('',(#60,#61,#62));
+#30=B_SPLINE_SURFACE_WITH_KNOTS('',1,1,((#31,#32),(#35,#36),(#33,#34)),.PLANE_SURF.,.F.,.F.,.F.,(2,1,2),(2,2),(0.1,0.2,0.3),(-1.,3.),.UNSPECIFIED.);
+#31=CARTESIAN_POINT('',(-2.,-3.,0.));
+#32=CARTESIAN_POINT('',(-2.,9.,0.));
+#33=CARTESIAN_POINT('',(4.,-3.,0.));
+#34=CARTESIAN_POINT('',(4.,9.,0.));
+#35=CARTESIAN_POINT('',(1.,-3.,0.));
+#36=CARTESIAN_POINT('',(1.,9.,0.));
+#41=VERTEX_POINT('',#32);
+#42=VERTEX_POINT('',#31);
+#43=VERTEX_POINT('',#34);
+#44=SURFACE_CURVE('',#70,(#45),.PCURVE_S1.);
+#45=PCURVE('',#30,#46);
+#46=DEFINITIONAL_REPRESENTATION('',(#47),#48);
+#47=LINE('',#49,#50);
+#48=(GEOMETRIC_REPRESENTATION_CONTEXT(2) PARAMETRIC_REPRESENTATION_CONTEXT() REPRESENTATION_CONTEXT('','2D'));
+#49=CARTESIAN_POINT('',(0.1,11.));
+#50=VECTOR('',#51,10.);
+#51=DIRECTION('',(0.,-4.));
+#52=EDGE_CURVE('',#41,#42,#44,.T.);
+#53=LINE('',#31,#54);
+#54=VECTOR('',#55,1.);
+#55=DIRECTION('',(1.,2.,0.));
+#56=EDGE_CURVE('',#42,#43,#53,.T.);
+#57=LINE('',#34,#58);
+#58=VECTOR('',#59,1.);
+#59=DIRECTION('',(-1.,0.,0.));
+#60=ORIENTED_EDGE('',*,*,#52,.T.);
+#61=ORIENTED_EDGE('',*,*,#56,.T.);
+#62=ORIENTED_EDGE('',*,*,#63,.T.);
+#63=EDGE_CURVE('',#43,#41,#57,.T.);
+#70=LINE('',#32,#71);
+#71=VECTOR('',#72,1.);
+#72=DIRECTION('',(0.,-1.,0.));
+ENDSEC;
+END-ISO-10303-21;

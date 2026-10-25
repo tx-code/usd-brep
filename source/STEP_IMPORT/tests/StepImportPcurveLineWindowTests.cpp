@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #if defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)
 #    include <xmmintrin.h>
 #endif
@@ -461,6 +462,27 @@ std::string Fingerprint(const PcurveLineWindow& plan)
     {
         text << ';' << std::bit_cast<std::uint64_t>(bound);
     }
+    text << ';' << bool(plan.affineSourceChart);
+    if (plan.affineSourceChart)
+    {
+        for (const auto& axis : plan.affineSourceChart->axes)
+        {
+            ratio(axis.scale);
+            ratio(axis.offset);
+            ratio(axis.sourceDomainExact[0]);
+            ratio(axis.sourceDomainExact[1]);
+            text << axis.knotsChecked << ';';
+            text << bool(axis.fixedSourceBoundary) << ';';
+            if (axis.fixedSourceBoundary)
+            {
+                text << *axis.fixedSourceBoundary << ';';
+            }
+            for (double bound : axis.targetDomain)
+            {
+                text << std::bit_cast<std::uint64_t>(bound) << ';';
+            }
+        }
+    }
     return text.str();
 }
 std::size_t OutputCharacters(const PcurveLineWindow& plan)
@@ -474,7 +496,418 @@ std::size_t OutputCharacters(const PcurveLineWindow& plan)
             count += ratio.numerator.size() + ratio.denominator.size();
         }
     }
+    if (plan.affineSourceChart)
+    {
+        for (const auto& axis : plan.affineSourceChart->axes)
+        {
+            count += axis.scale.numerator.size() + axis.scale.denominator.size();
+            count += axis.offset.numerator.size() + axis.offset.denominator.size();
+            for (const auto& sourceEnd : axis.sourceDomainExact)
+            {
+                count += sourceEnd.numerator.size() + sourceEnd.denominator.size();
+            }
+        }
+    }
     return count;
+}
+void WholeKnotAffineChart()
+{
+    const std::array<std::string_view, 4> sourceU{ ".1", ".1", ".3", ".3" }, sourceV{ "-1", "-1", "3", "3" };
+    const std::array<double, 4> nativeU{ .1, .1, .3, .3 }, nativeV{ -1., -1., 3., 3. };
+    const Rectangle rectangle{ .1, -1., .3, 3. };
+    const PcurveLineKnotChartInput input{ { sourceU, sourceV }, { nativeU, nativeV } };
+    const ExactDecimalPcurveLineGenerator generator{ { ".1", "11" }, { "0", "-4" } };
+    Ledger naked;
+    auto absent = PlanPcurveLineWindow(generator, rectangle, Capacity(), naked.Callbacks());
+    Require(absent && !absent->has_value(), "raw exact decimal .1 is outside a binary rectangle whose minimum rounds upward");
+    const auto binary = MustPlan({ .1, 11. }, { 0., -4. }, rectangle);
+    Require(!binary.affineSourceChart, "preexisting pure binary overload retains its own semantics without inventing source chart evidence");
+    Ledger baseline;
+    auto made = PlanPcurveLineWindow(generator, input, rectangle, Capacity(), baseline.Callbacks());
+    Require(made && made->has_value() && (**made).affineSourceChart, "exact full-knot chart establishes the source boundary without inward movement");
+    const auto& plan = **made;
+    const auto& chart = *plan.affineSourceChart;
+    RatioIs(plan.generatorWindowExact[0], "2", "1");
+    RatioIs(plan.generatorWindowExact[1], "3", "1");
+    Require(
+        plan.uvEnds == std::array<Pair, 2>{ Pair{ .1, 3. }, Pair{ .1, -1. } } && !plan.hasUvRounding,
+        "chart maps exact source boundary to exact native boundary, with original q and direction"
+    );
+    RatioIs(chart.axes[0].scale, "36028797018963965", "36028797018963968");
+    RatioIs(chart.axes[0].offset, "1", "72057594037927936");
+    RatioIs(chart.axes[0].sourceDomainExact[0], "1", "10");
+    RatioIs(chart.axes[0].sourceDomainExact[1], "3", "10");
+    RatioIs(chart.axes[1].scale, "1", "1");
+    RatioIs(chart.axes[1].offset, "0", "1");
+    Require(
+        chart.axes[0].targetDomain == Pair{ .1, .3 } && chart.axes[1].targetDomain == Pair{ -1., 3. } && chart.axes[0].knotsChecked == 4 &&
+            chart.axes[1].knotsChecked == 4,
+        "receipt identifies complete expanded knot counts and both actual native domains"
+    );
+    for (std::size_t i = 0; i < sourceU.size(); ++i)
+    {
+        const Exact source = i < 2 ? Canonical(Integer(1), Integer(10)) : Canonical(Integer(3), Integer(10));
+        Require(
+            Read(chart.axes[0].scale) * source + Read(chart.axes[0].offset) == Binary(nativeU[i]),
+            "independent exact oracle checks every affine U knot, including multiplicity"
+        );
+    }
+    CheckWholeIntersection(plan, { Binary(.1), Exact(11) }, { Exact(0), Exact(-4) }, rectangle);
+
+    // Interior source .2 has no common affine image at nearest-double(.2)
+    // under the endpoint-determined chart above. A boundary LINE does not
+    // justify claiming an unproved whole-axis chart in its place.
+    const std::array<std::string_view, 5> interiorSource{ ".1", ".1", ".2", ".3", ".3" };
+    const std::array<double, 5> interiorNative{ .1, .1, .2, .3, .3 };
+    Ledger notAffine;
+    auto refused = PlanPcurveLineWindow(
+        generator,
+        PcurveLineKnotChartInput{ { interiorSource, sourceV }, { interiorNative, nativeV } },
+        rectangle,
+        Capacity(),
+        notAffine.Callbacks()
+    );
+    Require(
+        !refused && refused.error().status == Status::Indeterminate && refused.error().key == "PcurveLineWindowKnotChartUnestablished",
+        "full expanded knot proof never fits or silently disregards a nonaffine interior knot"
+    );
+    const std::array<std::string_view, 4> unorderedSource{ ".1", ".3", ".2", ".3" };
+    const std::array<double, 4> unorderedNative{ .1, .3, .2, .3 };
+    Ledger unordered;
+    refused = PlanPcurveLineWindow(
+        generator,
+        PcurveLineKnotChartInput{ { unorderedSource, sourceV }, { unorderedNative, nativeV } },
+        rectangle,
+        Capacity(),
+        unordered.Callbacks()
+    );
+    Require(!refused && refused.error().key == "PcurveLineWindowKnotChartOrder", "full knot sequence must be nondecreasing on both sides");
+    Ledger countMismatch;
+    refused = PlanPcurveLineWindow(
+        generator,
+        PcurveLineKnotChartInput{ { interiorSource, sourceV }, { nativeU, nativeV } },
+        rectangle,
+        Capacity(),
+        countMismatch.Callbacks()
+    );
+    Require(
+        !refused && refused.error().key == "PcurveLineWindowKnotChartStructure",
+        "expanded knot lengths and multiplicities cannot be silently changed"
+    );
+    Ledger domainMismatch;
+    refused = PlanPcurveLineWindow(generator, input, { .1, -1., .4, 3. }, Capacity(), domainMismatch.Callbacks());
+    Require(!refused && refused.error().key == "PcurveLineWindowKnotChartDomain", "native rectangle must match actual expanded knot endpoints");
+
+    const auto fingerprint = Fingerprint(plan);
+    for (std::size_t work : { baseline.work, baseline.work - 1 })
+    {
+        auto limits = Capacity();
+        limits.workUnits = work;
+        Ledger ledger;
+        auto bounded = PlanPcurveLineWindow(generator, input, rectangle, limits, ledger.Callbacks());
+        if (work == baseline.work)
+        {
+            Require(
+                bounded && bounded->has_value() && Fingerprint(**bounded) == fingerprint,
+                "all chart scalar work is bounded and succeeds at exact N"
+            );
+        }
+        else
+        {
+            Require(!bounded && bounded.error().key == "PcurveLineWindowWorkLimit", "full chart plus window fails at N-1 without a partial receipt");
+        }
+    }
+    for (std::size_t at : { std::size_t(1), baseline.checks / 2, baseline.checks })
+    {
+        Ledger cancelled;
+        cancelled.cancelAt = at;
+        auto result = PlanPcurveLineWindow(generator, input, rectangle, Capacity(), cancelled.Callbacks());
+        Require(
+            !result && result.error().key == "PublicCancelSentinel" && result.error().record == 197 && result.error().stage == "PublicWindowCaller",
+            "source knot/chart/window cancellation is propagated without reclassification"
+        );
+    }
+    Ledger shared;
+    shared.maximum = baseline.work - 1;
+    auto sharedFailure = PlanPcurveLineWindow(generator, input, rectangle, Capacity(), shared.Callbacks());
+    Require(
+        !sharedFailure && sharedFailure.error().key == "PublicWorkSentinel" && sharedFailure.error().record == 197,
+        "full knot chart also obeys the unchanged caller-wide N-1 ledger"
+    );
+    const auto characters = OutputCharacters(plan);
+    for (std::size_t available : { characters, characters - 1 })
+    {
+        auto limits = Capacity();
+        limits.outputCharacters = available;
+        Ledger ledger;
+        auto bounded = PlanPcurveLineWindow(generator, input, rectangle, limits, ledger.Callbacks());
+        if (available == characters)
+        {
+            Require(
+                bounded && bounded->has_value() && Fingerprint(**bounded) == fingerprint,
+                "chart ratios and window ratios share one exact output byte allowance at N"
+            );
+        }
+        else
+        {
+            Require(
+                !bounded && bounded.error().key == "PcurveLineWindowOutputCapacity",
+                "chart output must not allocate past shared N-1 ratio capacity"
+            );
+        }
+    }
+    {
+        struct RoundingRestore
+        {
+            int original = std::fegetround();
+            ~RoundingRestore()
+            {
+                std::fesetround(original);
+            }
+        } restore;
+        Ledger changed;
+        auto callbacks = changed.Callbacks();
+        const auto original = callbacks.checkCancelled;
+        callbacks.checkCancelled = [&, original]() -> Result<void>
+        {
+            auto checked = original();
+            if (changed.checks == baseline.checks / 2)
+            {
+                std::fesetround(FE_UPWARD);
+            }
+            return checked;
+        };
+        auto environment = PlanPcurveLineWindow(generator, input, rectangle, Capacity(), callbacks);
+        Require(
+            !environment && environment.error().key == "PcurveLineWindowNumericEnvironment" && std::fegetround() == FE_UPWARD,
+            "chart proof cannot continue when a successful callback changes its declared numeric environment"
+        );
+    }
+
+    // A maximum-size paired sequence is an identity chart. This is a pure
+    // knot-coordinate control, not a claim that these multiplicities describe
+    // a qualified B-spline surface of any particular degree.
+    std::vector<std::string_view> manySource(8190, "0");
+    std::vector<double> manyNative(8190, 0.);
+    std::fill(manySource.begin() + 4095, manySource.end(), "1");
+    std::fill(manyNative.begin() + 4095, manyNative.end(), 1.);
+    const std::array<std::string_view, 2> smallSourceV{ "-1", "3" };
+    const Pair smallNativeV{ -1., 3. };
+    const ExactDecimalPcurveLineGenerator identity{ { "0", "0" }, { "1", "1" } };
+    Ledger maximum;
+    auto full = PlanPcurveLineWindow(
+        identity,
+        PcurveLineKnotChartInput{ { manySource, smallSourceV }, { manyNative, smallNativeV } },
+        { 0., -1., 1., 3. },
+        Capacity(),
+        maximum.Callbacks()
+    );
+    Require(
+        full && full->has_value() && (**full).affineSourceChart->axes[0].knotsChecked == 8190,
+        "exactly 8192 paired source/native knots can be checked within explicit scalar work limits"
+    );
+    manySource.push_back("1");
+    manyNative.push_back(1.);
+    Ledger overflow;
+    auto over = PlanPcurveLineWindow(
+        identity,
+        PcurveLineKnotChartInput{ { manySource, smallSourceV }, { manyNative, smallNativeV } },
+        { 0., -1., 1., 3. },
+        Capacity(),
+        overflow.Callbacks()
+    );
+    Require(
+        !over && over.error().status == Status::ResourceLimit && over.error().key == "PcurveLineWindowKnotCapacity",
+        "8193 paired expanded knots exceed capacity before traversal"
+    );
+}
+void ClampedBoundaryRestriction()
+{
+    const std::array<std::string_view, 5> sourceU{ ".1", ".1", ".2", ".3", ".3" };
+    const std::array<double, 5> nativeU{ .1, .1, .2, .3, .3 };
+    const std::array<std::string_view, 4> sourceV{ "-1", "-1", "3", "3" };
+    const std::array<double, 4> nativeV{ -1., -1., 3., 3. };
+    const PcurveLineKnotChartInput input{ { sourceU, sourceV }, { nativeU, nativeV }, { 1, 1 } };
+    const Rectangle rectangle{ .1, -1., .3, 3. };
+    const ExactDecimalPcurveLineGenerator lower{ { ".1", "11" }, { "0", "-4" } };
+    Ledger baseline;
+    auto made = PlanPcurveLineWindow(lower, input, rectangle, Capacity(), baseline.Callbacks());
+    if (!made)
+    {
+        throw std::runtime_error("public clamped boundary restriction unexpectedly failed: " + made.error().key);
+    }
+    Require(made->has_value() && (**made).affineSourceChart, "a clamped fixed boundary can be established independently of nonaffine interior knots");
+    const auto& plan = **made;
+    const auto& chart = *plan.affineSourceChart;
+    Require(
+        chart.axes[0].fixedSourceBoundary == 0 && !chart.axes[1].fixedSourceBoundary,
+        "fixed-min use is explicit, variable V retains its whole-axis proof"
+    );
+    RatioIs(chart.axes[0].scale, "1", "1");
+    RatioIs(chart.axes[0].offset, "1", "180143985094819840");
+    RatioIs(chart.axes[0].sourceDomainExact[0], "1", "10");
+    RatioIs(chart.axes[0].sourceDomainExact[1], "3", "10");
+    RatioIs(plan.generatorWindowExact[0], "2", "1");
+    RatioIs(plan.generatorWindowExact[1], "3", "1");
+    Require(
+        plan.uvEnds == std::array<Pair, 2>{ Pair{ .1, 3. }, Pair{ .1, -1. } } && !plan.hasUvRounding && chart.axes[0].knotsChecked == 5,
+        "source boundary maps to the exact native boundary without inward movement, UV rounding or omitted knots"
+    );
+    CheckWholeIntersection(plan, { Binary(.1), Exact(11) }, { Exact(0), Exact(-4) }, rectangle);
+    // Independent degree-one basis identity: at u=the clamped minimum,
+    // N_0=1 and every other U basis function is zero; at the maximum only
+    // the final basis is one. Any unchanged tensor control net, including
+    // positive rational weights, therefore selects the same control row in
+    // either source/native chart, regardless of the changed interior U knot.
+    // The coordinate module reports this restricted identity, not a claim
+    // that an actual caller surface's degree/control net was inspected here.
+    const Exact mappedInterior = Read(chart.axes[0].scale) * Canonical(Integer(1), Integer(5)) + Read(chart.axes[0].offset);
+    Require(mappedInterior != Binary(.2), "boundary-only receipt must not be mistaken for a whole-axis knot correspondence");
+    Ledger upperLedger;
+    auto upper = PlanPcurveLineWindow(
+        ExactDecimalPcurveLineGenerator{ { ".3", "11" }, { "0", "-4" } },
+        input,
+        rectangle,
+        Capacity(),
+        upperLedger.Callbacks()
+    );
+    Require(
+        upper && upper->has_value() && (**upper).affineSourceChart->axes[0].fixedSourceBoundary == 1,
+        "maximum boundary gets its own exact last-row restriction"
+    );
+    RatioIs((**upper).affineSourceChart->axes[0].offset, "-1", "90071992547409920");
+    Require((**upper).uvEnds == std::array<Pair, 2>{ Pair{ .3, 3. }, Pair{ .3, -1. } }, "upper boundary keeps source orientation and original q");
+
+    for (const auto& generator :
+         std::array<ExactDecimalPcurveLineGenerator, 4>{ ExactDecimalPcurveLineGenerator{ { ".2", "11" }, { "0", "-4" } },
+                                                         ExactDecimalPcurveLineGenerator{ { "0.10000000000000001", "11" }, { "0", "-4" } },
+                                                         ExactDecimalPcurveLineGenerator{ { ".1", "11" }, { "1", "-4" } },
+                                                         ExactDecimalPcurveLineGenerator{ { ".1", "11" }, { "1E-400", "-4" } } })
+    {
+        Ledger denied;
+        auto refused = PlanPcurveLineWindow(generator, input, rectangle, Capacity(), denied.Callbacks());
+        Require(
+            !refused && refused.error().status == Status::Indeterminate && refused.error().key == "PcurveLineWindowKnotChartUnestablished",
+            "interior/near-boundary or exact nonzero direction cannot borrow fixed-boundary evidence"
+        );
+    }
+    Ledger notAuthorized;
+    auto refused = PlanPcurveLineWindow(
+        lower,
+        PcurveLineKnotChartInput{ { sourceU, sourceV }, { nativeU, nativeV } },
+        rectangle,
+        Capacity(),
+        notAuthorized.Callbacks()
+    );
+    Require(
+        !refused && refused.error().key == "PcurveLineWindowKnotChartUnestablished",
+        "default degree zero retains the previous whole-axis-only contract"
+    );
+    Ledger degreeCount;
+    refused = PlanPcurveLineWindow(
+        lower,
+        PcurveLineKnotChartInput{ { sourceU, sourceV }, { nativeU, nativeV }, { 2, 1 } },
+        rectangle,
+        Capacity(),
+        degreeCount.Callbacks()
+    );
+    Require(
+        !refused && refused.error().key == "PcurveLineWindowBoundaryRestrictionUnestablished",
+        "expanded count must admit p+1 controls and two p+1 clamped ends"
+    );
+
+    const std::array<std::string_view, 5> unclampedSource{ ".1", ".15", ".2", ".3", ".3" };
+    const std::array<double, 5> unclampedNative{ .1, .15, .2, .3, .3 };
+    for (bool changeSource : { false, true })
+    {
+        const auto& source = changeSource ? unclampedSource : sourceU;
+        const auto& native = changeSource ? nativeU : unclampedNative;
+        Ledger unclamped;
+        refused = PlanPcurveLineWindow(
+            lower,
+            PcurveLineKnotChartInput{ { source, sourceV }, { native, nativeV }, { 1, 1 } },
+            rectangle,
+            Capacity(),
+            unclamped.Callbacks()
+        );
+        Require(
+            !refused && refused.error().key == "PcurveLineWindowBoundaryRestrictionUnestablished",
+            "both source and native endpoint multiplicities must independently be exactly p+1"
+        );
+    }
+    const std::array<std::string_view, 7> illegalSource{ ".1", ".1", ".2", ".2", ".2", ".3", ".3" };
+    const std::array<double, 7> illegalNative{ .1, .1, .2, .2, .2, .3, .3 };
+    Ledger multiplicity;
+    refused = PlanPcurveLineWindow(
+        lower,
+        PcurveLineKnotChartInput{ { illegalSource, sourceV }, { illegalNative, nativeV }, { 1, 1 } },
+        rectangle,
+        Capacity(),
+        multiplicity.Callbacks()
+    );
+    Require(
+        !refused && refused.error().key == "PcurveLineWindowBoundaryRestrictionUnestablished",
+        "invalid internal multiplicity cannot establish even restricted boundary evidence"
+    );
+    const std::array<std::string_view, 6> mergedSource{ ".1", ".1", ".199999999999999999999", ".2", ".3", ".3" };
+    const std::array<double, 6> mergedNative{ .1, .1, .2, .2, .3, .3 };
+    Ledger merged;
+    refused = PlanPcurveLineWindow(
+        lower,
+        PcurveLineKnotChartInput{ { mergedSource, sourceV }, { mergedNative, nativeV }, { 1, 1 } },
+        rectangle,
+        Capacity(),
+        merged.Callbacks()
+    );
+    Require(
+        !refused && refused.error().key == "PcurveLineWindowBoundaryRestrictionUnestablished",
+        "valid clamped boundary identity cannot authorize merging distinct exact source interior knots into one native knot group"
+    );
+
+    const std::array<std::string_view, 5> nonaffineV{ "-1", "-1", ".1", "3", "3" };
+    const std::array<double, 5> nonaffineNativeV{ -1., -1., .1, 3., 3. };
+    Ledger variable;
+    refused = PlanPcurveLineWindow(
+        lower,
+        PcurveLineKnotChartInput{ { sourceU, nonaffineV }, { nativeU, nonaffineNativeV }, { 1, 1 } },
+        rectangle,
+        Capacity(),
+        variable.Callbacks()
+    );
+    Require(
+        !refused && refused.error().key == "PcurveLineWindowKnotChartUnestablished",
+        "fixed U boundary never waives the complete variable-axis knot proof"
+    );
+
+    const auto fingerprint = Fingerprint(plan);
+    for (std::size_t count : { baseline.work, baseline.work - 1 })
+    {
+        auto limits = Capacity();
+        limits.workUnits = count;
+        Ledger bounded;
+        auto result = PlanPcurveLineWindow(lower, input, rectangle, limits, bounded.Callbacks());
+        if (count == baseline.work)
+        {
+            Require(
+                result && result->has_value() && Fingerprint(**result) == fingerprint,
+                "full-node fallback verification and receipt text succeed at exact N work"
+            );
+        }
+        else
+        {
+            Require(!result && result.error().key == "PcurveLineWindowWorkLimit", "boundary fallback does not evade N-1 resource limits");
+        }
+    }
+    for (std::size_t at : { std::size_t(1), baseline.checks / 2, baseline.checks })
+    {
+        Ledger cancelled;
+        cancelled.cancelAt = at;
+        auto result = PlanPcurveLineWindow(lower, input, rectangle, Capacity(), cancelled.Callbacks());
+        Require(
+            !result && result.error().key == "PublicCancelSentinel" && result.error().status == Status::Cancelled,
+            "boundary proof remains cancellable before, during and after its full node checks"
+        );
+    }
 }
 void BudgetsAndCancellation()
 {
@@ -769,6 +1202,8 @@ int main()
         NonDyadicAndDecimal();
         RoundingBoundaries();
         AbsenceAndInvalid();
+        WholeKnotAffineChart();
+        ClampedBoundaryRestriction();
         BudgetsAndCancellation();
         ConfigurationAndEnvironment();
         GradualUnderflowCallbacks();

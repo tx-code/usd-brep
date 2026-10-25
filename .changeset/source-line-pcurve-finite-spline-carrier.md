@@ -9,6 +9,12 @@ intersection, and records the finite native parameter map. Whole-window UV conve
 error is bounded physically on the stored carrier under the existing definition budget.
 The final owned carrier and UV net must still match their evidence before publication.
 
+Decimal source boundaries are related to stored knot coordinates by exact whole-knot
+affine correspondence or, for an exactly fixed clamped boundary, its original boundary
+restriction. The latter preserves the source use without claiming an affine map of
+the entire axis. It prevents a decimal boundary from being falsely rejected against
+an independently rounded native domain; no snapping or physical allowance is added.
+
 ## Scope
 
 [Finite-carrier LINE pcurves](../source/STEP_IMPORT/README.md#有限-b-样条载体上的-line-参数曲线).

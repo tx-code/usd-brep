@@ -255,6 +255,9 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_pcurve_line_lifecycle_contracts COMMAND step_import_pcurve_line_lifecycle_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_line_pcurve_bspline_triangle.step"
         "${CMAKE_CURRENT_BINARY_DIR}/pcurve-line-lifecycle-output/$<CONFIG>")
+    add_test(NAME step_import_pcurve_line_boundary_lifecycle_contracts COMMAND step_import_pcurve_line_lifecycle_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/source_line_pcurve_decimal_boundary.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/pcurve-line-boundary-lifecycle-output/$<CONFIG>" --boundary)
     add_executable(step_import_spline_chart_lifecycle_tests tests/StepImportSplineChartLifecycleTests.cpp)
     target_include_directories(step_import_spline_chart_lifecycle_tests PRIVATE src)
     target_include_directories(step_import_spline_chart_lifecycle_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)

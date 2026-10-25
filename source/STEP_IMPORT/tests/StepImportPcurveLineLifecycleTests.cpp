@@ -15,24 +15,36 @@ using step_import_test::Near;
 using step_import_test::Require;
 namespace
 {
-void Surface(const SmSurface& surface)
+void Surface(const SmSurface& surface, bool boundary)
 {
     Require(surface.GetType() == SmBSplineSurface_TYPE, "plain source carrier retained");
     const auto& spline = static_cast<const SmBSplineSurface&>(surface);
     double *net = nullptr, *u = nullptr, *v = nullptr;
     ULONG nu = 0, nv = 0, ku = 0, kv = 0;
-    Require(spline.GetControlPointsPointer(nu, nv, net) == SM_SUCCESS && nu == 2 && nv == 2, "source carrier control shape retained");
-    Require(spline.GetKnotsPointers(ku, kv, u, v) == SM_SUCCESS && ku == 4 && kv == 4, "source carrier knots retained");
-    for (ULONG i = 0; i < 4; ++i)
+    Require(
+        spline.GetControlPointsPointer(nu, nv, net) == SM_SUCCESS && nu == (boundary ? 3U : 2U) && nv == 2,
+        "source carrier control shape retained"
+    );
+    Require(spline.GetKnotsPointers(ku, kv, u, v) == SM_SUCCESS && ku == (boundary ? 5U : 4U) && kv == 4, "source carrier knots retained");
+    const std::array<double, 5> boundaryU{ .1, .1, .2, .3, .3 };
+    for (ULONG i = 0; i < ku; ++i)
     {
-        Require(u[i] == (i < 2 ? -1 : 2) && v[i] == (i < 2 ? -1 : 3), "original UV domain unchanged");
+        Require(u[i] == (boundary ? boundaryU[i] : (i < 2 ? -1 : 2)), "original complete U knots unchanged");
+    }
+    for (ULONG i = 0; i < kv; ++i)
+    {
+        Require(v[i] == (i < 2 ? -1 : 3), "original complete V knots unchanged");
+    }
+    for (ULONG i = 0; i < nu * nv; ++i)
+    {
+        const double x = boundary ? -2 + 3 * double(i / 2) : (i < 2 ? -2 : 4);
         Require(
-            net[4 * i] == (i < 2 ? -2 : 4) && net[4 * i + 1] == (i % 2 ? 9 : -3) && net[4 * i + 2] == 0 && net[4 * i + 3] == NL_NOW,
+            net[4 * i] == x && net[4 * i + 1] == (i % 2 ? 9 : -3) && net[4 * i + 2] == 0 && net[4 * i + 3] == NL_NOW,
             "complete physical surface net unchanged"
         );
     }
 }
-void Verify(SmBrep& brep)
+void Verify(SmBrep& brep, bool boundary)
 {
     SmAssertArray pointers, findings;
     Require(brep.ValidatePointers(&pointers) == SM_SUCCESS && pointers.GetSize() == 0, "LINE-pcurve model pointer check");
@@ -45,7 +57,7 @@ void Verify(SmBrep& brep)
     brep.GetEdges(edges);
     brep.GetVertices(vertices);
     Require(faces.GetSize() == 1 && edges.GetSize() == 3 && vertices.GetSize() == 3, "original open triangle topology");
-    Surface(*faces[0]->GetSurface());
+    Surface(*faces[0]->GetSurface(), boundary);
     std::size_t found = 0;
     for (ULONG i = 0; i < edges.GetSize(); ++i)
     {
@@ -57,14 +69,18 @@ void Verify(SmBrep& brep)
         ++found;
         const auto* wrapper = dynamic_cast<const SmSTEPSurface*>(composition->GetBaseSurface());
         Require(composition->OwnsBaseSurface() && wrapper && wrapper->OwnsBaseSurface(), "definition owns independent STEP carrier");
-        Surface(*wrapper->GetBaseSurface());
+        Surface(*wrapper->GetBaseSurface(), boundary);
         const auto* uv = dynamic_cast<const SmBSplineCurve*>(composition->GetUVCurve());
         Require(uv && uv->GetDim() == 2 && uv->GetDegree() == 1 && !uv->IsRational(), "degree-one parameter window definition");
         SmTArray<SmPoint3d> points;
         SmTArray<double> weights, knots;
         Require(uv->GetControlPolygon(points, weights) == SM_SUCCESS && points.GetSize() == 2, "both complete UV endpoints");
         Require(uv->GetKnotsAll(knots) == SM_SUCCESS && knots.GetSize() == 4, "complete finite work-parameter knots");
-        Require(points[0].x == -1 && points[0].y == -1 && points[1].x == 2 && points[1].y == 3, "whole line-carrier intersection retained");
+        Require(
+            points[0].x == (boundary ? .1 : -1) && points[0].y == (boundary ? 3 : -1) && points[1].x == (boundary ? .1 : 2) &&
+                points[1].y == (boundary ? -1 : 3),
+            "whole line-carrier intersection retained"
+        );
         for (ULONG j = 0; j < 4; ++j)
         {
             Require(knots[j] == (j < 2 ? 0 : 1), "explicit native tau interval");
@@ -75,18 +91,18 @@ void Verify(SmBrep& brep)
         {
             SmVector3d values[3];
             Require(composition->Evaluate(t, 2, TRUE, values) == SM_SUCCESS, "actual composition evaluation");
-            Near(values[0].x, -2 + 6 * t, 1e-12, "analytic LINE x");
-            Near(values[0].y, -3 + 12 * t, 1e-12, "analytic LINE y");
+            Near(values[0].x, boundary ? -2 : -2 + 6 * t, 1e-12, "analytic LINE x");
+            Near(values[0].y, boundary ? 9 - 12 * t : -3 + 12 * t, 1e-12, "analytic LINE y");
             Near(values[0].z, 0, 1e-12, "analytic LINE z");
-            Near(values[1].x, 6, 1e-12, "mapped tau derivative x");
-            Near(values[1].y, 12, 1e-12, "mapped tau derivative y");
+            Near(values[1].x, boundary ? 0 : 6, 1e-12, "mapped tau derivative x");
+            Near(values[1].y, boundary ? -12 : 12, 1e-12, "mapped tau derivative y");
             Near(values[2].x, 0, 1e-12, "linear second derivative x");
             Near(values[2].y, 0, 1e-12, "linear second derivative y");
         }
     }
     Require(found == 1, "one source-priority LINE composition retained");
 }
-void Run(const std::filesystem::path& fixture, const std::filesystem::path& directory)
+void Run(const std::filesystem::path& fixture, const std::filesystem::path& directory, bool boundary)
 {
     std::ifstream input(fixture, std::ios::binary);
     const std::string source{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
@@ -114,7 +130,11 @@ void Run(const std::filesystem::path& fixture, const std::filesystem::path& dire
     Require(mappings[0].equation.find("source_VECTOR_magnitude") != std::string::npos, "source t is not native tau identity");
     auto copy = model->CopyForModeling();
     Require(copy.status == Status::Accepted && copy.model, "independent full modeling copy");
-    copy.model->Edit(Verify);
+    const auto verify = [boundary](SmBrep& brep)
+    {
+        Verify(brep, boundary);
+    };
+    copy.model->Edit(verify);
     std::filesystem::create_directories(directory);
     for (auto format : { SM_BINARY, SM_ASCII })
     {
@@ -145,7 +165,7 @@ void Run(const std::filesystem::path& fixture, const std::filesystem::path& dire
             SmNativeArchive::ReadPartFromFile(context, path.c_str(), curves, surfaces, trees, bodies, format) == SM_SUCCESS && bodies.GetSize() == 1,
             "LINE composition archive replay"
         );
-        Verify(*bodies[0]);
+        Verify(*bodies[0], boundary);
     }
     const auto reportSize = result.report.json.size();
     Require(result.report.exactGeometryWork && result.report.exactGeometryWork->usedUnits > 0, "exact LINE-window work charged");
@@ -153,7 +173,7 @@ void Run(const std::filesystem::path& fixture, const std::filesystem::path& dire
     result = {};
     Require(model->PcurveLineWindows().size() == 1 && model->Source()->Source().Bytes() == source, "snapshot owns window after report release");
     model.reset();
-    copy.model->Edit(Verify);
+    copy.model->Edit(verify);
     for (auto phase : { Phase::BeforeNativeCall, Phase::NativeReady, Phase::BeforeCommit })
     {
         auto stopped = options;
@@ -188,8 +208,8 @@ int main(int argc, char** argv)
 {
     try
     {
-        Require(argc == 3, "fixture and disposable archive directory required");
-        Run(argv[1], argv[2]);
+        Require(argc == 3 || (argc == 4 && std::string_view(argv[3]) == "--boundary"), "fixture and disposable archive directory required");
+        Run(argv[1], argv[2], argc == 4);
         return 0;
     }
     catch (const std::exception& error)
