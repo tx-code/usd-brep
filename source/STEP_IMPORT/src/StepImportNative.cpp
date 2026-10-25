@@ -7,6 +7,7 @@
 #include "StepImportNativeStatus.h"
 #include "StepImportPlan.h"
 #include "StepImportPointClassification.h"
+#include "StepImportSplineChartSession.h"
 
 #include <SmApiQueries.h>
 #include <SmAssertArray.h>
@@ -2282,6 +2283,18 @@ std::vector<SurfaceNormalizationInfo> ModelSnapshot::SurfaceNormalizations() con
 std::vector<RevolutionChartInfo> ModelSnapshot::RevolutionCharts() const
 {
     return m_data->revolutionCharts;
+}
+std::vector<ParameterMapping> ModelSnapshot::SplineCharts() const
+{
+    std::vector<ParameterMapping> mappings;
+    if (m_data->splineChartEvidence)
+    {
+        for (const auto& binding : m_data->splineChartEvidence->bindings)
+        {
+            mappings.push_back(binding.mapping);
+        }
+    }
+    return mappings;
 }
 std::vector<RevolutionPoleVisitInfo> ModelSnapshot::RevolutionPoleVisits() const
 {

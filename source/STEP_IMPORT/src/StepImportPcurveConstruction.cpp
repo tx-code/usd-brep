@@ -26,7 +26,7 @@ public:
     {
     }
 
-    Result<PcurveDefinition> Make(Index pcurve, Index use)
+    Result<PcurveDefinition> Make(Index pcurve, Index use, bool definingMaster)
     {
         // AP214E3_2010.exp PCURVE.reference_to_curve/DEFINITIONAL_REPRESENTATION
         // have already passed the owning source-layer contract. Native parameter
@@ -184,7 +184,7 @@ public:
         {
             return tl::unexpected(Fail("GeneralPcurveBasisAllocation", basis));
         }
-        const auto allowed = surface->GetSTEPUVDomain();
+        auto allowed = surface->GetSTEPUVDomain();
         domain = {};
         for (ULONG i = 0; i < cp.GetSize(); ++i)
         {
@@ -341,6 +341,59 @@ public:
         {
             return tl::unexpected(Fail("GeneralPcurveSourceKnotsChanged", parameterCurve));
         }
+        std::optional<BinarySplineChart> appliedChart;
+        std::shared_ptr<const SplineChartWitness> chartWitness;
+        const bool chartScope = definingMaster && spline && !m_options.terminalDomainInterpretation && !m_options.targetSurfacePrecision &&
+                                !m_options.normalizePeriodicFaces && !m_options.restrictUnusedSupportDomains && !m_options.faceOrientationRepair &&
+                                !m_options.cylindricalBandRepair;
+        if (chartScope)
+        {
+            std::optional<BinarySplineChart> preset;
+            if (const auto found = m_splineCharts->plans.find(basis); found != m_splineCharts->plans.end())
+            {
+                preset = found->second.chart;
+            }
+            const SplineChartCallbacks callbacks{ [&]
+                                                  {
+                                                      return Step(use);
+                                                  },
+                                                  [&](std::size_t work)
+                                                  {
+                                                      return m_execution.SpendExactGeometryWork(m_report, work, use);
+                                                  } };
+            auto conditioned = TryConditionSplinePcurve(*surface, *uv, *m_context, preset, callbacks);
+            if (!conditioned)
+            {
+                if (!conditioned.error().record)
+                {
+                    conditioned.error().record = use;
+                }
+                return tl::unexpected(std::move(conditioned.error()));
+            }
+            if (*conditioned)
+            {
+                auto& candidate = **conditioned;
+                // All source-domain checks already ran on the original basis.
+                // This is an exact native coordinate map, never an extension,
+                // source priority override, geometric fit or tolerance change.
+                appliedChart = candidate.chart;
+                chartWitness = candidate.witness;
+                if (!preset)
+                {
+                    m_splineCharts->plans.emplace(basis, SplineChartPlanEntry{ candidate.chart, candidate.witness, Id(pcurve) });
+                }
+                surface = std::move(candidate.surface);
+                uv = std::move(candidate.uv);
+                raw = static_cast<SmBSplineCurve*>(uv.get());
+                uScale = std::ldexp(uScale, appliedChart->UExponent());
+                vScale = std::ldexp(vScale, appliedChart->VExponent());
+                uOffset = std::ldexp(uOffset, appliedChart->UExponent());
+                vOffset = std::ldexp(vOffset, appliedChart->VExponent());
+                allowed = surface->GetSTEPUVDomain();
+            }
+        }
+        const auto* chartSurface = appliedChart ? surface.get() : nullptr;
+        const auto* chartUv = appliedChart ? uv.get() : nullptr;
         // Both definitions are prepared with explicit owners. Adopt; do not use
         // legacy constructor-copy flags or substitute a fitted 3D definition.
         std::unique_ptr<SmSurface> wrapped(new (*m_context) SmSTEPSurface(*surface, TRUE));
@@ -349,6 +402,24 @@ public:
         std::unique_ptr<SmCurve> lifted(new (*m_context) SmCrvOnSurf(*uv, *wrapped, &allowed, 3, m_context));
         uv.release();
         wrapped.release();
+        if (appliedChart)
+        {
+            auto correspondence = SplineChartMapping(*appliedChart, Id(basis), Id(use), true);
+            correspondence.sourceGeometryId = Id(pcurve);
+            correspondence.parameters.push_back({ "curve_controls_checked", { double(chartWitness->CurveControlCount()) } });
+            const auto reportIndex = m_report.parameterMappings.size();
+            m_report.parameterMappings.push_back(correspondence);
+            m_splineCharts->bindings.push_back(
+                { use,
+                  chartWitness,
+                  chartSurface,
+                  chartUv,
+                  static_cast<const SmCrvOnSurf*>(lifted.get()),
+                  nullptr,
+                  std::move(correspondence),
+                  reportIndex }
+            );
+        }
         if (revolution && m_options.quality.pcurveCarrierWorkToleranceMm)
         {
             // Selected before construction: this is a numerical work zone on
@@ -389,8 +460,8 @@ public:
     }
 };
 } // namespace
-Result<PcurveDefinition> MakeSourcePcurve(const GeometryConstruction& inputs, std::size_t pcurve, std::size_t use)
+Result<PcurveDefinition> MakeSourcePcurve(const GeometryConstruction& inputs, std::size_t pcurve, std::size_t use, bool definingMaster)
 {
-    return PcurveBuilder(inputs).Make(pcurve, use);
+    return PcurveBuilder(inputs).Make(pcurve, use, definingMaster);
 }
 } // namespace step_import::detail::construction

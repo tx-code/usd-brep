@@ -4,6 +4,7 @@
 #include "StepImportExecution.h"
 #include "StepImportNativeStatus.h"
 #include "StepImportSourceFrame.h"
+#include "StepImportSplineChartSession.h"
 #include "StepImportTerminalDomainConstruction.h"
 #include "StepImportVectorMath.h"
 
@@ -71,7 +72,8 @@ protected:
           m_options(options),
           m_report(report),
           m_execution(execution),
-          m_terminalDomainCache(options.terminalDomainInterpretation ? MakeTerminalDomainCache() : nullptr)
+          m_terminalDomainCache(options.terminalDomainInterpretation ? MakeTerminalDomainCache() : nullptr),
+          m_splineCharts(std::make_shared<SplineChartSession>())
     {
     }
     GeometryConstruction(const GeometryConstruction&) = default;
@@ -81,6 +83,7 @@ protected:
     Report& m_report;
     Execution& m_execution;
     std::shared_ptr<TerminalDomainCache> m_terminalDomainCache;
+    std::shared_ptr<SplineChartSession> m_splineCharts;
     SmContext* m_context = nullptr;
     double scale = 0;
     bool Is(Index a, std::string_view type) const

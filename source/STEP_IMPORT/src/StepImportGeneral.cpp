@@ -584,6 +584,31 @@ public:
         {
             return tl::unexpected(std::move(observed.error()));
         }
+        if (!m_splineCharts->bindings.empty())
+        {
+            auto verified = VerifySplineChartBindings(
+                *m_splineCharts,
+                *m_context,
+                [&](Index record)
+                {
+                    return SplineChartCallbacks{ [&, record]
+                                                 {
+                                                     return Step(record);
+                                                 },
+                                                 [&, record](std::size_t work)
+                                                 {
+                                                     return m_execution.SpendExactGeometryWork(m_report, work, record);
+                                                 } };
+                }
+            );
+            if (!verified)
+            {
+                return tl::unexpected(std::move(verified.error()));
+            }
+            // No mutable report/cache object becomes the snapshot's evidence.
+            // Raw native links remain borrowed from this same owning ModelData.
+            m_model->splineChartEvidence = std::make_shared<const SplineChartSession>(*m_splineCharts);
+        }
         for (const auto action : m_surfaceCurveActions)
         {
             if (auto checked = m_execution.SurfaceCurves()->MarkNativeChecked(action); !checked)
@@ -1591,7 +1616,8 @@ private:
                     return tl::unexpected(Fail("GeneralSurfaceCurveAssociationUnsupported", associated[i], Status::Unsupported));
                 }
                 const auto precisionBegin = m_report.pcurveCarrierPrecisions.size();
-                auto made = MakeSourcePcurve(*this, associated[i], c.record);
+                const auto chartBegin = m_splineCharts->bindings.size();
+                auto made = MakeSourcePcurve(*this, associated[i], c.record, i == selected);
                 if (!made)
                 {
                     return tl::unexpected(std::move(made.error()));
@@ -1601,6 +1627,12 @@ private:
                     c.native = std::move(made->curve);
                     c.bounds = made->conservativeBoundsMm;
                     m_report.parameterMappings.back().targetEdgeIndex = ei.at(c.record);
+                    for (auto at = chartBegin; at < m_splineCharts->bindings.size(); ++at)
+                    {
+                        auto& binding = m_splineCharts->bindings[at];
+                        binding.mapping.targetEdgeIndex = ei.at(c.record);
+                        m_report.parameterMappings.at(binding.reportMapping) = binding.mapping;
+                    }
                     for (auto at = precisionBegin; at < m_report.pcurveCarrierPrecisions.size(); ++at)
                     {
                         m_report.pcurveCarrierPrecisions[at].targetEdgeIndex = ei.at(c.record);
@@ -4451,6 +4483,31 @@ private:
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
+        const auto chartPlan = m_splineCharts->plans.find(f.surface);
+        if (chartPlan != m_splineCharts->plans.end())
+        {
+            const SplineChartCallbacks callbacks{ [&]
+                                                  {
+                                                      return Step(f.record);
+                                                  },
+                                                  [&](std::size_t work)
+                                                  {
+                                                      return m_execution.SpendExactGeometryWork(m_report, work, f.record);
+                                                  } };
+            auto conditioned = ApplySplineSurfaceChart(*surface, chartPlan->second.chart, *m_context, callbacks);
+            if (!conditioned)
+            {
+                if (!conditioned.error().record)
+                {
+                    conditioned.error().record = f.record;
+                }
+                return tl::unexpected(std::move(conditioned.error()));
+            }
+            // Apply before surface adoption and before any trims/gap caches
+            // exist. InstallUv later projects physical 3D curves against THIS
+            // surface; it never assumes a carrier's independent UV is identical.
+            surface = std::move(*conditioned);
+        }
         const auto domain = surface->GetNaturalUVDomain();
         if (auto operation = Step(f.surface); !operation)
         {
@@ -4469,6 +4526,16 @@ private:
         if (auto businessCheck = Need(surfaceOwned, "GeneralSurfaceOwnership", f.record); !businessCheck)
         {
             return tl::unexpected(std::move(businessCheck.error()));
+        }
+        if (chartPlan != m_splineCharts->plans.end())
+        {
+            auto mapping = SplineChartMapping(chartPlan->second.chart, Id(f.surface), Id(f.record), false);
+            mapping.targetFaceIndex = m_model->faces.size();
+            const auto reportIndex = m_report.parameterMappings.size();
+            m_report.parameterMappings.push_back(mapping);
+            m_splineCharts->bindings.push_back(
+                { f.record, chartPlan->second.witness, nf.face->GetSurface(), nullptr, nullptr, nf.face, std::move(mapping), reportIndex }
+            );
         }
         if (auto* precisions = m_execution.TargetSurfaces())
         {

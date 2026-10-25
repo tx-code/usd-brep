@@ -83,7 +83,13 @@ class PcurveNativeTests(unittest.TestCase):
         fixture = (Path(__file__).resolve().parents[3]
                    / 'source/STEP_IMPORT/tests/fixtures/source_pcurve_anisotropic_bspline_patch.step')
         source = fixture.read_bytes()
-        run, report = self.invoke(source)
+        # Balanced physical chart with the same tiny parabola in XYZ: this is
+        # a true small-radius definition, not merely anisotropic UV coordinates.
+        small = source.replace(b'(-1.,-1.,0.)', b'(-0.00390625,-1.,0.)')
+        small = small.replace(b'(-1.,1.,0.)', b'(-0.00390625,1.,0.)')
+        small = small.replace(b'(1.,-1.,0.)', b'(0.00390625,-1.,0.)')
+        small = small.replace(b'(1.,1.,0.)', b'(0.00390625,1.,0.)')
+        run, report = self.invoke(small)
         self.assertNotEqual(0, run.returncode)
         self.assertEqual('PostcheckFailure', report['status'])
         self.assertIsNone(report['model'])
@@ -94,14 +100,26 @@ class PcurveNativeTests(unittest.TestCase):
 
         # Independently authored equivalent chart: surface U knots and defining
         # pcurve U controls scale by exactly 256. XYZ surface/curve controls and
-        # topology are untouched. This control diagnoses representation scope;
-        # the product does not yet normalize the original input's carrier.
+        # topology are untouched. Both input charts must produce the same area.
         self.assertEqual(4, source.count(b'0.00390625'))
         normalized = source.replace(b'-0.00390625', b'-1.').replace(b'0.00390625', b'1.')
         run, report = self.invoke(normalized)
         self.assertEqual(0, run.returncode, report['diagnostics'])
         self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
         self.assertAlmostEqual(4 / 3, report['model']['area_mm2'], delta=1e-7)
+
+    def test_exact_binary_chart_preserves_source_and_physical_region(self):
+        fixture = (Path(__file__).resolve().parents[3]
+                   / 'source/STEP_IMPORT/tests/fixtures/source_pcurve_anisotropic_bspline_patch.step')
+        run, report = self.invoke(fixture.read_bytes())
+        self.assertEqual(0, run.returncode, report['diagnostics'])
+        self.assertEqual('Accepted', report['status'])
+        self.assertEqual('OpenSurfaceModel', report['model']['shape_role'])
+        self.assertAlmostEqual(4 / 3, report['model']['area_mm2'], delta=1e-7)
+        charts = [m for m in report['parameter_mappings'] if m['kind'].startswith('ExactBinarySpline')]
+        self.assertEqual(2, len(charts))
+        self.assertEqual({'ExactBinarySplinePcurveChart', 'ExactBinarySplineFaceChart'}, {m['kind'] for m in charts})
+        self.assertTrue(all(m['parameters']['binary_exponents'] == [8, 0] for m in charts))
 
     def invoke(self, data):
         with tempfile.TemporaryDirectory(prefix="public-native-pcurve-") as folder:

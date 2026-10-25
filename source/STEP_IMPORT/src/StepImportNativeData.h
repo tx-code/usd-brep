@@ -21,6 +21,7 @@ class SmVertex;
 
 namespace step_import::detail
 {
+struct SplineChartSession;
 std::recursive_mutex& NativeMutex();
 inline bool HasAppliedSourceInterpretation(const step_semantics::Snapshot& source)
 {
@@ -56,6 +57,7 @@ struct ModelData
     std::vector<std::unique_ptr<SmSurface>> retainedSupportDefinitions;
     std::vector<SurfaceNormalizationInfo> surfaceNormalizations;
     std::vector<RevolutionChartInfo> revolutionCharts;
+    std::shared_ptr<const SplineChartSession> splineChartEvidence;
     std::vector<RevolutionPoleVisitInfo> revolutionPoleVisits;
     std::vector<PcurveCarrierPrecisionInfo> pcurveCarrierPrecisions;
     SmRegion* material = nullptr;

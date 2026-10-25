@@ -565,6 +565,7 @@ private:
     std::shared_ptr<detail::ModelData> m_data;
     std::size_t m_face = 0;
 };
+struct ParameterMapping;
 class ModelSnapshot
 {
 public:
@@ -585,6 +586,7 @@ public:
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
     std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis extraction, separate from repair/topology changes.
     std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
+    std::vector<ParameterMapping> SplineCharts() const; // Owning defining-carrier/face chart correspondence, independent of the report.
     std::vector<RevolutionPoleVisitInfo> RevolutionPoleVisits() const;
     std::vector<PcurveCarrierPrecisionInfo> PcurveCarrierPrecisions() const;
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
