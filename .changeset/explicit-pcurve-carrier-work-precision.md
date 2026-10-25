@@ -65,6 +65,11 @@ failure instead of being dereferenced. Legacy inline COS archives explicitly
 refuse nested target-surface precision they cannot retain; native curve and part
 writers propagate that refusal instead of returning success with lost metadata.
 Complete target-face archives use the existing surface attribute channel.
+The temporary ordinary B-spline adapter used for same-basis projection removes
+only its verified independent copy of the SOR-only precision attribute. The
+actual target retains its policy, ownership, coefficients and parameter domains.
+The adapter receives no target precision; projection accuracy and physical
+acceptance budgets remain unchanged.
 
 ## Scope
 

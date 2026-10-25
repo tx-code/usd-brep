@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportDerivedUv.h"
 
+#include <SmAttribute.h>
 #include <SmBSplineSurface.h>
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmFace.h>
 #include <SmSurface.h>
+#include <SmSurfaceWorkPrecision.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -297,9 +300,59 @@ bool SameBasis(const SmBSplineSurface& a, const SmBSplineSurface& b)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
+            const auto* sourcePolicy = spline->FindAttribute(SmSurfaceWorkPrecision::AttributeId);
+            const auto* sourceOwner = spline->GetOwner();
+            double sourcePrecision = 0;
+            std::array<long, 5> sourceWords{};
+            if (sourcePolicy)
+            {
+                // Validate before the generic copy constructor can coalesce
+                // duplicate IDs. Target policy applies to the actual SOR, not
+                // the temporary ordinary evaluator used only for projection.
+                if (SmSurfaceWorkPrecision::Get(*spline, sourcePrecision) != SM_SUCCESS)
+                {
+                    return result;
+                }
+                std::copy_n(sourcePolicy->GetLongElementsAddress(), sourceWords.size(), sourceWords.begin());
+            }
             ordinary.reset(new (*face->GetContext()) SmBSplineSurface(*spline));
             ordinary->SetOwner(nullptr);
             ordinary->SetBSplineSurfaceForm(SM_SF_UNSPECIFIED);
+            if (sourcePolicy)
+            {
+                double current = 0;
+                if (spline->FindAttribute(SmSurfaceWorkPrecision::AttributeId) != sourcePolicy || spline->GetOwner() != sourceOwner ||
+                    SmSurfaceWorkPrecision::Get(*spline, current) != SM_SUCCESS || current != sourcePrecision)
+                {
+                    return result;
+                }
+                SmAttribute* storage[4];
+                SmTArray<SmAttribute*> policies(4, storage);
+                ordinary->FindSlewOfAttributes(SmSurfaceWorkPrecision::AttributeId, policies);
+                auto* copied = policies.GetSize() == 1 ? policies[0] : nullptr;
+                SmAObject* userStorage[4];
+                SmTArray<SmAObject*> users(4, userStorage);
+                if (copied)
+                {
+                    copied->GetUsers(users);
+                }
+                if (!copied || copied == sourcePolicy || copied->GetContext() != ordinary->GetContext() || copied->GetBehavior() != SM_AB_COPY ||
+                    copied->GetType() != SmGenericAttribute_TYPE || !dynamic_cast<const SmGenericAttribute*>(copied) || users.GetSize() != 1 ||
+                    users[0] != ordinary.get() || copied->GetNumLongElements() != sourceWords.size() || copied->GetNumDoubleElements() ||
+                    copied->GetNumCharacterElements() || !copied->GetLongElementsAddress() ||
+                    !std::equal(sourceWords.begin(), sourceWords.end(), copied->GetLongElementsAddress()))
+                {
+                    return result;
+                }
+                // Remove only this independent COPY attribute. The adapter is
+                // never installed, archived or granted target precision; the
+                // real surface keeps its policy and all physical budgets.
+                ordinary->RemoveAttribute(copied);
+                if (ordinary->FindAttribute(SmSurfaceWorkPrecision::AttributeId))
+                {
+                    return result;
+                }
+            }
             // The admitted analytic support net is bounded here. Reject any copy-time
             // knot correction instead of claiming an unchanged UV map. Measure
             // every resulting trim against the actual original surface below.

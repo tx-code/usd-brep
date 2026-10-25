@@ -1,5 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "PublicSorReprojectionFixture.h"
+#include "StepImportDerivedUv.h"
+
 #include <SmAssertArray.h>
 #include <SmAttribute.h>
 #include <SmBSplineCurve.h>
@@ -538,6 +541,239 @@ void RigidTransform(SmContext& context, double precision)
         );
     }
 }
+struct ProjectionBasis
+{
+    std::vector<double> controls, u, v;
+    SmExtent2d domain;
+    std::array<ULONG, 4> dimensions{};
+    bool rational = false;
+    bool operator==(const ProjectionBasis&) const = default;
+};
+ProjectionBasis StoredProjectionBasis(const SmBSplineSurface& surface)
+{
+    ULONG nu = 0, nv = 0, ku = 0, kv = 0;
+    double *p = nullptr, *u = nullptr, *v = nullptr;
+    Require(
+        surface.GetControlPointsPointer(nu, nv, p) == SM_SUCCESS && p && surface.GetKnotsPointers(ku, kv, u, v) == SM_SUCCESS && u && v,
+        "complete public projection basis"
+    );
+    return { { p, p + std::size_t(nu) * nv * 4 },
+             { u, u + ku },
+             { v, v + kv },
+             surface.GetNaturalUVDomain(),
+             { nu, nv, surface.GetDegree(SM_SP_U), surface.GetDegree(SM_SP_V) },
+             surface.IsRational() != FALSE };
+}
+class ProjectionAdapterObserver : public SmNotifyCallback
+{
+public:
+
+    const SmSurface* source = nullptr;
+    SmObject* adapter = nullptr;
+    unsigned created = 0, destroyed = 0;
+    SmStatus Execute(SmNotifyOperation operation, SmObject* object, SmObject*, SmObject* from, SmObject*) override
+    {
+        if (operation == SM_NO_CONSTRUCTION && from == source && object != source)
+        {
+            // The SmSurface base is still under construction. Capture only the
+            // address; inspect it at the later execution checkpoint before Drop.
+            adapter = object;
+            ++created;
+        }
+        if (operation == SM_NO_DESTRUCTION && object == adapter)
+        {
+            ++destroyed;
+        }
+        return SM_SUCCESS;
+    }
+};
+void ProjectionAdapterPolicy(bool registered, double precision)
+{
+    using namespace step_import::detail;
+    SmContext context;
+    auto input = public_sor_repro::Create(context);
+    auto* source = static_cast<SmSurfOfRevolution*>(input.face->GetSurface());
+    if (registered)
+    {
+        Require(Work::Set(*source, precision) == SM_SUCCESS, "public projection target precision");
+    }
+    const auto basis = StoredProjectionBasis(*source);
+    const auto stepDomain = source->GetSTEPUVDomain();
+    auto* originalPolicy = source->FindAttribute(Work::AttributeId);
+    auto* sourceOwner = source->GetOwner();
+    auto* definingCurve = input.edge->GetCurve();
+    const auto interval = input.edge->GetInterval();
+    const double edgeTolerance = input.edge->GetTolerance(), faceTolerance = input.face->GetTolerance();
+    auto* use = input.edge->GetPrimaryEdgeuse();
+    const auto unchanged = [&]
+    {
+        double value = -1;
+        Require(
+            source->FindAttribute(Work::AttributeId) == originalPolicy && source->GetOwner() == sourceOwner &&
+                Work::Get(*source, value) == SM_SUCCESS && value == (registered ? precision : 0) && StoredProjectionBasis(*source) == basis &&
+                source->GetSTEPUVDomain() == stepDomain && input.face->GetSurface() == source && input.edge->GetCurve() == definingCurve &&
+                definingCurve->GetOwner() == input.edge && input.edge->GetInterval() == interval &&
+                double(input.edge->GetTolerance()) == edgeTolerance && double(input.face->GetTolerance()) == faceTolerance && !use->GetUVTrimCurve(),
+            "projection preserves real source policy, owner, complete basis, parameters, definitions and physical tolerances"
+        );
+    };
+    ProjectionAdapterObserver observer;
+    observer.source = source;
+    std::size_t calls = 0;
+    bool inspected = false;
+    const auto inspect = [&]
+    {
+        if (observer.adapter && !inspected)
+        {
+            const auto* adapter = dynamic_cast<const SmBSplineSurface*>(observer.adapter);
+            Require(
+                adapter && observer.destroyed == 0 && adapter->GetType() == SmBSplineSurface_TYPE && adapter->GetOwner() == nullptr &&
+                    !adapter->FindAttribute(Work::AttributeId) && StoredProjectionBasis(*adapter) == basis,
+                "fully built temporary projection adapter has no target policy and keeps the exact original basis before Drop"
+            );
+            unchanged();
+            inspected = true;
+        }
+    };
+    {
+        ObserverScope scope(context, observer);
+        auto projected = ProjectDerivedUv(
+            *use,
+            .001,
+            [&]() -> Result<void>
+            {
+                ++calls;
+                inspect();
+                return {};
+            },
+            true
+        );
+        Require(
+            projected && projected->status == DerivedUvStatus::Ready && projected->curve && projected->rawPair &&
+                projected->rawPair->maximumMm <= .001 && projected->curve->GetOwner() == nullptr,
+            "temporary adapter keeps the existing single-branch projection and paired physical budget"
+        );
+    }
+    Require(inspected && observer.created == 1 && observer.destroyed == 1, "successful projection releases its sole temporary adapter");
+    unchanged();
+    if (!registered)
+    {
+        return;
+    }
+    for (std::size_t stop = 1; stop <= calls; ++stop)
+    {
+        observer.adapter = nullptr;
+        observer.created = observer.destroyed = 0;
+        inspected = false;
+        std::size_t seen = 0;
+        ObserverScope scope(context, observer);
+        auto stopped = ProjectDerivedUv(
+            *use,
+            .001,
+            [&]() -> Result<void>
+            {
+                ++seen;
+                inspect();
+                if (seen == stop)
+                {
+                    return tl::unexpected(Failure{ step_import::Status::Cancelled, "ProjectionPolicyCancel", "public control", 17, "Caller" });
+                }
+                return {};
+            },
+            true
+        );
+        Require(
+            !stopped && stopped.error().status == step_import::Status::Cancelled && stopped.error().key == "ProjectionPolicyCancel" && seen == stop &&
+                observer.created == observer.destroyed,
+            "every projection checkpoint preserves cancellation and destroys any prepared adapter"
+        );
+        unchanged();
+    }
+    observer.adapter = nullptr;
+    observer.created = observer.destroyed = 0;
+    inspected = false;
+    bool actualException = false;
+    {
+        ObserverScope scope(context, observer);
+        try
+        {
+            (void)ProjectDerivedUv(
+                *use,
+                .001,
+                [&]() -> Result<void>
+                {
+                    inspect();
+                    if (observer.adapter)
+                    {
+                        throw std::domain_error("ProjectionPolicyCheckpointException");
+                    }
+                    return {};
+                },
+                true
+            );
+        }
+        catch (const std::domain_error& error)
+        {
+            actualException = std::string(error.what()) == "ProjectionPolicyCheckpointException";
+        }
+    }
+    Require(actualException && observer.created == 1 && observer.destroyed == 1, "real checkpoint exception retains identity and releases adapter");
+    unchanged();
+    for (unsigned malformed = 0; malformed < 2; ++malformed)
+    {
+        observer.adapter = nullptr;
+        observer.created = observer.destroyed = 0;
+        auto duplicate = Attribute(context, precision);
+        if (malformed == 0)
+        {
+            source->AddAttribute(duplicate.get());
+        }
+        else
+        {
+            static_cast<SmGenericAttribute*>(originalPolicy)->SetLongElement(0, 2);
+        }
+        Result<DerivedUvCandidate> refused;
+        {
+            ObserverScope scope(context, observer);
+            refused = ProjectDerivedUv(
+                *use,
+                .001,
+                []() -> Result<void>
+                {
+                    return {};
+                },
+                true
+            );
+        }
+        const auto limited = ProjectDerivedUv(
+            *use,
+            .001,
+            []() -> Result<void>
+            {
+                return tl::unexpected(Failure{ step_import::Status::ResourceLimit, "ProjectionPolicyWorkLimit", "public control", 17, "Caller" });
+            },
+            true
+        );
+        const bool noAdapter = observer.created == 0 && observer.destroyed == 0;
+        if (malformed == 0)
+        {
+            source->RemoveAttribute(duplicate.get(), TRUE);
+        }
+        else
+        {
+            static_cast<SmGenericAttribute*>(originalPolicy)->SetLongElement(0, 1);
+        }
+        Require(
+            refused && refused->status == DerivedUvStatus::Unestablished && !refused->curve && noAdapter,
+            "malformed original policy refuses before a temporary copy can normalize or discard it"
+        );
+        Require(
+            !limited && limited.error().status == step_import::Status::ResourceLimit && limited.error().key == "ProjectionPolicyWorkLimit",
+            "execution limit propagates without being reclassified as malformed-policy fallback"
+        );
+        unchanged();
+    }
+}
 std::unique_ptr<SmCrvOnSurf> PublicSeam(SmContext& context, double precision)
 {
     // A regular public frustum isolates ownership from the near-pole numerical
@@ -827,6 +1063,8 @@ int main(int argc, char** argv)
         ConversionRefusal(context, precision);
         Notifications(context, precision);
         RigidTransform(context, precision);
+        ProjectionAdapterPolicy(false, precision);
+        ProjectionAdapterPolicy(true, precision);
         SeamCopies(context, precision);
         NestedArchiveRefusal(context, precision, output);
         Archives(output, false, precision);
