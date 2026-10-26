@@ -108,6 +108,7 @@ struct SeamPlan
     double angle;
     Index firstEdge = 0, secondEdge = 0;
     bool mixedBoundary = false;
+    bool separatedSourceVertices = false;
 };
 
 struct SpherePolePlan
@@ -695,6 +696,7 @@ private:
         double parameter;
         V point;
         SmVertex* native = nullptr;
+        bool consistencyConnection = false;
     };
     // Private full-basis copies die before m_model and its allocating context.
     std::map<Index, RingSubdivision> m_ringSubdivisions;
@@ -2672,6 +2674,76 @@ private:
             {
                 continue;
             }
+            if (Is(face.surface, "CONICAL_SURFACE") &&
+                (Norm(Sub(seam->a, points[seam->v0])) > maximum || Norm(Sub(seam->b, points[seam->v1])) > maximum))
+            {
+                auto frameResult = Placement(Ref(face.surface, "position"));
+                if (!frameResult)
+                {
+                    return tl::unexpected(std::move(frameResult.error()));
+                }
+                const auto& frame = *frameResult;
+                auto angle = ConeAngle(face.surface);
+                if (!angle)
+                {
+                    return tl::unexpected(std::move(angle.error()));
+                }
+                auto radius = N(face.surface, "radius");
+                if (!radius)
+                {
+                    return tl::unexpected(std::move(radius.error()));
+                }
+                const auto& first = curves[seam->firstEdge];
+                const auto& second = curves[seam->secondEdge];
+                const std::array<ConicalRingInput, 2> rings{
+                    ConicalRingInput{ dynamic_cast<const SmCircle*>(first.native.get()), { first.t0, first.t1 }, points[first.v0] },
+                    ConicalRingInput{ dynamic_cast<const SmCircle*>(second.native.get()), { second.t0, second.t1 }, points[second.v0] }
+                };
+                auto planned = PlanConicalRingCut(
+                    { frame.o, frame.x, frame.y, frame.z, *radius * scale, std::tan(*angle) },
+                    rings,
+                    seam->angle,
+                    maximum,
+                    Q(m_options.quality.consistencyMm),
+                    Tol(),
+                    [&]
+                    {
+                        return Step(face.record);
+                    }
+                );
+                if (!planned)
+                {
+                    return tl::unexpected(std::move(planned.error()));
+                }
+                if (*planned)
+                {
+                    const auto& cut = **planned;
+                    std::array<Index, 2> verticesAtCut;
+                    for (Index k = 0; k < 2; ++k)
+                    {
+                        const auto edge = k == 0 ? seam->firstEdge : seam->secondEdge;
+                        auto registered = RegisterRingCut(edge, cut.parameters[k], cut.pointsMm[k], face.record);
+                        if (!registered)
+                        {
+                            return tl::unexpected(std::move(registered.error()));
+                        }
+                        verticesAtCut[k] = *registered;
+                        m_ringVertices.at(*registered - vertices.size()).consistencyConnection = true;
+                    }
+                    // Original points/curves do not move. Only NEW native cut
+                    // vertices use the existing connection budget; locating
+                    // parameters on the original circles still uses definitionMm.
+                    seam->v0 = verticesAtCut[0];
+                    seam->v1 = verticesAtCut[1];
+                    seam->a = cut.pointsMm[0];
+                    seam->b = cut.pointsMm[1];
+                    seam->angle = cut.angleRadians;
+                    seam->separatedSourceVertices = true;
+                    m_plannedSeams[face.record] = *seam;
+                    m_ringNormalization = true;
+                    continue;
+                }
+            }
             if (face.loops[0].uses.size() != 1 || face.loops[1].uses.size() != 1)
             {
                 m_ringNormalization = true;
@@ -3064,6 +3136,41 @@ private:
             return tl::unexpected(std::move(businessCheck.error()));
         }
         info.sourceCurveIntervalsCovered = info.sourceVerticesPreserved = info.completed = true;
+        m_model->derivedVertexConnections.clear();
+        for (Index i = 0; i < m_ringVertices.size(); ++i)
+        {
+            const auto& cut = m_ringVertices[i];
+            if (!cut.consistencyConnection)
+            {
+                continue;
+            }
+            const auto& basis = m_ringSubdivisions.at(cut.curve).reference;
+            SmPoint3d onBasis;
+            if (auto operation = Step(curves[cut.curve].record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto checked = Good(basis->EvaluatePoint(cut.parameter, onBasis)); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            const double residual = onBasis.DistanceBetween(cut.native->GetPoint());
+            if (auto checked = Need(
+                    std::isfinite(residual) && residual <= Q(m_options.quality.consistencyMm),
+                    "ConicalDerivedVertexConnectionGap",
+                    curves[cut.curve].record
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            const auto sourceId = Id(curves[cut.curve].record);
+            m_model->derivedVertexConnections.push_back({ vertices.size() + i, sourceId, cut.parameter, residual, m_options.quality.consistencyMm });
+            m_report.tolerances.push_back({ "ConicalDerivedVertexConnection", "MeasuredResidualMm", sourceId, residual });
+            m_report.tolerances.push_back(
+                { "ConicalDerivedVertexConnection", "ExistingConsistencyBudgetMm", sourceId, Q(m_options.quality.consistencyMm) }
+            );
+        }
         m_report.topologyNormalization = info;
         return {};
     }
@@ -5091,7 +5198,8 @@ private:
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
             m_report.normalizations.push_back(
-                { seam->mixedBoundary                                 ? "PeriodicCutFromMixedCylindricalBoundaries" :
+                { seam->separatedSourceVertices                       ? "ConicalCutAwayFromSourceVertexGaps" :
+                  seam->mixedBoundary                                 ? "PeriodicCutFromMixedCylindricalBoundaries" :
                   first->uses.size() == 1 && second->uses.size() == 1 ? "PeriodicCutFromTwoSourceRings" :
                                                                         "PeriodicCutFromFragmentedCircularRings",
                   Id(f.record),

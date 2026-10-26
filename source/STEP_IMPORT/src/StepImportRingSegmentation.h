@@ -10,6 +10,7 @@
 
 class SmContext;
 class SmEdge;
+class SmCircle;
 namespace step_import::detail
 {
 struct RingCut
@@ -33,6 +34,38 @@ struct RingSubdivision
     std::vector<RingSegment> segments; // Increasing ORIGINAL native parameters, shared by all source uses.
     std::optional<std::size_t> originalEndVertex; // Open circular arcs retain their distinct original last vertex.
 };
+struct ConicalRingSupport
+{
+    Point origin{}, xAxis{}, yAxis{}, zAxis{};
+    double radiusMm = 0, slope = 0;
+};
+struct ConicalRingInput
+{
+    const SmCircle* circle = nullptr;
+    std::array<double, 2> interval{};
+    Point sourceVertex{};
+};
+struct ConicalRingCut
+{
+    double angleRadians = 0;
+    std::array<double, 2> parameters{}, residualsMm{};
+    std::array<Point, 2> pointsMm{};
+};
+// Choose a different computational longitude only; all original vertices and
+// complete 3D curves remain unchanged. Parameters are located ON each original
+// circle using definitionMm. A NEW cut vertex lies on the cone and its connection
+// to that circle uses the existing consistency allowance, as in
+// PeriodicNormalizationDerivedVertexResidual. This is not a curve fit, source
+// displacement, tolerance increase or continuous source-geometry certificate.
+[[nodiscard]] Result<std::optional<ConicalRingCut>> PlanConicalRingCut(
+    const ConicalRingSupport& support,
+    const std::array<ConicalRingInput, 2>& rings,
+    double oldAngleRadians,
+    double definitionMm,
+    double consistencyMm,
+    double workMm,
+    const ExecutionCheckpoint& checkpoint
+);
 // Caller holds NativeMutex and owns an unpublished candidate/context. All basis
 // copies below must be destroyed before that context on success and every exit.
 // Borrow an unowned complete native circle/arc basis. Establish an interior native

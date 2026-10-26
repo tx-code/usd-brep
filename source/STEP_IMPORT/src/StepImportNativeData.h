@@ -40,6 +40,13 @@ struct NativeFaceData
 };
 struct ModelData
 {
+    struct DerivedVertexConnection
+    {
+        std::size_t target = 0;
+        std::string sourceEdgeId;
+        double parameter = 0, observedGapMm = 0;
+        Fraction maximumGapMm;
+    };
     ~ModelData(); // Native destruction is serialized; BRep must precede its allocating context.
     std::unique_ptr<SmContext> context;
     std::unique_ptr<SmBrep> brep;
@@ -72,6 +79,7 @@ struct ModelData
     std::optional<NumericalIntegrationObservation> numericalIntegration;
     std::optional<UnitNormalization> lengthUnits; // Independent of the caller's mutable report and output lifetime.
     std::optional<TopologyNormalizationInfo> topologyNormalization;
+    std::vector<DerivedVertexConnection> derivedVertexConnections; // Owning final evidence; never transfers to modeling copies/native files.
     std::optional<FaceOrientationRepairHistory> repairs;
     std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> terminalDomainInterpretation;

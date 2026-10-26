@@ -15,6 +15,13 @@ constructed. It uses retained pre-snap encounter parameters, preserves complete
 definitions, and shares all necessary arc children across their original uses.
 Ambiguous classifications and unsupported intersection families remain refused.
 
+Finite conical rings can place their computational seam away from existing source
+vertices. Original points and defining geometry remain unchanged. Newly introduced
+seam vertices use the existing connection-consistency allowance, separately from
+the unchanged source-circle definition accuracy; final residuals and budgets stay
+in the owning snapshot and mandatory report. Native seam and validity checks still
+run, and no repair or tolerance growth is introduced.
+
 ## Scope
 
 [Circular ring construction](../source/STEP_IMPORT/README.md#完整圆环的目标分段与圆柱圆锥图切口).

@@ -9,6 +9,7 @@
 #include <SmEdge.h>
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace step_import::detail
 {
@@ -56,6 +57,151 @@ double ParameterGuard(std::array<double, 2> interval)
     return result;
 }
 } // namespace
+[[nodiscard]] Result<std::optional<ConicalRingCut>> PlanConicalRingCut(
+    const ConicalRingSupport& support,
+    const std::array<ConicalRingInput, 2>& rings,
+    double oldAngleRadians,
+    double definitionMm,
+    double consistencyMm,
+    double workMm,
+    const ExecutionCheckpoint& checkpoint
+)
+{
+    const auto add = [](Point a, Point b)
+    {
+        return Point{ a[0] + b[0], a[1] + b[1], a[2] + b[2] };
+    };
+    const auto sub = [](Point a, Point b)
+    {
+        return Point{ a[0] - b[0], a[1] - b[1], a[2] - b[2] };
+    };
+    const auto mul = [](Point a, double b)
+    {
+        return Point{ a[0] * b, a[1] * b, a[2] * b };
+    };
+    const auto dot = [](Point a, Point b)
+    {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    };
+    const auto length = [](Point a)
+    {
+        return std::hypot(a[0], a[1], a[2]);
+    };
+    const auto point = [](const SmPoint3d& a)
+    {
+        return Point{ a.x, a.y, a.z };
+    };
+    if (auto checked = Need(
+            bool(checkpoint) && std::isfinite(definitionMm) && definitionMm > 0 && std::isfinite(consistencyMm) && consistencyMm > 0 &&
+                std::isfinite(workMm) && workMm > 0,
+            "ConicalRingCutInput"
+        );
+        !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    for (const auto& ring : rings)
+    {
+        if (!ring.circle || ring.circle->GetInsideOut() || ring.circle->GetXRadius() != ring.circle->GetYRadius())
+        {
+            return std::optional<ConicalRingCut>{};
+        }
+        const auto& frame = ring.circle->GetPosition();
+        const auto axis = frame.GetZAxis();
+        const auto delta = sub(point(frame.GetOriginRef()), support.origin);
+        const double z = dot(delta, support.zAxis);
+        const double alignment = axis.x * support.zAxis[0] + axis.y * support.zAxis[1] + axis.z * support.zAxis[2];
+        if (std::abs(std::abs(alignment) - 1) > 1e-12 || length(sub(delta, mul(support.zAxis, z))) > definitionMm)
+        {
+            return std::optional<ConicalRingCut>{};
+        }
+    }
+    for (const double shift : { std::numbers::pi / 2, std::numbers::pi, -std::numbers::pi / 2 })
+    {
+        ConicalRingCut cut;
+        cut.angleRadians = std::remainder(oldAngleRadians + shift, 2 * std::numbers::pi);
+        if (cut.angleRadians > 0)
+        {
+            cut.angleRadians -= 2 * std::numbers::pi;
+        }
+        const auto radial = add(mul(support.xAxis, std::cos(cut.angleRadians)), mul(support.yAxis, std::sin(cut.angleRadians)));
+        std::array<Point, 2> onCircles;
+        bool eligible = true;
+        for (std::size_t i = 0; i < rings.size(); ++i)
+        {
+            const auto& ring = rings[i];
+            const auto center = point(ring.circle->GetPosition().GetOriginRef());
+            const double z = dot(sub(center, support.origin), support.zAxis), radius = support.radiusMm + support.slope * z;
+            if (!std::isfinite(radius) || radius <= SM_EFF_ZERO)
+            {
+                eligible = false;
+                break;
+            }
+            cut.pointsMm[i] = add(add(support.origin, mul(support.zAxis, z)), mul(radial, radius));
+            onCircles[i] = add(center, mul(radial, ring.circle->GetXRadius()));
+        }
+        if (!eligible)
+        {
+            continue;
+        }
+        const auto direction = sub(cut.pointsMm[1], cut.pointsMm[0]);
+        const double span = length(direction);
+        if (!std::isfinite(span) || span <= workMm)
+        {
+            continue;
+        }
+        const auto unit = mul(direction, 1 / span);
+        // Keep old source vertices out of the classifier's snap zone. This is
+        // a chart-selection restriction, never a larger physical tolerance.
+        for (const auto& ring : rings)
+        {
+            const auto delta = sub(ring.sourceVertex, cut.pointsMm[0]);
+            if (length(sub(delta, mul(unit, dot(delta, unit)))) <= 4 * workMm)
+            {
+                eligible = false;
+            }
+        }
+        if (!eligible)
+        {
+            continue;
+        }
+        for (std::size_t i = 0; i < rings.size(); ++i)
+        {
+            auto located = LocateRingCut(*rings[i].circle, rings[i].interval, onCircles[i], definitionMm, checkpoint);
+            if (!located)
+            {
+                if (located.error().status != Status::Indeterminate)
+                {
+                    return tl::unexpected(std::move(located.error()));
+                }
+                eligible = false;
+                break;
+            }
+            cut.parameters[i] = *located;
+            SmPoint3d actual;
+            if (auto operation = checkpoint(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (rings[i].circle->EvaluatePoint(*located, actual) != SM_SUCCESS)
+            {
+                eligible = false;
+                break;
+            }
+            cut.residualsMm[i] = actual.DistanceBetween(SmPoint3d(cut.pointsMm[i][0], cut.pointsMm[i][1], cut.pointsMm[i][2]));
+            if (!std::isfinite(cut.residualsMm[i]) || cut.residualsMm[i] > consistencyMm)
+            {
+                eligible = false;
+                break;
+            }
+        }
+        if (eligible)
+        {
+            return std::optional<ConicalRingCut>(cut);
+        }
+    }
+    return std::optional<ConicalRingCut>{};
+}
 [[nodiscard]] Result<double> LocateRingCut(
     const SmCurve& circle,
     std::array<double, 2> interval,

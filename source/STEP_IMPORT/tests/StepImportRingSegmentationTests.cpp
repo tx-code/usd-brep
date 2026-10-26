@@ -921,6 +921,128 @@ void MixedCylinderBoundary(const std::filesystem::path& fixture, const std::file
         );
     }
 }
+void ConicalConnections(const std::string& original, const std::filesystem::path& file, bool radiusGap)
+{
+    auto text = original;
+    Replace(text, "#173=FACE_OUTER_BOUND", "#173=FACE_BOUND");
+    Replace(text, "#103=CARTESIAN_POINT('',(0.,3.,7.))", "#103=CARTESIAN_POINT('',(0.,10.0001,7.))");
+    Replace(text, "#111=CIRCLE('',#107,3.)", radiusGap ? "#111=CIRCLE('',#107,10.0001)" : "#111=CIRCLE('',#107,10.)");
+    Replace(text, "#142=CYLINDRICAL_SURFACE('',#106,3.)", "#142=CONICAL_SURFACE('',#106,3.,0.7853981633974483)");
+    if (!radiusGap)
+    {
+        Replace(text, "#102=CARTESIAN_POINT('',(0.,3.,0.))", "#102=CARTESIAN_POINT('',(0.,3.0001,0.))");
+    }
+    auto result = ImportBytes(text, Config(text, false));
+    if (!result.model)
+    {
+        std::cerr << "public conical connection status " << StatusName(result.status) << '\n';
+        for (const auto& diagnostic : result.report.diagnostics)
+        {
+            std::cerr << diagnostic.source.key << ' ' << diagnostic.source.message << '\n';
+        }
+    }
+    Require(result.status == Status::Accepted && result.model, "conical chart relocation passes complete original native checks");
+    const auto reportBytes = result.report.json.size();
+    auto model = result.model;
+    Require(!result.report.repairs && !result.report.cylindricalBandRepairs, "target chart relocation does not invent a repair");
+    result = {};
+    Require(model->Source()->Source().Bytes() == text, "original conical source survives caller report disposal");
+    const auto origins = model->TopologyNormalization();
+    Require(
+        origins && origins->completed && origins->sourceVerticesPreserved && origins->sourceCurveIntervalsCovered,
+        "conical source correspondence is complete and owning"
+    );
+    Require(
+        model->Info().faces == 3 && model->Info().edges == 5 && model->Info().vertices == 4 && origins->sourceUseSegments.size() == 8,
+        "two original rings are globally split at one new meridian"
+    );
+    // This is a tolerant BRep, with immutable circle/cone definitions. Bound
+    // physical observations by frusta enclosing the selected consistency band;
+    // do not claim a unique exact solid for disagreeing surface/edge boundaries.
+    const auto volume = [](double a, double b, double h)
+    {
+        return std::numbers::pi * h * (a * a + a * b + b * b) / 3;
+    };
+    const double top = radiusGap ? 10.0001 : 10.;
+    Require(model->MaterialVolumeMm3().has_value(), "conical material role remains applicable");
+    Require(
+        *model->MaterialVolumeMm3() >= volume(2.999, top - 0.001, 6.998) && *model->MaterialVolumeMm3() <= volume(3.001, top + 0.001, 7.002),
+        "independent consistency-band frustum volume envelope"
+    );
+    Require(
+        model->ClassifyMaterial({ 0, 0, 3 }) == MaterialPointClass::Inside && model->ClassifyMaterial({ 20, 0, 3 }) == MaterialPointClass::Outside,
+        "conical chart retains representative material queries"
+    );
+    model->WriteNative(file);
+    SmContext context;
+    SmTArray<SmCurve*> curves;
+    SmTArray<SmSurface*> surfaces;
+    SmTArray<long> trees;
+    SmTArray<SmBrep*> bodies;
+    SmObjsDelete<SmCurve*> dc(&curves);
+    SmObjsDelete<SmSurface*> ds(&surfaces);
+    SmObjsDelete<SmBrep*> db(&bodies);
+    Require(
+        SmNativeArchive::ReadPartFromFile(context, file.c_str(), curves, surfaces, trees, bodies, SM_BINARY) == SM_SUCCESS && bodies.GetSize() == 1,
+        "conical connection native archive readback"
+    );
+    NativeValid(*bodies[0]);
+    auto copy = model->CopyBrepForModeling();
+    Require(copy.status == Status::Accepted && copy.model, "conical connection independent modeling copy");
+    copy.model->Edit(
+        [&](SmBrep& native)
+        {
+            NativeValid(native);
+            CompareCompleteNative(native, *bodies[0]);
+            SmTArray<SmVertex*> vertices;
+            native.GetVertices(vertices);
+            const std::array<Point, 2> originals{ Point{ 0, radiusGap ? 3. : 3.0001, 0 }, Point{ 0, 10.0001, 7 } };
+            for (const auto& p : originals)
+            {
+                unsigned count = 0;
+                for (const auto vertex : vertices)
+                {
+                    const auto q = vertex->GetPoint();
+                    count += q.x == p[0] && q.y == p[1] && q.z == p[2];
+                }
+                Require(count == 1, "no existing conical source vertex is moved or replaced");
+            }
+            SmTArray<SmEdge*> edges;
+            native.GetEdges(edges);
+            for (const auto edge : edges)
+            {
+                const auto circle = dynamic_cast<const SmCircle*>(edge->GetCurve());
+                if (!circle)
+                {
+                    continue;
+                }
+                const double z = circle->GetPosition().GetOriginRef().z;
+                const double r = z == 0 ? 3. : top;
+                SmCircle expected(SmPoint3d(0., 0., z), SmVector3d(1, 0, 0), SmVector3d(0, 1, 0), SmExtent1d(-270, 90), r, 3, &context);
+                SameCompleteCurve(*circle, expected);
+            }
+        }
+    );
+    auto tighter = Config(text, false);
+    tighter.quality.consistencyMm = Fraction(1, 1000000);
+    bool configurationRefused = false;
+    try
+    {
+        configurationRefused = !ImportBytes(text, tighter).model;
+    }
+    catch (const std::invalid_argument&)
+    {
+        configurationRefused = true;
+    }
+    Require(configurationRefused, "new chart cannot silently override an unsupported quality selection");
+    auto excessive = text;
+    Replace(excessive, radiusGap ? "#111=CIRCLE('',#107,10.0001)" : "#111=CIRCLE('',#107,10.)", "#111=CIRCLE('',#107,10.01)");
+    Replace(excessive, "#103=CARTESIAN_POINT('',(0.,10.0001,7.))", "#103=CARTESIAN_POINT('',(0.,10.01,7.))");
+    Require(!ImportBytes(excessive, Config(excessive, false)).model, "derived connections beyond the unchanged consistency allowance refuse");
+    auto limited = Config(text, false);
+    limited.nativeLimits.reportBytes = reportBytes - 1;
+    Require(ImportBytes(text, limited).status == Status::ResourceLimit, "conical connection evidence is mandatory before publication");
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -933,6 +1055,8 @@ int main(int argc, char** argv)
         const std::string original{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
         const std::filesystem::path output(argv[2]);
         std::filesystem::create_directories(output);
+        ConicalConnections(original, output / "conical-vertex-connections.smb", false);
+        ConicalConnections(original, output / "conical-radius-connections.smb", true);
         MixedCylinderBoundary(std::filesystem::path(argv[1]).parent_path() / "mixed_cylindrical_band.step", output / "mixed-cylinder.smb", false);
         MixedCylinderBoundary(
             std::filesystem::path(argv[1]).parent_path() / "mixed_cylindrical_band.step",
