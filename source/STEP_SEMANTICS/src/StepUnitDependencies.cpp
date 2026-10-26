@@ -470,16 +470,19 @@ private:
                             Status::Rejected,
                             r,
                             dimensions,
-                            IsA(r, "LENGTH_UNIT") ? "ExplicitLengthUnitDimensionsConflict" : "MetadataMassUnitDimensionsConflict",
+                            IsA(r, "LENGTH_UNIT")      ? "ExplicitLengthUnitDimensionsConflict" :
+                            IsA(r, "PLANE_ANGLE_UNIT") ? "ExplicitPlaneAngleUnitDimensionsConflict" :
+                                                         "MetadataMassUnitDimensionsConflict",
                             "factor-derived dimensional vector",
                             "contradictory explicit source vector",
-                            IsA(r, "LENGTH_UNIT") ? "explicit length interpretation requires exact factor-derived dimensions" :
-                                                    "property-only compatibility guard; no contradictory unit dimensions retained"
+                            IsA(r, "LENGTH_UNIT")      ? "explicit length interpretation requires exact factor-derived dimensions" :
+                            IsA(r, "PLANE_ANGLE_UNIT") ? "explicit plane angle interpretation requires exact factor-derived dimensions" :
+                                                         "property-only compatibility guard; no contradictory unit dimensions retained"
                         );
                     }
                 }
-                if (m_data.requestedUnitInterpretation == UnitInterpretation::VerifiedExplicitUnitDimensions && IsA(r, "LENGTH_UNIT") &&
-                    dimensions.declaration.value->kind == step_source::ValueKind::Reference)
+                if (m_data.requestedUnitInterpretation == UnitInterpretation::VerifiedExplicitUnitDimensions &&
+                    (IsA(r, "LENGTH_UNIT") || IsA(r, "PLANE_ANGLE_UNIT")) && dimensions.declaration.value->kind == step_source::ValueKind::Reference)
                 {
                     const auto factor = Target(*Field(r, "conversion_factor").declaration.value);
                     const auto& value = Field(factor, "value_component");
@@ -493,7 +496,8 @@ private:
                             "SourceUnitScaleNonPositive",
                             ">0",
                             value.declaration.value->children.front().text,
-                            "explicit length interpretation requires a positive physical factor"
+                            IsA(r, "LENGTH_UNIT") ? "explicit length interpretation requires a positive physical factor" :
+                                                    "explicit plane angle interpretation requires a positive physical factor"
                         );
                     }
                 }

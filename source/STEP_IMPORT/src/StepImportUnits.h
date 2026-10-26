@@ -27,6 +27,11 @@ struct ResolvedLengthScale
     std::size_t root,
     const ExecutionCheckpoint& boundary
 );
+// Same bounded exact engine, separately typed nominal PLANE_ANGLE_UNIT chain
+// ending at SI RADIAN. The final Fraction is radians per original source unit;
+// names and a dimensionless vector alone never establish that quantity. This
+// does not grant source-slot interpretation or reinterpret a pcurve's context.
+[[nodiscard]] Result<Fraction> ResolvePlaneAngleScale(const step_semantics::Snapshot& source, std::size_t root, const ExecutionCheckpoint& boundary);
 // Context identity must belong to this owning, checked assembly input receipt.
 // Uses the same exact conversion engine as qualified single-part normalization.
 [[nodiscard]] Result<ResolvedLengthScale> ResolveLengthScale(

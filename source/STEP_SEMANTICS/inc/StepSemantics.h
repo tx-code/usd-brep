@@ -86,7 +86,7 @@ inline const char* SchemaInterpretationName(const SchemaInterpretationRequest& r
 enum class UnitInterpretation
 {
     DeclaredOnly,
-    VerifiedExplicitUnitDimensions // Exact redundant AP214 SI/conversion-length dimensions, original marker error retained.
+    VerifiedExplicitUnitDimensions // Exact redundant AP214 SI/conversion-length/plane-angle dimensions; marker error retained.
 };
 const char* UnitInterpretationName(UnitInterpretation interpretation);
 enum class ComplexMappingInterpretation

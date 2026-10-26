@@ -510,7 +510,8 @@ if(STEP_IMPORT_BUILD_TESTS)
     target_link_libraries(step_import_general_unit_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_import_general_unit_tests PRIVATE src)
     add_test(NAME step_import_general_unit_contracts COMMAND step_import_general_unit_tests
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step")
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P04/input.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     set_tests_properties(step_import_general_unit_contracts PROPERTIES TIMEOUT 60)
     add_executable(step_import_general_surface_tests tests/StepImportGeneralSurfaceTests.cpp)
     target_link_libraries(step_import_general_surface_tests PRIVATE STEP_IMPORT)

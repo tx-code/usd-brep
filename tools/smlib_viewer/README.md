@@ -525,7 +525,7 @@ when selecting this additional closed enum value.
 
 
 `--unit-interpretation VerifiedExplicitUnitDimensions` separately requests exact
-validation of redundant AP214 SI/conversion-length dimension declarations. It
+validation of redundant AP214 SI/conversion-length/plane-angle dimension declarations. It
 requires interoperability, retains original source errors, and never rounds a
 conversion scale or changes geometry. Native acceptance still requires its full
 scale and geometry checks. The HUD/receipts mark an applied unit interpretation;

@@ -85,8 +85,8 @@ UV 控制点在全部原生消费者之后再次核对，并检查其真实 owni
 `SmCrvOnSurf`／`SmSTEPSurface` 复合定义 `S(C(t))`，不把三维拟合缓存当成定义；次数、
 全部源节点及原参数域保留。所选 pcurve 与原三维辅助曲线可以使用不同参数。
 
-参数单位由基曲面的参数含义决定：平面 U/V 按已绑定长度单位转毫米；圆柱 U 按 SI 弧度
-（含前缀）转度、V 按长度转毫米；B 样条 U/V 保留源节点约定；旋转面 U 转度、V 保留原
+参数单位由基曲面的参数含义决定：平面 U/V 按已绑定长度单位转毫米；圆柱 U 按已绑定角度
+单位转度、V 按长度转毫米；B 样条 U/V 保留源节点约定；旋转面 U 转度、V 保留原
 生成线参数。参数上下文不提供另一套物理单位。原 UV 值、上下文、单位、关联顺序和源
 身份仍在 immutable 源快照中；`SourcePcurveComposition` 报告记录轴向比例、偏移及原
 参数域。私有三维辅助定义的报告不冒充已发布目标边的参数映射。
@@ -1480,10 +1480,20 @@ before the one commit point; final variant ownership transfer is nonthrowing.
 
 
 显式 `Options.unitInterpretation=VerifiedExplicitUnitDimensions`／CLI
-`--interpret-explicit-unit-dimensions` 支持经精确验证的 AP214 SI/换算长度单位派生槽位引用。
+`--interpret-explicit-unit-dimensions` 支持经精确验证的 AP214 SI／换算长度、平面角单位派生槽位引用。
 它要求 general 非几何互操作配置，默认关闭。单位指数、换算依赖、原始引用和诊断保留；
 维度矛盾、循环、不支持的单位和非正换算因子继续拒绝。精确物理缩放仍由原生单位解析器
 验证，容量不足仍为 Indeterminate，不能因维度一致而跳过缩放检查。
+
+通用构建器支持 nominal `PLANE_ANGLE_UNIT` 的正换算链，必须终止于 SI RADIAN；
+七维指数为零本身不能替代角度角色。与长度缩放共用原有 4096 位有界精确十进制算术，
+最后的弧度比例须可表示为现有 64 位 `Fraction`，随后才转入原生浮点参数。
+单位标签不参与推断：即使名称为 degree，也仅使用原文因子，不代入另一份 pi/180。
+原 SI 快路径、长度单位证据及原始因子字面量保留。该换算同时用于圆锥 semi_angle、
+裁剪圆／椭圆的参数，以及圆柱／旋转面的源 pcurve U；生成线参数、方向比和 B 样条
+UV 不获得角度缩放。符合源派生标记的单位无需启用单位解释；非符合显式引用仍需上述
+独立选项，保留全部原诊断并返回条件成功。几何一致性、源优先级、工作容差、复制存档
+和原子发布检查继续适用，不授予超出已实现几何范围的资格。
 
 源快照记录独立的单位解释证据；面、线框和支撑几何 owning view 的
 `AppliedUnitInterpretation()` 读取同一证据。最终模型成功时为

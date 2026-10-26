@@ -5,6 +5,7 @@
 #include "StepImportNativeStatus.h"
 #include "StepImportPcurveLineSession.h"
 #include "StepImportSourceFrame.h"
+#include "StepImportSourceParameterUnits.h"
 #include "StepImportSplineChartSession.h"
 #include "StepImportTerminalDomainConstruction.h"
 #include "StepImportVectorMath.h"
@@ -73,6 +74,7 @@ protected:
           m_options(options),
           m_report(report),
           m_execution(execution),
+          m_angleUnits(std::make_shared<SourceAngleCache>()),
           m_terminalDomainCache(options.terminalDomainInterpretation ? MakeTerminalDomainCache() : nullptr),
           m_splineCharts(std::make_shared<SplineChartSession>()),
           m_pcurveLines(std::make_shared<PcurveLineSession>())
@@ -84,6 +86,7 @@ protected:
     const Options& m_options;
     Report& m_report;
     Execution& m_execution;
+    std::shared_ptr<SourceAngleCache> m_angleUnits;
     std::shared_ptr<TerminalDomainCache> m_terminalDomainCache;
     std::shared_ptr<SplineChartSession> m_splineCharts;
     std::shared_ptr<PcurveLineSession> m_pcurveLines;
@@ -141,6 +144,30 @@ protected:
     [[nodiscard]] Result<double> N(Index a, std::string_view name) const
     {
         return Number(F(a, name));
+    }
+    [[nodiscard]] Result<double> AngleToRadians() const
+    {
+        // Factories copy this construction session, hence share only this
+        // source owner's successful resolution. Re-scanning the dense source
+        // index for every angular edge would make a converted-unit model
+        // quadratic. Failures/cancellation are values, never cached fallback;
+        // another part/context/request constructs its own session.
+        if (m_angleUnits->radiansPerUnit)
+        {
+            return *m_angleUnits->radiansPerUnit;
+        }
+        auto resolved = SourceAngleToRadians(
+            *m_source,
+            [&]
+            {
+                return m_execution.Check(Phase::BeforeNativeCall);
+            }
+        );
+        if (resolved)
+        {
+            m_angleUnits->radiansPerUnit = *resolved;
+        }
+        return resolved;
     }
     [[nodiscard]] Result<V> Triple(const step_source::Value& value) const
     {
@@ -215,13 +242,12 @@ protected:
                 {
                     if (!angleScale)
                     {
-                        for (const auto& unit : m_source->UnitContext().siDefinitions)
+                        auto resolved = AngleToRadians();
+                        if (!resolved)
                         {
-                            if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
-                            {
-                                angleScale = std::pow(10., unit.canonicalPower10);
-                            }
+                            return tl::unexpected(std::move(resolved.error()));
                         }
+                        angleScale = *resolved;
                         if (!angleScale || !std::isfinite(*angleScale) || !(*angleScale > 0))
                         {
                             return tl::unexpected(Fail("GeneralTrimmedAngleUnitUnestablished", wrapper, Status::Unsupported));

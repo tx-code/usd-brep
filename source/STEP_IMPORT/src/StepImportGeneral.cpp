@@ -1061,7 +1061,7 @@ private:
             return tl::unexpected(std::move(businessCheck.error()));
         }
         // Angular placement conventions do not use the file's angle unit.
-        // CONICAL_SURFACE.semi_angle does, and requires an explicit radian SI context.
+        // CONICAL_SURFACE.semi_angle does, through the checked physical angle chain.
         for (const auto a : Refs(shell, "cfs_faces"))
         {
             Face f{ a, Ref(a, "face_geometry"), B(a, "same_sense"), {} };
@@ -2195,22 +2195,19 @@ private:
     [[nodiscard]] Result<double> ConeAngle(Index surface) const
     {
         // Reuse the same checked physical angle for both chart planning and
-        // native surface construction. A source SI prefix scales the declared
+        // native surface construction. The source unit chain scales the declared
         // semi-angle once; placement directions and native UV are not angles.
-        for (const auto& unit : m_source->UnitContext().siDefinitions)
+        auto angleScale = AngleToRadians();
+        if (!angleScale)
         {
-            if (unit.recordIndex == m_source->UnitContext().planeAngleUnit && unit.siName == "RADIAN")
-            {
-                auto angleResult = N(surface, "semi_angle");
-                if (!angleResult)
-                {
-                    return tl::unexpected(std::move(angleResult.error()));
-                }
-                const auto& angle = *angleResult;
-                return angle * std::pow(10., unit.canonicalPower10);
-            }
+            return tl::unexpected(std::move(angleScale.error()));
         }
-        return tl::unexpected(Fail("GeneralConeAngleUnitUnestablished", surface));
+        auto angle = N(surface, "semi_angle");
+        if (!angle)
+        {
+            return tl::unexpected(std::move(angle.error()));
+        }
+        return *angle * *angleScale;
     }
     [[nodiscard]] Result<SmExtent2d> ToroidalChart(const Face& f, const Frame& frame, double major, double minor) const
     {
@@ -3726,10 +3723,10 @@ private:
                 {
                     return tl::unexpected(std::move(number.error()));
                 }
-                const auto radians = SourceSiAngleToRadians(m_source->UnitContext());
+                auto radians = AngleToRadians();
                 if (!radians)
                 {
-                    return tl::unexpected(Fail("GeneralRevolutionAngleUnitUnestablished", g, Status::Unsupported));
+                    return tl::unexpected(std::move(radians.error()));
                 }
                 const double degrees = *number * *radians * 180 / std::numbers::pi;
                 if (!std::isfinite(degrees) || std::abs(degrees) > 360000000)

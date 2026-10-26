@@ -2381,13 +2381,14 @@ private:
                             {
                                 // AP214 derived slots still require '*'. Mass metadata
                                 // retains its existing nonphysical proof. Separately
-                                // requested SI/conversion-length interpretation must
+                                // requested SI/conversion-length/angle interpretation must
                                 // prove every supplied exponent against its derivation
                                 // and pass closure; neither path rewrites the source.
                                 const bool interpretedUnit = m_data->requestedUnitInterpretation ==
                                                                  UnitInterpretation::VerifiedExplicitUnitDimensions &&
                                                              m_data->geometryScope == GeometryScope::GeneralBrep &&
-                                                             (IsA(*m_data, r, "LENGTH_UNIT") || IsA(*m_data, r, "SI_UNIT"));
+                                                             (IsA(*m_data, r, "LENGTH_UNIT") || IsA(*m_data, r, "PLANE_ANGLE_UNIT") ||
+                                                              IsA(*m_data, r, "SI_UNIT"));
                                 if (!Interoperability() || !IsAp214SourceProfile(m_data->profile.kind) || field.name != "dimensions" ||
                                     value.kind != ValueKind::Reference ||
                                     (!IsA(*m_data, r, "SI_UNIT") && !IsA(*m_data, r, "CONVERSION_BASED_UNIT")) ||
@@ -4847,7 +4848,8 @@ private:
                     }
                 );
                 const bool supportedUnit = IsA(*m_data, record, "SI_UNIT") ||
-                                           (IsA(*m_data, record, "CONVERSION_BASED_UNIT") && IsA(*m_data, record, "LENGTH_UNIT"));
+                                           (IsA(*m_data, record, "CONVERSION_BASED_UNIT") &&
+                                            (IsA(*m_data, record, "LENGTH_UNIT") || IsA(*m_data, record, "PLANE_ANGLE_UNIT")));
                 if (m_data->requestedUnitInterpretation != UnitInterpretation::VerifiedExplicitUnitDimensions ||
                     !IsAp214SourceProfile(m_data->profile.kind) || !supportedUnit || found == m_data->units.dimensionDefinitions.end() ||
                     State(Phase::Part) != Progress::Passed || State(Phase::UnitDependencies) != Progress::Passed ||

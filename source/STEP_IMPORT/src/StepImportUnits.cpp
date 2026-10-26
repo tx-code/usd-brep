@@ -27,7 +27,7 @@ namespace
 {
 // This is an exact-arithmetic capacity, not a geometric tolerance or a source
 // validity rule. Fixed checked storage bounds every operation and never wraps.
-// Canonical contract: STEP_IMPORT/README.md, conversion length normalization.
+// Canonical contract: STEP_IMPORT/README.md, conversion length/angle normalization.
 // Keep the heavyweight dependency in this translation unit for incremental builds.
 using Integer = boost::multiprecision::number<
     boost::multiprecision::cpp_int_backend<4096, 4096, boost::multiprecision::signed_magnitude, boost::multiprecision::checked, void>>;
@@ -35,6 +35,22 @@ constexpr std::int64_t DecimalPowerCapacity = 1233; // 10^1233 fits 4096 magnitu
 struct WideRatio
 {
     Integer numerator = 0, denominator = 1;
+};
+enum class PhysicalQuantity
+{
+    Length,
+    PlaneAngle
+};
+struct UnitHop
+{
+    std::size_t unit, factor, base;
+    std::string tag;
+    WideRatio value, canonicalScale;
+};
+struct ResolvedPhysicalScale
+{
+    WideRatio scale;
+    std::vector<UnitHop> definitions; // Canonical-unit-neutral; never label radians as millimetres.
 };
 [[noreturn]] void Capacity()
 {
@@ -184,10 +200,6 @@ ExactUnitRatio Evidence(const WideRatio& value)
 {
     return UnitRatioAccess::Make(value.numerator.str(), value.denominator.str());
 }
-WideRatio ReadEvidence(const ExactUnitRatio& value)
-{
-    return { Integer(std::string(value.Numerator())), Integer(std::string(value.Denominator())) };
-}
 Fraction NativeRatio(const WideRatio& value)
 {
     const Integer maximum = std::numeric_limits<std::int64_t>::max();
@@ -202,10 +214,11 @@ Fraction NativeRatio(const WideRatio& value)
     return Failure{ status, key, message, record, "GeneralBrep" };
 }
 } // namespace
-static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
+static Result<ResolvedPhysicalScale> ResolvePhysicalScale(
     const step_semantics::SourceBindings& source,
     const step_semantics::Units& units,
     std::size_t root,
+    PhysicalQuantity quantity,
     const ExecutionCheckpoint& boundary
 )
 {
@@ -230,9 +243,9 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
         si[definition.recordIndex] = &definition;
     }
     std::vector<unsigned char> active(count);
-    std::vector<ConversionUnitDefinition> path;
+    std::vector<UnitHop> path;
     auto unit = root;
-    ResolvedLengthScale result;
+    ResolvedPhysicalScale result;
     WideRatio scale;
     try
     {
@@ -251,11 +264,15 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
             }
             if (const auto terminal = si[unit])
             {
-                if (terminal->quantity != "Length" || terminal->siName != "METRE")
+                const bool length = quantity == PhysicalQuantity::Length;
+                if (terminal->quantity != (length ? "Length" : "PlaneAngle") || terminal->siName != (length ? "METRE" : "RADIAN"))
                 {
-                    return tl::unexpected(
-                        Refuse(Status::Unsupported, "GeneralConversionQuantityUnsupported", unit, "Length scale requires a nominal SI length root")
-                    );
+                    return tl::unexpected(Refuse(
+                        Status::Unsupported,
+                        "GeneralConversionQuantityUnsupported",
+                        unit,
+                        length ? "Length scale requires a nominal SI length root" : "Angle scale requires a nominal SI plane-angle root"
+                    ));
                 }
                 auto decoded = Decimal("1E" + std::to_string(terminal->canonicalPower10), boundary);
                 if (!decoded)
@@ -265,13 +282,15 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
                 scale = std::move(*decoded);
                 break;
             }
-            if (!source.IsA(unit, "LENGTH_UNIT") || !source.IsA(unit, "CONVERSION_BASED_UNIT"))
+            if (!source.IsA(unit, quantity == PhysicalQuantity::Length ? "LENGTH_UNIT" : "PLANE_ANGLE_UNIT") ||
+                !source.IsA(unit, "CONVERSION_BASED_UNIT"))
             {
                 return tl::unexpected(Refuse(
                     Status::Unsupported,
                     "GeneralConversionBasisUnsupported",
                     unit,
-                    "Only nominal conversion length units ending at SI METRE are supported"
+                    quantity == PhysicalQuantity::Length ? "Only nominal conversion length units ending at SI METRE are supported" :
+                                                           "Only nominal conversion plane-angle units ending at SI RADIAN are supported"
                 ));
             }
             active[unit] = 1;
@@ -284,7 +303,7 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
             const auto base = source.Field(factor, "unit_component").ReferenceTarget();
             // Source WHERE/dimensional checks were already run. This is the
             // additional project prerequisite for a positive, reversible
-            // physical length scale, not an invented AP214 positivity clause.
+            // physical scale, not an invented AP214 positivity clause.
             Expects(value.kind == step_source::ValueKind::Typed && value.children.size() == 1);
             auto numeric = Decimal(value.children.front().text, boundary);
             if (!numeric)
@@ -297,7 +316,7 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
                     Refuse(Status::Unsupported, "GeneralUnitScaleNotPositive", factor, "Every physical conversion factor must be positive")
                 );
             }
-            path.push_back({ unit, factor, base, value.text, Evidence(*numeric), {} });
+            path.push_back({ unit, factor, base, value.text, std::move(*numeric), {} });
             unit = base;
         }
         while (!path.empty())
@@ -309,20 +328,19 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
             auto definition = std::move(path.back());
             path.pop_back();
             unit = definition.unit;
-            auto multiplied = Multiply(ReadEvidence(definition.factorValue), scale, boundary);
+            auto multiplied = Multiply(definition.value, scale, boundary);
             if (!multiplied)
             {
                 return tl::unexpected(std::move(multiplied.error()));
             }
             scale = std::move(*multiplied);
-            definition.scaleMm = Evidence(scale);
+            definition.canonicalScale = scale;
             result.definitions.push_back(std::move(definition));
         }
-        // Source factors and base-to-root observations may be wider than the
-        // native representation. Narrow only the final canonical mm ratio;
-        // no factor is rounded and no intermediate is applied to geometry.
+        // Factors and intermediate scales stay exact and canonical-unit-neutral.
+        // Length/angle consumers narrow the final ratio, not individual factors.
         unit = root;
-        result.scaleMm = NativeRatio(scale);
+        result.scale = std::move(scale);
     }
     catch (const std::overflow_error&)
     {
@@ -341,9 +359,46 @@ static Result<ResolvedLengthScale> ResolveLengthScaleImpl(
     }
     return result;
 }
+static Result<ResolvedLengthScale> LengthEvidence(Result<ResolvedPhysicalScale> resolved, std::size_t root, const ExecutionCheckpoint& boundary)
+{
+    if (!resolved)
+    {
+        return tl::unexpected(std::move(resolved.error()));
+    }
+    ResolvedLengthScale result;
+    try
+    {
+        result.scaleMm = NativeRatio(resolved->scale);
+        for (const auto& hop : resolved->definitions)
+        {
+            // Converting a long chain's bounded integers into owning evidence
+            // is work too. Keep it cancellable after shared scale resolution;
+            // cancellation must not wait for every remaining string allocation.
+            if (auto operation = boundary(); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            result.definitions.push_back({ hop.unit, hop.factor, hop.base, hop.tag, Evidence(hop.value), Evidence(hop.canonicalScale) });
+        }
+    }
+    catch (const std::overflow_error&)
+    {
+        return tl::unexpected(Refuse(
+            Status::Indeterminate,
+            "GeneralUnitScaleRange",
+            root,
+            "Exact conversion exceeds bounded unit arithmetic or final native ratio capacity"
+        ));
+    }
+    if (auto operation = boundary(); !operation)
+    {
+        return tl::unexpected(std::move(operation.error()));
+    }
+    return result;
+}
 Result<ResolvedLengthScale> ResolveLengthScale(const step_semantics::Snapshot& source, std::size_t root, const ExecutionCheckpoint& boundary)
 {
-    return ResolveLengthScaleImpl(source.Bindings(), source.UnitContext(), root, boundary);
+    return LengthEvidence(ResolvePhysicalScale(source.Bindings(), source.UnitContext(), root, PhysicalQuantity::Length, boundary), root, boundary);
 }
 Result<ResolvedLengthScale> ResolveLengthScale(const step_semantics::AssemblyInputs& inputs, std::size_t context, const ExecutionCheckpoint& boundary)
 {
@@ -354,10 +409,35 @@ Result<ResolvedLengthScale> ResolveLengthScale(const step_semantics::AssemblyInp
     }
     if (const auto* entry = inputs.FindContext(context))
     {
-        return ResolveLengthScaleImpl(inputs.SourceFields(), entry->units, entry->units.lengthUnit, boundary);
+        return LengthEvidence(
+            ResolvePhysicalScale(inputs.SourceFields(), entry->units, entry->units.lengthUnit, PhysicalQuantity::Length, boundary),
+            entry->units.lengthUnit,
+            boundary
+        );
     }
     return tl::unexpected(
         Refuse(Status::Unsupported, "AssemblyUnitContextUnestablished", context, "Context is not owned by the checked assembly input receipt")
     );
+}
+Result<Fraction> ResolvePlaneAngleScale(const step_semantics::Snapshot& source, std::size_t root, const ExecutionCheckpoint& boundary)
+{
+    auto resolved = ResolvePhysicalScale(source.Bindings(), source.UnitContext(), root, PhysicalQuantity::PlaneAngle, boundary);
+    if (!resolved)
+    {
+        return tl::unexpected(std::move(resolved.error()));
+    }
+    try
+    {
+        return NativeRatio(resolved->scale);
+    }
+    catch (const std::overflow_error&)
+    {
+        return tl::unexpected(Refuse(
+            Status::Indeterminate,
+            "GeneralUnitScaleRange",
+            root,
+            "Exact conversion exceeds bounded unit arithmetic or final native ratio capacity"
+        ));
+    }
 }
 } // namespace step_import::detail

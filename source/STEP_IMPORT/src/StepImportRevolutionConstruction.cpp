@@ -59,9 +59,13 @@ public:
             }
             axis = *direction;
         }
-        const auto angleToRadians = SourceSiAngleToRadians(m_source->UnitContext());
+        auto angleToRadians = AngleToRadians();
+        if (!angleToRadians)
+        {
+            return tl::unexpected(std::move(angleToRadians.error()));
+        }
         // ISO 10303-42 surface_of_revolution: numerical angular parameters use
-        // basis-surface plane-angle units. Reuse the qualified SI angle policy
+        // basis-surface plane-angle units. Reuse the qualified physical unit policy
         // of TrimmedConic; PCURVE's parameter context cannot supply that scale.
         if (!angleToRadians || !std::isfinite(*angleToRadians) || !(*angleToRadians > 0))
         {

@@ -93,7 +93,12 @@ public:
         std::optional<double> angleToRadians;
         if (entry.revolution)
         {
-            angleToRadians = SourceSiAngleToRadians(m_source->UnitContext());
+            auto resolvedAngle = AngleToRadians();
+            if (!resolvedAngle)
+            {
+                return tl::unexpected(std::move(resolvedAngle.error()));
+            }
+            angleToRadians = *resolvedAngle;
             if (!angleToRadians || !std::isfinite(*angleToRadians) || !(*angleToRadians > 0))
             {
                 return tl::unexpected(Fail("GeneralRevolutionAngleUnitUnestablished", geometry, Status::Unsupported));
@@ -280,7 +285,7 @@ public:
         if (entry.revolution)
         {
             mapping.sourceBasisGeometryId = Id(Ref(geometry, "swept_curve"));
-            mapping.equation += "; source revolution U in bound SI angle units -> native STEP degrees; native ordinary UV is rational";
+            mapping.equation += "; source revolution U in bound physical angle units -> native STEP degrees; native ordinary UV is rational";
             mapping.parameters.push_back({ "source_angle_to_native_degrees", { *angleToRadians * 180 / std::numbers::pi } });
         }
         m_report.parameterMappings.push_back(std::move(mapping));

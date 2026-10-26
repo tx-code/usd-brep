@@ -81,7 +81,11 @@ public:
         }
         if (cylinder || revolution)
         {
-            const auto angle = SourceSiAngleToRadians(m_source->UnitContext());
+            auto angle = AngleToRadians();
+            if (!angle)
+            {
+                return tl::unexpected(std::move(angle.error()));
+            }
             if (!angle || !std::isfinite(*angle) || !(*angle > 0))
             {
                 return tl::unexpected(Fail("GeneralPcurveAngleUnitUnestablished", basis, Status::Unsupported));

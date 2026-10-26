@@ -1180,17 +1180,23 @@ outer writer's output capacity; exhaustion publishes no partial report.
 `UnitInterpretation::VerifiedExplicitUnitDimensions` is a separate, explicit,
 default-off general interoperability policy for registered AP214 profiles. It
 handles references supplied in a derived `NAMED_UNIT.dimensions` slot only for
-supported SI units and conversion length units. Original values, references,
+supported SI units and conversion length/plane-angle units. Original values, references,
 spans and `DerivedSlotMarkerRequired` facts remain unchanged. It never changes
 that reference to `*` or grants another entity/signature/part root.
 
 The existing exact unit dependency graph must complete: seven explicit rational
 exponents equal SI-name/factor-derived dimensions, nominal quantity predicates
-still hold, and cycles/unsupported dependencies fail. Conversion length factors
+still hold, and cycles/unsupported dependencies fail. Conversion length/angle factors
 handled by this interpretation must be positive; native scale resolution retains
 its separate positive SI-rooted exact arithmetic and capacity checks. Complete
 part closure must establish ownership. This works for owned physical or attribute
 units without describing a physical exception as nongeometric metadata.
+For plane angles all seven factor-derived exponents are zero, but dimensionless
+status alone does not prove a native angle scale. That separate construction
+guard requires a chain of nominal plane-angle units ending at SI RADIAN; a
+length, solid-angle or other dimensionless unit is not substituted. Unit names
+do not establish conversion constants. The original decimal factor is retained,
+including a finite source approximation to a degree/radian ratio.
 
 `Snapshot::UnitDimensionAssumptions()` and `UnitInterpretationDiagnostics()` own
 the admitted unit/dimensions/factor identities and original errors (SI has no
