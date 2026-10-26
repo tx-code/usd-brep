@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Explicit assembly request and complete instance display transport."""
 from dataclasses import replace
+from .native_report import use_report
 import json
 import re
 
@@ -33,7 +34,7 @@ def validate_request(manifest, settings):
         raise ValueError('AssemblySourcePolicyMismatch')
 
 
-def read_assembly(directory, manifest, resolve):
+def read_assembly(directory, manifest, resolve, *, native_report=None, maximum_report_bytes=64 * 1024 * 1024):
     """Read every transformed display copy under one independently placed root.
 
     Definition geometry remains local in the core. The worker transforms private
@@ -64,15 +65,10 @@ def read_assembly(directory, manifest, resolve):
     if (not isinstance(manifest.get('source_sha256'), str)
             or not re.fullmatch('[0-9a-f]{64}', manifest['source_sha256'])):
         raise ValueError('InvalidAssemblySourceIdentity')
+    # The application passes its explicit report capacity. Standalone callers
+    # keep the historical 64 MiB bound unless they also select a capacity.
+    report = use_report(native_report, directory, resolve, maximum_report_bytes, prefix='AssemblyDisplay')
     report_path = resolve(directory, 'import-report.json')
-    # Explicit display-evidence capacity, independent of core import acceptance.
-    if report_path.stat().st_size > 64 * 1024 * 1024:
-        raise ValueError('AssemblyDisplayReportLimit')
-    with report_path.open('rb') as stream:
-        report_bytes = stream.read(64 * 1024 * 1024 + 1)
-    if len(report_bytes) > 64 * 1024 * 1024:
-        raise ValueError('AssemblyDisplayReportLimit')
-    report = json.loads(report_bytes.decode('utf-8'), object_pairs_hook=_object, parse_constant=_invalid_constant)
     if not isinstance(report, dict):
         raise ValueError('AssemblyCoreReceiptMismatch')
     core = report.get('assembly')

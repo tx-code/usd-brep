@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 """Explicit original/use-bound 3D priority, without another STEP interpretation."""
-import json
 import math
 from pathlib import Path
 import re
+from .native_report import use_report
 
 INTERPRETATION = 'ExplicitCurve3dPriority'
 FIELD = 'surface_curve_3d_interpretation'
@@ -72,19 +72,6 @@ def require_explicit_file(settings, filename, *, scan=False):
         raise ValueError('SurfaceCurve3dRequiresOneExplicitStepFile')
 
 
-def _object(pairs):
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError('DuplicateSurfaceCurve3dReportField')
-        result[key] = value
-    return result
-
-
-def _invalid_constant(value):
-    raise ValueError('InvalidSurfaceCurve3dReportNumber')
-
-
 def _finite(value):
     if type(value) not in (str, int, float):
         raise ValueError('InvalidSurfaceCurve3dReportNumber')
@@ -127,17 +114,9 @@ def _budgets(receipt, report, profile):
             raise ValueError('SurfaceCurve3dQualityMismatch')
 
 
-def _read_report(directory, settings, resolve):
-    report_path = resolve(directory, 'import-report.json')
+def _read_report(directory, settings, resolve, shared=None):
     budget = max(32, settings.report_budget_mib) * 1024 * 1024
-    if report_path.stat().st_size > budget:
-        raise ValueError('SurfaceCurve3dReportLimit')
-    with report_path.open('rb') as stream:
-        payload = stream.read(budget + 1)
-    if len(payload) > budget:
-        raise ValueError('SurfaceCurve3dReportLimit')
-    return json.loads(payload.decode('utf-8'), object_pairs_hook=_object, parse_constant=_invalid_constant,
-                      parse_float=_finite)
+    return use_report(shared, directory, resolve, budget, prefix='SurfaceCurve3d')
 
 
 def observe_failure_receipt(directory, scene, settings, resolve):
@@ -158,7 +137,7 @@ def observe_failure_receipt(directory, scene, settings, resolve):
     return dict(publication='Unpublished', native_report_status=report['status'], receipt=report[FIELD])
 
 
-def validate_receipt(directory, scene, settings, resolve):
+def validate_receipt(directory, scene, settings, resolve, *, native_report=None):
     """Own the complete native receipt before decoding any display geometry.
 
     The 64 KiB scene carries a small marker only. Plans, original conflicts and
@@ -187,7 +166,7 @@ def validate_receipt(directory, scene, settings, resolve):
             or not quality_id or marker.get('quality_id') != quality_id
             or marker.get('report') != 'import-report.json'):
         raise ValueError('SurfaceCurve3dReceiptMismatch')
-    report = _read_report(directory, settings, resolve)
+    report = _read_report(directory, settings, resolve, native_report)
     if (not isinstance(report, dict)
             or report.get('format_version') not in {'step-general-native-development.v1',
                 'step-material-collection-development.v1', 'step-product-document-development.v1',

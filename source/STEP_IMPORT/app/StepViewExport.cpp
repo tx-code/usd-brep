@@ -335,366 +335,389 @@ void Publish(
 )
 {
     std::string json;
-    Good(
-        Writer::Publish(
-            65536,
-            json,
-            [&](Writer& w)
+    const auto emitScene = [&](Writer& w)
+    {
+        w.Add(
+            wireframeInstances      ? "{\"format\":\"brep-view-scene.v7\",\"status\":" :
+            assemblyRequest.enabled ? "{\"format\":\"brep-view-scene.v6\",\"status\":" :
+            definitionCount         ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
+            bodyScenes              ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
+            info                    ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
+                                      "{\"format\":\"brep-view-scene.v1\",\"status\":"
+        );
+        w.String(status);
+        SurfaceCurve3dMarker(w, report);
+        if (info && profile == "fine-work-tolerance-study")
+        {
+            // A ready scene binds this explicit study to the profile
+            // actually selected for the core call. Default payloads
+            // retain their existing bytes and need no new receipt.
+            w.Add(",\"quality_id\":\"Q-AP214-fine-work-tolerance-study-mm-01\"");
+        }
+        if (assemblyRequest.enabled)
+        {
+            if (wireframeInstances)
             {
-                w.Add(
-                    wireframeInstances      ? "{\"format\":\"brep-view-scene.v7\",\"status\":" :
-                    assemblyRequest.enabled ? "{\"format\":\"brep-view-scene.v6\",\"status\":" :
-                    definitionCount         ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
-                    bodyScenes              ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
-                    info                    ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
-                                              "{\"format\":\"brep-view-scene.v1\",\"status\":"
-                );
-                w.String(status);
-                SurfaceCurve3dMarker(w, report);
-                if (info && profile == "fine-work-tolerance-study")
-                {
-                    // A ready scene binds this explicit study to the profile
-                    // actually selected for the core call. Default payloads
-                    // retain their existing bytes and need no new receipt.
-                    w.Add(",\"quality_id\":\"Q-AP214-fine-work-tolerance-study-mm-01\"");
-                }
-                if (assemblyRequest.enabled)
-                {
-                    if (wireframeInstances)
-                    {
-                        w.Add(",\"wireframe_required\":true,\"wireframe\":\"wireframes.json\",\"wireframe_instance_count\":");
-                        w.Number(wireframeInstances);
-                    }
-                    w.Add(",\"requested_unreferenced_placement_policy\":");
-                    w.String(
-                        assemblyRequest.placements == step_semantics::UnreferencedPlacementPolicy::RetainDisconnected ? "RetainDisconnected" :
-                                                                                                                        "Reject"
-                    );
-                    if (assembly)
-                    {
-                        w.Add(",\"coordinate_scope\":\"AssemblyRoot\",\"root_count\":1,\"instance_count\":");
-                        w.Number(assembly->InstanceCount());
-                        w.Add(",\"definition_count\":");
-                        w.Number(assembly->DefinitionCount());
-                        w.Add(",\"retained_source_record_count\":");
-                        w.Number(assembly->Source()->RetainedPlacements() ? assembly->Source()->RetainedPlacements()->records.size() : 0);
-                        w.Add(",\"instances\":[");
-                        for (std::size_t i = 0; i < assembly->InstanceCount(); ++i)
-                        {
-                            if (i)
-                            {
-                                w.Add(",");
-                            }
-                            const auto node = assembly->Instance(i);
-                            w.Add("{\"index\":");
-                            w.Number(i);
-                            w.Add(",\"definition\":");
-                            w.Number(node.definitionIndex);
-                            w.Add(",\"source_definition_id\":");
-                            w.String(assembly->SourceDefinitionId(node.definitionIndex));
-                            w.Add(",\"body_count\":");
-                            w.Number(assembly->BodyCount(node.definitionIndex));
-                            w.Add(",\"role\":");
-                            w.String(assembly->DefinitionRole(node.definitionIndex));
-                            w.Add(",\"parent\":");
-                            if (node.parentIndex)
-                            {
-                                w.Number(*node.parentIndex);
-                            }
-                            else
-                            {
-                                w.Add("null");
-                            }
-                            w.Add(",\"usage\":");
-                            if (node.sourceUsageId)
-                            {
-                                w.String(*node.sourceUsageId);
-                            }
-                            else
-                            {
-                                w.Add("null");
-                            }
-                            w.Add("}");
-                        }
-                        w.Add("]");
-                    }
-                }
-
-                w.Add(",\"native_import_status\":");
-                w.String(nativeStatus);
-                if (report.definitionSelection && (info || nativeStatus == "AcceptedWithSourceIsolation"))
-                {
-                    const auto& selection = *report.definitionSelection;
-                    w.Add(",\"definition_selection\":{\"configuration\":");
-                    w.String(selection.configuration);
-                    w.Add(",\"source_sha256\":");
-                    w.String(selection.sourceSha256);
-                    w.Add(",\"source_definition_count\":");
-                    w.Number(selection.sourceDefinitionIds.size());
-                    w.Add(",\"selected_definitions\":[");
-                    for (std::size_t i = 0; i < selection.selectedDefinitionIds.size(); ++i)
-                    {
-                        if (i)
-                        {
-                            w.Add(",");
-                        }
-                        w.String(selection.selectedDefinitionIds[i]);
-                    }
-                    w.Add("],\"native_scope\":\"ExplicitSelectedDefinitions\"");
-                    if (report.sourceErrorIsolationRequest)
-                    {
-                        w.Add(",\"source_scope\":");
-                        w.String(selection.sourceScope);
-                        w.Add(",\"isolated_source_failure_count\":");
-                        w.Number(selection.isolatedSourceFailureCount);
-                        w.Add(",\"maximum_isolated_failures\":");
-                        w.Number(report.sourceErrorIsolationRequest->maximumFailures);
-                        w.Add(",\"maximum_influence_visits\":");
-                        w.Number(report.sourceErrorIsolationRequest->maximumInfluenceVisits);
-                        w.Add(",\"influence_visits\":");
-                        w.Number(report.generalSource->sourceInfluenceVisits);
-                    }
-                    w.Add("}");
-                }
-                if (info && nativeStatus == "AcceptedWithRepairs")
-                {
-                    const auto repair = RepairSummary(report);
-                    w.Add(",\"repair_applied\":true,\"repaired_face_count\":");
-                    w.Number(repair.first);
-                    w.Add(",\"repair_kind\":");
-                    w.String(
-                        report.cylindricalBandRepairRequest && report.cylindricalBandRepairRequest->circleVertices ?
-                            "CylindricalBandWithCircleVertices" :
-                        report.cylindricalBandRepairRequest ? "CylindricalBandRoles" :
-                                                              "FaceOrientation"
-                    );
-                    if (report.circleVertexBudget)
-                    {
-                        w.Add(",\"repaired_vertex_count\":");
-                        w.Number(report.circleVertexBudget->correctedVertices);
-                        const auto& request = *report.cylindricalBandRepairRequest->circleVertices;
-                        w.Add(",\"circle_vertex_repair\":{\"source_sha256\":");
-                        w.String(report.cylindricalBandRepairRequest->sourceSha256);
-                        w.Add(",\"maximum_vertices\":");
-                        w.Number(request.maximumVertices);
-                        const auto fraction = [&](step_import::Fraction value)
-                        {
-                            w.String(std::to_string(value.Numerator()) + "/" + std::to_string(value.Denominator()));
-                        };
-                        w.Add(",\"maximum_displacement_mm\":");
-                        fraction(request.maximumDisplacementMm);
-                        w.Add(",\"maximum_total_displacement_mm\":");
-                        fraction(request.maximumTotalDisplacementMm);
-                        w.Add(",\"request_complete\":");
-                        w.Bool(report.circleVertexBudget->requestComplete);
-                        w.Add(",\"vertices\":[");
-                        for (std::size_t i = 0; i < request.vertices.size(); ++i)
-                        {
-                            if (i)
-                            {
-                                w.Add(",");
-                            }
-                            const auto& edit = request.vertices[i];
-                            w.String(edit.definitionId + ":" + edit.shapeId + ":" + edit.vertexId + ":" + edit.circleId);
-                        }
-                        w.Add("]}");
-                    }
-                    w.Add(",\"source_interpretation_applied\":");
-                    w.Bool(repair.second);
-                }
-                w.Add(",\"requested_unit_interpretation\":");
-                w.String(unitInterpretation);
-                const auto sourceView = assembly             ? assembly->Source()->Definition(0) :
-                                        report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
-                                                                report.generalSource->document ? report.generalSource->document->Part(0) :
-                                                                                                 nullptr) :
-                                                               nullptr;
-                const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : step_semantics::UnitInterpretation::DeclaredOnly;
-                if (info && nativeStatus == "AcceptedWithSourceIsolation")
-                {
-                    w.Add(",\"source_interpretation_applied\":");
-                    w.Bool(
-                        sourceView && (sourceView->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
-                                       sourceView->Source().AppliedCarrierAssumption() || sourceView->Source().HasAsciiInvariantDataAssumption() ||
-                                       sourceView->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly ||
-                                       !sourceView->ComplexMappingAssumptions().empty())
-                    );
-                }
-                const auto requestedMapping = report.generalSource ? report.generalSource->requestedComplexMappingInterpretation :
-                                                                     step_semantics::ComplexMappingInterpretation::DeclaredOnly;
-                if (requestedMapping != step_semantics::ComplexMappingInterpretation::DeclaredOnly)
-                {
-                    const auto count = sourceView ? sourceView->ComplexMappingAssumptions().size() : 0;
-                    w.Add(",\"complex_mapping_interpretation\":{\"requested\":");
-                    w.String(step_semantics::ComplexMappingInterpretationName(requestedMapping));
-                    w.Add(",\"applied\":");
-                    w.String(count ? "RegisteredFacetNames" : "DeclaredOnly");
-                    w.Add(",\"records_interpreted\":");
-                    w.Number(count);
-                    w.Add("}");
-                }
-                w.Add(",\"applied_unit_interpretation\":");
-                w.String(step_semantics::UnitInterpretationName(appliedUnit));
-                w.Add(",\"import_report_encoding\":");
-                w.String(report.encoding == step_import::ReportEncoding::CompactV2 ? "CompactV2" : "ExpandedV1");
-                w.Add(",\"requested_schema_interpretation\":");
-                w.String(schema);
-                if (schema == "SourceBoundAp214As2010")
-                {
-                    w.Add(",\"applied_schema_interpretation\":");
-                    w.String(
-                        step_semantics::SchemaInterpretationName(
-                            sourceView          ? sourceView->AppliedInterpretation() :
-                            report.sourceSchema ? report.sourceSchema->appliedInterpretation.policy :
-                                                  step_semantics::SchemaInterpretation::DeclaredOnly
-                        )
-                    );
-                }
-                w.Add(",\"requested_carrier_interpretation\":");
-                w.String(carrier);
-                w.Add(",\"report_budget_mib\":");
-                w.Number(reportMiB);
-                if (report.numericalIntegration)
-                {
-                    // Copy actual core observations, including NotRun on
-                    // source failure. Never infer execution from the request.
-                    const auto& integration = *report.numericalIntegration;
-                    w.Add(",\"numerical_integration\":{\"requested_relative_accuracy\":");
-                    step_view::Scalar(w, integration.requestedRelativeAccuracy);
-                    w.Add(",\"applied_relative_accuracy\":");
-                    if (integration.appliedRelativeAccuracy)
-                    {
-                        step_view::Scalar(w, *integration.appliedRelativeAccuracy);
-                    }
-                    else
-                    {
-                        w.Add("null");
-                    }
-                    w.Add(",\"completed\":");
-                    w.Bool(integration.completed);
-                    w.Add(",\"continuous_error_bound_established\":false,\"control_scope\":\"DimensionlessNumericalStoppingOnly\"}");
-                }
-                w.Add(",\"preserve_opaque_file_name_text\":");
-                w.Bool(fileNameText);
-                w.Add(",\"assume_ascii_invariant_data\":");
-                w.Bool(asciiInvariant);
-                w.Add(",\"ascii_invariant_data_applied\":");
-                w.Bool(asciiApplied);
-                w.Add(",\"key\":");
-                w.String(key);
-                w.Add(",\"source_sha256\":");
-                w.String(report.sourceSha256);
-                w.Add(",\"triangles\":");
-                w.Number(triangles);
-                w.Add(",\"points\":");
-                w.Number(points);
-                if (info)
-                {
-                    // v3 always declares whether the associated payload is
-                    // required. Losing its path cannot become a body-only scene.
-                    w.Add(",\"auxiliary_required\":");
-                    w.Bool(auxiliary);
-                    if (auxiliary)
-                    {
-                        w.Add(",\"auxiliary\":\"auxiliary.json\"");
-                    }
-                    w.Add(",\"role\":");
-                    w.String(info->shapeRole);
-                    w.Add(",\"faces\":");
-                    w.Number(info->faces);
-                    w.Add(",\"edges\":");
-                    w.Number(info->edges);
-                    w.Add(",\"vertices\":");
-                    w.Number(info->vertices);
-                    w.Add(",\"units\":\"mm\"");
-                    if (!bodyScenes)
-                    {
-                        w.Add(",\"mesh\":\"mesh.vtk\",\"boundary\":\"edges.vtk\"");
-                    }
-                    else
-                    {
-                        if (definitionCount && !assemblyRequest.enabled)
-                        {
-                            // These are inventory totals, not assembled-space
-                            // metrics. Source definitions have separate frames.
-                            w.Add(",\"coordinate_scope\":\"DefinitionLocal\",\"definition_count\":");
-                            w.Number(definitionCount);
-                        }
-                        w.Add(",\"body_count\":");
-                        w.Number(bodyScenes->size());
-                        w.Add(",\"body_scenes\":[");
-                        for (std::size_t i = 0; i < bodyScenes->size(); ++i)
-                        {
-                            if (i)
-                            {
-                                w.Add(",");
-                            }
-                            const auto& body = (*bodyScenes)[i];
-                            w.Add("{\"ordinal\":");
-                            w.Number(i);
-                            w.Add(",\"source_shape_id\":");
-                            w.String(body.sourceShapeId);
-                            if (definitionCount)
-                            {
-                                w.Add(",\"definition\":");
-                                w.Number(body.definition);
-                                w.Add(",\"source_definition_id\":");
-                                w.String(body.sourceDefinitionId);
-                            }
-                            if (assemblyRequest.enabled)
-                            {
-                                w.Add(",\"instance\":");
-                                w.Number(body.instance);
-                                w.Add(",\"definition_body\":");
-                                w.Number(body.definitionBody);
-                            }
-                            w.Add(",\"role\":");
-                            w.String(body.info.shapeRole);
-                            w.Add(",\"format\":\"brep-view-scene.v3\",\"units\":\"mm\",\"auxiliary_required\":false,\"mesh\":");
-                            w.String(body.directory + "/mesh.vtk");
-                            w.Add(",\"boundary\":");
-                            w.String(body.directory + "/edges.vtk");
-                            w.Add(",\"topology\":");
-                            w.String(body.directory + "/topology.json");
-                            w.Add(",\"faces\":");
-                            w.Number(body.info.faces);
-                            w.Add(",\"edges\":");
-                            w.Number(body.info.edges);
-                            w.Add(",\"vertices\":");
-                            w.Number(body.info.vertices);
-                            w.Add(",\"triangles\":");
-                            w.Number(body.triangles);
-                            w.Add(",\"points\":");
-                            w.Number(body.points);
-                            w.Add("}");
-                        }
-                        w.Add("]");
-                    }
-                }
-                w.Add(",\"diagnostics\":[");
-                for (std::size_t i = 0; i < report.diagnostics.size() && i < 5; ++i)
+                w.Add(",\"wireframe_required\":true,\"wireframe\":\"wireframes.json\",\"wireframe_instance_count\":");
+                w.Number(wireframeInstances);
+            }
+            w.Add(",\"requested_unreferenced_placement_policy\":");
+            w.String(assemblyRequest.placements == step_semantics::UnreferencedPlacementPolicy::RetainDisconnected ? "RetainDisconnected" : "Reject");
+            if (assembly)
+            {
+                w.Add(",\"coordinate_scope\":\"AssemblyRoot\",\"root_count\":1,\"instance_count\":");
+                w.Number(assembly->InstanceCount());
+                w.Add(",\"definition_count\":");
+                w.Number(assembly->DefinitionCount());
+                w.Add(",\"retained_source_record_count\":");
+                w.Number(assembly->Source()->RetainedPlacements() ? assembly->Source()->RetainedPlacements()->records.size() : 0);
+                w.Add(",\"instances\":[");
+                for (std::size_t i = 0; i < assembly->InstanceCount(); ++i)
                 {
                     if (i)
                     {
                         w.Add(",");
                     }
-                    w.Add("{\"key\":");
-                    w.String(report.diagnostics[i].source.key);
-                    if (report.diagnostics[i].classification == "NativeFaceLoopOrientationFailure" ||
-                        report.diagnostics[i].classification == "NativePeriodicSourceVertexNearMiss")
+                    const auto node = assembly->Instance(i);
+                    w.Add("{\"index\":");
+                    w.Number(i);
+                    w.Add(",\"definition\":");
+                    w.Number(node.definitionIndex);
+                    w.Add(",\"source_definition_id\":");
+                    w.String(assembly->SourceDefinitionId(node.definitionIndex));
+                    w.Add(",\"body_count\":");
+                    w.Number(assembly->BodyCount(node.definitionIndex));
+                    w.Add(",\"role\":");
+                    w.String(assembly->DefinitionRole(node.definitionIndex));
+                    w.Add(",\"parent\":");
+                    if (node.parentIndex)
                     {
-                        w.Add(",\"classification\":");
-                        w.String(report.diagnostics[i].classification);
+                        w.Number(*node.parentIndex);
                     }
-                    w.Add(",\"message\":");
-                    w.String(report.diagnostics[i].source.message);
+                    else
+                    {
+                        w.Add("null");
+                    }
+                    w.Add(",\"usage\":");
+                    if (node.sourceUsageId)
+                    {
+                        w.String(*node.sourceUsageId);
+                    }
+                    else
+                    {
+                        w.Add("null");
+                    }
                     w.Add("}");
+                }
+                w.Add("]");
+            }
+        }
+
+        w.Add(",\"native_import_status\":");
+        w.String(nativeStatus);
+        if (report.definitionSelection && (info || nativeStatus == "AcceptedWithSourceIsolation"))
+        {
+            const auto& selection = *report.definitionSelection;
+            w.Add(",\"definition_selection\":{\"configuration\":");
+            w.String(selection.configuration);
+            w.Add(",\"source_sha256\":");
+            w.String(selection.sourceSha256);
+            w.Add(",\"source_definition_count\":");
+            w.Number(selection.sourceDefinitionIds.size());
+            w.Add(",\"selected_definitions\":[");
+            for (std::size_t i = 0; i < selection.selectedDefinitionIds.size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                w.String(selection.selectedDefinitionIds[i]);
+            }
+            w.Add("],\"native_scope\":\"ExplicitSelectedDefinitions\"");
+            if (report.sourceErrorIsolationRequest)
+            {
+                w.Add(",\"source_scope\":");
+                w.String(selection.sourceScope);
+                w.Add(",\"isolated_source_failure_count\":");
+                w.Number(selection.isolatedSourceFailureCount);
+                w.Add(",\"maximum_isolated_failures\":");
+                w.Number(report.sourceErrorIsolationRequest->maximumFailures);
+                w.Add(",\"maximum_influence_visits\":");
+                w.Number(report.sourceErrorIsolationRequest->maximumInfluenceVisits);
+                w.Add(",\"influence_visits\":");
+                w.Number(report.generalSource->sourceInfluenceVisits);
+            }
+            w.Add("}");
+        }
+        if (info && nativeStatus == "AcceptedWithRepairs")
+        {
+            const auto repair = RepairSummary(report);
+            w.Add(",\"repair_applied\":true,\"repaired_face_count\":");
+            w.Number(repair.first);
+            w.Add(",\"repair_kind\":");
+            w.String(
+                report.cylindricalBandRepairRequest && report.cylindricalBandRepairRequest->circleVertices ? "CylindricalBandWithCircleVertices" :
+                report.cylindricalBandRepairRequest                                                        ? "CylindricalBandRoles" :
+                                                                                                             "FaceOrientation"
+            );
+            if (report.circleVertexBudget)
+            {
+                w.Add(",\"repaired_vertex_count\":");
+                w.Number(report.circleVertexBudget->correctedVertices);
+                const auto& request = *report.cylindricalBandRepairRequest->circleVertices;
+                w.Add(",\"circle_vertex_repair\":{\"source_sha256\":");
+                w.String(report.cylindricalBandRepairRequest->sourceSha256);
+                w.Add(",\"maximum_vertices\":");
+                w.Number(request.maximumVertices);
+                const auto fraction = [&](step_import::Fraction value)
+                {
+                    w.String(std::to_string(value.Numerator()) + "/" + std::to_string(value.Denominator()));
+                };
+                w.Add(",\"maximum_displacement_mm\":");
+                fraction(request.maximumDisplacementMm);
+                w.Add(",\"maximum_total_displacement_mm\":");
+                fraction(request.maximumTotalDisplacementMm);
+                w.Add(",\"request_complete\":");
+                w.Bool(report.circleVertexBudget->requestComplete);
+                w.Add(",\"vertices\":[");
+                for (std::size_t i = 0; i < request.vertices.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& edit = request.vertices[i];
+                    w.String(edit.definitionId + ":" + edit.shapeId + ":" + edit.vertexId + ":" + edit.circleId);
                 }
                 w.Add("]}");
             }
-        ),
-        "SceneReportLimit"
-    );
+            w.Add(",\"source_interpretation_applied\":");
+            w.Bool(repair.second);
+        }
+        w.Add(",\"requested_unit_interpretation\":");
+        w.String(unitInterpretation);
+        const auto sourceView = assembly             ? assembly->Source()->Definition(0) :
+                                report.generalSource ? (report.generalSource->snapshot ? report.generalSource->snapshot :
+                                                        report.generalSource->document ? report.generalSource->document->Part(0) :
+                                                                                         nullptr) :
+                                                       nullptr;
+        const auto appliedUnit = sourceView ? sourceView->AppliedUnitInterpretation() : step_semantics::UnitInterpretation::DeclaredOnly;
+        if (info && nativeStatus == "AcceptedWithSourceIsolation")
+        {
+            w.Add(",\"source_interpretation_applied\":");
+            w.Bool(
+                sourceView && (sourceView->AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly ||
+                               sourceView->Source().AppliedCarrierAssumption() || sourceView->Source().HasAsciiInvariantDataAssumption() ||
+                               sourceView->AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly ||
+                               !sourceView->ComplexMappingAssumptions().empty())
+            );
+        }
+        const auto requestedMapping = report.generalSource ? report.generalSource->requestedComplexMappingInterpretation :
+                                                             step_semantics::ComplexMappingInterpretation::DeclaredOnly;
+        if (requestedMapping != step_semantics::ComplexMappingInterpretation::DeclaredOnly)
+        {
+            const auto count = sourceView ? sourceView->ComplexMappingAssumptions().size() : 0;
+            w.Add(",\"complex_mapping_interpretation\":{\"requested\":");
+            w.String(step_semantics::ComplexMappingInterpretationName(requestedMapping));
+            w.Add(",\"applied\":");
+            w.String(count ? "RegisteredFacetNames" : "DeclaredOnly");
+            w.Add(",\"records_interpreted\":");
+            w.Number(count);
+            w.Add("}");
+        }
+        w.Add(",\"applied_unit_interpretation\":");
+        w.String(step_semantics::UnitInterpretationName(appliedUnit));
+        w.Add(",\"import_report_encoding\":");
+        w.String(report.encoding == step_import::ReportEncoding::CompactV2 ? "CompactV2" : "ExpandedV1");
+        w.Add(",\"requested_schema_interpretation\":");
+        w.String(schema);
+        if (schema == "SourceBoundAp214As2010")
+        {
+            w.Add(",\"applied_schema_interpretation\":");
+            w.String(
+                step_semantics::SchemaInterpretationName(
+                    sourceView          ? sourceView->AppliedInterpretation() :
+                    report.sourceSchema ? report.sourceSchema->appliedInterpretation.policy :
+                                          step_semantics::SchemaInterpretation::DeclaredOnly
+                )
+            );
+        }
+        w.Add(",\"requested_carrier_interpretation\":");
+        w.String(carrier);
+        w.Add(",\"report_budget_mib\":");
+        w.Number(reportMiB);
+        if (report.numericalIntegration)
+        {
+            // Copy actual core observations, including NotRun on
+            // source failure. Never infer execution from the request.
+            const auto& integration = *report.numericalIntegration;
+            w.Add(",\"numerical_integration\":{\"requested_relative_accuracy\":");
+            step_view::Scalar(w, integration.requestedRelativeAccuracy);
+            w.Add(",\"applied_relative_accuracy\":");
+            if (integration.appliedRelativeAccuracy)
+            {
+                step_view::Scalar(w, *integration.appliedRelativeAccuracy);
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add(",\"completed\":");
+            w.Bool(integration.completed);
+            w.Add(",\"continuous_error_bound_established\":false,\"control_scope\":\"DimensionlessNumericalStoppingOnly\"}");
+        }
+        w.Add(",\"preserve_opaque_file_name_text\":");
+        w.Bool(fileNameText);
+        w.Add(",\"assume_ascii_invariant_data\":");
+        w.Bool(asciiInvariant);
+        w.Add(",\"ascii_invariant_data_applied\":");
+        w.Bool(asciiApplied);
+        w.Add(",\"key\":");
+        w.String(key);
+        w.Add(",\"source_sha256\":");
+        w.String(report.sourceSha256);
+        w.Add(",\"triangles\":");
+        w.Number(triangles);
+        w.Add(",\"points\":");
+        w.Number(points);
+        if (info)
+        {
+            // v3 always declares whether the associated payload is
+            // required. Losing its path cannot become a body-only scene.
+            w.Add(",\"auxiliary_required\":");
+            w.Bool(auxiliary);
+            if (auxiliary)
+            {
+                w.Add(",\"auxiliary\":\"auxiliary.json\"");
+            }
+            w.Add(",\"role\":");
+            w.String(info->shapeRole);
+            w.Add(",\"faces\":");
+            w.Number(info->faces);
+            w.Add(",\"edges\":");
+            w.Number(info->edges);
+            w.Add(",\"vertices\":");
+            w.Number(info->vertices);
+            w.Add(",\"units\":\"mm\"");
+            if (!bodyScenes)
+            {
+                w.Add(",\"mesh\":\"mesh.vtk\",\"boundary\":\"edges.vtk\"");
+            }
+            else
+            {
+                if (definitionCount && !assemblyRequest.enabled)
+                {
+                    // These are inventory totals, not assembled-space
+                    // metrics. Source definitions have separate frames.
+                    w.Add(",\"coordinate_scope\":\"DefinitionLocal\",\"definition_count\":");
+                    w.Number(definitionCount);
+                }
+                w.Add(",\"body_count\":");
+                w.Number(bodyScenes->size());
+                w.Add(",\"body_scenes\":[");
+                for (std::size_t i = 0; i < bodyScenes->size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& body = (*bodyScenes)[i];
+                    w.Add("{\"ordinal\":");
+                    w.Number(i);
+                    w.Add(",\"source_shape_id\":");
+                    w.String(body.sourceShapeId);
+                    if (definitionCount)
+                    {
+                        w.Add(",\"definition\":");
+                        w.Number(body.definition);
+                        w.Add(",\"source_definition_id\":");
+                        w.String(body.sourceDefinitionId);
+                    }
+                    if (assemblyRequest.enabled)
+                    {
+                        w.Add(",\"instance\":");
+                        w.Number(body.instance);
+                        w.Add(",\"definition_body\":");
+                        w.Number(body.definitionBody);
+                    }
+                    w.Add(",\"role\":");
+                    w.String(body.info.shapeRole);
+                    w.Add(",\"format\":\"brep-view-scene.v3\",\"units\":\"mm\",\"auxiliary_required\":false,\"mesh\":");
+                    w.String(body.directory + "/mesh.vtk");
+                    w.Add(",\"boundary\":");
+                    w.String(body.directory + "/edges.vtk");
+                    w.Add(",\"topology\":");
+                    w.String(body.directory + "/topology.json");
+                    w.Add(",\"faces\":");
+                    w.Number(body.info.faces);
+                    w.Add(",\"edges\":");
+                    w.Number(body.info.edges);
+                    w.Add(",\"vertices\":");
+                    w.Number(body.info.vertices);
+                    w.Add(",\"triangles\":");
+                    w.Number(body.triangles);
+                    w.Add(",\"points\":");
+                    w.Number(body.points);
+                    w.Add("}");
+                }
+                w.Add("]");
+            }
+        }
+        w.Add(",\"diagnostics\":[");
+        for (std::size_t i = 0; i < report.diagnostics.size() && i < 5; ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            w.Add("{\"key\":");
+            w.String(report.diagnostics[i].source.key);
+            if (report.diagnostics[i].classification == "NativeFaceLoopOrientationFailure" ||
+                report.diagnostics[i].classification == "NativePeriodicSourceVertexNearMiss")
+            {
+                w.Add(",\"classification\":");
+                w.String(report.diagnostics[i].classification);
+            }
+            w.Add(",\"message\":");
+            w.String(report.diagnostics[i].source.message);
+            w.Add("}");
+        }
+        w.Add("]}");
+    };
+    if (!Writer::Publish(65536, json, emitScene))
+    {
+        // This is descriptor encoding, not a repeated import or a larger root
+        // manifest. Every instance/body row remains in one bounded descriptor
+        // and must pass the existing complete-scene checks before adoption.
+        Good(assemblyRequest.enabled, "SceneReportLimit");
+        Good(Writer::Publish(32 * 1024 * 1024, json, emitScene), "SceneReportLimit");
+        const auto metadataBytes = json.size();
+        std::ofstream metadata(output / "scene-metadata.json", std::ios::binary);
+        metadata << json;
+        metadata.close();
+        Good(bool(metadata), "SceneMetadataWriteFailed");
+        Good(
+            Writer::Publish(
+                65536,
+                json,
+                [&](Writer& w)
+                {
+                    w.Add("{\"format\":\"brep-view-scene.v8\",\"status\":");
+                    w.String(status);
+                    w.Add(",\"native_import_status\":");
+                    w.String(nativeStatus);
+                    w.Add(",\"source_sha256\":");
+                    w.String(report.sourceSha256);
+                    w.Add(",\"metadata\":\"scene-metadata.json\",\"metadata_format\":");
+                    w.String(wireframeInstances ? "brep-view-scene.v7" : "brep-view-scene.v6");
+                    w.Add(",\"metadata_bytes\":");
+                    w.Number(metadataBytes);
+                    w.Add("}");
+                }
+            ),
+            "SceneReportLimit"
+        );
+    }
     std::ofstream file(output / "scene.json.tmp", std::ios::binary);
     file << json;
     file.close();

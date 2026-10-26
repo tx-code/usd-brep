@@ -51,6 +51,20 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+Large assemblies keep the root `scene.json` within 64 KiB using a v8 transport
+envelope and one complete `scene-metadata.json` bounded to 32 MiB. The complete
+v6/v7 descriptor retains every instance/body row. The loader binds byte count,
+source identity, status and inner format, then runs the same assembly/topology
+checks before adopting any mesh. Missing, changed or incomplete metadata keeps
+the previous scene. Small/default scenes retain their existing inline payloads;
+older viewers reject the new envelope rather than silently omitting instances.
+
+The source-priority and assembly checks share one request-local owning parse of
+the mandatory native report. The application's explicitly chosen report capacity
+also governs assembly verification; independent direct-reader calls retain
+their existing 64 MiB default. Display-layer errors are retained in the local
+result separately from native import status.
+
 Native tessellation can return a regular single-loop polygon among its triangles.
 The display worker triangulates those cells with the existing native polygon
 routine before writing VTK. It preflights the complete projected triangle count

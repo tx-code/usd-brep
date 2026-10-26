@@ -24,6 +24,8 @@ from .surface_curve import arguments as surface_curve_arguments, require_explici
 from .surface_curve import validate_receipt as validate_surface_curve_receipt
 from .surface_curve import observe_failure_receipt as observe_surface_curve_failure
 from .execution import arguments as execution_arguments, validate_receipt as validate_execution_receipt
+from .scene_manifest import expand_scene
+from .native_report import read_report
 
 CAD_EXTENSIONS = frozenset({".step", ".stp"})
 MESH_EXTENSIONS = frozenset({".stl", ".obj", ".ply", ".vtp", ".vtk"})
@@ -285,6 +287,7 @@ class SceneLoader(QtCore.QObject):
         job = self.jobs.get(generation)
         if not job:
             return
+        manifest_assigned = False
         try:
             # A cancelled/stale request may finish successfully. Its scene must
             # never replace a newer request, even if its manifest is complete.
@@ -304,6 +307,8 @@ class SceneLoader(QtCore.QObject):
             from .topology import _object, _invalid_constant
             manifest = json.loads(manifest_bytes.decode('utf-8'), object_pairs_hook=_object,
                                   parse_constant=_invalid_constant)
+            transport = manifest if isinstance(manifest, dict) and manifest.get('format') == 'brep-view-scene.v8' else None
+            manifest = expand_scene(directory, manifest, scene_file)
             if (not isinstance(manifest, dict)
                     or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3",
                                                       "brep-view-scene.v4", "brep-view-scene.v5", "brep-view-scene.v6",
@@ -312,6 +317,9 @@ class SceneLoader(QtCore.QObject):
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
             self.worker_result = {**manifest, "exit_code": code}
+            manifest_assigned = True
+            if transport is not None:
+                self.worker_result['scene_transport'] = transport
             resource_settings = job.get('settings', self.settings)
             if execution_arguments(resource_settings) or resource_settings.timeout_seconds != 120:
                 self.worker_result['worker_timeout_seconds'] = resource_settings.timeout_seconds
@@ -338,6 +346,8 @@ class SceneLoader(QtCore.QObject):
                 self.failed.emit(title, "\n".join([manifest.get("status", ""), manifest.get("key", ""), *messages]))
                 return
             validate_selection(manifest, self.settings)
+            native_report = None
+            report_capacity = max(32, resource_settings.report_budget_mib) * 1024 * 1024
             if job['path'].suffix.lower() in CAD_EXTENSIONS:
                 validate_source_identity_receipt(manifest, self.settings)
                 validate_integration_receipt(manifest, self.settings)
@@ -348,7 +358,10 @@ class SceneLoader(QtCore.QObject):
                 resources = validate_execution_receipt(directory, manifest, resource_settings, scene_file)
                 if resources is not None:
                     self.worker_result['execution_resources'] = resources
-                receipt = validate_surface_curve_receipt(directory, manifest, self.settings, scene_file)
+                if resource_settings.assembly or surface_curve_arguments(resource_settings):
+                    prefix = 'SurfaceCurve3d' if surface_curve_arguments(resource_settings) else 'AssemblyDisplay'
+                    native_report = read_report(directory, scene_file, report_capacity, prefix=prefix)
+                receipt = validate_surface_curve_receipt(directory, manifest, self.settings, scene_file, native_report=native_report)
                 if receipt is not None:
                     # Keep the complete native evidence as owning JSON values
                     # after the temporary worker report is released. The marker
@@ -358,7 +371,8 @@ class SceneLoader(QtCore.QObject):
             import pyvista as pv
             import numpy as np
             if manifest['format'] in {'brep-view-scene.v6', 'brep-view-scene.v7'}:
-                mesh, boundary, topology = read_assembly(directory, manifest, scene_file)
+                mesh, boundary, topology = read_assembly(directory, manifest, scene_file,
+                                                       native_report=native_report, maximum_report_bytes=report_capacity)
                 metadata = dict(manifest, _topology=topology)
                 self.worker_result['topology_inventory'] = dict(faces=len(topology.faces), edges=len(topology.edges),
                     vertices=len(topology.vertices), bodies=len(topology.bodies), instances=manifest['instance_count'],
@@ -432,6 +446,11 @@ class SceneLoader(QtCore.QObject):
             self.loaded.emit(str(job["path"]), mesh, boundary, metadata)
         except Exception as error:
             if generation == self.generation:
+                # Preserve the current layer's bounded diagnostic in CLI results
+                # too; do not confuse it with an old scene or a core rejection.
+                if not manifest_assigned:
+                    self.worker_result = {'exit_code': code}
+                self.worker_result['scene_adoption_error'] = str(error)[:4096]
                 self.failed.emit("显示数据载入失败", str(error))
         finally:
             self._dispose(generation)
