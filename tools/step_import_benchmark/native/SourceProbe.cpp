@@ -43,6 +43,10 @@ bench::Trial Run(const bench::Args& args)
     {
         {
             auto options = step_import::Options::PlanarFixture();
+            if (args.unitInterpretation == "VerifiedExplicitUnitDimensions")
+            {
+                options.unitInterpretation = step_semantics::UnitInterpretation::VerifiedExplicitUnitDimensions;
+            }
             if (args.schemaInterpretation == "UnregisteredAp214As2010")
             {
                 options.schemaInterpretation = step_semantics::SchemaInterpretation::UnregisteredAp214As2010;
@@ -166,6 +170,7 @@ bench::Trial Run(const bench::Args& args)
                 ",\"work_tolerance_mm\":" +
                 bench::N(double(options.quality.initialWorkToleranceMm.Numerator()) / double(options.quality.initialWorkToleranceMm.Denominator())) +
                 (args.integrationRelativeAccuracy ? ",\"integration_relative_accuracy\":" + bench::N(*args.integrationRelativeAccuracy) : "") +
+                (!args.unitInterpretation.empty() ? ",\"unit_interpretation\":" + bench::Q(args.unitInterpretation) : "") +
                 ",\"operation_scope\":\"public ImportFile including source validation, construction, postchecks, integrals, mandatory report and commit\"}";
             if (result.report.numericalIntegration)
             {
@@ -212,6 +217,23 @@ bench::Trial Run(const bench::Args& args)
                 if (applied)
                 {
                     row.extra += ",\"source_carrier_verified\":false";
+                }
+            }
+            if (!args.unitInterpretation.empty())
+            {
+                // Reuse source-owned evidence from the actual request. Merely
+                // selecting the policy is not proof that a declaration applied
+                // or became conforming; rejected/unused choices stay distinct.
+                const auto source = result.model                ? result.model->Source() :
+                                    result.report.generalSource ? result.report.generalSource->snapshot :
+                                                                  nullptr;
+                const auto applied = source ? source->AppliedUnitInterpretation() : step_semantics::UnitInterpretation::DeclaredOnly;
+                row.extra += ",\"requested_unit_interpretation\":" + bench::Q(args.unitInterpretation) +
+                             ",\"source_unit_interpretation\":" + bench::Q(step_semantics::UnitInterpretationName(applied)) +
+                             ",\"unit_interpretation_applied\":" + (applied == step_semantics::UnitInterpretation::DeclaredOnly ? "false" : "true");
+                if (applied != step_semantics::UnitInterpretation::DeclaredOnly)
+                {
+                    row.extra += ",\"source_unit_declaration_conforming\":false";
                 }
             }
             if (!args.headerNamePolicy.empty())

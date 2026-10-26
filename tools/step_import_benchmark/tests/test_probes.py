@@ -16,6 +16,43 @@ HOLES = REPO / "source/STEP_IMPORT/tests/fixtures/perforated_shared_sheet.step"
 
 
 class ProbeTests(unittest.TestCase):
+    def test_verified_unit_policy_measures_the_actual_interpreted_import(self):
+        from tools.step_import_native_validation.tests.test_verified_unit_dimensions import explicit_dimensions
+
+        with tempfile.TemporaryDirectory(prefix='public-verified-unit-probe-') as directory:
+            source = Path(directory) / 'source.step'
+            original = explicit_dimensions()
+            source.write_bytes(original)
+            flags = ('--quality', 'Q-AP214-development-mm-01', '--source-policy', 'PreserveNonGeometric')
+            (strict,) = self.invoke('native', 'import', source, *flags)['trials']
+            self.assertFalse(strict['has_model'])
+            self.assertNotIn('unit_interpretation', strict['settings'])
+            (trial,) = self.invoke('native', 'import', source, *flags, '--unit-interpretation',
+                                   'VerifiedExplicitUnitDimensions')['trials']
+            self.assertEqual('AcceptedUnderInterpretation', trial['status'])
+            self.assertTrue(trial['has_model'])
+            self.assertEqual('VerifiedExplicitUnitDimensions', trial['settings']['unit_interpretation'])
+            self.assertEqual('VerifiedExplicitUnitDimensions', trial['source_unit_interpretation'])
+            self.assertTrue(trial['unit_interpretation_applied'])
+            self.assertFalse(trial['source_unit_declaration_conforming'])
+            self.assertAlmostEqual(6000 * 25.4**3, trial['model']['volume_mm3'], delta=0.01)
+            self.assertEqual(original, source.read_bytes())
+
+            source.write_bytes(explicit_dimensions(exponents=b'0.,0.,0.,0.,0.,0.,0.'))
+            (bad,) = self.invoke('native', 'import', source, *flags, '--unit-interpretation',
+                                 'VerifiedExplicitUnitDimensions')['trials']
+            self.assertFalse(bad['has_model'])
+            self.assertFalse(bad['unit_interpretation_applied'])
+
+    def test_unused_unit_policy_does_not_label_a_valid_box_interpreted(self):
+        flags = ('--quality', 'Q-AP214-development-mm-01', '--source-policy', 'PreserveNonGeometric')
+        (trial,) = self.invoke('native', 'import', BOX, *flags, '--unit-interpretation',
+                               'VerifiedExplicitUnitDimensions')['trials']
+        self.assertEqual('Accepted', trial['status'])
+        self.assertEqual('DeclaredOnly', trial['source_unit_interpretation'])
+        self.assertFalse(trial['unit_interpretation_applied'])
+        self.assertNotIn('source_unit_declaration_conforming', trial)
+
     def test_explicit_fine_work_profile_retains_native_budget_evidence(self):
         from tools.step_import_native_validation.tests.test_fine_work_quality import FINE, thin_box_source
 
@@ -314,6 +351,11 @@ class ProbeTests(unittest.TestCase):
                 ("source", "source", ["--carrier-interpretation", "Level1AsCorrectedEncodingWithLowercaseHex"]),
                 ("occt", "transfer", ["--carrier-interpretation", "Level1AsCorrectedEncodingWithLowercaseHex"]),
                 ("native", "import", ["--carrier-interpretation", "Level1AsCorrectedEncodingWithLowercaseHex"]),
+                ("source", "source", ["--unit-interpretation", "DeclaredOnly"]),
+                ("occt", "transfer", ["--unit-interpretation", "VerifiedExplicitUnitDimensions"]),
+                ("native", "import", ["--unit-interpretation", "unknown"]),
+                ("native", "import", ["--unit-interpretation", "VerifiedExplicitUnitDimensions"]),
+                ("native", "import", ["--unit-interpretation", "VerifiedExplicitUnitDimensions", "--quality", "Q-AP214-development-mm-01"]),
             ]:
                 with self.subTest(engine=engine, flags=flags):
                     output = Path(directory) / (engine + ".json")

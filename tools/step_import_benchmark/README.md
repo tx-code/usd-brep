@@ -1,5 +1,12 @@
 # STEP 模型库画像与测量工具
 
+原生 import 探针可显式传 `--unit-interpretation VerifiedExplicitUnitDimensions`，
+与通用质量及 `PreserveNonGeometric` 同时使用，复用导入器的现有量纲验证策略。
+`settings.unit_interpretation` 记录选择；实际源解释、是否应用和非标准声明资格另行记录。
+未采用的选择不把普通成功改为解释通过，错误量纲仍拒绝。源扫描、OCCT 和错误参数组合
+在输入预算跳过前拒绝该原生专用选项。性能结果须按实际单位策略及资格分组；
+这不是新的单位修复、默认值或与 OCCT 相同工作量的声明。
+
 原生 import 探针可显式传 `--integration-relative-accuracy 1e-6`，配合通用质量配置。
 仅接受有限的 `[1e-8,1e-4]`，其他引擎／模式及 P0 在输入预算跳过前拒绝该选项。
 实际请求进入 trial 的 `settings.integration_relative_accuracy`，执行观察进入
