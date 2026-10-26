@@ -766,6 +766,161 @@ void FragmentedCircularRings(const std::string& original, const std::filesystem:
         Require(stopped.status == Status::Cancelled && !stopped.model, "cancelled fragmented-ring candidates never publish partially");
     }
 }
+void MixedCylinderBoundary(const std::filesystem::path& fixture, const std::filesystem::path& file, bool spline)
+{
+    std::ifstream input(fixture, std::ios::binary);
+    Require(bool(input), "public mixed-cylinder fixture opens");
+    std::string text{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
+    if (spline)
+    {
+        Replace(text, "#172=EDGE_CURVE('',#153,#154,#132,.T.)", "#172=EDGE_CURVE('',#153,#154,#300,.T.)");
+        Replace(text, "#132=CIRCLE('',#122,3.);\n", "");
+        text.insert(
+            text.rfind("ENDSEC;"),
+            "#301=CARTESIAN_POINT('',(-3.,-3.,9.));\n"
+            "#302=CARTESIAN_POINT('',(0.,-3.,9.));\n"
+            "#303=CARTESIAN_POINT('',(3.,-3.,9.));\n"
+            "#300=(BOUNDED_CURVE() B_SPLINE_CURVE(2,(#105,#301,#302,#303,#106),.UNSPECIFIED.,.F.,.F.) "
+            "B_SPLINE_CURVE_WITH_KNOTS((3,2,3),(0.,0.5,1.),.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() "
+            "RATIONAL_B_SPLINE_CURVE((1.,0.7071067811865475244,1.,0.7071067811865475244,1.)) "
+            "REPRESENTATION_ITEM('public retained spline'));\n"
+        );
+    }
+    auto result = ImportBytes(text, Config(text, false));
+    if (!result.model)
+    {
+        std::cerr << "public mixed-cylinder status: " << StatusName(result.status) << '\n';
+        for (const auto& diagnostic : result.report.diagnostics)
+        {
+            std::cerr << diagnostic.source.key << '\n';
+        }
+    }
+    Require(result.status == Status::Accepted && result.model, "mixed cylindrical boundary imports completely without repair");
+    const auto reportBytes = result.report.json.size();
+    auto model = result.model;
+    result = {};
+    const auto info = model->Info();
+    Require(info.faces == 5 && info.edges == 9 && info.vertices == 6, "mixed cylindrical band retains all caps, step face and original boundaries");
+    // Two semicylinders have heights 7 and 9, radius 3. The exposed step is a
+    // 6-by-2 rectangle. These truths do not depend on another CAD reader.
+    Near(info.areaMm2, 66 * std::numbers::pi + 12, (66 * std::numbers::pi + 12) * 2e-4, "independent stepped-cylinder area");
+    Require(model->MaterialVolumeMm3().has_value(), "stepped cylinder remains a material solid");
+    Near(*model->MaterialVolumeMm3(), 72 * std::numbers::pi, 72 * std::numbers::pi * 2e-4, "independent stepped-cylinder volume");
+    Require(
+        model->ClassifyMaterial({ 0, -1, 8 }) == MaterialPointClass::Inside && model->ClassifyMaterial({ 0, 1, 8 }) == MaterialPointClass::Outside,
+        "stepped cylinder retains the source step feature"
+    );
+    Require(
+        model->Source()->Source().Bytes() == text && !model->CylindricalBandRepairs(),
+        "mixed boundary normalization preserves source bytes and None repair"
+    );
+    const auto origins = model->TopologyNormalization();
+    Require(
+        origins && origins->completed && origins->sourceCurveIntervalsCovered && origins->sourceVerticesPreserved,
+        "mixed boundary owns its complete normalization evidence"
+    );
+    Require(origins->sourceUseSegments.size() == 4, "one split semicircle remains shared by its cap and side uses");
+    for (const auto& use : origins->sourceUseSegments)
+    {
+        Require(use.sourceEdgeId == "171" && (use.sourceFaceId == "221" || use.sourceFaceId == "224"), "mixed source incidence is retained");
+    }
+    model->WriteNative(file);
+    SmContext context;
+    SmTArray<SmCurve*> curves;
+    SmTArray<SmSurface*> surfaces;
+    SmTArray<long> trees;
+    SmTArray<SmBrep*> bodies;
+    SmObjsDelete<SmCurve*> dc(&curves);
+    SmObjsDelete<SmSurface*> ds(&surfaces);
+    SmObjsDelete<SmBrep*> db(&bodies);
+    Require(
+        SmNativeArchive::ReadPartFromFile(context, file.c_str(), curves, surfaces, trees, bodies, SM_BINARY) == SM_SUCCESS && bodies.GetSize() == 1,
+        "complete mixed-cylinder native archive readback"
+    );
+    NativeValid(*bodies[0]);
+    auto copy = model->CopyBrepForModeling();
+    Require(copy.status == Status::Accepted && copy.model, "mixed cylindrical boundary has an independent modeling copy");
+    copy.model->Edit(
+        [&](SmBrep& native)
+        {
+            NativeValid(native);
+            CompareCompleteNative(native, *bodies[0]);
+            SmTArray<SmEdge*> edges;
+            native.GetEdges(edges);
+            SmCircle expected(SmPoint3d(0, 0, 7), SmVector3d(1, 0, 0), SmVector3d(0, 1, 0), SmExtent1d(0, 180), 3, 3, &context);
+            std::vector<Interval> coverage;
+            for (const auto edge : edges)
+            {
+                const auto circle = dynamic_cast<const SmCircle*>(edge->GetCurve());
+                if (circle && circle->GetPosition().GetOriginRef().z == 7)
+                {
+                    SameCompleteCurve(*circle, expected);
+                    const auto interval = edge->GetInterval();
+                    coverage.push_back({ interval.GetMin(), interval.GetMax() });
+                }
+            }
+            Require(coverage.size() == 2, "only the necessary original semicircle is subdivided");
+            Coverage(coverage, expected.GetNaturalInterval());
+            SmTArray<SmVertex*> vertices;
+            native.GetVertices(vertices);
+            for (const auto& p : { Point{ 0, 3, 0 }, Point{ 3, 0, 7 }, Point{ -3, 0, 7 }, Point{ -3, 0, 9 }, Point{ 3, 0, 9 } })
+            {
+                unsigned count = 0;
+                for (const auto vertex : vertices)
+                {
+                    const auto actual = vertex->GetPoint();
+                    count += actual.x == p[0] && actual.y == p[1] && actual.z == p[2];
+                }
+                Require(count == 1, "all mixed-cylinder source vertices retain their exact coordinates");
+            }
+        }
+    );
+    auto limited = Config(text, false);
+    limited.nativeLimits.reportBytes = reportBytes - 1;
+    const auto refused = ImportBytes(text, limited);
+    Require(refused.status == Status::ResourceLimit && !refused.model, "mixed-boundary evidence must fit before publication");
+    for (const std::size_t boundary : { 1U, 40U, 70U })
+    {
+        auto cancelled = Config(text, false);
+        cancelled.execution.control = std::make_shared<ImportControl>();
+        std::size_t seen = 0;
+        cancelled.execution.progress = [&](Progress progress)
+        {
+            if (progress.phase == Phase::BeforeNativeCall && ++seen == boundary)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        const auto stopped = ImportBytes(text, cancelled);
+        Require(stopped.status == Status::Cancelled && !stopped.model, "partial mixed-cylinder surveys release all unpublished candidates");
+    }
+    auto offSurface = text;
+    Replace(offSurface, "#140=CYLINDRICAL_SURFACE('',#120,3.)", "#140=CYLINDRICAL_SURFACE('',#120,3.1)");
+    const auto rejected = ImportBytes(offSurface, Config(offSurface, false));
+    Require(!rejected.model, "meridian planning cannot accept an off-surface source boundary");
+    if (!spline)
+    {
+        auto surface = text;
+        Replace(surface, "#20=ADVANCED_BREP_SHAPE_REPRESENTATION", "#20=MANIFOLD_SURFACE_SHAPE_REPRESENTATION");
+        Replace(surface, "#21=MANIFOLD_SOLID_BREP('',#22);", "#21=SHELL_BASED_SURFACE_MODEL('',(#22));");
+        const auto imported = ImportBytes(surface, Config(surface, false));
+        Require(
+            imported.status == Status::Accepted && imported.model && imported.report.nativeRole && imported.report.nativeRole->materialRegions == 0 &&
+                imported.report.nativeRole->boundedVoidRegions == 1,
+            "identical closed surface geometry retains its void role"
+        );
+        Require(
+            !imported.model->MaterialVolumeMm3() && !imported.model->ClassifyMaterial({ 0, -1, 8 }),
+            "new seam planning never grants material queries to a surface model"
+        );
+        Near(
+            imported.model->Info().areaMm2,
+            66 * std::numbers::pi + 12,
+            (66 * std::numbers::pi + 12) * 2e-4,
+            "surface-model area retains the independent geometric truth"
+        );
+    }
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -778,6 +933,12 @@ int main(int argc, char** argv)
         const std::string original{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
         const std::filesystem::path output(argv[2]);
         std::filesystem::create_directories(output);
+        MixedCylinderBoundary(std::filesystem::path(argv[1]).parent_path() / "mixed_cylindrical_band.step", output / "mixed-cylinder.smb", false);
+        MixedCylinderBoundary(
+            std::filesystem::path(argv[1]).parent_path() / "mixed_cylindrical_band.step",
+            output / "mixed-spline-cylinder.smb",
+            true
+        );
         FragmentedCircularRings(original, output / "fragmented.smb", 0);
         FragmentedCircularRings(original, output / "fragmented-non-knot.smb", 1);
         FragmentedCircularRings(original, output / "fragmented-aligned.smb", 2);

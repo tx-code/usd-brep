@@ -3,6 +3,7 @@
 #include "StepImportCircleVertexCorrection.h"
 #include "StepImportCurvePointConstruction.h"
 #include "StepImportCylinderChart.h"
+#include "StepImportCylinderSeamPlan.h"
 #include "StepImportCylindricalBandRepair.h"
 #include "StepImportDerivedUv.h"
 #include "StepImportExecution.h"
@@ -106,6 +107,7 @@ struct SeamPlan
     V a, b;
     double angle;
     Index firstEdge = 0, secondEdge = 0;
+    bool mixedBoundary = false;
 };
 
 struct SpherePolePlan
@@ -2518,6 +2520,139 @@ private:
         }
         return seam;
     }
+    [[nodiscard]] Result<Index> RegisterRingCut(Index source, double parameter, V point, Index faceRecord)
+    {
+        const auto& curve = curves[source];
+        auto& plan = m_ringSubdivisions[source];
+        plan.sourceCurve = source;
+        plan.record = curve.record;
+        plan.originalVertex = curve.v0;
+        if (curve.v1 != curve.v0)
+        {
+            plan.originalEndVertex = curve.v1;
+        }
+        plan.interval = { curve.t0, curve.t1 };
+        const auto existing = std::find_if(
+            plan.cuts.begin(),
+            plan.cuts.end(),
+            [&](const auto& cut)
+            {
+                return cut.parameter == parameter;
+            }
+        );
+        if (existing != plan.cuts.end())
+        {
+            if (auto checked = Need(
+                    Norm(Sub(m_ringVertices.at(existing->vertex - vertices.size()).point, point)) == 0,
+                    "RingSubdivisionSharedCutPointChanged",
+                    faceRecord
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            return existing->vertex;
+        }
+        const auto vertex = vertices.size() + m_ringVertices.size();
+        m_ringVertices.push_back({ source, parameter, point, nullptr });
+        plan.cuts.push_back({ parameter, vertex });
+        return vertex;
+    }
+    [[nodiscard]] Result<void> PrepareMixedCylinderSeams(double maximum)
+    {
+        for (const auto& face : faces)
+        {
+            if (!Is(face.surface, "CYLINDRICAL_SURFACE") || face.loops.size() != 2 || m_plannedSeams.contains(face.record))
+            {
+                continue;
+            }
+            bool anchor = false, mixed = false, eligible = true;
+            std::set<Index> included;
+            std::vector<CylinderSeamCurve> definitions;
+            std::array<std::vector<CylinderSeamUse>, 2> loops;
+            for (Index i = 0; i < face.loops.size(); ++i)
+            {
+                for (const auto& use : face.loops[i].uses)
+                {
+                    const auto& curve = curves[use.edge];
+                    const bool circle = Is(curve.geometry, "CIRCLE");
+                    const bool other = Is(curve.geometry, "LINE") || Is(curve.geometry, "B_SPLINE_CURVE_WITH_KNOTS");
+                    eligible = eligible && (circle || other);
+                    mixed = mixed || other;
+                    anchor = anchor || (face.loops[i].uses.size() == 1 && circle && curve.v0 == curve.v1);
+                    loops[i].push_back({ use.edge, use.forward });
+                    if (included.insert(use.edge).second)
+                    {
+                        definitions.push_back({ use.edge, curve.v0, curve.v1, curve.native.get(), { curve.t0, curve.t1 } });
+                    }
+                }
+            }
+            if (!eligible || !mixed || !anchor)
+            {
+                continue;
+            }
+            // Survey before ANY real face adopts these curves. A partial native
+            // seam edit after construction would otherwise invalidate shared cap
+            // edges and earlier ring provenance. The survey owns only deep copies.
+            auto support = Surface(face);
+            if (!support)
+            {
+                return tl::unexpected(std::move(support.error()));
+            }
+            const auto cylinder = dynamic_cast<const SmCylinder*>(support->get());
+            if (!cylinder)
+            {
+                continue;
+            }
+            auto planned = PlanCylinderSeam(
+                *cylinder,
+                points,
+                definitions,
+                loops,
+                *m_context,
+                maximum,
+                Tol(),
+                m_options.sourceLimits.values,
+                [&]
+                {
+                    return Step(face.record);
+                }
+            );
+            if (!planned)
+            {
+                if (!planned.error().record && planned.error().nativeKind != NativeFailureKind::ConstructionOperation)
+                {
+                    planned.error().record = face.record;
+                }
+                return tl::unexpected(std::move(planned.error()));
+            }
+            if (!*planned)
+            {
+                continue;
+            }
+            const auto& cut = **planned;
+            Index vertex = 0;
+            if (cut.cutVertex)
+            {
+                vertex = *cut.cutVertex;
+            }
+            else
+            {
+                auto registered = RegisterRingCut(cut.cutEdge, cut.cutParameter, cut.last, face.record);
+                if (!registered)
+                {
+                    return tl::unexpected(std::move(registered.error()));
+                }
+                vertex = *registered;
+            }
+            m_plannedSeams.emplace(
+                face.record,
+                SeamPlan{ cut.anchorVertex, vertex, cut.first, cut.last, cut.angleRadians, cut.anchorEdge, cut.cutEdge, true }
+            );
+            m_ringNormalization = true;
+        }
+        return {};
+    }
     [[nodiscard]] Result<void> PrepareRingSubdivisions()
     {
         const auto definition = m_options.quality.definitionMm;
@@ -2590,44 +2725,18 @@ private:
             }
             parameter = std::move(*nativeValue7);
 
-            auto& plan = m_ringSubdivisions[source];
-            plan.sourceCurve = source;
-            plan.record = curve.record;
-            plan.originalVertex = curve.v0;
-            if (curve.v1 != curve.v0)
+            auto vertex = RegisterRingCut(source, parameter, seam->b, face.record);
+            if (!vertex)
             {
-                plan.originalEndVertex = curve.v1;
+                return tl::unexpected(std::move(vertex.error()));
             }
-            plan.interval = { curve.t0, curve.t1 };
-            const auto existing = std::find_if(
-                plan.cuts.begin(),
-                plan.cuts.end(),
-                [&](const auto& cut)
-                {
-                    return cut.parameter == parameter;
-                }
-            );
-            if (existing != plan.cuts.end())
-            {
-                if (auto businessCheck = Need(
-                        Norm(Sub(m_ringVertices.at(existing->vertex - vertices.size()).point, seam->b)) == 0,
-                        "RingSubdivisionSharedCutPointChanged",
-                        face.record
-                    );
-                    !businessCheck)
-                {
-                    return tl::unexpected(std::move(businessCheck.error()));
-                }
-                seam->v1 = existing->vertex;
-            }
-            else
-            {
-                seam->v1 = vertices.size() + m_ringVertices.size();
-                m_ringVertices.push_back({ source, parameter, seam->b, nullptr });
-                plan.cuts.push_back({ parameter, seam->v1 });
-            }
+            seam->v1 = *vertex;
             m_plannedSeams[face.record] = *seam;
             m_ringNormalization = true;
+        }
+        if (auto operation = PrepareMixedCylinderSeams(maximum); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
         }
         if (!m_ringNormalization)
         {
@@ -4982,7 +5091,9 @@ private:
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
             m_report.normalizations.push_back(
-                { first->uses.size() == 1 && second->uses.size() == 1 ? "PeriodicCutFromTwoSourceRings" : "PeriodicCutFromFragmentedCircularRings",
+                { seam->mixedBoundary                                 ? "PeriodicCutFromMixedCylindricalBoundaries" :
+                  first->uses.size() == 1 && second->uses.size() == 1 ? "PeriodicCutFromTwoSourceRings" :
+                                                                        "PeriodicCutFromFragmentedCircularRings",
                   Id(f.record),
                   { Id(f.loops[0].bound), Id(f.loops[1].bound) },
                   { Id(vertices[curves[seam->firstEdge].v0]), Id(vertices[curves[seam->secondEdge].v0]) },

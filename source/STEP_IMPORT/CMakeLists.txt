@@ -43,6 +43,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportDefinitionSelection.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportCylindricalBandRepair.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportRingSegmentation.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportCylinderSeamPlan.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportObservation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp src/StepImportAssemblyInstances.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionConstruction.cpp)
