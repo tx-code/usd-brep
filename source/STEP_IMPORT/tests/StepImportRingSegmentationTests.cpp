@@ -583,6 +583,189 @@ void AlignedConeOwnsCut(const std::string& original, const std::filesystem::path
         }
     );
 }
+void FragmentedCircularRings(const std::string& original, const std::filesystem::path& file, unsigned variant)
+{
+    auto text = original;
+    const bool aligned = variant == 2;
+    const bool fragmentedLower = variant == 3;
+    const Point bottom = variant == 1 ? Point{ 1.8, 2.4, 0 } : aligned ? Point{ 3, 0, 0 } : Point{ 0, 3, 0 };
+    if (variant == 1)
+    {
+        Replace(text, "#102=CARTESIAN_POINT('',(0.,3.,0.))", "#102=CARTESIAN_POINT('',(1.8,2.4,0.))");
+    }
+    else if (aligned)
+    {
+        Replace(text, "#102=CARTESIAN_POINT('',(0.,3.,0.))", "#102=CARTESIAN_POINT('',(3.,0.,0.))");
+    }
+    Replace(text, "#173=FACE_OUTER_BOUND", "#173=FACE_BOUND");
+    Replace(text, "#103=CARTESIAN_POINT('',(0.,3.,7.))", "#103=CARTESIAN_POINT('',(3.,0.,7.))");
+    Replace(text, "#131=EDGE_CURVE('',#121,#121,#111,.T.)", "#131=EDGE_CURVE('',#121,#122,#111,.T.)");
+    Replace(text, "#161=EDGE_LOOP('',(#151))", "#161=EDGE_LOOP('',(#151,#156))");
+    Replace(text, "#163=EDGE_LOOP('',(#154))", "#163=EDGE_LOOP('',(#157,#154))");
+    const auto dataEnd = text.rfind("ENDSEC;");
+    Require(dataEnd != std::string::npos, "public fragmented-ring DATA boundary");
+    text.insert(
+        dataEnd,
+        "#108=CARTESIAN_POINT('',(-3.,0.,7.));\n"
+        "#122=VERTEX_POINT('',#108);\n"
+        "#132=EDGE_CURVE('',#122,#121,#111,.T.);\n"
+        "#156=ORIENTED_EDGE('',*,*,#132,.T.);\n"
+        "#157=ORIENTED_EDGE('',*,*,#132,.F.);\n"
+    );
+    if (fragmentedLower)
+    {
+        Replace(text, "#130=EDGE_CURVE('',#120,#120,#110,.T.)", "#130=EDGE_CURVE('',#120,#123,#110,.T.)");
+        Replace(text, "#160=EDGE_LOOP('',(#150))", "#160=EDGE_LOOP('',(#158,#150))");
+        Replace(text, "#162=EDGE_LOOP('',(#152))", "#162=EDGE_LOOP('',(#152,#159))");
+        text.insert(
+            text.rfind("ENDSEC;"),
+            "#109=CARTESIAN_POINT('',(0.,-3.,0.));\n"
+            "#123=VERTEX_POINT('',#109);\n"
+            "#133=EDGE_CURVE('',#123,#120,#110,.T.);\n"
+            "#158=ORIENTED_EDGE('',*,*,#133,.F.);\n"
+            "#159=ORIENTED_EDGE('',*,*,#133,.T.);\n"
+        );
+    }
+    auto result = ImportBytes(text, Config(text, false));
+    Require(result.status == Status::Accepted && result.model, "fragmented circular annulus imports without repair");
+    const auto reportSize = result.report.json.size();
+    auto model = result.model;
+    result = {};
+    Require(model->Source()->Source().Bytes() == text && !model->CylindricalBandRepairs(), "fragmented rings keep the complete original source");
+    const auto info = model->Info();
+    Require(
+        info.faces == 3 &&
+            info.edges == (fragmentedLower ? 6U :
+                           aligned         ? 4U :
+                                             5U) &&
+            info.vertices == (fragmentedLower ? 5U :
+                              aligned         ? 3U :
+                                                4U),
+        "three original circular arcs, only the necessary split, and one derived meridian"
+    );
+    Near(info.areaMm2, 60 * std::numbers::pi, 60 * std::numbers::pi * 2e-4, "independent fragmented cylinder area");
+    Require(model->MaterialVolumeMm3().has_value(), "fragmented cylinder retains material-solid role");
+    Near(*model->MaterialVolumeMm3(), 63 * std::numbers::pi, 63 * std::numbers::pi * 2e-4, "independent fragmented cylinder volume");
+    Require(
+        model->ClassifyMaterial({ 0., 0., 3. }) == MaterialPointClass::Inside &&
+            model->ClassifyMaterial({ 5., 0., 3. }) == MaterialPointClass::Outside,
+        "fragmented rings retain material queries"
+    );
+    const auto origins = model->TopologyNormalization();
+    Require(
+        origins && origins->completed && origins->sourceCurveIntervalsCovered && origins->sourceVerticesPreserved,
+        "complete owning fragmented-ring correspondence"
+    );
+    Require(origins->sourceUseSegments.size() == (aligned ? 0U : 4U), "both cap and side retain both children only when subdivision is necessary");
+    std::set<std::string> vertexIds;
+    for (const auto& vertex : origins->vertices)
+    {
+        if (vertex.sourceVertexId)
+        {
+            vertexIds.insert(*vertex.sourceVertexId);
+        }
+    }
+    auto expectedIds = std::set<std::string>{ "120", "121", "122" };
+    if (fragmentedLower)
+    {
+        expectedIds.insert("123");
+    }
+    Require(vertexIds == expectedIds, "no original vertex is deleted or replaced by the derived cut");
+    for (const auto& use : origins->sourceUseSegments)
+    {
+        Require(
+            use.sourceEdgeId == "131" && (use.sourceFaceId == "181" || use.sourceFaceId == "182"),
+            "one global source-arc subdivision is shared by its original incident faces"
+        );
+    }
+    model->WriteNative(file);
+    SmContext context;
+    SmTArray<SmCurve*> curves;
+    SmTArray<SmSurface*> surfaces;
+    SmTArray<long> trees;
+    SmTArray<SmBrep*> bodies;
+    SmObjsDelete<SmCurve*> dc(&curves);
+    SmObjsDelete<SmSurface*> ds(&surfaces);
+    SmObjsDelete<SmBrep*> db(&bodies);
+    Require(
+        SmNativeArchive::ReadPartFromFile(context, file.c_str(), curves, surfaces, trees, bodies, SM_BINARY) == SM_SUCCESS && bodies.GetSize() == 1,
+        "fragmented-ring native archive readback"
+    );
+    NativeValid(*bodies[0]);
+    auto copy = model->CopyBrepForModeling();
+    Require(copy.status == Status::Accepted && copy.model, "fragmented ring independent modeling copy");
+    copy.model->Edit(
+        [&](SmBrep& native)
+        {
+            NativeValid(native);
+            CompareCompleteNative(native, *bodies[0]);
+            SmTArray<SmEdge*> edges;
+            native.GetEdges(edges);
+            const auto split = std::find_if(
+                origins->edges.begin(),
+                origins->edges.end(),
+                [](const auto& edge)
+                {
+                    return edge.sourceEdgeId == "131";
+                }
+            );
+            Require(split != origins->edges.end(), "split arc has source origin");
+            SmCircle expected(SmPoint3d(0, 0, 7), SmVector3d(1, 0, 0), SmVector3d(0, 1, 0), SmExtent1d(0, 180), 3, 3, &context);
+            std::vector<Interval> covered;
+            for (const auto edge : edges)
+            {
+                const auto circle = dynamic_cast<const SmCircle*>(edge->GetCurve());
+                if (circle && circle->GetPosition().GetOriginRef().z == 7 && circle->GetSTEPInterval().GetMin() == 0 &&
+                    circle->GetSTEPInterval().GetMax() == 180)
+                {
+                    SameCompleteCurve(*circle, expected);
+                    const auto interval = edge->GetInterval();
+                    covered.push_back({ interval.GetMin(), interval.GetMax() });
+                }
+            }
+            Coverage(covered, expected.GetNaturalInterval());
+            SmTArray<SmVertex*> vertices;
+            native.GetVertices(vertices);
+            std::vector<Point> sourcePoints{ bottom, Point{ 3, 0, 7 }, Point{ -3, 0, 7 } };
+            if (fragmentedLower)
+            {
+                sourcePoints.push_back({ 0, -3, 0 });
+            }
+            for (const auto& point : sourcePoints)
+            {
+                unsigned found = 0;
+                for (const auto vertex : vertices)
+                {
+                    const auto p = vertex->GetPoint();
+                    found += p.x == point[0] && p.y == point[1] && p.z == point[2];
+                }
+                Require(found == 1, "fragmented-ring original vertex coordinates are bit-identical");
+            }
+        }
+    );
+    auto wrongRadius = text;
+    Replace(wrongRadius, "#111=CIRCLE('',#107,3.)", "#111=CIRCLE('',#107,3.001)");
+    const auto inconsistent = ImportBytes(wrongRadius, Config(wrongRadius, false));
+    Require(!inconsistent.model, "fragmented-ring normalization cannot bridge an off-surface source circle");
+    auto bounded = Config(text, false);
+    bounded.nativeLimits.reportBytes = reportSize - 1;
+    const auto refused = ImportBytes(text, bounded);
+    Require(refused.status == Status::ResourceLimit && !refused.model, "fragmented-ring provenance must fit before publication");
+    for (const auto phase : { Phase::BeforeNativeCall, Phase::NativeReady, Phase::BeforeCommit })
+    {
+        auto cancelled = Config(text, false);
+        cancelled.execution.control = std::make_shared<ImportControl>();
+        cancelled.execution.progress = [&](Progress progress)
+        {
+            if (progress.phase == phase)
+            {
+                cancelled.execution.control->RequestCancel();
+            }
+        };
+        const auto stopped = ImportBytes(text, cancelled);
+        Require(stopped.status == Status::Cancelled && !stopped.model, "cancelled fragmented-ring candidates never publish partially");
+    }
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -595,6 +778,10 @@ int main(int argc, char** argv)
         const std::string original{ std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>() };
         const std::filesystem::path output(argv[2]);
         std::filesystem::create_directories(output);
+        FragmentedCircularRings(original, output / "fragmented.smb", 0);
+        FragmentedCircularRings(original, output / "fragmented-non-knot.smb", 1);
+        FragmentedCircularRings(original, output / "fragmented-aligned.smb", 2);
+        FragmentedCircularRings(original, output / "fragmented-both.smb", 3);
         AlignedConeOwnsCut(original, output / "aligned-cone.smb");
         (void)AcceptedCase(original, { 0., 3., 7. }, true, false, output / "aligned.smb");
         auto phased = original;

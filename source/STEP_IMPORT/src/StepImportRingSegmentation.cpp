@@ -171,7 +171,9 @@ double ParameterGuard(std::array<double, 2> interval)
     {
         return tl::unexpected(std::move(basis.error()));
     }
-    plan.segments.push_back({ vertex, plan.originalVertex, { previous, plan.interval[1] }, std::move(*basis), nullptr });
+    plan.segments.push_back(
+        { vertex, plan.originalEndVertex.value_or(plan.originalVertex), { previous, plan.interval[1] }, std::move(*basis), nullptr }
+    );
     return {};
 }
 [[nodiscard]] Result<void> VerifyRingSegments(const RingSubdivision& plan, const ExecutionCheckpoint& checkpoint)
@@ -210,7 +212,10 @@ double ParameterGuard(std::array<double, 2> interval)
         parameter = segment.interval[1];
         vertex = segment.lastVertex;
     }
-    if (auto businessCheck = Need(parameter == plan.interval[1] && vertex == plan.originalVertex, "RingSubdivisionSourceIntervalCoverage");
+    if (auto businessCheck = Need(
+            parameter == plan.interval[1] && vertex == plan.originalEndVertex.value_or(plan.originalVertex),
+            "RingSubdivisionSourceIntervalCoverage"
+        );
         !businessCheck)
     {
         return tl::unexpected(std::move(businessCheck.error()));

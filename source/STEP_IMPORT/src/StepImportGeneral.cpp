@@ -2275,7 +2275,153 @@ private:
         const auto degrees = FullPeriodDegrees(cut > 0 ? cut - tau : cut);
         return SmExtent2d(degrees[0], inner ? 0 : -180, degrees[1], inner ? 360 : 180);
     }
-    [[nodiscard]] Result<std::optional<SeamPlan>> RingSeamCandidate(const Face& f) const
+    [[nodiscard]] Result<std::optional<SeamPlan>> FragmentedRingSeamCandidate(const Face& f)
+    {
+        if (!Is(f.surface, "CYLINDRICAL_SURFACE") || f.loops.size() != 2 || f.loops[0].uses.empty() || f.loops[1].uses.empty())
+        {
+            return {};
+        }
+        auto frameResult = Placement(Ref(f.surface, "position"));
+        if (!frameResult)
+        {
+            return tl::unexpected(std::move(frameResult.error()));
+        }
+        const auto& frame = *frameResult;
+        auto radiusResult = N(f.surface, "radius");
+        if (!radiusResult)
+        {
+            return tl::unexpected(std::move(radiusResult.error()));
+        }
+        const double radius = *radiusResult * scale;
+        std::array<double, 2> heights{}, winding{};
+        for (Index ring = 0; ring < 2; ++ring)
+        {
+            std::set<Index> seen;
+            const auto& loop = f.loops[ring];
+            for (Index i = 0; i < loop.uses.size(); ++i)
+            {
+                const auto& use = loop.uses[i];
+                const auto& curve = curves[use.edge];
+                const auto circle = dynamic_cast<const SmCircle*>(curve.native.get());
+                if (!Is(curve.geometry, "CIRCLE") || !circle || !seen.insert(use.edge).second)
+                {
+                    return {};
+                }
+                const auto& position = circle->GetPosition();
+                const auto center = Sub(P(position.GetOriginRef()), frame.o);
+                const auto axis = position.GetZAxis();
+                const double height = Dot(center, frame.z), parallel = Dot(V{ axis.x, axis.y, axis.z }, frame.z);
+                // This profile recognizes two complete, oppositely traversed
+                // coaxial circular rings. It does not infer an annulus from an
+                // arbitrary closed UV loop or replace a defining source curve.
+                if (std::abs(std::abs(parallel) - 1) > 1e-12 || Norm(Sub(center, Mul(frame.z, height))) > Q(m_options.quality.definitionMm) ||
+                    std::abs(circle->GetXRadius() - radius) > Q(m_options.quality.definitionMm) ||
+                    std::abs(circle->GetYRadius() - radius) > Q(m_options.quality.definitionMm))
+                {
+                    return {};
+                }
+                if (i == 0)
+                {
+                    heights[ring] = height;
+                }
+                else if (std::abs(height - heights[ring]) > Q(m_options.quality.definitionMm))
+                {
+                    return {};
+                }
+                const auto& next = curves[loop.uses[(i + 1) % loop.uses.size()].edge];
+                const auto end = use.forward ? curve.v1 : curve.v0;
+                const auto start = loop.uses[(i + 1) % loop.uses.size()].forward ? next.v0 : next.v1;
+                if (end != start)
+                {
+                    return {};
+                }
+                const double sweep = (use.forward ? 1 : -1) * (parallel > 0 ? 1 : -1) * circle->GetSTEPInterval().GetLength();
+                // A net winding of one is insufficient when arcs backtrack.
+                // Require one physical traversal sense as well as a full turn;
+                // an inside-out analytic helper needs a separate convention.
+                if (!std::isfinite(sweep) || sweep == 0 || circle->GetInsideOut() || (i && sweep * winding[ring] <= 0))
+                {
+                    return {};
+                }
+                winding[ring] += sweep;
+            }
+            // Angular roundoff only selects this representation profile; it
+            // never enlarges a physical gap or bypasses native region checks.
+            if (std::abs(std::abs(winding[ring]) - 360) > 1e-10 * loop.uses.size())
+            {
+                return {};
+            }
+        }
+        if (winding[0] * winding[1] >= 0 || std::abs(heights[1] - heights[0]) <= Tol())
+        {
+            return {};
+        }
+        const auto firstEdge = f.loops[0].uses[0].edge;
+        const auto& anchor = curves[firstEdge];
+        const auto firstVertex = f.loops[0].uses[0].forward ? anchor.v0 : anchor.v1;
+        const auto delta = Sub(points[firstVertex], frame.o);
+        auto radialResult = Unit(Sub(delta, Mul(frame.z, Dot(delta, frame.z))));
+        if (!radialResult)
+        {
+            return tl::unexpected(std::move(radialResult.error()));
+        }
+        const auto& radial = *radialResult;
+        const auto a = Add(Add(frame.o, Mul(frame.z, heights[0])), Mul(radial, radius));
+        const auto b = Add(Add(frame.o, Mul(frame.z, heights[1])), Mul(radial, radius));
+        SeamPlan seam{ firstVertex, 0, a, b, std::atan2(Dot(radial, frame.y), Dot(radial, frame.x)), firstEdge, 0 };
+        // Prefer an existing source vertex at the selected longitude. Otherwise
+        // identify one interior arc; PrepareRingSubdivisions freezes its one
+        // global subdivision before any cap or side adopts that source edge.
+        for (const auto& use : f.loops[1].uses)
+        {
+            const auto& curve = curves[use.edge];
+            for (const auto vertex : { curve.v0, curve.v1 })
+            {
+                if (Norm(Sub(b, points[vertex])) <= Q(m_options.quality.consistencyMm))
+                {
+                    seam.v1 = vertex;
+                    seam.secondEdge = use.edge;
+                    return seam;
+                }
+            }
+        }
+        const auto definition = m_options.quality.definitionMm;
+        const double maximum = std::nextafter(
+            std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
+            0.
+        );
+        bool found = false;
+        for (const auto& use : f.loops[1].uses)
+        {
+            const auto& curve = curves[use.edge];
+            SmBoolean projected = FALSE;
+            double t = 0, gap = 0;
+            if (auto operation = Step(curve.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto checked = Good(curve.native->DropPoint({ curve.t0, curve.t1 }, P(b), nullptr, maximum, nullptr, projected, t, gap)); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            if (projected && std::isfinite(t) && std::isfinite(gap) && gap >= 0 && gap <= maximum && t > curve.t0 && t < curve.t1)
+            {
+                if (found)
+                {
+                    return tl::unexpected(Fail("FragmentedRingAmbiguousCut", f.record, Status::Indeterminate));
+                }
+                found = true;
+                seam.v1 = curve.v0; // Replaced by the shared derived vertex before construction.
+                seam.secondEdge = use.edge;
+            }
+        }
+        if (!found)
+        {
+            return tl::unexpected(Fail("FragmentedRingCutUnestablished", f.record, Status::Indeterminate));
+        }
+        return seam;
+    }
+    [[nodiscard]] Result<std::optional<SeamPlan>> RingSeamCandidate(const Face& f)
     {
         const bool cone = Is(f.surface, "CONICAL_SURFACE");
         if ((!Is(f.surface, "CYLINDRICAL_SURFACE") && !cone) || f.loops.size() != 2)
@@ -2286,7 +2432,7 @@ private:
         {
             if (loop.uses.size() != 1)
             {
-                return {};
+                return FragmentedRingSeamCandidate(f);
             }
             const auto& c = curves[loop.uses[0].edge];
             if (!Is(c.geometry, "CIRCLE") || c.v0 != c.v1)
@@ -2347,7 +2493,7 @@ private:
         }
         return SeamPlan{ a, b, pa, pb, std::atan2(Dot(radial, frame.y), Dot(radial, frame.x)), f.loops[0].uses[0].edge, f.loops[1].uses[0].edge };
     }
-    [[nodiscard]] Result<std::optional<SeamPlan>> MissingSeam(const Face& f) const
+    [[nodiscard]] Result<std::optional<SeamPlan>> MissingSeam(const Face& f)
     {
         if (const auto it = m_plannedSeams.find(f.record); it != m_plannedSeams.end())
         {
@@ -2390,6 +2536,11 @@ private:
             if (!seam)
             {
                 continue;
+            }
+            if (face.loops[0].uses.size() != 1 || face.loops[1].uses.size() != 1)
+            {
+                m_ringNormalization = true;
+                m_plannedSeams.emplace(face.record, *seam);
             }
             if (Norm(Sub(seam->a, points[seam->v0])) > Q(m_options.quality.consistencyMm))
             {
@@ -2443,6 +2594,10 @@ private:
             plan.sourceCurve = source;
             plan.record = curve.record;
             plan.originalVertex = curve.v0;
+            if (curve.v1 != curve.v0)
+            {
+                plan.originalEndVertex = curve.v1;
+            }
             plan.interval = { curve.t0, curve.t1 };
             const auto existing = std::find_if(
                 plan.cuts.begin(),
@@ -4137,7 +4292,13 @@ private:
         }
         return tl::unexpected(Fail("GeneralUnsupportedSurface", g, Status::Unsupported));
     }
-    [[nodiscard]] Result<void> AppendSourceUse(SmBrepConstructor& c, const Use& u, LoopMapping& mapping, std::optional<Index> startAt = {})
+    [[nodiscard]] Result<void> AppendSourceUse(
+        SmBrepConstructor& c,
+        const Use& u,
+        LoopMapping& mapping,
+        std::optional<Index> startAt = {},
+        std::optional<Index> onlySegment = {}
+    )
     {
         auto& edge = curves[u.edge];
         if (auto found = m_ringSubdivisions.find(u.edge); found != m_ringSubdivisions.end())
@@ -4148,6 +4309,14 @@ private:
             if (!u.forward)
             {
                 std::reverse(traversal.begin(), traversal.end());
+            }
+            if (onlySegment)
+            {
+                if (auto checked = Need(*onlySegment < segments.size(), "RingSubdivisionSegmentRange", edge.record); !checked)
+                {
+                    return tl::unexpected(std::move(checked.error()));
+                }
+                traversal = { *onlySegment };
             }
             if (startAt)
             {
@@ -4311,6 +4480,73 @@ private:
         if (auto nativeStatusCheck = Good(c.EndEdge()); !nativeStatusCheck)
         {
             return tl::unexpected(std::move(nativeStatusCheck.error()));
+        }
+        return {};
+    }
+    [[nodiscard]] Result<void> AppendRingLoop(SmBrepConstructor& c, const Loop& loop, LoopMapping& mapping, Index startAt)
+    {
+        if (loop.uses.size() == 1)
+        {
+            return AppendSourceUse(c, loop.uses[0], mapping, startAt);
+        }
+        struct Entry
+        {
+            const Use* source;
+            std::optional<Index> segment;
+            Index firstVertex, lastVertex;
+        };
+        std::vector<Entry> traversal;
+        for (const auto& use : loop.uses)
+        {
+            if (const auto found = m_ringSubdivisions.find(use.edge); found != m_ringSubdivisions.end())
+            {
+                const auto& segments = found->second.segments;
+                for (Index i = 0; i < segments.size(); ++i)
+                {
+                    const Index index = use.forward ? i : segments.size() - i - 1;
+                    const auto& part = segments[index];
+                    traversal.push_back(
+                        { &use, index, use.forward ? part.firstVertex : part.lastVertex, use.forward ? part.lastVertex : part.firstVertex }
+                    );
+                }
+            }
+            else
+            {
+                const auto& edge = curves[use.edge];
+                traversal.push_back({ &use, {}, use.forward ? edge.v0 : edge.v1, use.forward ? edge.v1 : edge.v0 });
+            }
+        }
+        const auto first = std::find_if(
+            traversal.begin(),
+            traversal.end(),
+            [&](const Entry& entry)
+            {
+                return entry.firstVertex == startAt;
+            }
+        );
+        if (auto checked = Need(first != traversal.end(), "FragmentedRingLoopStart", loop.record); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        // Rotate the COMPLETE ring traversal, not just the split arc's children.
+        // Otherwise the arc's tail and head become adjacent across an unrelated
+        // source arc and the cut loop silently loses its source connectivity.
+        std::rotate(traversal.begin(), first, traversal.end());
+        for (Index i = 0; i < traversal.size(); ++i)
+        {
+            if (auto checked = Need(
+                    traversal[i].lastVertex == traversal[(i + 1) % traversal.size()].firstVertex,
+                    "FragmentedRingTraversalDisconnected",
+                    loop.record
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            if (auto operation = AppendSourceUse(c, *traversal[i].source, mapping, {}, traversal[i].segment); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
         }
         return {};
     }
@@ -4681,7 +4917,14 @@ private:
                 f.loops.end(),
                 [&](const auto& loop)
                 {
-                    return loop.uses[0].edge == seam->firstEdge;
+                    return std::any_of(
+                        loop.uses.begin(),
+                        loop.uses.end(),
+                        [&](const Use& use)
+                        {
+                            return use.edge == seam->firstEdge;
+                        }
+                    );
                 }
             );
             const auto second = std::find_if(
@@ -4689,7 +4932,14 @@ private:
                 f.loops.end(),
                 [&](const auto& loop)
                 {
-                    return loop.uses[0].edge == seam->secondEdge;
+                    return std::any_of(
+                        loop.uses.begin(),
+                        loop.uses.end(),
+                        [&](const Use& use)
+                        {
+                            return use.edge == seam->secondEdge;
+                        }
+                    );
                 }
             );
             if (auto businessCheck = Need(first != f.loops.end() && second != f.loops.end(), "RingSubdivisionSourceLoopIdentity", f.record);
@@ -4697,7 +4947,7 @@ private:
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
-            if (auto operation = AppendSourceUse(c, first->uses[0], mapping, seam->v0); !operation)
+            if (auto operation = AppendRingLoop(c, *first, mapping, seam->v0); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
@@ -4708,7 +4958,7 @@ private:
                 return tl::unexpected(std::move(edgeResult.error()));
             }
             auto edge = std::move(*edgeResult);
-            if (auto operation = AppendSourceUse(c, second->uses[0], mapping, seam->v1); !operation)
+            if (auto operation = AppendRingLoop(c, *second, mapping, seam->v1); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
             }
@@ -4732,7 +4982,7 @@ private:
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
             m_report.normalizations.push_back(
-                { "PeriodicCutFromTwoSourceRings",
+                { first->uses.size() == 1 && second->uses.size() == 1 ? "PeriodicCutFromTwoSourceRings" : "PeriodicCutFromFragmentedCircularRings",
                   Id(f.record),
                   { Id(f.loops[0].bound), Id(f.loops[1].bound) },
                   { Id(vertices[curves[seam->firstEdge].v0]), Id(vertices[curves[seam->secondEdge].v0]) },

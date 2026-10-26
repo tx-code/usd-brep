@@ -6,6 +6,7 @@
 
 #include <SmCurve.h>
 #include <functional>
+#include <optional>
 
 class SmContext;
 class SmEdge;
@@ -30,10 +31,11 @@ struct RingSubdivision
     std::vector<RingCut> cuts;
     std::unique_ptr<SmCurve> reference; // Must die before its allocating candidate context.
     std::vector<RingSegment> segments; // Increasing ORIGINAL native parameters, shared by all source uses.
+    std::optional<std::size_t> originalEndVertex; // Open circular arcs retain their distinct original last vertex.
 };
 // Caller holds NativeMutex and owns an unpublished candidate/context. All basis
 // copies below must be destroyed before that context on success and every exit.
-// Borrow an unowned complete source-circle basis. Establish an interior native
+// Borrow an unowned complete native circle/arc basis. Establish an interior native
 // parameter without trimming, snapping endpoints or altering any source vertex.
 // The numerical point residual uses the definition allowance in millimetres;
 // the near-end guard instead uses the kernel's parameter comparison convention.
