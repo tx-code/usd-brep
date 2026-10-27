@@ -14,6 +14,7 @@
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportGeneralRole.h"
 #include "StepImportGeometryConstruction.h"
+#include "StepImportInterval.h"
 #include "StepImportLinearExtrusion.h"
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
@@ -26,6 +27,7 @@
 #include "StepImportRevolutionPole.h"
 #include "StepImportRingSegmentation.h"
 #include "StepImportSourceParameterUnits.h"
+#include "StepImportSphereChart.h"
 #include "StepImportSplineSurfaceConstruction.h"
 #include "StepImportSupportDomain.h"
 #include "StepImportSurfaceCurveSession.h"
@@ -626,6 +628,48 @@ public:
         {
             return tl::unexpected(std::move(observed.error()));
         }
+        for (const auto& chart : m_pendingSphereCharts)
+        {
+            if (auto charged = Step(shape); !charged)
+            {
+                return tl::unexpected(std::move(charged.error()));
+            }
+            if (!chart.targetFaceIndex || *chart.targetFaceIndex >= m_model->faces.size())
+            {
+                return tl::unexpected(Fail("GeneralSphereChartInventoryChanged", shape));
+            }
+            const auto* chartSphere = dynamic_cast<const SmSphere*>(m_model->faces[*chart.targetFaceIndex].face->GetSurface());
+            if (!chartSphere)
+            {
+                return tl::unexpected(Fail("GeneralSphereChartClassChanged", shape));
+            }
+            const auto value = [&](std::string_view name) -> const std::vector<double>*
+            {
+                const auto item = std::find_if(
+                    chart.parameters.begin(),
+                    chart.parameters.end(),
+                    [&](const auto& p)
+                    {
+                        return p.first == name;
+                    }
+                );
+                return item == chart.parameters.end() ? nullptr : &item->second;
+            };
+            const auto same = [&](std::string_view name, const auto& p)
+            {
+                const auto* stored = value(name);
+                return stored && *stored == std::vector<double>{ p.x, p.y, p.z };
+            };
+            const auto& chartPosition = chartSphere->GetPosition();
+            const auto* chartRadius = value("sphere_radius_mm");
+            if (!same("source_frame_origin_mm", chartPosition.GetOriginRef()) || !same("native_frame_x", chartPosition.GetXAxisRef()) ||
+                !same("native_frame_y", chartPosition.GetYAxisRef()) || !same("native_frame_z", chartPosition.GetZAxis()) || !chartRadius ||
+                chartRadius->size() != 1 || (*chartRadius)[0] != chartSphere->GetRadius())
+            {
+                return tl::unexpected(Fail("GeneralSphereChartDefinitionChangedAfterConsumers", shape));
+            }
+        }
+        m_model->sphereCharts = m_pendingSphereCharts;
         if (HasLinearExtrusions(*m_linearExtrusions))
         {
             std::vector<LinearExtrusionTarget> targets;
@@ -787,6 +831,7 @@ private:
     double consistency = 0, uvGap = 0;
     bool m_rebuiltUv = false;
     std::vector<std::pair<Index, std::function<bool()>>> m_revolutionChartChecks;
+    std::vector<ParameterMapping> m_pendingSphereCharts;
     std::map<Index, std::size_t> m_surfaceCurveChoices; // Source EC record -> immutable interpretation plan.
     std::vector<std::size_t> m_surfaceCurveActions; // Finalize only after every native consumer and witness.
     bool m_captureRepairFailure = false;
@@ -4831,6 +4876,117 @@ private:
             // degrees and its ordinary evaluator uses rational NURBS UV. The
             // source definition is retained; no identity UV mapping is asserted.
             // Existing seam, installed-trim and native checks must still pass.
+            if (!poleResult->has_value())
+            {
+                std::vector<SphereChartBoundary> boundary;
+                std::set<Index> seen;
+                for (const auto& loop : f.loops)
+                {
+                    for (const auto& use : loop.uses)
+                    {
+                        if (!seen.insert(use.edge).second)
+                        {
+                            continue;
+                        }
+                        const auto& curve = curves[use.edge];
+                        boundary.push_back({ curve.native ? curve.native.get() : m_model->edges.at(use.edge)->GetCurve(), { curve.t0, curve.t1 } });
+                    }
+                }
+                const auto asPoint = [](const auto& p) -> Point
+                {
+                    return { p.x, p.y, p.z };
+                };
+                const auto nativeFrame = [&](const SmSphere& value) -> SourceFrame
+                {
+                    const auto& p = value.GetPosition();
+                    return { asPoint(p.GetOriginRef()), { asPoint(p.GetXAxisRef()), asPoint(p.GetYAxisRef()), asPoint(p.GetZAxis()) } };
+                };
+                const auto originalFrame = nativeFrame(*sphere);
+                const auto checkpoint = [&]
+                {
+                    return Step(f.record);
+                };
+                const auto work = [&](std::size_t units)
+                {
+                    return m_execution.SpendExactGeometryWork(m_report, units, f.record);
+                };
+                auto bound = BoundSphereChartBoundary(boundary, originalFrame, m_options.sourceLimits.values, checkpoint, work);
+                if (!bound)
+                {
+                    return tl::unexpected(std::move(bound.error()));
+                }
+                if (*bound)
+                {
+                    const auto guard = Enclose(m_options.quality.definitionMm).high;
+                    const auto& margins = (**bound).negativeSideLowerMm;
+                    const auto selected = std::find_if(
+                        margins.begin(),
+                        margins.end(),
+                        [&](double v)
+                        {
+                            return std::isfinite(v) && v > guard;
+                        }
+                    );
+                    if (selected != margins.end())
+                    {
+                        const auto choice = std::size_t(selected - margins.begin());
+                        const auto planned = SphereChartFrame(originalFrame, choice);
+                        SmAxis2Placement placement(P(planned.origin), D(planned.axes[0]), D(planned.axes[1]));
+                        SmSphere* chartRaw = nullptr;
+                        if (auto charged = Step(g); !charged)
+                        {
+                            return tl::unexpected(std::move(charged.error()));
+                        }
+                        const auto chartStatus = SmSphere::CreateCanonical(*m_context, placement, radius, chartRaw);
+                        std::unique_ptr<SmSphere> chart(chartRaw);
+                        if (auto checked = Good(chartStatus); !checked)
+                        {
+                            return tl::unexpected(std::move(checked.error()));
+                        }
+                        if (auto checked = Need(
+                                chart && chart->GetRadius() == radius && nativeFrame(*chart).origin == originalFrame.origin,
+                                "GeneralSphereChartDefinitionChanged",
+                                g
+                            );
+                            !checked)
+                        {
+                            return tl::unexpected(std::move(checked.error()));
+                        }
+                        // Native construction may normalize its axes. Prove the
+                        // WHOLE boundary again against the actual resulting X,
+                        // rather than assuming the requested frame was copied.
+                        const auto actualFrame = nativeFrame(*chart);
+                        auto actual = BoundSphereChartBoundary(boundary, actualFrame, m_options.sourceLimits.values, checkpoint, work);
+                        if (!actual)
+                        {
+                            return tl::unexpected(std::move(actual.error()));
+                        }
+                        if (*actual && (**actual).negativeSideLowerMm[0] > guard)
+                        {
+                            ParameterMapping mapping;
+                            mapping.kind = "SphericalBoundaryHemisphereChart";
+                            mapping.sourceGeometryId = Id(g);
+                            mapping.sourceUseId = Id(f.record);
+                            mapping.targetFaceIndex = m_model->faces.size();
+                            mapping.equation =
+                                "same nominal analytic sphere center/radius; right-handed signed-axis chart; complete positive boundary control hull in strict negative X; source frame/angles immutable; native U/V are not source STEP angles";
+                            mapping.parameters = { { "source_frame_origin_mm", { frame.o.begin(), frame.o.end() } },
+                                                   { "source_frame_x", { frame.x.begin(), frame.x.end() } },
+                                                   { "source_frame_y", { frame.y.begin(), frame.y.end() } },
+                                                   { "source_frame_z", { frame.z.begin(), frame.z.end() } },
+                                                   { "native_frame_x", { actualFrame.axes[0].begin(), actualFrame.axes[0].end() } },
+                                                   { "native_frame_y", { actualFrame.axes[1].begin(), actualFrame.axes[1].end() } },
+                                                   { "native_frame_z", { actualFrame.axes[2].begin(), actualFrame.axes[2].end() } },
+                                                   { "boundary_hemisphere_lower_mm", { (**actual).negativeSideLowerMm[0] } },
+                                                   { "controls_checked", { double((**actual).controls) } },
+                                                   { "sphere_radius_mm", { radius } } };
+                            m_report.parameterMappings.push_back(mapping);
+                            m_pendingSphereCharts.push_back(std::move(mapping));
+                            sphere = std::move(chart);
+                        }
+                    }
+                }
+            }
             return sphere;
         }
         if (Is(g, "TOROIDAL_SURFACE"))

@@ -636,6 +636,7 @@ public:
     UnitNormalization LengthUnits() const; // Value copy; source record indices refer to this snapshot's Source().
     std::optional<TopologyNormalizationInfo> TopologyNormalization() const; // Owning evidence; target indices address normalized inventory.
     std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis extraction, separate from repair/topology changes.
+    std::vector<ParameterMapping> SphereCharts() const; // Owning source/target analytic sphere frames; source STEP angles remain unchanged.
     std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
     std::vector<ParameterMapping> SplineCharts() const; // Owning defining-carrier/face chart correspondence, independent of the report.
     // Owning exact-source generator / stored tensor evidence when canonical

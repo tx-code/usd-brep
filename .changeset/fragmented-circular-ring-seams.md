@@ -53,10 +53,19 @@ copy/archive checks and atomic publication. Numerical image observations may
 check an additional in-domain candidate when a local projection misses it;
 physical budgets and the distinction from continuous proof remain unchanged.
 
+Nominal analytic spheres can select a right-handed signed-axis chart when a
+complete positive boundary control hull is enclosed strictly within its negative
+X hemisphere. Outward arithmetic and a check of the actually constructed frame
+keep chart selection separate from sampled projection observations. Source frame,
+units and defining 3D geometry remain immutable; native UV, region/seam, validity,
+copy/archive and publication checks still apply. Owning `SphereCharts()` evidence
+survives mutable report release. Existing implicit-pole plans retain their scope.
+
 ## Scope
 
 [Circular ring construction](../source/STEP_IMPORT/README.md#完整圆环的目标分段与圆柱圆锥图切口)
-and [closed-spline cycles](../source/STEP_IMPORT/README.md#闭合样条的内部相位与目标分段).
+[closed-spline cycles](../source/STEP_IMPORT/README.md#闭合样条的内部相位与目标分段),
+and [spherical boundary charts](../source/STEP_IMPORT/README.md#球面边界的半球计算图).
 
 ## Integrator action
 
@@ -64,7 +73,8 @@ Rebuild the native STEP library and its consumers together.
 
 ## Compatibility
 
-The C++20 native STEP topology correspondence adds `vertexLoopCuts`; options,
+The C++20 native snapshot adds owning `SphereCharts()` values. The native STEP
+topology correspondence adds `vertexLoopCuts`; options,
 reports and snapshots add explicit conical-apex repair requests and owning history.
 Rebuild the library and its C++ consumers together. Kernel ABI and native-file
 format are unchanged. Ordinary normalization retains `Repair=None`; the new repair
