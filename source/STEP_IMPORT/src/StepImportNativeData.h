@@ -82,6 +82,7 @@ struct ModelData
     std::vector<DerivedVertexConnection> derivedVertexConnections; // Owning final evidence; never transfers to modeling copies/native files.
     std::optional<FaceOrientationRepairHistory> repairs;
     std::optional<CylindricalBandRepairHistory> cylindricalBandRepairs;
+    std::optional<ConicalApexRepairHistory> conicalApexRepairs;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> terminalDomainInterpretation;
     std::shared_ptr<const SurfaceCurve3dInterpretationReceipt> surfaceCurve3dInterpretation;
     std::shared_ptr<const TargetSurfacePrecisionReceipt> targetSurfacePrecision;

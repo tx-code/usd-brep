@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportExecution.h"
 
+#include "StepImportConicalApexSession.h"
 #include "StepImportInterval.h"
 #include "StepImportSurfaceCurveSession.h"
 #include "StepImportSurfacePrecisionSession.h"
@@ -69,6 +70,13 @@ namespace detail
 {
 Result<void> Execution::BindSourceInterpretations(const step_source::SourceSnapshot& source)
 {
+    if (m_conicalApexRepair)
+    {
+        if (auto bound = m_conicalApexRepair->BindSource(source); !bound)
+        {
+            return tl::unexpected(std::move(bound.error()));
+        }
+    }
     if (auto bound = BindTerminalDomainSource(source); !bound)
     {
         return tl::unexpected(std::move(bound.error()));
@@ -92,6 +100,11 @@ Execution::Execution(const Options& options, Report& report)
     m_report.processPrivateLimitBytes = options.nativeLimits.processPrivateBytes;
     m_report.hardMemoryLimitBytes = options.nativeLimits.hardMemoryBytes;
     m_report.deadlineConfigured = bool(options.execution.deadline);
+    if (options.conicalApexRepair)
+    {
+        m_conicalApexRepair = std::make_unique<ConicalApexRepairSession>(*options.conicalApexRepair);
+        m_report.conicalApexBudget = m_conicalApexRepair->Budget();
+    }
     if (options.targetSurfacePrecision)
     {
         m_targetSurfaces = std::make_unique<TargetSurfacePrecisionSession>(options);
@@ -264,6 +277,13 @@ Result<void> Execution::ClaimCircleVertexCorrections(
 }
 [[nodiscard]] Result<void> Execution::CheckRepairCompletion()
 {
+    if (m_conicalApexRepair)
+    {
+        if (auto complete = m_conicalApexRepair->Complete(); !complete)
+        {
+            return tl::unexpected(std::move(complete.error()));
+        }
+    }
     if (std::find(m_circleVerticesClaimed.begin(), m_circleVerticesClaimed.end(), false) != m_circleVerticesClaimed.end())
     {
         return tl::unexpected(

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "../app/StepComplexMappingArguments.h"
+#include "../app/StepConicalApexArguments.h"
 #include "../app/StepCylindricalBandArguments.h"
 #include "../app/StepRepairArguments.h"
 #include "StepImport.h"
@@ -1533,7 +1534,8 @@ void DevelopmentContract(
     std::optional<step_import::FaceOrientationRepairRequest> repair = {},
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly,
     std::optional<step_import::CylindricalBandRepairRequest> bandRepair = {},
-    bool fineWorkStudy = false
+    bool fineWorkStudy = false,
+    std::optional<step_import::ConicalApexRepairRequest> apexRepair = {}
 )
 {
     auto options = step_import::Options::PlanarFixture();
@@ -1541,6 +1543,7 @@ void DevelopmentContract(
     options.faceOrientationRepair = repair;
     options.complexMappingInterpretation = complexMappingInterpretation;
     options.cylindricalBandRepair = bandRepair;
+    options.conicalApexRepair = apexRepair;
     options.sourcePolicy = step_semantics::SourcePolicy::PreserveNonGeometric;
     if (integrationAccuracy)
     {
@@ -1626,9 +1629,9 @@ void DevelopmentContract(
         Require(result.model->Face().HasAsciiInvariantDataAssumption() == dataAssumed, "owning face retains DATA interpretation");
     }
     Require(
-        result.status == (repair || bandRepair ? step_import::Status::AcceptedWithRepairs :
-                          assumed              ? step_import::Status::AcceptedUnderInterpretation :
-                                                 step_import::Status::Accepted) &&
+        result.status == (repair || bandRepair || apexRepair ? step_import::Status::AcceptedWithRepairs :
+                          assumed                            ? step_import::Status::AcceptedUnderInterpretation :
+                                                               step_import::Status::Accepted) &&
             bool(result.model),
         "development native import"
     );
@@ -1663,7 +1666,8 @@ void DevelopmentContract(
         if (origins)
         {
             Require(
-                origins->completed && origins->sourceCurveIntervalsCovered && origins->sourceVerticesPreserved,
+                origins->completed && origins->sourceCurveIntervalsCovered &&
+                    (apexRepair ? !origins->sourceVerticesPreserved : origins->sourceVerticesPreserved),
                 "complete normalized source correspondence"
             );
             Require(
@@ -1918,6 +1922,12 @@ int main(int argc, char** argv)
                     step_import_app::CylindricalBandArgument(flag, argv[++i], repairArguments);
                     continue;
                 }
+                if (step_import_app::IsConicalApexArgument(flag))
+                {
+                    Require(i + 1 < argc, "conical apex repair value required");
+                    step_import_app::ConicalApexArgument(flag, argv[++i], repairArguments);
+                    continue;
+                }
                 if (flag == "--complex-mapping-interpretation")
                 {
                     Require(i + 1 < argc, "complex mapping interpretation value required");
@@ -2027,7 +2037,8 @@ int main(int argc, char** argv)
                 repairArguments.faceOrientationRepair,
                 repairArguments.complexMappingInterpretation,
                 repairArguments.cylindricalBandRepair,
-                std::string_view(argv[4]) == "fine-work-study"
+                std::string_view(argv[4]) == "fine-work-study",
+                repairArguments.conicalApexRepair
             );
             return 0;
         }

@@ -211,12 +211,14 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     }
     bool repaired = m_prepared && m_prepared->Repairs().has_value();
     repaired = repaired || (m_prepared && m_prepared->CylindricalBandRepairs().has_value());
+    repaired = repaired || (m_prepared && m_prepared->ConicalApexRepairs().has_value());
     if (m_preparedCollection)
     {
         for (std::size_t i = 0; i < m_preparedCollection->BodyCount(); ++i)
         {
             repaired = repaired || m_preparedCollection->Body(i)->Repairs().has_value();
             repaired = repaired || m_preparedCollection->Body(i)->CylindricalBandRepairs().has_value();
+            repaired = repaired || m_preparedCollection->Body(i)->ConicalApexRepairs().has_value();
         }
     }
     if (m_preparedDocument)
@@ -225,6 +227,7 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
         {
             repaired = repaired || m_preparedDocument->Body(i)->Repairs().has_value();
             repaired = repaired || m_preparedDocument->Body(i)->CylindricalBandRepairs().has_value();
+            repaired = repaired || m_preparedDocument->Body(i)->ConicalApexRepairs().has_value();
         }
     }
     m_status = repaired    ? Status::AcceptedWithRepairs :

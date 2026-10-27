@@ -16,6 +16,7 @@ from .process_guard import ProcessGuard
 from .interpretation import validate, complex_mapping_arguments, validate_complex_mapping_receipt
 from .interpretation import source_identity_arguments, validate_source_identity_receipt
 from .repair import arguments as repair_arguments, validate_vertex_manifest
+from .apex_repair import validate_receipt as validate_apex_receipt
 from .definition_selection import arguments as selection_arguments, validate_manifest as validate_selection
 from .assembly import arguments as assembly_arguments, validate_request as validate_assembly_request, read_assembly
 from .integration import arguments as integration_arguments, validate_receipt as validate_integration_receipt
@@ -73,8 +74,16 @@ class ImportSettings:
     surface_curve_3d_uses: tuple[str, ...] = ()
     max_exact_work_units: int | None = None
     deadline_ms: int | None = None
+    apex_repair_source_sha256: str = ''
+    maximum_apex_repair_vertices: int = 0
+    maximum_apex_repair_controls: int = 0
+    maximum_apex_repair_proof_work: int = 0
+    maximum_apex_repair_move_mm: str = ''
+    maximum_apex_repair_total_move_mm: str = ''
+    conical_apex_uses: tuple[str, ...] = ()
 
     def __post_init__(self):
+        object.__setattr__(self, 'conical_apex_uses', tuple(self.conical_apex_uses))
         execution_arguments(self)
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
@@ -368,6 +377,10 @@ class SceneLoader(QtCore.QObject):
                     # alone cannot establish a completed source-bound request.
                     self.worker_result['surface_curve_3d_receipt'] = receipt
                     manifest = dict(manifest, _surface_curve_3d_receipt=receipt)
+                apex = validate_apex_receipt(directory, manifest, self.settings, scene_file, native_report=native_report)
+                if apex is not None:
+                    self.worker_result['conical_apex_repair_receipt'] = apex
+                    manifest = dict(manifest, _conical_apex_repair_receipt=apex)
             import pyvista as pv
             import numpy as np
             if manifest['format'] in {'brep-view-scene.v6', 'brep-view-scene.v7'}:

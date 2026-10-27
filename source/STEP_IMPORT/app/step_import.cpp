@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepAssemblyImport.h"
 #include "StepComplexMappingArguments.h"
+#include "StepConicalApexArguments.h"
 #include "StepCylindricalBandArguments.h"
 #include "StepImport.h"
 #include "StepRepairArguments.h"
@@ -163,6 +164,14 @@ int main(int argc, char** argv)
                     throw std::invalid_argument("Terminal-domain argument value required");
                 }
                 step_import_app::TerminalDomainArgument(arg, argv[++i], options);
+            }
+            else if (step_import_app::IsConicalApexArgument(arg))
+            {
+                if (i + 1 == argc)
+                {
+                    throw std::invalid_argument("Conical apex repair argument value required");
+                }
+                step_import_app::ConicalApexArgument(arg, argv[++i], options);
             }
             else if (step_import_app::IsCylindricalBandArgument(arg))
             {

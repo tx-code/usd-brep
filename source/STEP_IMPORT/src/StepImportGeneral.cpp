@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportCircleVertexCorrection.h"
+#include "StepImportConicalApexRepair.h"
+#include "StepImportConicalApexSession.h"
 #include "StepImportConicalVertexLoop.h"
 #include "StepImportCurvePointConstruction.h"
 #include "StepImportCylinderChart.h"
@@ -140,13 +142,15 @@ public:
         Execution& execution,
         std::optional<step_semantics::Part::Shape> binding = {},
         bool captureRepairFailure = false,
-        FaceSenseOverrides overrides = {}
+        FaceSenseOverrides overrides = {},
+        VertexPointOverrides pointOverrides = {}
     )
         : GeometryConstruction(std::move(source), options, report, execution),
           m_model(std::make_shared<ModelData>()),
           m_binding(std::move(binding)),
           m_captureRepairFailure(captureRepairFailure),
-          m_faceSenseOverrides(std::move(overrides))
+          m_faceSenseOverrides(std::move(overrides)),
+          m_pointOverrides(std::move(pointOverrides))
     {
         m_model->source = m_source;
         m_model->terminalDomainInterpretation = m_execution.TerminalDomainInterpretation();
@@ -188,6 +192,23 @@ public:
         if (auto operation = Prepare(); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
+        }
+        if (!m_pointOverrides.empty())
+        {
+            // Repair changes only target vertex positions. Keep a separate
+            // original table for source-incidence proofs and cone support bounds;
+            // using corrected points there could silently redefine the surface.
+            m_originalPoints = points;
+            std::set<Index> changed;
+            for (const auto& [record, point] : m_pointOverrides)
+            {
+                const auto found = vi.find(record);
+                if (auto check = Need(found != vi.end() && changed.insert(record).second, "ConicalApexRepairOverrideBinding", record); !check)
+                {
+                    return tl::unexpected(std::move(check.error()));
+                }
+                points[found->second] = point;
+            }
         }
         if (auto verified = VerifySurfaceCurveInterpretationScope(); !verified)
         {
@@ -414,6 +435,11 @@ public:
         }
         if (auto operation = InstallUv(); !operation)
         {
+            if (m_captureRepairFailure && m_apexRepairFailure && m_options.conicalApexRepair)
+            {
+                RememberRepairSources();
+                return tl::unexpected(ConicalApexFailureCandidate{ std::move(operation.error()), m_model });
+            }
             return tl::unexpected(std::move(operation.error()));
         }
         if (m_options.restrictUnusedSupportDomains)
@@ -565,7 +591,7 @@ public:
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
             }
-            m_model->topologyNormalization->sourceVerticesPreserved = true;
+            m_model->topologyNormalization->sourceVerticesPreserved = m_pointOverrides.empty();
             if (!m_ringNormalization)
             {
                 m_model->topologyNormalization->sourceCurveIntervalsCovered = true;
@@ -573,7 +599,7 @@ public:
             }
             m_report.topologyNormalization = m_model->topologyNormalization;
         }
-        if (m_captureRepairFailure || !m_faceSenseOverrides.empty())
+        if (m_captureRepairFailure || !m_faceSenseOverrides.empty() || !m_pointOverrides.empty())
         {
             RememberRepairSources();
         }
@@ -706,6 +732,13 @@ private:
     std::vector<std::size_t> m_surfaceCurveActions; // Finalize only after every native consumer and witness.
     bool m_captureRepairFailure = false;
     FaceSenseOverrides m_faceSenseOverrides;
+    VertexPointOverrides m_pointOverrides;
+    std::vector<Point> m_originalPoints;
+    bool m_apexRepairFailure = false;
+    const Point& OriginalPoint(Index vertex) const
+    {
+        return m_originalPoints.empty() ? points.at(vertex) : m_originalPoints.at(vertex);
+    }
     struct RingVertex
     {
         Index curve;
@@ -3175,7 +3208,8 @@ private:
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
-        info.sourceCurveIntervalsCovered = info.sourceVerticesPreserved = info.completed = true;
+        info.sourceCurveIntervalsCovered = info.completed = true;
+        info.sourceVerticesPreserved = m_pointOverrides.empty();
         m_model->derivedVertexConnections.clear();
         for (Index i = 0; i < m_ringVertices.size(); ++i)
         {
@@ -3966,7 +4000,7 @@ private:
                   circle->o,
                   circle->z,
                   points[edge.v0],
-                  points[*point->vertex],
+                  OriginalPoint(*point->vertex),
                   edge.p0,
                   edge.p1,
                   *radius * scale,
@@ -4283,7 +4317,7 @@ private:
             {
                 return tl::unexpected(std::move(checked.error()));
             }
-            const double residual = pole->GetPoint().DistanceBetween(polePoints[static_cast<ULONG>(side - sides.begin())]);
+            const double residual = P(OriginalPoint(plan.poleVertex)).DistanceBetween(polePoints[static_cast<ULONG>(side - sides.begin())]);
             const auto budget = m_options.quality.consistencyMm;
             const double inward = std::nextafter(
                 std::nextafter(double(budget.Numerator()), 0.) / std::nextafter(double(budget.Denominator()), INFINITY),
@@ -4378,7 +4412,7 @@ private:
         {
             if (loop.vertex)
             {
-                const auto delta = Sub(points[*loop.vertex], frame.o);
+                const auto delta = Sub(OriginalPoint(*loop.vertex), frame.o);
                 const V point{ Dot(delta, frame.x), Dot(delta, frame.y), Dot(delta, frame.z) };
                 for (Index k = 0; k < 3; ++k)
                 {
@@ -6257,6 +6291,15 @@ private:
                 if (IsPeriodicSourceVertexNearMiss(properties, { m_model->vertices.data(), count }))
                 {
                     failure.nativeKind = NativeFailureKind::PeriodicSourceVertexNearMiss;
+                    if (m_captureRepairFailure && m_options.conicalApexRepair)
+                    {
+                        const auto plan = m_vertexLoopPlans.find(f.record);
+                        if (plan != m_vertexLoopPlans.end())
+                        {
+                            SmVertex* vertex = m_model->vertices.at(plan->second.poleVertex);
+                            m_apexRepairFailure = IsPeriodicSourceVertexNearMiss(properties, { &vertex, 1 });
+                        }
+                    }
                 }
                 return tl::unexpected(std::move(failure));
             }
@@ -6989,6 +7032,20 @@ private:
     };
     try
     {
+        if (options.conicalApexRepair)
+        {
+            return settle(BuildWithConicalApexRepair(
+                source,
+                binding,
+                options,
+                report,
+                execution,
+                [&](Report& checks, bool capture, const VertexPointOverrides& overrides)
+                {
+                    return GeneralBuilder(source, options, checks, execution, binding, capture, {}, overrides).Run();
+                }
+            ));
+        }
         if (!options.faceOrientationRepair)
         {
             return settle(FinishConstructionAttempt(GeneralBuilder(std::move(source), options, report, execution, binding).Run()));
@@ -7031,6 +7088,20 @@ private:
     };
     try
     {
+        if (options.conicalApexRepair)
+        {
+            return settle(BuildWithConicalApexRepair(
+                source,
+                {},
+                options,
+                report,
+                execution,
+                [&](Report& checks, bool capture, const VertexPointOverrides& overrides)
+                {
+                    return GeneralBuilder(source, options, checks, execution, {}, capture, {}, overrides).Run();
+                }
+            ));
+        }
         if (!options.faceOrientationRepair)
         {
             return settle(FinishConstructionAttempt(GeneralBuilder(std::move(source), options, report, execution).Run()));

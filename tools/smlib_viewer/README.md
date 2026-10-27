@@ -51,6 +51,24 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+An explicit one-file cone-apex correction uses the native importer's original
+SHA and seven source identities per use:
+`--apex-repair-source-sha256 HASH --repair-conical-apex-use
+DEFINITION:SHAPE:FACE:BOUND:LOOP:VERTEX:SURFACE`. Supply all movement and proof
+budgets explicitly with `--max-apex-repair-vertices`, `--max-apex-repair-controls`,
+`--max-apex-repair-proof-work`, `--max-apex-repair-move-mm` and
+`--max-apex-repair-total-move-mm`; movement allowances are exact decimal mm.
+There is no default plan or automatic retry. It cannot accompany a directory
+scan, assembly request, definition selection, source-priority override or other
+repair. See the [native correction contract](../../source/STEP_IMPORT/README.md#显式圆锥尖点顶点校正).
+
+The loader validates the complete local report before decoding a mesh: original
+strict failure, exact requested source uses, per-action displacement and local
+protection, unchanged geometry/tolerances and final cumulative request budget.
+An incomplete or mismatched receipt cannot replace the current scene. Owning
+action values survive worker cleanup. The HUD identifies cone-apex vertices as
+`AcceptedWithRepairs`; any existing source/unit interpretation remains separate.
+
 Large assemblies keep the root `scene.json` within 64 KiB using a v8 transport
 envelope and one complete `scene-metadata.json` bounded to 32 MiB. The complete
 v6/v7 descriptor retains every instance/body row. The loader binds byte count,

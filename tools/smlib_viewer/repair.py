@@ -4,6 +4,7 @@
 import re
 from decimal import Decimal, InvalidOperation
 from fractions import Fraction
+from .apex_repair import arguments as apex_arguments
 
 
 def _circle_vertex_arguments(settings):
@@ -76,15 +77,18 @@ def _orientation_arguments(settings):
 
 def arguments(settings):
     orientation = _orientation_arguments(settings)
+    apex = apex_arguments(settings)
     vertices = _circle_vertex_arguments(settings)
     identity = getattr(settings, 'band_repair_source_sha256', '')
     faces = tuple(getattr(settings, 'cylindrical_band_repairs', ()))
     limits = [getattr(settings, name, 0) for name in
               ('maximum_band_repair_faces', 'maximum_band_bound_edits', 'maximum_band_proof_operations')]
+    if apex and (orientation or vertices or identity or faces or any(limits)):
+        raise ValueError('ConicalApexRepairCombinationUnqualified')
     if not identity and not faces and not any(limits):
         if vertices:
             raise ValueError('CircleVerticesRequireCylindricalBandPlan')
-        return orientation
+        return orientation + apex
     if (orientation or not isinstance(identity, str) or not re.fullmatch(r'[0-9a-f]{64}', identity) or not faces or
             any(type(n) is not int or n <= 0 for n in limits) or len(faces) > limits[0] or len(faces) * 2 > limits[1] or
             limits[2] > 100000000 or getattr(settings, 'selected_definitions', ()) or

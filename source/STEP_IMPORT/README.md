@@ -63,6 +63,33 @@ SMLib 要求首环为边环，且该周期区域需要计算缝。目标保留�
 其他曲面的顶点环、多段源边环，以及与周期拓扑分割、支撑域限制或修复的组合，尚未建立
 资格时明确拒绝。源类型识别不能代替这些原生构建检查。
 
+### 显式圆锥尖点顶点校正
+
+`Options::conicalApexRepair` 是独立的受限修复选择，默认不存在。请求绑定原件 SHA256
+和完整 definition／shape／face／bound／loop／vertex／surface 身份，显式给出单点位移、
+累计位移、顶点数、控制点及证明工作预算；不使用源 uncertainty 或失败后的自动阈值。
+初版只允许固定 AP214 材料实体中的上述圆锥点边界，拒绝其他物理引用或多个候选目的地。
+
+先执行完整严格尝试并保留失败，只在已确认的源尖点顶点周期近失配下构建独立候选。
+校正目的地来自实际未修改原生圆锥的唯一精确极点。位移使用向外舍入上界；其他顶点、
+原三维源曲线和非参与面的间距使用解析距离或正权重控制网凸包下界，连同既有最大工作
+容差执行 1% 局部保护。缺少可靠间距、超预算或取消均拒绝，不能用采样补充成已证明。
+
+候选仍需完整 UV／区域／指针／LEVEL2／角色／容差／查询检查，再与原始候选逐项比较
+三维曲线、曲面定义、未请求顶点和实际工作容差。源字节与源点记录不改写。成功结果为
+`AcceptedWithRepairs`；`ModelSnapshot::ConicalApexRepairs()` 拥有原／校正坐标、原始诊断、
+位移／局部保护和最终请求级预算。此时拓扑规范化不能声称原 XYZ 保持不变，
+`sourceVerticesPreserved` 为 false；身份仍由完整来源映射和修复收据保留。
+
+CLI 和独立查看器使用相同的显式参数：`--apex-repair-source-sha256`、
+`--max-apex-repair-vertices`、`--max-apex-repair-controls`、`--max-apex-repair-proof-work`、
+`--max-apex-repair-move-mm`、`--max-apex-repair-total-move-mm`，以及每条
+`--repair-conical-apex-use definition:shape:face:bound:loop:vertex:surface`。
+运动预算为精确十进制毫米，原生查看器在接入场景前独立核对完整修复收据。
+与其他修复、选择隔离、源优先覆盖、参数延拓、工作精度或显式周期分割的组合尚未授予资格。
+关联物理线框／支撑几何范围也明确拒绝。已有源协议／单位解释在修复结果中继续保留，
+修复不认证这些原声明；原生存档不携带 STEP 修复验收资格。
+
 ## 以源 pcurve 为优先表示的三维边
 
 ### 有限 B 样条载体上的 LINE 参数曲线

@@ -263,7 +263,9 @@ class ViewerWindow(QtWidgets.QMainWindow):
             elif metadata.get("native_import_status") == "AcceptedUnderInterpretation":
                 policy += "\n源解释模式 · 条件接受"
             if metadata.get('repair_applied'):
-                if metadata.get('repair_kind') == 'CylindricalBandWithCircleVertices':
+                if metadata.get('repair_kind') == 'ConicalApexVertices':
+                    policy += f"\n已修复 {metadata['repaired_vertex_count']} 个圆锥尖点顶点"
+                elif metadata.get('repair_kind') == 'CylindricalBandWithCircleVertices':
                     policy += (f"\n已修复 {metadata['repaired_face_count']} 处周期边界角色"
                                f" · {metadata['repaired_vertex_count']} 个圆边顶点")
                 else:
@@ -616,6 +618,13 @@ def run(options):
                               maximum_band_bound_edits=getattr(options, 'maximum_band_bound_edits', 0),
                               maximum_band_proof_operations=getattr(options, 'maximum_band_proof_operations', 0),
                               cylindrical_band_repairs=tuple(getattr(options, 'cylindrical_band_repairs', ())),
+                              apex_repair_source_sha256=getattr(options, 'apex_repair_source_sha256', ''),
+                              maximum_apex_repair_vertices=getattr(options, 'maximum_apex_repair_vertices', 0),
+                              maximum_apex_repair_controls=getattr(options, 'maximum_apex_repair_controls', 0),
+                              maximum_apex_repair_proof_work=getattr(options, 'maximum_apex_repair_proof_work', 0),
+                              maximum_apex_repair_move_mm=getattr(options, 'maximum_apex_repair_move_mm', ''),
+                              maximum_apex_repair_total_move_mm=getattr(options, 'maximum_apex_repair_total_move_mm', ''),
+                              conical_apex_uses=tuple(getattr(options, 'conical_apex_uses', ())),
                               maximum_band_circle_vertices=getattr(options, 'maximum_band_circle_vertices', 0),
                               maximum_band_vertex_move_mm=getattr(options, 'maximum_band_vertex_move_mm', ''),
                               maximum_band_total_vertex_move_mm=getattr(

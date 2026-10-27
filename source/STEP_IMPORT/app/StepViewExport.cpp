@@ -3,6 +3,7 @@
 // Isolated display worker: no native handle crosses the process boundary.
 #include "StepAssemblyArguments.h"
 #include "StepComplexMappingArguments.h"
+#include "StepConicalApexArguments.h"
 #include "StepCylindricalBandArguments.h"
 #include "StepExecutionArguments.h"
 #include "StepImport.h"
@@ -217,6 +218,8 @@ std::pair<std::size_t, bool> RepairSummary(const step_import::Report& report)
     bool interpreted = report.repairs && report.repairs->sourceInterpretationApplied;
     count += report.cylindricalBandRepairs ? report.cylindricalBandRepairs->actions.size() : 0;
     interpreted = interpreted || (report.cylindricalBandRepairs && report.cylindricalBandRepairs->sourceInterpretationApplied);
+    count += report.conicalApexRepairs ? report.conicalApexRepairs->actions.size() : 0;
+    interpreted = interpreted || (report.conicalApexRepairs && report.conicalApexRepairs->sourceInterpretationApplied);
     const auto include = [&](const auto& entries)
     {
         for (const auto& entry : entries)
@@ -453,13 +456,48 @@ void Publish(
         {
             const auto repair = RepairSummary(report);
             w.Add(",\"repair_applied\":true,\"repaired_face_count\":");
-            w.Number(repair.first);
+            w.Number(report.conicalApexRepairRequest ? 0 : repair.first);
             w.Add(",\"repair_kind\":");
             w.String(
+                report.conicalApexRepairRequest                                                            ? "ConicalApexVertices" :
                 report.cylindricalBandRepairRequest && report.cylindricalBandRepairRequest->circleVertices ? "CylindricalBandWithCircleVertices" :
                 report.cylindricalBandRepairRequest                                                        ? "CylindricalBandRoles" :
                                                                                                              "FaceOrientation"
             );
+            if (report.conicalApexBudget)
+            {
+                const auto& r = *report.conicalApexRepairRequest;
+                const auto& b = *report.conicalApexBudget;
+                w.Add(",\"repaired_vertex_count\":");
+                w.Number(b.correctedVertices);
+                w.Add(",\"conical_apex_repair\":{\"source_sha256\":");
+                w.String(r.sourceSha256);
+                w.Add(",\"maximum_vertices\":");
+                w.Number(r.maximumVertices);
+                w.Add(",\"maximum_proof_controls\":");
+                w.Number(r.maximumProofControls);
+                w.Add(",\"maximum_proof_work\":");
+                w.Number(r.maximumProofWork);
+                w.Add(",\"maximum_displacement_mm\":");
+                w.String(std::to_string(r.maximumDisplacementMm.Numerator()) + "/" + std::to_string(r.maximumDisplacementMm.Denominator()));
+                w.Add(",\"maximum_total_displacement_mm\":");
+                w.String(std::to_string(r.maximumTotalDisplacementMm.Numerator()) + "/" + std::to_string(r.maximumTotalDisplacementMm.Denominator()));
+                w.Add(",\"request_complete\":");
+                w.Bool(b.requestComplete);
+                w.Add(",\"uses\":[");
+                for (std::size_t i = 0; i < r.uses.size(); ++i)
+                {
+                    if (i)
+                    {
+                        w.Add(",");
+                    }
+                    const auto& u = r.uses[i];
+                    w.String(
+                        u.definitionId + ":" + u.shapeId + ":" + u.faceId + ":" + u.boundId + ":" + u.loopId + ":" + u.vertexId + ":" + u.surfaceId
+                    );
+                }
+                w.Add("]}");
+            }
             if (report.circleVertexBudget)
             {
                 w.Add(",\"repaired_vertex_count\":");
@@ -748,7 +786,8 @@ int Run(
     const std::optional<step_import::NumericalIntegrationSettings>& numericalIntegration = {},
     const std::string& schemaSourceIdentity = {},
     const std::shared_ptr<const step_import::SurfaceCurve3dInterpretationRequest>& surfaceCurve3d = {},
-    const step_import_app::ExecutionArguments& executionRequest = {}
+    const step_import_app::ExecutionArguments& executionRequest = {},
+    const std::optional<step_import::ConicalApexRepairRequest>& apexRepair = {}
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -783,6 +822,7 @@ int Run(
         options.sourceErrorIsolation = sourceIsolation;
         options.complexMappingInterpretation = complexMappingInterpretation;
         options.cylindricalBandRepair = bandRepair;
+        options.conicalApexRepair = apexRepair;
         options.quality = profile == "development"               ? step_import::Quality::GeneralDevelopment() :
                           profile == "fine-work-tolerance-study" ? step_import::Quality::GeneralFineWorkToleranceStudy() :
                           profile == "tolerance-study"           ? step_import::Quality::GeneralToleranceStudy() :
@@ -1274,6 +1314,11 @@ int wmain(int argc, wchar_t** argv)
                         std::filesystem::path(argv[i + 1]).string(),
                         assemblyRequest
                     ) ||
+                    step_import_app::ConicalApexArgument(
+                        std::filesystem::path(argv[i]).string(),
+                        std::filesystem::path(argv[i + 1]).string(),
+                        request
+                    ) ||
                     step_import_app::CylindricalBandArgument(
                         std::filesystem::path(argv[i]).string(),
                         std::filesystem::path(argv[i + 1]).string(),
@@ -1317,7 +1362,8 @@ int wmain(int argc, wchar_t** argv)
             request.numericalIntegration,
             request.schemaInterpretation.sourceSha256,
             surfaceCurveArguments.Request(),
-            executionArguments
+            executionArguments,
+            request.conicalApexRepair
         );
     }
     catch (...)
@@ -1366,6 +1412,7 @@ int main(int argc, char** argv)
                         std::filesystem::path(argv[i + 1]).string(),
                         assemblyRequest
                     ) ||
+                    step_import_app::ConicalApexArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::CylindricalBandArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::RepairArgument(argv[i], argv[i + 1], request) ||
                     step_import_app::SelectionArgument(argv[i], argv[i + 1], request, selectionArguments) ||
@@ -1396,7 +1443,8 @@ int main(int argc, char** argv)
             request.numericalIntegration,
             request.schemaInterpretation.sourceSha256,
             surfaceCurveArguments.Request(),
-            executionArguments
+            executionArguments,
+            request.conicalApexRepair
         );
     }
     catch (...)

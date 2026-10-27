@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportOrientationRepair.h"
 
+#include "StepImportConicalApexSession.h"
 #include "StepImportExecution.h"
 #include "StepImportNativeData.h"
 #include "StepImportSurfaceProof.h"
@@ -551,6 +552,13 @@ namespace
 }
 [[nodiscard]] Result<void> ValidateRepairTargets(const step_semantics::Outcome& checked, const Options& options, Execution& execution)
 {
+    if (auto* apex = execution.ConicalApexRepair())
+    {
+        if (auto bound = apex->ValidateTargets(checked, execution); !bound)
+        {
+            return tl::unexpected(std::move(bound.error()));
+        }
+    }
     if (!options.faceOrientationRepair)
     {
         return {};
@@ -677,6 +685,11 @@ namespace
     if (auto failure = std::get_if<Failure>(&attempt.error()))
     {
         return tl::unexpected(std::move(*failure));
+    }
+    if (auto failure = std::get_if<ConicalApexFailureCandidate>(&attempt.error()))
+    {
+        failure->model.reset();
+        return tl::unexpected(std::move(failure->failure));
     }
     auto witness = std::get<OrientationFailureCandidate>(std::move(attempt.error()));
     // Ordinary construction cannot publish a retained strict-attempt witness.

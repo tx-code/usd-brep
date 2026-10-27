@@ -636,6 +636,115 @@ void FractionJson(Writer& writer, const ExactUnitRatio& value)
     writer.String(value.Denominator());
     writer.Add("}");
 }
+void ConicalApexUseJson(Writer& w, const ConicalApexRepairUse& use)
+{
+    w.Add("{\"definition_id\":");
+    w.String(use.definitionId);
+    w.Add(",\"shape_id\":");
+    w.String(use.shapeId);
+    w.Add(",\"face_id\":");
+    w.String(use.faceId);
+    w.Add(",\"bound_id\":");
+    w.String(use.boundId);
+    w.Add(",\"loop_id\":");
+    w.String(use.loopId);
+    w.Add(",\"vertex_id\":");
+    w.String(use.vertexId);
+    w.Add(",\"surface_id\":");
+    w.String(use.surfaceId);
+    w.Add("}");
+}
+void ConicalApexJson(Writer& w, const Report& report)
+{
+    if (!report.conicalApexRepairRequest && !report.conicalApexRepairs && !report.conicalApexBudget)
+    {
+        return;
+    }
+    w.Add(
+        ",\"conical_apex_repair\":{\"configuration\":\"ConicalVertexLoopApexCorrection-Study-0.1\",\"source_bytes_unchanged\":true,\"tolerance_growth_allowance_mm\":0"
+    );
+    if (report.conicalApexRepairRequest)
+    {
+        const auto& r = *report.conicalApexRepairRequest;
+        w.Add(",\"source_sha256\":");
+        w.String(r.sourceSha256);
+        w.Add(",\"maximum_vertices\":");
+        w.Number(r.maximumVertices);
+        w.Add(",\"maximum_proof_controls\":");
+        w.Number(r.maximumProofControls);
+        w.Add(",\"maximum_proof_work\":");
+        w.Number(r.maximumProofWork);
+        w.Add(",\"maximum_displacement_mm\":");
+        FractionJson(w, r.maximumDisplacementMm);
+        w.Add(",\"maximum_total_displacement_mm\":");
+        FractionJson(w, r.maximumTotalDisplacementMm);
+        w.Add(",\"requested_uses\":[");
+        for (std::size_t i = 0; i < r.uses.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            ConicalApexUseJson(w, r.uses[i]);
+        }
+        w.Add("]");
+    }
+    if (report.conicalApexBudget)
+    {
+        const auto& b = *report.conicalApexBudget;
+        w.Add(",\"budget\":{\"corrected_vertices\":");
+        w.Number(b.correctedVertices);
+        w.Add(",\"proof_work\":");
+        w.Number(b.proofWork);
+        w.Add(",\"cumulative_displacement_upper_mm\":");
+        Number(w, b.cumulativeDisplacementUpperMm);
+        w.Add(",\"minimum_local_protection_lower_mm\":");
+        Number(w, b.minimumLocalProtectionLowerMm);
+        w.Add(",\"request_complete\":");
+        w.Bool(b.requestComplete);
+        w.Add("}");
+    }
+    if (report.conicalApexRepairs)
+    {
+        const auto& h = *report.conicalApexRepairs;
+        w.Add(",\"evidence\":{\"source_interpretation_applied\":");
+        w.Bool(h.sourceInterpretationApplied);
+        w.Add(",\"curves_and_surfaces_identical\":");
+        w.Bool(h.curvesAndSurfacesIdentical);
+        w.Add(",\"unrequested_vertices_identical\":");
+        w.Bool(h.unrequestedVerticesIdentical);
+        w.Add(",\"working_tolerances_identical\":");
+        w.Bool(h.workingTolerancesIdentical);
+        w.Add(",\"original_diagnostics_retained\":");
+        w.Bool(!h.originalDiagnostics.empty());
+        w.Add(",\"actions\":[");
+        for (std::size_t i = 0; i < h.actions.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            const auto& a = h.actions[i];
+            w.Add("{\"use\":");
+            ConicalApexUseJson(w, a.use);
+            w.Add(",\"source_point_id\":");
+            w.String(a.sourcePointId);
+            w.Add(",\"target_vertex\":");
+            w.Number(a.targetVertex);
+            w.Add(",\"original_mm\":");
+            PointJson(w, a.originalMm);
+            w.Add(",\"corrected_mm\":");
+            PointJson(w, a.correctedMm);
+            w.Add(",\"displacement_upper_mm\":");
+            Number(w, a.displacementUpperMm);
+            w.Add(",\"local_protection_lower_mm\":");
+            Number(w, a.localProtectionLowerMm);
+            w.Add("}");
+        }
+        w.Add("]}");
+    }
+    w.Add("}");
+}
 void FrameJson(Writer& w, const CoordinateFrame& frame)
 {
     w.Add("{\"origin_mm\":");
@@ -1420,6 +1529,7 @@ void WriteReportJson(
         {
             w.Add(",\"assembly\":null");
         }
+        ConicalApexJson(w, report);
         if (report.cylindricalBandRepairRequest || report.cylindricalBandRepairs)
         {
             const auto vertexRequest = report.cylindricalBandRepairRequest && report.cylindricalBandRepairRequest->circleVertices ?
@@ -1909,6 +2019,8 @@ void WriteReportJson(
         }
         w.Add(",\"repair\":");
         w.String(
+            (report.conicalApexRepairs || (report.conicalApexBudget && report.conicalApexBudget->requestComplete && IsAcceptedReportStatus(status))) ?
+                "ConicalVertexLoopApexCorrection-Study-0.1" :
             report.circleVertexBudget && report.circleVertexBudget->requestComplete && IsAcceptedReportStatus(status) ?
                 "ExactOrientedCylindricalBandWithCircleVertices-0.1" :
             report.cylindricalBandRepairs ?

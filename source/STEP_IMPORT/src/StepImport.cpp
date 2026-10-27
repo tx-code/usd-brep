@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportConicalApexSession.h"
 #include "StepImportExecution.h"
 #include "StepImportGroupedBuild.h"
 #include "StepImportNativeData.h"
@@ -72,6 +73,7 @@ namespace
 {
 void Validate(const Options& options)
 {
+    detail::ValidateConicalApexOptions(options);
     detail::ValidateSurfaceCurve3dInterpretationOptions(options);
     detail::ValidateTargetSurfacePrecisionOptions(options);
     if (options.terminalDomainInterpretation)
@@ -436,6 +438,7 @@ Result Import(
     report.definitionSelectionRequest = options.definitionSelection;
     report.sourceErrorIsolationRequest = options.sourceErrorIsolation;
     report.cylindricalBandRepairRequest = options.cylindricalBandRepair;
+    report.conicalApexRepairRequest = options.conicalApexRepair;
     report.supportDomainRestrictionRequested = options.restrictUnusedSupportDomains;
     report.periodicNormalizationRequested = options.normalizePeriodicFaces;
     if (options.numericalIntegration)
@@ -798,9 +801,9 @@ namespace
 void ValidateAssembly(const Options& options, AssemblyLimits limits)
 {
     Validate(options);
-    if (!options.generalBrep || options.faceOrientationRepair || options.cylindricalBandRepair || options.definitionSelection ||
-        options.sourceErrorIsolation || !limits.occurrences || limits.occurrences > options.sourceLimits.records || !limits.instances ||
-        limits.instances > 1000000 || limits.depth > 1000000)
+    if (!options.generalBrep || options.faceOrientationRepair || options.cylindricalBandRepair || options.conicalApexRepair ||
+        options.definitionSelection || options.sourceErrorIsolation || !limits.occurrences || limits.occurrences > options.sourceLimits.records ||
+        !limits.instances || limits.instances > 1000000 || limits.depth > 1000000)
     {
         throw std::invalid_argument(
             "Assembly import requires explicit general scope, positive bounded occurrence/instance limits and no repair/selection isolation"

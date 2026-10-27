@@ -14,10 +14,15 @@ struct OrientationFailureCandidate
     std::shared_ptr<ModelData> model;
     std::vector<std::size_t> targetFaces;
 };
+struct ConicalApexFailureCandidate
+{
+    Failure failure;
+    std::shared_ptr<ModelData> model; // Complete private 3D graph; retained only for this explicit repair attempt, never published.
+};
 // Only the strict repair attempt may retain a native candidate as evidence.
 // Keep this owning channel separate from ordinary business/execution failures;
 // converting it at the outer build boundary releases its owner before reporting.
-using ConstructionFailure = std::variant<Failure, OrientationFailureCandidate>;
+using ConstructionFailure = std::variant<Failure, OrientationFailureCandidate, ConicalApexFailureCandidate>;
 static_assert(std::is_nothrow_move_constructible_v<ConstructionFailure>);
 template <class T>
 using ConstructionResult = tl::expected<T, ConstructionFailure>;

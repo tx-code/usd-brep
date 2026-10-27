@@ -334,6 +334,42 @@ struct CylindricalBandRepairHistory
     std::shared_ptr<const CircleVertexBudgetReceipt> circleVertexBudget;
     bool curvesAndSurfacesIdentical = false, unrequestedVerticesIdentical = false;
 };
+struct ConicalApexRepairUse
+{
+    std::string definitionId, shapeId, faceId, boundId, loopId, vertexId, surfaceId;
+    bool operator==(const ConicalApexRepairUse&) const = default;
+};
+struct ConicalApexRepairRequest
+{
+    std::string sourceSha256;
+    std::vector<ConicalApexRepairUse> uses;
+    std::size_t maximumVertices = 0, maximumProofControls = 0, maximumProofWork = 0;
+    Fraction maximumDisplacementMm, maximumTotalDisplacementMm; // Explicit independent repair allowances; no production defaults.
+};
+struct ConicalApexRepairAction
+{
+    ConicalApexRepairUse use;
+    std::string sourcePointId;
+    std::size_t targetVertex = 0;
+    Point originalMm, correctedMm; // Original represented native point, before any repair; immutable STEP lexemes remain in Source().
+    double displacementUpperMm = 0, localProtectionLowerMm = 0;
+};
+struct ConicalApexRepairBudget
+{
+    std::size_t maximumVertices = 0, correctedVertices = 0, maximumProofWork = 0, proofWork = 0;
+    Fraction maximumDisplacementMm, maximumTotalDisplacementMm;
+    double cumulativeDisplacementUpperMm = 0, minimumLocalProtectionLowerMm = 0;
+    bool requestComplete = false;
+};
+struct ConicalApexRepairHistory
+{
+    std::string sourceSha256;
+    std::vector<ConicalApexRepairAction> actions;
+    std::vector<step_semantics::Diagnostic> originalDiagnostics;
+    std::shared_ptr<const ConicalApexRepairBudget> budget; // Final request-wide owning receipt; never mutable after publication.
+    bool sourceInterpretationApplied = false, curvesAndSurfacesIdentical = false;
+    bool unrequestedVerticesIdentical = false, workingTolerancesIdentical = false;
+};
 struct DefinitionSelectionReceipt
 {
     std::string sourceSha256;
@@ -405,6 +441,7 @@ struct Options
     std::optional<SourceErrorIsolationLimits> sourceErrorIsolation; // Requires explicit selection; isolates only proved unselected FACE.WR2 facts.
     step_semantics::ComplexMappingInterpretation complexMappingInterpretation = step_semantics::ComplexMappingInterpretation::DeclaredOnly;
     std::optional<CylindricalBandRepairRequest> cylindricalBandRepair;
+    std::optional<ConicalApexRepairRequest> conicalApexRepair; // Explicit source-bound point corrections; absent remains Repair=None.
     std::optional<TerminalDomainInterpretationRequest> terminalDomainInterpretation; // Explicit file-bound development assumption; no default.
     std::shared_ptr<const SurfaceCurve3dInterpretationRequest> surfaceCurve3dInterpretation; // Explicit original/edge-bound development choice; see
                                                                                              // dedicated header.
@@ -604,6 +641,7 @@ public:
     std::vector<PcurveCarrierPrecisionInfo> PcurveCarrierPrecisions() const;
     std::optional<FaceOrientationRepairHistory> Repairs() const; // Owning values, independent of the mutable outcome/report.
     std::optional<CylindricalBandRepairHistory> CylindricalBandRepairs() const;
+    std::optional<ConicalApexRepairHistory> ConicalApexRepairs() const;
     std::shared_ptr<const TerminalDomainInterpretationReceipt> TerminalDomainInterpretation() const;
     std::shared_ptr<const SurfaceCurve3dInterpretationReceipt> SurfaceCurve3dInterpretation() const; // Owning conditional source-choice evidence.
     std::shared_ptr<const TargetSurfacePrecisionReceipt> TargetSurfacePrecision() const; // Owning request-bound native geometry precision evidence.
@@ -812,6 +850,9 @@ struct Report
     std::optional<FaceOrientationRepairRequest> repairRequest;
     std::optional<FaceOrientationRepairHistory> repairs;
     std::shared_ptr<Report> originalAttempt; // No native owners; source/evidence live at the complete request root.
+    std::optional<ConicalApexRepairRequest> conicalApexRepairRequest;
+    std::optional<ConicalApexRepairHistory> conicalApexRepairs;
+    std::shared_ptr<const ConicalApexRepairBudget> conicalApexBudget;
     std::optional<Status> originalAttemptStatus;
     std::size_t repairProofProducts = 0;
     std::string repairStage;

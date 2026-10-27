@@ -2277,6 +2277,10 @@ std::optional<TopologyNormalizationInfo> ModelSnapshot::TopologyNormalization() 
 {
     return m_data->topologyNormalization;
 }
+std::optional<ConicalApexRepairHistory> ModelSnapshot::ConicalApexRepairs() const
+{
+    return m_data->conicalApexRepairs;
+}
 std::vector<SurfaceNormalizationInfo> ModelSnapshot::SurfaceNormalizations() const
 {
     return m_data->surfaceNormalizations;
