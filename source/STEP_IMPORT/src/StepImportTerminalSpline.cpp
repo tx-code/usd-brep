@@ -381,7 +381,7 @@ public:
 namespace
 {
 
-Result<void> ValidateKnots(const std::vector<R>& knots, unsigned degree, std::size_t count, Arithmetic& math)
+Result<void> ValidateKnots(const std::vector<R>& knots, unsigned degree, std::size_t count, Arithmetic& math, bool requireClamped = true)
 {
     if (count < degree + 1 || count > std::numeric_limits<std::size_t>::max() - degree - 1 || knots.size() != count + degree + 1)
     {
@@ -400,7 +400,14 @@ Result<void> ValidateKnots(const std::vector<R>& knots, unsigned degree, std::si
         {
             ++j;
         }
-        if ((i == 0 || j == knots.size()) ? j - i != degree + 1 : j - i > degree)
+        const bool badClamped = (i == 0 || j == knots.size()) ? j - i != degree + 1 : j - i > degree;
+        bool invalid = badClamped;
+        if (!requireClamped)
+        {
+            const bool inside = Compare(knots[i], knots[degree]) > 0 && Compare(knots[i], knots[count]) < 0;
+            invalid = j - i > (inside ? degree : degree + 1);
+        }
+        if (invalid)
         {
             return tl::unexpected(Error("TerminalSplineClampedContinuousBasis", Status::Unsupported));
         }
@@ -412,7 +419,7 @@ Result<void> ValidateKnots(const std::vector<R>& knots, unsigned degree, std::si
     }
     return {};
 }
-Result<std::vector<R>> SourceKnots(const SourceAxis& axis, std::size_t count, Arithmetic& math)
+Result<std::vector<R>> SourceKnots(const SourceAxis& axis, std::size_t count, Arithmetic& math, bool requireClamped = true)
 {
     if (axis.degree < 1 || axis.degree > 17 || axis.knots.size() < 2 || axis.knots.size() != axis.multiplicities.size() ||
         count > math.limits.controlSlots)
@@ -430,7 +437,7 @@ Result<std::vector<R>> SourceKnots(const SourceAxis& axis, std::size_t count, Ar
         }
         result.insert(result.end(), mult, knot);
     }
-    TS_OK(ValidateKnots(result, axis.degree, count, math));
+    TS_OK(ValidateKnots(result, axis.degree, count, math, requireClamped));
     return result;
 }
 H& At(Net& net, bool uAxis, std::size_t index, std::size_t row)
@@ -646,7 +653,12 @@ Result<std::array<R, 2>> Requested(const SourceAxis& source, const std::vector<R
     TS_TRY(b, math.Binary(high));
     return std::array<R, 2>{ std::move(a), std::move(b) };
 }
-Result<Net> ReadOriginalSourceNet(const Source& source, Arithmetic& math, std::optional<std::array<R, 2>>& originalCurveDomain)
+Result<Net> ReadOriginalSourceNet(
+    const Source& source,
+    Arithmetic& math,
+    std::optional<std::array<R, 2>>& originalCurveDomain,
+    bool requireClamped = true
+)
 {
     if (!source.v && source.countV != 1)
     {
@@ -662,7 +674,7 @@ Result<Net> ReadOriginalSourceNet(const Source& source, Arithmetic& math, std::o
     net.q = source.v ? source.v->degree : 0;
     net.nu = source.countU;
     net.nv = source.countV;
-    TS_TRY(u, SourceKnots(source.u, net.nu, math));
+    TS_TRY(u, SourceKnots(source.u, net.nu, math, requireClamped));
     net.u = std::move(u);
     if (!source.v && !source.u.requested)
     {
@@ -702,6 +714,132 @@ Result<Net> ReadOriginalSourceNet(const Source& source, Arithmetic& math, std::o
         }
     }
     return net;
+}
+Result<Net> NaturalCurveNet(const Net& original, Arithmetic& math)
+{
+    if (original.q || original.nv != 1)
+    {
+        return tl::unexpected(Error("TerminalSplineNaturalCurveOnly", Status::Unsupported));
+    }
+    TS_OK(math.Reserve(original.cp.size()));
+    TS_OK(math.Spend(original.cp.size()));
+    Net work = original;
+    const R low = original.u[original.p], high = original.u[original.nu];
+    if (Compare(original.u.front(), low) == 0 && Compare(original.u.back(), high) == 0)
+    {
+        return work;
+    }
+    // Exact Boehm insertion only at the original natural endpoints restricts
+    // the homogeneous curve without fitting, extending U, or altering interior
+    // knots. Keeping this compact basis avoids expanding every span twice in
+    // the subsequent common-refinement certificate. STEP's original data stays
+    // immutable; this is a private exact reference, never emitted native data.
+    // Unlike Insert's interior-only contract, an endpoint may reach p+1 copies.
+    // At the high endpoint, upper_bound can select k==nu (or later duplicates):
+    // capping k at nu-1 would change the final polynomial on unclamped inputs.
+    const R one{ 1, 1 };
+    for (const auto& endpoint : { low, high })
+    {
+        for (;;)
+        {
+            TS_OK(math.Spend(work.u.size()));
+            const auto upper = std::upper_bound(
+                work.u.begin(),
+                work.u.end(),
+                endpoint,
+                [](const R& a, const R& b)
+                {
+                    return Compare(a, b) < 0;
+                }
+            );
+            const auto lower = std::lower_bound(
+                work.u.begin(),
+                work.u.end(),
+                endpoint,
+                [](const R& a, const R& b)
+                {
+                    return Compare(a, b) < 0;
+                }
+            );
+            const auto s = std::size_t(upper - lower);
+            if (s == work.p + 1)
+            {
+                break;
+            }
+            const auto k = std::size_t(upper - work.u.begin() - 1);
+            if (s > work.p || k < work.p || k < s || k - s >= work.nu || k - work.p >= work.nu)
+            {
+                return tl::unexpected(Error("TerminalSplineNaturalEndpointInsertion"));
+            }
+            TS_OK(math.Reserve(work.nu + 1));
+            std::vector<H> next(work.nu + 1);
+            for (std::size_t i = 0; i <= k - work.p; ++i)
+            {
+                TS_OK(math.Spend());
+                next[i] = work.cp[i];
+            }
+            for (std::size_t i = k - s; i < work.nu; ++i)
+            {
+                TS_OK(math.Spend());
+                next[i + 1] = work.cp[i];
+            }
+            for (std::size_t i = k - work.p + 1; i <= k - s; ++i)
+            {
+                TS_TRY(numerator, math.Sub(endpoint, work.u[i]));
+                TS_TRY(denominator, math.Sub(work.u[i + work.p], work.u[i]));
+                if (denominator.n <= 0)
+                {
+                    return tl::unexpected(Error("TerminalSplineNaturalInsertionDomain"));
+                }
+                TS_TRY(alpha, math.Div(numerator, denominator));
+                if (alpha.n < 0 || Compare(alpha, one) > 0)
+                {
+                    return tl::unexpected(Error("TerminalSplineNaturalInsertionRange"));
+                }
+                TS_TRY(other, math.Sub(one, alpha));
+                TS_TRY(point, Mix(work.cp[i - 1], work.cp[i], alpha, other, math));
+                next[i] = std::move(point);
+            }
+            TS_OK(math.Spend(work.u.size() - k));
+            work.u.insert(work.u.begin() + std::ptrdiff_t(k + 1), endpoint);
+            work.cp = std::move(next);
+            ++work.nu;
+        }
+    }
+    const auto begin = std::lower_bound(
+        work.u.begin(),
+        work.u.end(),
+        low,
+        [](const R& a, const R& b)
+        {
+            return Compare(a, b) < 0;
+        }
+    );
+    const auto end = std::upper_bound(
+        work.u.begin(),
+        work.u.end(),
+        high,
+        [](const R& a, const R& b)
+        {
+            return Compare(a, b) < 0;
+        }
+    );
+    const auto offset = std::size_t(begin - work.u.begin());
+    const auto count = std::size_t(end - begin) - work.p - 1;
+    if (offset > work.nu || count > work.nu - offset)
+    {
+        return tl::unexpected(Error("TerminalSplineNaturalControlCount"));
+    }
+    TS_OK(math.Reserve(count));
+    TS_OK(math.Spend(count + std::size_t(end - begin)));
+    Net out;
+    out.p = work.p;
+    out.nu = count;
+    out.v = work.v;
+    out.u.assign(begin, end);
+    out.cp.assign(work.cp.begin() + std::ptrdiff_t(offset), work.cp.begin() + std::ptrdiff_t(offset + count));
+    TS_OK(ValidateKnots(out.u, out.p, out.nu, math));
+    return out;
 }
 Result<Net> ReadSource(const Source& source, Arithmetic& math, std::optional<std::array<R, 2>>& originalCurveDomain)
 {
@@ -1627,6 +1765,27 @@ Result<std::shared_ptr<const Reference>> CaptureOriginalReference(const Source& 
             // Moving it into immutable ownership creates no second control net
             // and deliberately skips Requested/ExtendRange/Emit. The later
             // certificate counts both this resident reference and its copy.
+            auto reference = std::make_shared<Reference>();
+            reference->net = std::move(net);
+            reference->originalCurveDomain = std::move(originalCurveDomain);
+            return std::shared_ptr<const Reference>(std::move(reference));
+        }
+    );
+}
+Result<std::shared_ptr<const Reference>> CaptureNaturalCurveReference(const Source& source, const Limits& limits, const Charge& charge)
+{
+    return Guard<std::shared_ptr<const Reference>>(
+        limits,
+        charge,
+        [&](Arithmetic& math) -> Result<std::shared_ptr<const Reference>>
+        {
+            if (source.v || source.countV != 1 || source.u.requested)
+            {
+                return tl::unexpected(Error("TerminalSplineNaturalCurveReference", Status::Unsupported));
+            }
+            std::optional<std::array<R, 2>> originalCurveDomain;
+            TS_TRY(original, ReadOriginalSourceNet(source, math, originalCurveDomain, false));
+            TS_TRY(net, NaturalCurveNet(original, math));
             auto reference = std::make_shared<Reference>();
             reference->net = std::move(net);
             reference->originalCurveDomain = std::move(originalCurveDomain);

@@ -431,6 +431,231 @@ void ExistingExtendSequence()
         "ordinary existing constructor output remains unchanged"
     );
 }
+void NaturalUnclampedCurve()
+{
+    Source source;
+    source.u = { 2, { "-1", "0", "1", "2", "3", "4" }, { 1, 1, 1, 1, 1, 1 }, {} };
+    source.countU = 3;
+    source.controls = { { "0", "0", "0" }, { "1", "0", "0" }, { "2", "0", "0" } };
+    BinaryNet actual;
+    actual.basis = { 2, 0, 3, 1, { 1, 1, 1, 2, 2, 2 }, {} };
+    actual.homogeneous = { { .5, 0, 0, 1 }, { 1, 0, 0, 1 }, { 1.5, 0, 0, 1 } };
+    Ledger strict;
+    const auto old = CaptureOriginalReference(source, Capacity(), strict.Callback());
+    Require(!old && old.error().key == "TerminalSplineClampedContinuousBasis", "old source-reference contract remains strict");
+    Ledger natural;
+    const auto reference = CaptureNaturalCurveReference(source, Capacity(), natural.Callback());
+    Require(bool(reference), "capture exact natural restriction of a nonclamped source curve");
+    const auto proof = CertifyCurveTrim(*reference, { "1", "2" }, actual, { "1", "1000000000" }, Capacity(), natural.Callback());
+    Require(
+        proof && proof->established && proof->maximumMm && *proof->maximumMm == 0,
+        "independent linear oracle: quadratic cardinal spline equals a clamped line from .5 to1.5 on original U[1,2]"
+    );
+    source.weights = { "1", "2", "1" };
+    actual.homogeneous = { { 1, 0, 0, 1.5 }, { 2, 0, 0, 2 }, { 2, 0, 0, 1.5 } };
+    Ledger rational;
+    const auto weighted = CaptureNaturalCurveReference(source, Capacity(), rational.Callback());
+    Require(bool(weighted), "positive rational natural restriction");
+    const auto rationalProof = CertifyCurveTrim(*weighted, { "1", "2" }, actual, { "1", "1000000000" }, Capacity(), rational.Callback());
+    Require(
+        rationalProof && rationalProof->established && rationalProof->maximumMm && *rationalProof->maximumMm == 0,
+        "homogeneous oracle: end weights3/2, center weight2 and exact numerators1,2,2"
+    );
+}
+void NaturalOneSidedEndpoints()
+{
+    for (bool lowClamped : { false, true })
+    {
+        Source source;
+        source.countU = 3;
+        source.u = lowClamped ? SourceAxis{ 2, { "0", "1", "2", "3" }, { 3, 1, 1, 1 }, {} } :
+                                SourceAxis{ 2, { "-1", "0", "1", "2" }, { 1, 1, 1, 3 }, {} };
+        source.controls = { { "0", "0", "0" }, { "1", "0", "0" }, { "2", "0", "0" } };
+        const double low = lowClamped ? 0. : 1., high = low + 1;
+        BinaryNet actual;
+        actual.basis = { 2, 0, 3, 1, { low, low, low, high, high, high }, {} };
+        actual.homogeneous = { { lowClamped ? 0. : .5, 0, 0, 1 }, { 1, 0, 0, 1 }, { lowClamped ? 1.5 : 2., 0, 0, 1 } };
+        // Direct quadratic polynomial oracle: C(U)=2U-.5U² if low-clamped;
+        // otherwise C(U)=.5+(U-1)+.5(U-1)² on the original interval [1,2].
+        Ledger ledger;
+        const auto reference = CaptureNaturalCurveReference(source, Capacity(), ledger.Callback());
+        Require(bool(reference), "one-sided natural endpoint capture");
+        const std::array<std::string, 2> cuts = lowClamped ? std::array<std::string, 2>{ "0", "1" } : std::array<std::string, 2>{ "1", "2" };
+        const auto proof = CertifyCurveTrim(*reference, cuts, actual, { "1", "1000000000" }, Capacity(), ledger.Callback());
+        Require(proof && proof->established && proof->maximumMm && *proof->maximumMm == 0, "one-sided exact natural restriction");
+        const auto outside = CertifyCurveTrim(*reference, { "-1", "3" }, actual, { "1", "1" }, Capacity(), ledger.Callback());
+        Require(
+            !outside && outside.error().key == "TerminalSplineTrimOutsideSourceDomain",
+            "outer transmitted knots grant no source-domain extension"
+        );
+        auto wrong = actual;
+        for (auto& k : wrong.basis.knotsU)
+        {
+            k += .25;
+        }
+        const auto shifted = CertifyCurveTrim(*reference, cuts, wrong, { "1", "1" }, Capacity(), ledger.Callback());
+        Require(
+            !shifted && shifted.error().key == "TerminalSplineTrimNativeDomainMismatch",
+            "native knot shift cannot silently reparameterize the natural reference"
+        );
+    }
+}
+void NaturalDegreeAndRepeatedKnots()
+{
+    for (unsigned p = 1; p <= 8; ++p)
+    {
+        Source source;
+        source.u.degree = p;
+        source.countU = p + 4;
+        for (unsigned i = 0; i < source.countU + p + 1; ++i)
+        {
+            source.u.knots.push_back(std::to_string(int(i) - int(p)));
+            source.u.multiplicities.push_back(1);
+        }
+        for (unsigned i = 0; i < source.countU; ++i)
+        {
+            source.controls.push_back({ std::to_string(i), "0", "0" });
+        }
+        BinaryNet actual;
+        actual.basis = { p, 0, p + 1, 1, {}, {} };
+        actual.basis.knotsU.insert(actual.basis.knotsU.end(), p + 1, 0);
+        actual.basis.knotsU.insert(actual.basis.knotsU.end(), p + 1, 4);
+        // Uniform cardinal B-spline linear precision: C(U)=U+(p-1)/2.
+        // Degree-elevating this line to p gives the following Bezier controls.
+        // Non-dyadic 4*i/p poles are rounded only in the actual native fixture;
+        // the unchanged whole-domain certificate must include that error too.
+        for (unsigned i = 0; i <= p; ++i)
+        {
+            actual.homogeneous.push_back({ .5 * (p - 1) + 4. * i / p, 0, 0, 1 });
+        }
+        Ledger ledger;
+        const auto reference = CaptureNaturalCurveReference(source, Capacity(), ledger.Callback());
+        Require(bool(reference), "natural curve reference across public degrees");
+        const auto proof = CertifyCurveTrim(*reference, { "0", "4" }, actual, { "1", "1000000000" }, Capacity(), ledger.Callback());
+        Require(
+            proof && proof->established && proof->maximumMm && *proof->maximumMm < 1e-9,
+            "cardinal linear precision proves original parameter correspondence across degrees"
+        );
+    }
+    Source source;
+    source.u = { 3, { "-2", "-1", "0", "1", "2", "3", "4" }, { 1, 2, 2, 1, 2, 2, 1 }, {} };
+    source.countU = 7;
+    for (int i = 0; i < 7; ++i)
+    {
+        source.controls.push_back({ std::to_string(i), std::to_string(i * i - 2), std::to_string(i % 2 ? -1 : 1) });
+        source.weights.push_back(i % 2 ? "2" : "1");
+    }
+    BinaryNet actual;
+    actual.basis = { 3, 0, 7, 1, { 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2 }, {} };
+    // Independent homogeneous piecewise polynomial oracle (t=U, s=U-1):
+    // [0,1]: X=2+6t²-3.5t³, Y=6t+12t²-7t³,
+    // Z=-.5+4.5t-9t²+4.5t³, W=1.5-1.5t+3t²-1.5t³.
+    // [1,2]: X=4.5+1.5s-4.5s²+5.5s³, Y=11+9s-9s²+19s³,
+    // Z=-.5+4.5s²-4.5s³, W=1.5-1.5s²+1.5s³.
+    // These Bernstein coefficients are all exactly representable binary64.
+    actual.homogeneous = { { 2, 0, -.5, 1.5 },  { 2, 2, 1, 1 },  { 4, 8, -.5, 1.5 }, { 4.5, 11, -.5, 1.5 },
+                           { 5, 14, -.5, 1.5 }, { 4, 14, 1, 1 }, { 7, 30, -.5, 1.5 } };
+    Ledger ledger;
+    const auto reference = CaptureNaturalCurveReference(source, Capacity(), ledger.Callback());
+    Require(bool(reference), "nonuniform repeated natural endpoints with positive rational weights");
+    const auto proof = CertifyCurveTrim(*reference, { "0", "2" }, actual, { "1", "1000000000" }, Capacity(), ledger.Callback());
+    Require(
+        proof && proof->established && proof->maximumMm && *proof->maximumMm == 0 && proof->patches == 2,
+        "original C2 interior knot and repeated natural endpoints match independent rational polynomial oracle"
+    );
+}
+void NaturalMultiSpanAndExecution()
+{
+    Source source;
+    source.u = { 2, { "-2", "-1", "0", "1", "3", "4", "6" }, { 1, 1, 1, 1, 1, 1, 1 }, {} };
+    source.countU = 4;
+    source.controls = { { "0", "0", "0" }, { "6", "6", "0" }, { "24", "0", "6" }, { "54", "6", "0" } };
+    BinaryNet actual;
+    actual.basis = { 2, 0, 5, 1, { 0, 0, 0, 1, 1, 3, 3, 3 }, {} };
+    // Independent polynomial oracle, t=U on[0,1], s=(U-1)/2 on[1,3]:
+    // first=(3+6t+3t²,3+6t-5t²,2t²),
+    // second=(12+24s+8s²,4-8s+8s²,2+8s-8s²).
+    actual.homogeneous = { { 3, 3, 0, 1 }, { 6, 6, 0, 1 }, { 12, 4, 2, 1 }, { 24, 0, 6, 1 }, { 44, 4, 2, 1 } };
+    auto run = [&](Ledger& ledger) -> Result<Proof>
+    {
+        const auto reference = CaptureNaturalCurveReference(source, Capacity(), ledger.Callback());
+        if (!reference)
+        {
+            return tl::unexpected(reference.error());
+        }
+        return CertifyCurveTrim(*reference, { "0", "3" }, actual, { "1", "1000000000" }, Capacity(), ledger.Callback());
+    };
+    Ledger baseline;
+    const auto proof = run(baseline);
+    Require(
+        proof && proof->established && proof->maximumMm && *proof->maximumMm == 0 && proof->patches == 2,
+        "nonuniform multispan natural restriction matches independent homogeneous polynomial oracle"
+    );
+    Ledger capture;
+    Require(bool(CaptureNaturalCurveReference(source, Capacity(), capture.Callback())), "isolated natural capture ledger");
+    for (auto maximum : { baseline.work, baseline.work - 1 })
+    {
+        Ledger bounded;
+        bounded.maximum = maximum;
+        const auto result = run(bounded);
+        Require(
+            maximum == baseline.work ? bool(result && result->established) : !result && result.error().key == "OriginalReferenceWork",
+            "one cumulative ledger covers natural capture and certificate at N/N-1"
+        );
+    }
+    for (auto at : { std::size_t(1), capture.calls / 2, capture.calls, capture.calls + 1, baseline.calls })
+    {
+        Ledger stopped;
+        stopped.cancelAt = at;
+        const auto result = run(stopped);
+        Require(
+            !result && result.error().status == Status::Cancelled && result.error().key == "OriginalReferenceCancel" && result.error().record == 61,
+            "caller cancellation preserves identity before/during endpoint insertion, refinement and final bound"
+        );
+    }
+    for (auto at : { std::size_t(1), capture.calls / 2, capture.calls + 1 })
+    {
+        Ledger throwing;
+        throwing.throwAt = at;
+        bool propagated = false;
+        try
+        {
+            (void)run(throwing);
+        }
+        catch (const std::overflow_error& e)
+        {
+            propagated = std::string_view(e.what()) == "public original-reference exception";
+        }
+        Require(propagated, "natural capture must not reclassify caller exceptions as numeric overflow");
+    }
+    Ledger repeated;
+    const auto same = run(repeated);
+    Require(same && same->established && baseline.trace == repeated.trace, "failed natural captures leave no mutable arithmetic state");
+    auto capacity = Capacity();
+    capacity.controlSlots = source.countU;
+    Ledger limited;
+    const auto scarce = CaptureNaturalCurveReference(source, capacity, limited.Callback());
+    Require(!scarce && scarce.error().status == Status::ResourceLimit, "natural reference charges resident and new control allocations");
+    auto invalid = source;
+    invalid.u.requested = std::array<std::string, 2>{ "-3", "7" };
+    Ledger requests;
+    Require(!CaptureNaturalCurveReference(invalid, Capacity(), requests.Callback()), "natural capture does not extend a requested domain");
+    invalid = source;
+    invalid.v = source.u;
+    Ledger surfaces;
+    Require(!CaptureNaturalCurveReference(invalid, Capacity(), surfaces.Callback()), "natural capture is not an implicit surface capability");
+    invalid = source;
+    invalid.weights = { "1", "1", "0", "1" };
+    Ledger weights;
+    Require(!CaptureNaturalCurveReference(invalid, Capacity(), weights.Callback()), "positive weights remain mandatory");
+    auto changed = actual;
+    changed.homogeneous[2][1] += .01;
+    Ledger tamper;
+    const auto reference = CaptureNaturalCurveReference(source, Capacity(), tamper.Callback());
+    Require(bool(reference), "tamper reference");
+    const auto wrong = CertifyCurveTrim(*reference, { "0", "3" }, changed, { "1", "1000000000" }, Capacity(), tamper.Callback());
+    Require(wrong && !wrong->established, "changed actual native middle pole cannot pass exact natural-domain certificate");
+}
 } // namespace
 int main()
 {
@@ -441,6 +666,10 @@ int main()
         ScopesAndActualBindings();
         WorkCancellationAndExceptions();
         ExistingExtendSequence();
+        NaturalUnclampedCurve();
+        NaturalMultiSpanAndExecution();
+        NaturalDegreeAndRepeatedKnots();
+        NaturalOneSidedEndpoints();
         return 0;
     }
     catch (const std::exception& error)

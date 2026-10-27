@@ -120,6 +120,13 @@ struct PoleVisitProof
 // exact source cuts and charges the SAME caller ledger as this capture.
 // This is not a surface certificate, repair, parameter selection or publication.
 [[nodiscard]] Result<std::shared_ptr<const Reference>> CaptureOriginalReference(const Source& source, const Limits& limits, const Charge& charge);
+// Separate unrequested CURVE entry: retain its original natural interval even
+// when the transmitted basis is not clamped. Exact homogeneous endpoint knot insertion
+// restricts a private reference to the original natural domain; interior knots, original
+// U and physical definitions are unchanged. No outward envelope, fit, period
+// inference or target geometry is emitted. Existing strict capture/Extend keep
+// their clamped-basis restriction and charge sequence.
+[[nodiscard]] Result<std::shared_ptr<const Reference>> CaptureNaturalCurveReference(const Source& source, const Limits& limits, const Charge& charge);
 
 // Compare the actual native binary64 definition against the exact interpreted
 // SOURCE reference on the WHOLE actual natural domain. Degrees/domain must match
