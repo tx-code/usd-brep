@@ -4,9 +4,13 @@
 
 #include "StepImportCylindricalBandRepair.h"
 #include "StepImportExecution.h"
+#include "StepImportNativeStatus.h"
 
+#include <SmBSplineSurface.h>
 #include <SmCircle.h>
+#include <SmCrvOnSurf.h>
 #include <SmEdge.h>
+#include <SmSTEPSurface.h>
 #include <algorithm>
 #include <cmath>
 #include <numbers>
@@ -50,6 +54,28 @@ double ParameterGuard(std::array<double, 2> interval)
         return tl::unexpected(std::move(businessCheck.error()));
     }
     result->SetOwner(nullptr);
+    if (const auto* original = dynamic_cast<const SmCrvOnSurf*>(&source))
+    {
+        const auto* copied = dynamic_cast<const SmCrvOnSurf*>(result.get());
+        const auto* originalCarrier = dynamic_cast<const SmSTEPSurface*>(original->GetBaseSurface());
+        const auto* copiedCarrier = copied ? dynamic_cast<const SmSTEPSurface*>(copied->GetBaseSurface()) : nullptr;
+        // Each child and the retained reference need independent owned defining
+        // UV/carrier trees. Equal values alone must not qualify borrowed aliases
+        // which would dangle or double-delete when an unpublished candidate dies.
+        if (auto checked = Need(
+                copied && original->OwnsBaseSurface() && copied->OwnsBaseSurface() && copied->GetUVCurve() &&
+                    copied->GetUVCurve() != original->GetUVCurve() && copied->GetUVCurve()->GetContext() == &context &&
+                    copied->GetUVCurve()->GetOwner() == copied && copiedCarrier && originalCarrier && copiedCarrier != originalCarrier &&
+                    copiedCarrier->GetContext() == &context && copiedCarrier->GetOwner() == copied && copiedCarrier->OwnsBaseSurface() &&
+                    copiedCarrier->GetBaseSurface() && copiedCarrier->GetBaseSurface() != originalCarrier->GetBaseSurface() &&
+                    copiedCarrier->GetBaseSurface()->GetContext() == &context,
+                "RingSubdivisionComposedOwnership"
+            );
+            !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+    }
     if (auto businessCheck = RequireSameNativeCurveDefinition(source, *result); !businessCheck)
     {
         return tl::unexpected(std::move(businessCheck.error()));
@@ -57,6 +83,47 @@ double ParameterGuard(std::array<double, 2> interval)
     return result;
 }
 } // namespace
+Result<ClosedSplineCycle> PlanClosedSplineCycle(const SmCurve& curve, double phase, double definitionMm, const ExecutionCheckpoint& checkpoint)
+{
+    const auto checkCycle = [](bool okay, const char* key) -> Result<void>
+    {
+        if (!okay)
+        {
+            return tl::unexpected(Failure{ Status::Indeterminate, key, "Closed spline cycle is unestablished", {}, "ClosedSplineCycle" });
+        }
+        return {};
+    };
+    const auto domain = curve.GetNaturalInterval();
+    const std::array<double, 2> interval{ domain.GetMin(), domain.GetMax() };
+    const auto guard = ParameterGuard(interval);
+    if (auto checked = checkCycle(
+            std::isfinite(interval[0]) && std::isfinite(interval[1]) && std::isfinite(phase) && std::isfinite(definitionMm) && definitionMm > 0 &&
+                phase > interval[0] + guard && phase < interval[1] - guard,
+            "ClosedSplinePhaseUnestablished"
+        );
+        !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    SmPoint3d first, last;
+    for (const auto& [parameter, point] : { std::pair{ interval[0], &first }, std::pair{ interval[1], &last } })
+    {
+        if (auto checked = checkpoint(); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (auto checked = CheckNativeStatus(curve.EvaluatePoint(parameter, *point), NativeStatusOrigin::GeneralConstruction); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+    }
+    const double residual = first.DistanceBetween(last);
+    if (auto checked = checkCycle(std::isfinite(residual) && residual <= definitionMm, "ClosedSplineClosureUnestablished"); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    return ClosedSplineCycle{ phase, interval, { first.x, first.y, first.z }, residual };
+}
 [[nodiscard]] Result<std::optional<ConicalRingCut>> PlanConicalRingCut(
     const ConicalRingSupport& support,
     const std::array<ConicalRingInput, 2>& rings,

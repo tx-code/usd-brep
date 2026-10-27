@@ -87,6 +87,7 @@ struct Curve
     V p0{}, p1{}; // Evaluated endpoints of the defining curve, not the possibly gapped topology vertices.
     bool forwardForComparison = true; // Private direction label: equal flags mean increasing t follows the same physical sense.
     std::size_t associationOccurrence = 0; // 1-based LIST position; zero denotes the separate curve_3d comparison.
+    std::optional<ClosedSplineCycle> closedCycle; // Local construction plan; only the final source inventory may publish children.
 };
 struct Use
 {
@@ -750,6 +751,7 @@ private:
     std::map<SmEdge*, Index> m_ringEdgeOrdinals;
     std::vector<SourceUseSegmentOrigin> m_ringUseOrigins;
     bool m_ringNormalization = false;
+    std::map<Index, ClosedSplineCycle> m_closedSplineCycles;
     void RememberRepairSources() const
     {
         m_model->repairVertexSources = vertices;
@@ -1376,6 +1378,37 @@ private:
             comparison.t0 = endpoints ? (sourceForward ? *first : *last) : domain.GetMin();
             comparison.t1 = endpoints ? (sourceForward ? *last : *first) : domain.GetMax();
             comparison.forwardForComparison = sourceForward;
+            const auto parameterCurve = Refs(Ref(record, "reference_to_curve"), "items").at(0);
+            if (endpoints && comparison.t0 == comparison.t1 && master.closedCycle && c.v0 == c.v1 &&
+                Is(parameterCurve, "B_SPLINE_CURVE_WITH_KNOTS") && F(parameterCurve, "closed_curve").text == "T" &&
+                F(parameterCurve, "self_intersect").text == "F")
+            {
+                const auto definition = m_options.quality.definitionMm;
+                const double maximum = std::nextafter(
+                    std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
+                    0.
+                );
+                auto cycle = PlanClosedSplineCycle(
+                    *comparison.native,
+                    comparison.t0,
+                    maximum,
+                    [&]
+                    {
+                        return Step(record);
+                    }
+                );
+                if (!cycle)
+                {
+                    if (!cycle.error().record)
+                    {
+                        cycle.error().record = record;
+                    }
+                    return tl::unexpected(std::move(cycle.error()));
+                }
+                comparison.closedCycle = std::move(*cycle);
+                comparison.t0 = comparison.closedCycle->interval[0];
+                comparison.t1 = comparison.closedCycle->interval[1];
+            }
             if (!(comparison.t1 > comparison.t0))
             {
                 const auto failure = Fail("GeneralSurfaceCurveAssociationSenseConflict", record);
@@ -1441,6 +1474,7 @@ private:
         c.t1 = master.t1;
         c.p0 = master.p0;
         c.p1 = master.p1;
+        c.closedCycle = std::move(master.closedCycle);
         ParameterMapping mapping;
         mapping.kind = interpretation ? "InterpretedSurfaceCurveMaster3d" : "SurfaceCurveMaster3d";
         mapping.sourceGeometryId = Id(geometry);
@@ -1475,6 +1509,7 @@ private:
         mapping.targetEdgeIndex = ei.at(c.record);
         std::vector<Curve> comparisons;
         const bool lifted = Is(g, "SURFACE_CURVE");
+        std::optional<Index> closedBasis = Is(g, "B_SPLINE_CURVE_WITH_KNOTS") ? std::optional<Index>(g) : std::nullopt;
         if (lifted)
         {
             const auto preference = F(g, "master_representation").text;
@@ -1555,6 +1590,11 @@ private:
                 }
                 if (i == selected)
                 {
+                    const auto parameterCurve = Refs(Ref(associated[i], "reference_to_curve"), "items").at(0);
+                    if (Is(parameterCurve, "B_SPLINE_CURVE_WITH_KNOTS"))
+                    {
+                        closedBasis = parameterCurve;
+                    }
                     selectedSourceParameterIdentity = made->sourceParameterIdentity;
                     c.native = std::move(made->curve);
                     c.bounds = made->conservativeBoundsMm;
@@ -1864,6 +1904,46 @@ private:
                 return tl::unexpected(std::move(nativeValue6.error()));
             }
             c.t1 = std::move(*nativeValue6);
+            // ISO10303-42:2021, 5.5.4/5.5.5 (EDGE / EDGE_CURVE), allows
+            // self-loop endpoints and implicit vertex trimming of finite nonzero
+            // edge domains. This declared-simple, interior-phase restriction is
+            // a project normalization scope, not an EXPRESS WHERE. The native
+            // interval wraps through its boundary without extending a period.
+            // Record the plan locally even for auxiliary definitions. Only the
+            // final curves inventory is allowed to freeze target subdivisions.
+            if (c.t0 == c.t1 && c.v0 == c.v1 && closedBasis && F(*closedBasis, "closed_curve").text == "T" &&
+                F(*closedBasis, "self_intersect").text == "F")
+            {
+                const auto definition = m_options.quality.definitionMm;
+                const double maximum = std::nextafter(
+                    std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
+                    0.
+                );
+                auto cycle = PlanClosedSplineCycle(
+                    *c.native,
+                    c.t0,
+                    maximum,
+                    [&]
+                    {
+                        return Step(c.record);
+                    }
+                );
+                if (!cycle)
+                {
+                    if (!cycle.error().record)
+                    {
+                        cycle.error().record = c.record;
+                    }
+                    return tl::unexpected(std::move(cycle.error()));
+                }
+                c.t0 = cycle->interval[0];
+                c.t1 = cycle->interval[1];
+                mapping.kind = lifted ? mapping.kind + "ClosedCycle" : "ClosedSplineNaturalDomainPartition";
+                mapping.equation += "; one full natural-domain traversal from original vertex phase; no periodic extension";
+                mapping.parameters.push_back({ "source_vertex_phase", { cycle->phase } });
+                mapping.parameters.push_back({ "natural_endpoint_closure_mm", { cycle->closureResidualMm } });
+                c.closedCycle = std::move(*cycle);
+            }
             if (auto businessCheck = Need(c.t1 > c.t0, "GeneralSplineParameterOrder", c.record); !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
@@ -1879,7 +1959,11 @@ private:
             {
                 return tl::unexpected(std::move(operation.error()));
             }
-            if (auto nativeStatusCheck = Good(c.native->EvaluatePoint(endpoint.first, actual)); !nativeStatusCheck)
+            // Both source endpoints remain the original phase vertex. This
+            // local plan also works for private comparisons without registering
+            // any target topology for those temporary definitions.
+            const auto evaluation = c.closedCycle ? c.closedCycle->phase : endpoint.first;
+            if (auto nativeStatusCheck = Good(c.native->EvaluatePoint(evaluation, actual)); !nativeStatusCheck)
             {
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
@@ -1928,7 +2012,7 @@ private:
     {
         double maximum = 0;
         double minimumDot = 1;
-        std::size_t directionPairs = 0;
+        std::size_t directionPairs = 0, explicitWitnesses = 0;
         const auto observe = [&](const Curve& from, const Curve& to) -> Result<void>
         {
             SmTArray<double> knots;
@@ -1959,7 +2043,8 @@ private:
                         return tl::unexpected(std::move(operation.error()));
                     }
                     SmVector3d fromValues[2], toValues[2];
-                    if (auto good = Good(from.native->Evaluate(std::lerp(cuts[span - 1], cuts[span], sample / 8.), 1, TRUE, fromValues)); !good)
+                    const auto fromParameter = std::lerp(cuts[span - 1], cuts[span], sample / 8.);
+                    if (auto good = Good(from.native->Evaluate(fromParameter, 1, TRUE, fromValues)); !good)
                     {
                         return tl::unexpected(std::move(good.error()));
                     }
@@ -1991,7 +2076,36 @@ private:
                         return tl::unexpected(std::move(good.error()));
                     }
                     const SmPoint3d nearest(toValues[0].x, toValues[0].y, toValues[0].z);
-                    const double gap = point.DistanceBetween(nearest);
+                    double gap = point.DistanceBetween(nearest);
+                    if (gap > Q(m_options.quality.consistencyMm) && from.closedCycle && to.closedCycle && fromParameter >= to.t0 &&
+                        fromParameter <= to.t1)
+                    {
+                        // DropPoint can return a different local stationary point
+                        // on a closed nonperiodic basis. A directly evaluated
+                        // in-domain candidate is another legitimate image witness;
+                        // accept it only when its ACTUAL distance is smaller.
+                        // This assumes no parameter identity, does not enlarge the
+                        // physical budget, and remains a sampled observation.
+                        if (auto operation = Step(record); !operation)
+                        {
+                            return tl::unexpected(std::move(operation.error()));
+                        }
+                        SmVector3d candidate[2];
+                        if (auto checked = Good(to.native->Evaluate(fromParameter, 1, TRUE, candidate)); !checked)
+                        {
+                            return tl::unexpected(std::move(checked.error()));
+                        }
+                        const SmPoint3d candidatePoint(candidate[0].x, candidate[0].y, candidate[0].z);
+                        const auto candidateGap = point.DistanceBetween(candidatePoint);
+                        if (std::isfinite(candidateGap) && candidateGap < gap)
+                        {
+                            gap = candidateGap;
+                            parameter = fromParameter;
+                            toValues[0] = candidate[0];
+                            toValues[1] = candidate[1];
+                            ++explicitWitnesses;
+                        }
+                    }
                     if (!std::isfinite(gap))
                     {
                         return tl::unexpected(Fail("GeneralSurfaceCurveImageInversionUnestablished", record, Status::Indeterminate));
@@ -2056,6 +2170,10 @@ private:
                 "normalized tangents at bidirectional interior image samples; parameters may differ; not a continuous sense proof" :
                 "normalized tangents mapped through declared wrapper/basis sense at bidirectional interior image samples; parameters may differ; not a continuous sense proof";
         direction.parameters = { { "sampled_tangent_pairs", { double(directionPairs) } }, { "minimum_unit_tangent_dot", { minimumDot } } };
+        if (explicitWitnesses)
+        {
+            direction.parameters.push_back({ "explicit_in_domain_image_witnesses", { double(explicitWitnesses) } });
+        }
         if (other.associationOccurrence)
         {
             direction.parameters.push_back({ "source_association_occurrence", { double(other.associationOccurrence) } });
@@ -2559,6 +2677,28 @@ private:
     }
     [[nodiscard]] Result<void> PrepareRingSubdivisions()
     {
+        for (Index source = 0; source < curves.size(); ++source)
+        {
+            const auto& curve = curves[source];
+            if (!curve.closedCycle)
+            {
+                continue;
+            }
+            const auto& cycle = *curve.closedCycle;
+            // Private masters/auxiliaries have already been compared and
+            // destroyed or adopted. Freeze ONLY each real source edge here.
+            m_closedSplineCycles.emplace(source, cycle);
+            const auto boundaryVertex = vertices.size() + m_ringVertices.size();
+            m_ringVertices.push_back({ source, cycle.interval[0], cycle.boundaryPoint, nullptr });
+            auto& plan = m_ringSubdivisions[source];
+            plan.sourceCurve = source;
+            plan.record = curve.record;
+            plan.originalVertex = boundaryVertex;
+            plan.originalEndVertex = boundaryVertex;
+            plan.interval = cycle.interval;
+            plan.cuts.push_back({ cycle.phase, curve.v0 });
+            m_ringNormalization = true;
+        }
         const auto definition = m_options.quality.definitionMm;
         const double maximum = std::nextafter(
             std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
@@ -2894,6 +3034,41 @@ private:
                 {
                     return tl::unexpected(std::move(businessCheck.error()));
                 }
+            }
+        }
+        for (const auto& [source, cycle] : m_closedSplineCycles)
+        {
+            const auto& plan = m_ringSubdivisions.at(source);
+            const auto definition = m_options.quality.definitionMm;
+            const double maximum = std::nextafter(
+                std::nextafter(double(definition.Numerator()), 0.) / std::nextafter(double(definition.Denominator()), INFINITY),
+                0.
+            );
+            auto final = PlanClosedSplineCycle(
+                *plan.segments.front().edge->GetCurve(),
+                cycle.phase,
+                maximum,
+                [&]
+                {
+                    return Step(plan.record);
+                }
+            );
+            if (!final)
+            {
+                if (!final.error().record)
+                {
+                    final.error().record = plan.record;
+                }
+                return tl::unexpected(std::move(final.error()));
+            }
+            if (auto checked = Need(
+                    final->interval == cycle.interval && final->boundaryPoint == cycle.boundaryPoint,
+                    "ClosedSplineBoundaryChanged",
+                    plan.record
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
             }
         }
         for (const auto& cut : m_ringVertices)
@@ -4716,6 +4891,12 @@ private:
                     return tl::unexpected(std::move(checked.error()));
                 }
                 traversal = { *onlySegment };
+            }
+            if (!startAt && !onlySegment && m_closedSplineCycles.contains(u.edge))
+            {
+                // Rotate either sense to the ORIGINAL source-use start. Sorted
+                // native parameter segments alone begin at a derived vertex.
+                startAt = edge.v0;
             }
             if (startAt)
             {

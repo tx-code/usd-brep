@@ -437,6 +437,14 @@ if(STEP_IMPORT_BUILD_TESTS)
     endif()
     add_test(NAME step_import_ring_segmentation_contracts COMMAND step_import_ring_segmentation_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/cylindrical_band_duplicate_outer.step" "${CMAKE_CURRENT_BINARY_DIR}/ring-segmentation-results")
+    add_executable(step_import_closed_spline_cycle_tests tests/StepImportClosedSplineCycleTests.cpp)
+    target_link_libraries(step_import_closed_spline_cycle_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_include_directories(step_import_closed_spline_cycle_tests PRIVATE src)
+    target_include_directories(step_import_closed_spline_cycle_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_closed_spline_cycle_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_closed_spline_cycle_contracts COMMAND step_import_closed_spline_cycle_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/closed_spline_phase.step" "${CMAKE_CURRENT_BINARY_DIR}/closed-spline-cycle-results")
     add_executable(step_import_cylinder_seam_plan_tests tests/StepImportCylinderSeamPlanTests.cpp)
     target_link_libraries(step_import_cylinder_seam_plan_tests PRIVATE STEP_IMPORT SMLib usd_brep_expected)
     target_include_directories(step_import_cylinder_seam_plan_tests PRIVATE src)

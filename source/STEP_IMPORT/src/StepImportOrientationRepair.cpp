@@ -10,6 +10,7 @@
 #include <SmBSplineCurve.h>
 #include <SmBSplineSurface.h>
 #include <SmCone.h>
+#include <SmCrvOnSurf.h>
 #include <SmEdge.h>
 #include <SmEdgeuse.h>
 #include <SmEllipse.h>
@@ -17,6 +18,7 @@
 #include <SmLine.h>
 #include <SmLoop.h>
 #include <SmPlane.h>
+#include <SmSTEPSurface.h>
 #include <SmSphere.h>
 #include <SmTol.h>
 #include <SmTorus.h>
@@ -87,12 +89,63 @@ namespace
     }
     return {};
 }
+[[nodiscard]] Result<void> SameSurface(const SmSurface& a, const SmSurface& b);
 [[nodiscard]] Result<void> SameCurve(const SmCurve& a, const SmCurve& b)
 {
     if (auto businessCheck = Need(a.GetType() == b.GetType() && a.GetDim() == b.GetDim() && a.GetDegree() == b.GetDegree(), "RepairChangedCurveClass");
         !businessCheck)
     {
         return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (const auto* first = dynamic_cast<const SmCrvOnSurf*>(&a))
+    {
+        const auto* second = dynamic_cast<const SmCrvOnSurf*>(&b);
+        if (auto checked = Need(
+                second && first->GetUVCurve() && second->GetUVCurve() && first->GetBaseSurface() && second->GetBaseSurface(),
+                "RepairChangedComposedDefinition"
+            );
+            !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        // A composed defining curve is S(Cuv(t)), never its cached 3D fit.
+        // Compare the whole UV definition, owned carrier definition, work
+        // precision and both stored parameter domains. This does not authorize
+        // any repair or geometric replacement; callers still qualify ownership.
+        if (auto checked = SameCurve(*first->GetUVCurve(), *second->GetUVCurve()); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (auto checked = SameSurface(*first->GetBaseSurface(), *second->GetBaseSurface()); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        const auto x = first->GetUVDomain(), y = second->GetUVDomain();
+        for (const auto pair : { std::pair{ x.GetMin().x, y.GetMin().x },
+                                 std::pair{ x.GetMin().y, y.GetMin().y },
+                                 std::pair{ x.GetMax().x, y.GetMax().x },
+                                 std::pair{ x.GetMax().y, y.GetMax().y },
+                                 std::pair{ a.GetNaturalInterval().GetMin(), b.GetNaturalInterval().GetMin() },
+                                 std::pair{ a.GetNaturalInterval().GetMax(), b.GetNaturalInterval().GetMax() },
+                                 std::pair{ a.GetSTEPInterval().GetMin(), b.GetSTEPInterval().GetMin() },
+                                 std::pair{ a.GetSTEPInterval().GetMax(), b.GetSTEPInterval().GetMax() } })
+        {
+            if (auto checked = Same(pair.first, pair.second); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+        }
+        double before = 0, after = 0;
+        if (auto checked = Need(
+                first->GetSupportWorkTolerance(before) == SM_SUCCESS && second->GetSupportWorkTolerance(after) == SM_SUCCESS &&
+                    first->OwnsBaseSurface() == second->OwnsBaseSurface(),
+                "RepairChangedComposedWorkPrecision"
+            );
+            !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        return Same(before, after);
     }
     const auto first = dynamic_cast<const SmBSplineCurve*>(&a), second = dynamic_cast<const SmBSplineCurve*>(&b);
     if (auto businessCheck = Need(first && second, "RepairCurveIdentityScope"); !businessCheck)
@@ -216,6 +269,32 @@ namespace
     if (auto businessCheck = Need(a.GetType() == b.GetType(), "RepairChangedSurfaceClass"); !businessCheck)
     {
         return tl::unexpected(std::move(businessCheck.error()));
+    }
+    if (const auto* first = dynamic_cast<const SmSTEPSurface*>(&a))
+    {
+        const auto* second = dynamic_cast<const SmSTEPSurface*>(&b);
+        if (auto checked = Need(second && first->GetBaseSurface() && second->GetBaseSurface(), "RepairChangedStepSurface"); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        // Preserve the STEP evaluator wrapper as well as its canonical surface;
+        // equal displayed shapes cannot stand in for either stored definition.
+        const auto an = a.GetNaturalUVDomain(), bn = b.GetNaturalUVDomain(), as = a.GetSTEPUVDomain(), bs = b.GetSTEPUVDomain();
+        for (const auto pair : { std::pair{ an.GetMin().x, bn.GetMin().x },
+                                 std::pair{ an.GetMin().y, bn.GetMin().y },
+                                 std::pair{ an.GetMax().x, bn.GetMax().x },
+                                 std::pair{ an.GetMax().y, bn.GetMax().y },
+                                 std::pair{ as.GetMin().x, bs.GetMin().x },
+                                 std::pair{ as.GetMin().y, bs.GetMin().y },
+                                 std::pair{ as.GetMax().x, bs.GetMax().x },
+                                 std::pair{ as.GetMax().y, bs.GetMax().y } })
+        {
+            if (auto checked = Same(pair.first, pair.second); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+        }
+        return SameSurface(*first->GetBaseSurface(), *second->GetBaseSurface());
     }
     const auto first = dynamic_cast<const SmBSplineSurface*>(&a), second = dynamic_cast<const SmBSplineSurface*>(&b);
     if (auto businessCheck = Need(

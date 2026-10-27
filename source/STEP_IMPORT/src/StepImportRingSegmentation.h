@@ -27,13 +27,33 @@ struct RingSegment
 };
 struct RingSubdivision
 {
-    std::size_t sourceCurve = 0, record = 0, originalVertex = 0;
+    std::size_t sourceCurve = 0, record = 0;
+    std::size_t originalVertex = 0; // Vertex at interval[0]; derived for an interior-phase source cycle.
     std::array<double, 2> interval{};
     std::vector<RingCut> cuts;
     std::unique_ptr<SmCurve> reference; // Must die before its allocating candidate context.
     std::vector<RingSegment> segments; // Increasing ORIGINAL native parameters, shared by all source uses.
-    std::optional<std::size_t> originalEndVertex; // Open circular arcs retain their distinct original last vertex.
+    std::optional<std::size_t> originalEndVertex; // Vertex at interval[1]; absence reuses the interval-start vertex.
 };
+struct ClosedSplineCycle
+{
+    double phase = 0;
+    std::array<double, 2> interval{};
+    Point boundaryPoint{};
+    double closureResidualMm = 0; // Native endpoint observation, not a continuous source conversion certificate.
+};
+// The caller establishes a declared closed, non-self-intersecting source spline
+// edge with one source vertex and an interior inverted phase. Establish a finite
+// full natural interval and its native endpoint closure using the unchanged mm
+// definition allowance. No periodic extension, phase shift, fitting or vertex
+// movement: children retain the full basis and traverse [phase,max],[min,phase].
+// This private candidate plan needs final definition/incidence/UV checks too.
+[[nodiscard]] Result<ClosedSplineCycle> PlanClosedSplineCycle(
+    const SmCurve& curve,
+    double phase,
+    double definitionMm,
+    const ExecutionCheckpoint& checkpoint
+);
 struct ConicalRingSupport
 {
     Point origin{}, xAxis{}, yAxis{}, zAxis{};

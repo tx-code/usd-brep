@@ -43,9 +43,20 @@ request budget. Default `Repair=None` and all geometric acceptance budgets remai
 unchanged. Native CLI and viewer carry the explicit intent and verify the repair
 receipt before scene adoption.
 
+Declared closed B-spline edges can start at an interior source vertex without
+inventing periodic extension. Shared target children cover the unchanged full
+natural interval, retain complete definitions and compose source use directions.
+The owning correspondence preserves the original vertex and identifies the
+additional natural-boundary vertex. Both 3D-master and source-pcurve-master
+constructions retain their representation checks, defining UV/carrier trees,
+copy/archive checks and atomic publication. Numerical image observations may
+check an additional in-domain candidate when a local projection misses it;
+physical budgets and the distinction from continuous proof remain unchanged.
+
 ## Scope
 
-[Circular ring construction](../source/STEP_IMPORT/README.md#完整圆环的目标分段与圆柱圆锥图切口).
+[Circular ring construction](../source/STEP_IMPORT/README.md#完整圆环的目标分段与圆柱圆锥图切口)
+and [closed-spline cycles](../source/STEP_IMPORT/README.md#闭合样条的内部相位与目标分段).
 
 ## Integrator action
 
