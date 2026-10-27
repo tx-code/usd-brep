@@ -1,5 +1,20 @@
 # STEP source semantics: ticket 03
 
+## AP214 linear extrusion definitions
+
+The two pinned AP214 catalogs append `SURFACE_OF_LINEAR_EXTRUSION`, its inherited
+`swept_curve : CURVE` and local `extrusion_axis : VECTOR`, and the fixed
+`SWEPT_SURFACE` ONEOF. All previous type identities and three AP203 catalogs are
+unchanged. The source is `AP214E3_2010.exp` (`71ab140f...`); this entity declares no
+local WHERE clause. VECTOR's existing nonnegative-magnitude rule remains intact.
+
+The scoped finite-definition and using-context dimension checks follow the
+generator and vector dependencies, retain original numeric lexemes and fail
+without rewriting source data. They are necessary source checks, not proof of
+surface regularity or native construction. In particular, zero magnitude is not
+invented as a source rule violation; the native contract separately restricts its
+supported two-dimensional charts. See the [native extrusion contract](../STEP_IMPORT/README.md#b-样条生成曲线的线性拉伸).
+
 ## AP214 point boundaries
 
 The two fixed AP214 catalogs append `VERTEX_LOOP`, with its inherited topology

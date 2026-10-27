@@ -1,0 +1,60 @@
+ISO-10303-21;
+/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+   SPDX-License-Identifier: Apache-2.0
+   Public independently authored analytic extrusion control. */
+HEADER;
+FILE_DESCRIPTION(('Public linear extrusion with nonunit vector and original UV'),'2;1');
+FILE_NAME('public-line-pcurve.step','2026-10-25T00:00:00',('P0'),('local'),'P0','synthetic analytic oracle','');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}'));
+ENDSEC;
+DATA;
+#1=APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies');
+#2=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2010,#1);
+#3=PRODUCT_CONTEXT('',#1,'mechanical');
+#4=PRODUCT('P0','Public linear extrusion patch',$,(#3));
+#5=PRODUCT_DEFINITION_FORMATION('A',$,#4);
+#6=PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design');
+#7=PRODUCT_DEFINITION('D1',$,#5,#6);
+#8=PRODUCT_DEFINITION_SHAPE('',$,#7);
+#9=SHAPE_DEFINITION_REPRESENTATION(#8,#20);
+#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));
+#11=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));
+#12=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'));
+/* Public analytic oracle: C(u)=(10*(u-2)/3,0,0), u in [2,5].
+   V=(0,1.2,1.6) mm from VECTOR magnitude2 and direction(0,3,4).
+   Native/source coordinates S(u,v)=C(u)+v*V. Face v=[-3,5].
+   Area=160 mm2; positive normal=(0,-0.8,0.6). Open surface role. */
+#20=MANIFOLD_SURFACE_SHAPE_REPRESENTATION('',(#21),#12);
+#21=SHELL_BASED_SURFACE_MODEL('',(#22));
+#22=OPEN_SHELL('',(#23));
+#23=ADVANCED_FACE('',(#24),#30,.T.);
+#24=FACE_OUTER_BOUND('',#25,.T.);
+#25=EDGE_LOOP('',(#80,#81,#82,#83));
+#30=SURFACE_OF_LINEAR_EXTRUSION('source sweep',#40,#45);
+#40=B_SPLINE_CURVE_WITH_KNOTS('generator',1,(#41,#42),.UNSPECIFIED.,.F.,.F.,(2,2),(2.,5.),.UNSPECIFIED.);
+#41=CARTESIAN_POINT('',(0.,0.,0.));
+#42=CARTESIAN_POINT('',(10.,0.,0.));
+#45=VECTOR('',#46,2.);
+#46=DIRECTION('',(0.,3.,4.));
+#50=CARTESIAN_POINT('',(0.,-3.6,-4.8));
+#51=CARTESIAN_POINT('',(10.,-3.6,-4.8));
+#52=CARTESIAN_POINT('',(10.,6.,8.));
+#53=CARTESIAN_POINT('',(0.,6.,8.));
+#60=VERTEX_POINT('',#50);
+#61=VERTEX_POINT('',#51);
+#62=VERTEX_POINT('',#52);
+#63=VERTEX_POINT('',#53);
+#70=B_SPLINE_CURVE_WITH_KNOTS('',1,(#50,#51),.UNSPECIFIED.,.F.,.F.,(2,2),(2.,5.),.UNSPECIFIED.);
+#71=B_SPLINE_CURVE_WITH_KNOTS('',1,(#51,#52),.UNSPECIFIED.,.F.,.F.,(2,2),(-3.,5.),.UNSPECIFIED.);
+#72=B_SPLINE_CURVE_WITH_KNOTS('',1,(#53,#52),.UNSPECIFIED.,.F.,.F.,(2,2),(2.,5.),.UNSPECIFIED.);
+#73=B_SPLINE_CURVE_WITH_KNOTS('',1,(#50,#53),.UNSPECIFIED.,.F.,.F.,(2,2),(-3.,5.),.UNSPECIFIED.);
+#74=EDGE_CURVE('',#60,#61,#70,.T.);
+#75=EDGE_CURVE('',#61,#62,#71,.T.);
+#76=EDGE_CURVE('',#63,#62,#72,.T.);
+#77=EDGE_CURVE('',#60,#63,#73,.T.);
+#80=ORIENTED_EDGE('',*,*,#74,.T.);
+#81=ORIENTED_EDGE('',*,*,#75,.T.);
+#82=ORIENTED_EDGE('',*,*,#76,.F.);
+#83=ORIENTED_EDGE('',*,*,#77,.F.);
+ENDSEC;
+END-ISO-10303-21;

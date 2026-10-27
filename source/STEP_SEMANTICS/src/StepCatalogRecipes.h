@@ -13,6 +13,7 @@
 #include "StepCatalogBuilder.h"
 #include "StepCompositeCurveCatalogData.h"
 #include "StepDateTimeCatalogData.h"
+#include "StepLinearExtrusionCatalogData.h"
 #include "StepProductCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
 #include "StepSurfaceCurveCatalogData.h"
@@ -48,9 +49,10 @@ constexpr std::string_view ContextBranches[] = { "PRODUCT_CONTEXT", "PRODUCT_DEF
 constexpr Names ExclusiveGroups[] = { UnitDefinitions, NominalQuantities, ContextBranches };
 inline constexpr auto Ap214ExclusiveGroups = []
 {
-    std::array<Names, std::size(ExclusiveGroups) + 1> result;
+    std::array<Names, std::size(ExclusiveGroups) + 2> result;
     std::copy(std::begin(ExclusiveGroups), std::end(ExclusiveGroups), result.begin());
-    result.back() = vertex_loop::LoopKinds;
+    result[std::size(ExclusiveGroups)] = vertex_loop::LoopKinds;
+    result.back() = linear_extrusion::SweptKinds;
     return result;
 }();
 
@@ -562,6 +564,7 @@ constexpr Recipe ProfileRecipe()
     {
         surface_curve::AppendDeclarations(recipe); // Preserve all existing profile IDs and complex signature order.
         vertex_loop::AppendDeclarations(recipe);
+        linear_extrusion::AppendDeclarations(recipe);
         recipe.exclusiveGroups = common::Ap214ExclusiveGroups;
     }
     return recipe;

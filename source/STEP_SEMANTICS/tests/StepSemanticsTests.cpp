@@ -192,7 +192,8 @@ int main(int argc, char** argv)
         auto derivedDimensions = conversion214.snapshot->Field(Index(*conversion214.snapshot, "19"), "NAMED_UNIT", "dimensions");
         Require(
             conversion203.snapshot->RegisteredTypes().size() == 72 && !conversion203.snapshot->Instances("VERTEX_LOOP") &&
-                conversion214.snapshot->RegisteredTypes().size() == 150 && conversion214.snapshot->Instances("VERTEX_LOOP"),
+                conversion214.snapshot->RegisteredTypes().size() == 151 && conversion214.snapshot->Instances("VERTEX_LOOP") &&
+                conversion214.snapshot->Instances("SURFACE_OF_LINEAR_EXTRUSION") && !conversion203.snapshot->Instances("SURFACE_OF_LINEAR_EXTRUSION"),
             "Catalog identity leaked across source profiles"
         );
         Require(

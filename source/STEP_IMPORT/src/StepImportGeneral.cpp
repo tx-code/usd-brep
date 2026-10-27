@@ -13,6 +13,7 @@
 #include "StepImportGeneralMeasurements.h"
 #include "StepImportGeneralRole.h"
 #include "StepImportGeometryConstruction.h"
+#include "StepImportLinearExtrusion.h"
 #include "StepImportNativeBuild.h"
 #include "StepImportNativeData.h"
 #include "StepImportOrientationRepair.h"
@@ -4340,6 +4341,31 @@ private:
     [[nodiscard]] Result<std::unique_ptr<SmSurface>> Surface(const Face& f)
     {
         const auto g = f.surface;
+        if (Is(g, "SURFACE_OF_LINEAR_EXTRUSION"))
+        {
+            std::vector<LinearExtrusionBoundary> boundaries;
+            for (const auto& loop : f.loops)
+            {
+                if (loop.vertex)
+                {
+                    return tl::unexpected(Fail("GeneralLinearExtrusionPointBoundaryUnsupported", loop.record, Status::Unsupported));
+                }
+                for (const auto& use : loop.uses)
+                {
+                    const auto& source = curves.at(use.edge);
+                    const auto curve = source.native                                                ? source.native.get() :
+                                       use.edge < m_model->edges.size() && m_model->edges[use.edge] ? m_model->edges[use.edge]->GetCurve() :
+                                                                                                      nullptr;
+                    boundaries.push_back({ curve, source.bounds, { source.t0, source.t1 } });
+                }
+            }
+            auto surface = MakeSourceLinearExtrusion(*this, g, f.record, boundaries);
+            if (surface)
+            {
+                m_report.parameterMappings.back().targetFaceIndex = m_model->faces.size();
+            }
+            return surface;
+        }
         if (Is(g, "SURFACE_OF_REVOLUTION"))
         {
             double start = 0;
@@ -5679,7 +5705,7 @@ private:
             double controlledProjectionGap = 0;
             const bool cylinderProjection = Is(f.surface, "CYLINDRICAL_SURFACE");
             const bool coneProjection = Is(f.surface, "CONICAL_SURFACE");
-            const bool splineProjection = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
+            const bool splineProjection = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS") || Is(f.surface, "SURFACE_OF_LINEAR_EXTRUSION");
             const bool revolutionProjection = Is(f.surface, "SURFACE_OF_REVOLUTION");
             const bool toroidalProjection = m_options.restrictUnusedSupportDomains && Is(f.surface, "TOROIDAL_SURFACE");
             if (cylinderProjection || coneProjection || splineProjection || revolutionProjection || toroidalProjection)
@@ -6232,12 +6258,13 @@ private:
         const bool cylinder = Is(f.surface, "CYLINDRICAL_SURFACE");
         const bool cone = Is(f.surface, "CONICAL_SURFACE");
         const bool spline = Is(f.surface, "B_SPLINE_SURFACE_WITH_KNOTS");
+        const bool linearExtrusion = Is(f.surface, "SURFACE_OF_LINEAR_EXTRUSION");
         const bool revolution = Is(f.surface, "SURFACE_OF_REVOLUTION");
         const bool periodicSupport = cylinder || cone || revolution;
         // This development increment uses an ordinary finite spline chart.
         // F is an admission restriction, not a proof of the source assertion.
         // Unknown/closed declarations still need their own seam/pole contract.
-        if ((!Is(f.surface, "PLANE") && !periodicSupport && !spline) ||
+        if ((!Is(f.surface, "PLANE") && !periodicSupport && !spline && !linearExtrusion) ||
             (spline && (F(f.surface, "u_closed").text != "F" || F(f.surface, "v_closed").text != "F" || F(f.surface, "self_intersect").text != "F")))
         {
             return tl::unexpected(Fail("GeneralRegionClassificationPending", f.record, Status::Deferred));
@@ -6257,9 +6284,10 @@ private:
         // SetProps_Stage2 only computes seam enums for closed surfaces. For
         // this positively nonclosed chart they remain UNKNOWN/not applicable;
         // do not mistake that untouched state for a passed periodic test.
-        if (spline && (properties.m_bClosedU != FALSE || properties.m_bClosedV != FALSE || properties.m_lPoles != SM_SS_NONE ||
-                       properties.m_lApproxPoles != SM_SS_NONE || properties.m_bBadCrossedPole != FALSE ||
-                       properties.m_bBadUnpairedNoArea_Loop != FALSE || properties.m_lBadMissingPoles != 0))
+        if ((spline || linearExtrusion) &&
+            ((spline && properties.m_bClosedU != FALSE) || properties.m_bClosedV != FALSE || properties.m_lPoles != SM_SS_NONE ||
+             properties.m_lApproxPoles != SM_SS_NONE || properties.m_bBadCrossedPole != FALSE || properties.m_bBadUnpairedNoArea_Loop != FALSE ||
+             properties.m_lBadMissingPoles != 0))
         {
             return tl::unexpected(Fail("GeneralSplineRegionChartUnestablished", f.record, Status::Deferred));
         }
@@ -6277,7 +6305,7 @@ private:
         {
             return tl::unexpected(Fail("GeneralRevolutionRegionChartUnestablished", f.record, Status::Deferred));
         }
-        if (periodicSupport)
+        if (periodicSupport || (linearExtrusion && properties.m_bClosedU != FALSE))
         {
             if (!(properties.m_eBadMissingSeam == SM_SP_NEITHER && properties.m_eBadCrossedSeam == SM_SP_NEITHER &&
                   properties.m_eBadNearMissSeam == SM_SP_NEITHER && properties.m_bBadUnpairedNoArea_Loop == FALSE &&

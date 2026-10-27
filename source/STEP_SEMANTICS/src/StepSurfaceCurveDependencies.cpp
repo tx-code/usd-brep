@@ -15,7 +15,9 @@ namespace
 using Index = std::size_t;
 using step_source::Span;
 using step_source::Value;
-constexpr std::string_view Roots[] = { "SURFACE_CURVE", "PCURVE", "DEFINITIONAL_REPRESENTATION", "AXIS1_PLACEMENT", "SURFACE_OF_REVOLUTION" };
+constexpr std::string_view Roots[] = {
+    "SURFACE_CURVE", "PCURVE", "DEFINITIONAL_REPRESENTATION", "AXIS1_PLACEMENT", "SURFACE_OF_REVOLUTION", "SURFACE_OF_LINEAR_EXTRUSION"
+};
 
 class Checks
 {

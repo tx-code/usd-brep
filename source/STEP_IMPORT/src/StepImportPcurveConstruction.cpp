@@ -3,6 +3,7 @@
 #include "StepImportPcurveConstruction.h"
 
 #include "StepImportGeometryConstruction.h"
+#include "StepImportLinearExtrusion.h"
 #include "StepImportRevolutionConstruction.h"
 #include "StepImportSourceParameterUnits.h"
 #include "StepImportSplineSurfaceConstruction.h"
@@ -66,8 +67,8 @@ public:
         }
         double uScale = 1, vScale = 1, uOffset = 0, vOffset = 0;
         const bool plane = Is(basis, "PLANE"), cylinder = Is(basis, "CYLINDRICAL_SURFACE"), revolution = Is(basis, "SURFACE_OF_REVOLUTION"),
-                   spline = Is(basis, "B_SPLINE_SURFACE_WITH_KNOTS");
-        if (!plane && !cylinder && !revolution && !spline)
+                   spline = Is(basis, "B_SPLINE_SURFACE_WITH_KNOTS"), linearExtrusion = Is(basis, "SURFACE_OF_LINEAR_EXTRUSION");
+        if (!plane && !cylinder && !revolution && !spline && !linearExtrusion)
         {
             return tl::unexpected(Fail("GeneralPcurveBasisUnsupported", basis, Status::Unsupported));
         }
@@ -181,7 +182,10 @@ public:
         }
         else
         {
-            auto made = revolution ? MakeSourceRevolution(*this, basis, use, angularStart) : MakeSourceSplineSurface(*this, basis, use);
+            auto made = revolution ? MakeSourceRevolution(*this, basis, use, angularStart) :
+                        linearExtrusion ?
+                                     MakeSourceLinearExtrusion(*this, basis, use, {}, std::array<double, 2>{ domain.GetMin().y, domain.GetMax().y }) :
+                                     MakeSourceSplineSurface(*this, basis, use);
             if (!made)
             {
                 return tl::unexpected(std::move(made.error()));

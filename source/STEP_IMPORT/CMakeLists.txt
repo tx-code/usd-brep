@@ -28,6 +28,8 @@ endif()
 add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp src/StepImportPublication.cpp src/StepImportPlan.cpp src/StepImportNative.cpp src/StepImportPointClassification.cpp src/StepImportWireframe.cpp src/StepImportGeneral.cpp src/StepImportCurvePointDefinitions.cpp src/StepImportGeneralMeasurements.cpp src/StepImportCylinderChart.cpp src/StepImportTrimMeasurement.cpp src/StepImportDerivedUv.cpp src/StepImportSurfaceProof.cpp src/StepImportSupportDomain.cpp src/StepImportReport.cpp)
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
 
+target_sources(STEP_IMPORT PRIVATE src/StepImportLinearExtrusion.cpp)
+
 target_sources(STEP_IMPORT PRIVATE src/StepImportGeneralRole.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportWireframeModel.cpp)
@@ -98,6 +100,22 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_linear_extrusion_tests tests/StepImportLinearExtrusionTests.cpp)
+    target_link_libraries(step_import_linear_extrusion_tests PRIVATE STEP_IMPORT SMLib usd_brep_expected)
+    target_include_directories(step_import_linear_extrusion_tests PRIVATE src)
+    target_include_directories(step_import_linear_extrusion_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_linear_extrusion_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    if(MSVC)
+        target_compile_options(step_import_linear_extrusion_tests PRIVATE /W4 /WX /permissive- /utf-8 /fp:strict)
+    endif()
+    add_test(NAME step_import_linear_extrusion_contracts COMMAND step_import_linear_extrusion_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "${CMAKE_CURRENT_BINARY_DIR}/linear-extrusion/$<CONFIG>")
+    set_tests_properties(step_import_linear_extrusion_contracts PROPERTIES TIMEOUT 120)
+    add_test(NAME step_import_linear_extrusion_material_lifecycle COMMAND step_import_general_tests --development-file
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/linear_extrusion_box.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/linear-extrusion-material/$<CONFIG>" normal)
+    set_tests_properties(step_import_linear_extrusion_material_lifecycle PROPERTIES TIMEOUT 120)
     add_executable(step_import_conical_apex_repair_tests tests/StepImportConicalApexRepairTests.cpp)
     target_link_libraries(step_import_conical_apex_repair_tests PRIVATE STEP_IMPORT SMLib usd_brep_expected)
     target_include_directories(step_import_conical_apex_repair_tests PRIVATE src)
