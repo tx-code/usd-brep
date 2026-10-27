@@ -671,9 +671,17 @@ if(STEP_IMPORT_BUILD_TESTS)
     endforeach()
     set_tests_properties(step_import_sheet_contracts step_import_coplanar_sheet_contracts PROPERTIES TIMEOUT 60)
     if(WIN32)
-        add_executable(step_import_resources tests/StepImportResources.cpp)
+        add_executable(step_import_resources tests/StepImportResources.cpp tests/StepImportResourceObserver.cpp)
         target_compile_definitions(step_import_resources PRIVATE NOMINMAX)
-        target_link_libraries(step_import_resources PRIVATE STEP_IMPORT Psapi)
+        target_link_libraries(step_import_resources PRIVATE STEP_IMPORT Psapi usd_brep_expected)
+        add_executable(step_import_resource_observer_tests tests/StepImportResourceObserverTests.cpp tests/StepImportResourceObserver.cpp)
+        target_compile_features(step_import_resource_observer_tests PRIVATE cxx_std_20)
+        target_include_directories(step_import_resource_observer_tests SYSTEM PRIVATE ../SMLib/inc)
+        target_compile_definitions(step_import_resource_observer_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+            $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+        target_link_libraries(step_import_resource_observer_tests PRIVATE SMLib usd_brep_expected)
+        add_test(NAME step_import_resource_observer_contracts COMMAND step_import_resource_observer_tests)
+        set_tests_properties(step_import_resource_observer_contracts PROPERTIES TIMEOUT 60)
         add_test(NAME step_import_resources COMMAND step_import_resources
             "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/step_import_validation/corpus/ap203e2-planar/v1/cases/S203-P01/input.step")
         add_test(NAME step_import_hole_resources COMMAND step_import_resources
@@ -708,7 +716,7 @@ if(TARGET step_import_lifecycle_tests)
     set_tests_properties(step_import_lifecycle_contracts step_import_copy_contracts PROPERTIES TIMEOUT 60)
 endif()
 
-foreach(target step_view_mesh_tests step_import_spline_chart_lifecycle_tests step_import_spline_chart_tests step_import_trimmed_spline_tests step_import_wireframe_model_tests step_import_curve_restriction_tests step_import_wireframe_source_tests step_import_surface_precision_tests step_import_surface_precision_kernel_tests step_import_trim_result_tests step_import_assembly_placement_tests step_import_business_failure_tests step_import_execution_tests step_import_observation_tests step_import_nested_observation_tests step_import_toroidal_support_tests step_import_ring_segmentation_tests step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
+foreach(target step_import_resource_observer_tests step_view_mesh_tests step_import_spline_chart_lifecycle_tests step_import_spline_chart_tests step_import_trimmed_spline_tests step_import_wireframe_model_tests step_import_curve_restriction_tests step_import_wireframe_source_tests step_import_surface_precision_tests step_import_surface_precision_kernel_tests step_import_trim_result_tests step_import_assembly_placement_tests step_import_business_failure_tests step_import_execution_tests step_import_observation_tests step_import_nested_observation_tests step_import_toroidal_support_tests step_import_ring_segmentation_tests step_import_source_isolation_tests step_import_surface_proof_tests step_native_import step_view_export step_import_supporting_tests step_import_integral_tests step_import_conic_bounds_tests step_import_general_tests step_import_general_unit_tests step_import_tests step_import_resources step_import_hole_tests step_import_box_tests step_import_surface_tests step_import_unit_tests step_import_declaration_tests step_import_lifecycle_tests step_import_copy_tests step_import_sheet_tests)
     if(TARGET ${target})
         if(WIN32)
             add_custom_command(TARGET ${target} POST_BUILD
