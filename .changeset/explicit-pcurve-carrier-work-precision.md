@@ -8,6 +8,14 @@ uses the existing general geometric budgets and topology tolerances, with a
 separate experimental carrier resolution. The default quality is unchanged.
 The CLI accepts its distinct quality identifier.
 
+Ordinary revolution NURBS construction retains nonzero small circles instead of
+collapsing their control rows according to absolute world coordinates. Rows below
+the circle factory's radius floor use an affine unit-circle net without changing
+the generator, weights or angular/STEP parameter correspondence. True zero-radius
+rows remain degenerate. Previously accepted, silently collapsed representations
+can now report the original near-pole quality finding; work precision, acceptance
+budgets and native validation requirements are unchanged.
+
 `SmCrvOnSurf` exposes status-returning setters/getters for this local resolution.
 Only a genuinely owned STEP wrapper and revolution support qualify. No global
 precision, source definition, UV, axis or source-priority declaration is changed.

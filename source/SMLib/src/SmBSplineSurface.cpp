@@ -34,6 +34,7 @@
 #include <SmDatabaseIO.h>
 #include <SmPseudoBox.h>
 #include <SmPointSet.h>
+#include <cmath>
 
 
 #ifdef SM_DEBUG_CODE
@@ -2277,27 +2278,28 @@ SmStatus SmBSplineSurface::CreateSurfOfRevolution
       lNumCirCtrlPts = sCirCtrlPts.GetSize();
       sCirIvl        = pOptSweepCurve->GetNaturalInterval();
     }
-  else // get sweep curve parameters from new sweep curve built by sweeping 1st nonZero radius controlPoint
+  else // get the sweep layout from a row supported by the circle factory
     {
       // Rotate each control point about the axis to get a circle
       // In order to determine the size of control-points array & knots
-      // array of the circles, we need to find the first non-degenerate one
+      // array of the circles, find an admissible representative radius.
 
       // for every GenCurve ControlPoint
       for (ULONG i=0; i<sCrvCtrlPts.GetSize(); i++) 
         {
           SmPoint3d sPnt        = sCrvCtrlPts[i];
-          double    dScaledZero = SM_EFF_ZERO * (1.0 + sPnt.GetMaxDimension());
       
           // Get sPnt/RotationAxis Distance
           SmVector3d sXVec   = sPnt - crOrigin;
           double     dT      = sXVec.Dot(sAxisDir);
           SmPoint3d  sCenter = crOrigin + dT*sAxisDir;
           sXVec              = sPnt - sCenter;
-          double     dRadius = sXVec.Length();
+          double     dRadius = std::hypot(sXVec.x, sXVec.y, sXVec.z);
 
-          // skip points on the rotation axis
-          if (dRadius < dScaledZero) 
+          // This only selects knots/weights, not the geometry of any row.
+          // CreateCircleSegment requires radius >= SM_EFF_ZERO; smaller rows
+          // are retained below by applying a unit circular net to their vectors.
+          if (dRadius < SM_EFF_ZERO)
             { continue; }
 
           // create circle segment for this point's rotational sweep
@@ -2333,7 +2335,7 @@ SmBoolean bDebugMe = FALSE ;
           lNumCirCtrlPts = sCirCtrlPts.GetSize();
           sCirIvl        = pCir->GetNaturalInterval();
 
-          // quit after 1st controlPoint not on rotation axis
+          // quit after the first admissible sweep layout
           break;
 
         } // end iter every GenCurve ControlPoint looking for 1st one off the rotation axis
@@ -2341,7 +2343,7 @@ SmBoolean bDebugMe = FALSE ;
 
   // arrive here after building sweep and getting its controlPoints and knot vector
 
-  // quit when all GenCurve ControlPoints are on rotation vector
+  // No layout is available within the circle factory's existing radius range.
   if (lNumCirCtrlPts == 0) 
     {
       SER(SM_ERR);
@@ -2353,7 +2355,6 @@ SmBoolean bDebugMe = FALSE ;
   for (ULONG j=0; j<sCrvCtrlPts.GetSize(); j++) 
     {
       SmPoint3d sPnt        = sCrvCtrlPts[j];
-      double    dScaledZero = SM_EFF_ZERO * (1.0 + sPnt.GetMaxDimension());
       
       // Calculate this sweep circles new controlPoint weights 
       for (ULONG ii=0; ii<lNumCirCtrlPts; ii++) 
@@ -2371,15 +2372,52 @@ SmBoolean bDebugMe = FALSE ;
       double     dT      = sXVec.Dot(sAxisDir);
       SmPoint3d  sCenter = crOrigin + dT*sAxisDir;
       sXVec              = sPnt - sCenter;
-      double     dRadius = sXVec.Length();
+      double     dRadius = std::hypot(sXVec.x, sXVec.y, sXVec.z);
 
-      // when radius is zero - make all controlPoints for this sweep circle the same
-      if (dRadius < dScaledZero) 
+      // Repeat a row only for an actual zero radius. An approximate-axis test
+      // here silently changes the defining surface while EvaluateSTEP retains
+      // the original generator, and can change its result after a translation.
+      if (dRadius == 0.0)
         {
           // Add this control point lNumCirCtrlPts times
           for (ULONG jj=0; jj<lNumCirCtrlPts; jj++) 
             {
               sCtrlPts.Add(sPnt);
+            }
+          continue;
+        }
+
+      if (dRadius < SM_EFF_ZERO)
+        {
+          // Do not ask the circle factory to construct a below-floor radius,
+          // and do not snap it to a point. Rotation is affine in the generator
+          // control point. A unit circular net supplies the same angular knots
+          // and weights without normalizing a tiny radial/tangential vector.
+          // The increment form also retains the original point at angle zero.
+          SmTArray<SmPoint3d> unitPoints;
+          if (pOptSweepCurve)
+            {
+              SER(pOptSweepCurve->GetPolygon(pOptSweepCurve->GetNaturalInterval(), unitPoints));
+              double radius = pOptSweepCurve->GetRadius();
+              SER(std::isfinite(radius) && radius != 0.0 ? SM_SUCCESS : SM_ERR_INVALID_INPUT);
+              double factor = dRadius / radius;
+              const SmAxis2Placement &frame = pOptSweepCurve->GetPosition();
+              if (sXVec.Dot(frame.GetXAxisRef()) < 0.0) { factor = -factor; }
+              SER(unitPoints.GetSize() == lNumCirCtrlPts ? SM_SUCCESS : SM_ERR);
+              for (ULONG k = 0; k < lNumCirCtrlPts; ++k)
+                { sCtrlPts.Add(sCenter + factor * (unitPoints[k] - frame.GetOriginRef())); }
+            }
+          else
+            {
+              SmBSplineCurve *unit = NULL;
+              SER(SmBSplineCurve::CreateCircleSegment(crContext, 3, SmAxis2Placement(),
+                                                     1.0, 0.0, dAngleSpanDeg, SM_CO_QUADRATIC, unit));
+              SmObjDelete cleanup(unit);
+              SER(unit->GetPolygon(unit->GetNaturalInterval(), unitPoints));
+              SER(unitPoints.GetSize() == lNumCirCtrlPts ? SM_SUCCESS : SM_ERR);
+              const SmVector3d tangent = sAxisDir * sXVec;
+              for (ULONG k = 0; k < lNumCirCtrlPts; ++k)
+                { sCtrlPts.Add(sPnt + (unitPoints[k].x - 1.0) * sXVec + unitPoints[k].y * tangent); }
             }
           continue;
         }
