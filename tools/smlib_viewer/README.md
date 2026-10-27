@@ -51,6 +51,19 @@ keep the generic failure caption. The previous accepted scene remains intact.
 
 ## Input and quality scope
 
+Collections with linked wireframe or constructive geometry use a v9 scene. One
+part-level payload carries the source-definition identity; it is independent of
+the material body topology. Documents use v10 with one required/absent descriptor
+per definition and separate payloads in each definition's local coordinates.
+All body and associated payloads must validate before any scene is adopted.
+Missing files, wrong owner identities or incomplete definition inventories retain
+the previous complete scene. Older viewers reject these new versions.
+
+The same native associated-geometry constructors serve single models and
+collections. Curves/points shared by source roles stay shared within their owning
+part, while role-specific display items remain distinguishable. No related
+coordinate frame, plane, point or curve becomes a material face/edge/vertex.
+
 An explicit one-file cone-apex correction uses the native importer's original
 SHA and seven source identities per use:
 `--apex-repair-source-sha256 HASH --repair-conical-apex-use

@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportAssociatedGeometry.h"
 #include "StepImportExecution.h"
 #include "StepImportGroupedBuild.h"
 #include "StepImportNativeData.h"
@@ -38,23 +39,14 @@ namespace step_import::detail
                      "GeneralBrep" }
         );
     }
-    // Associated geometry belongs to the part, not an arbitrary first body.
-    // Keep this admission check before native allocation and report children.
-    for (const auto& role : part.roles)
-    {
-        if (role.name == "wireframe_representation" || role.name == "construction_representation")
-        {
-            return tl::unexpected(
-                Failure{ Status::Unsupported,
-                         "MaterialCollectionAssociatedGeometryUnimplemented",
-                         "Collection-level associated geometry ownership is not implemented",
-                         role.recordIndex,
-                         "GeneralBrep" }
-            );
-        }
-    }
     MaterialCandidates candidates;
-    candidates.reserve(part.shapes.size());
+    auto associated = BuildPartAssociatedGeometry(source, options, report, execution);
+    if (!associated)
+    {
+        return tl::unexpected(std::move(associated.error()));
+    }
+    candidates.associated = std::move(*associated);
+    candidates.bodies.reserve(part.shapes.size());
     report.bodies.reserve(part.shapes.size());
     return ObserveBodies(
         *source,
@@ -67,7 +59,7 @@ namespace step_import::detail
             {
                 return tl::unexpected(std::move(body.error()));
             }
-            candidates.push_back(std::move(*body));
+            candidates.bodies.push_back(std::move(*body));
             return {};
         },
         [&]() -> Result<MaterialCandidates>
@@ -78,9 +70,10 @@ namespace step_import::detail
 }
 std::shared_ptr<const MaterialCollectionSnapshot> Access::Collection(
     std::shared_ptr<const step_semantics::Snapshot> source,
-    std::vector<std::shared_ptr<ModelData>> bodies
+    MaterialCandidates candidates
 )
 {
+    auto& bodies = candidates.bodies;
     if (!source || bodies.empty() || bodies.size() != source->PartDefinition().shapes.size() ||
         std::any_of(
             bodies.begin(),
@@ -96,6 +89,12 @@ std::shared_ptr<const MaterialCollectionSnapshot> Access::Collection(
     auto data = std::make_shared<CollectionData>();
     data->source = std::move(source);
     data->bodies = std::move(bodies);
+    data->associated = std::move(candidates.associated);
+    if (HasAssociatedGeometry(*data->source) != bool(data->associated) ||
+        (data->associated && (data->associated->source != data->source || data->associated->brep)))
+    {
+        throw std::logic_error("IncompleteCollectionAssociatedGeometry");
+    }
     return std::shared_ptr<const MaterialCollectionSnapshot>(new MaterialCollectionSnapshot(std::move(data)));
 }
 } // namespace step_import::detail
@@ -121,33 +120,40 @@ std::shared_ptr<const step_semantics::Snapshot> MaterialCollectionSnapshot::Sour
 {
     return m_data->source;
 }
+std::vector<WireframeView> MaterialCollectionSnapshot::Wireframes() const
+{
+    std::vector<WireframeView> result;
+    if (m_data->associated)
+    {
+        for (std::size_t i = 0; i < m_data->associated->wireframes.size(); ++i)
+        {
+            result.push_back(WireframeView(m_data->associated, i));
+        }
+    }
+    return result;
+}
+std::vector<SupportingGeometryView> MaterialCollectionSnapshot::SupportingGeometry() const
+{
+    std::vector<SupportingGeometryView> result;
+    if (m_data->associated)
+    {
+        for (std::size_t i = 0; i < m_data->associated->supportingGeometry.size(); ++i)
+        {
+            result.push_back(SupportingGeometryView(m_data->associated, i));
+        }
+    }
+    return result;
+}
 void MaterialCollectionSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard lock(detail::NativeMutex());
-    // Native transfer convention: ordered BRep array, empty CSG tree. Do not
-    // infer union, deduplicate coincident bodies or transfer import qualification.
-    // As on ModelSnapshot::WriteNative, serialization works on private copies
-    // because the kernel writer canonicalizes UV storage in place.
-    auto context = std::make_unique<SmContext>();
-    std::vector<std::unique_ptr<SmBrep>> copies;
-    SmTArray<SmBrep*> breps;
-    SmTArray<SmCurve*> curves;
-    SmTArray<SmSurface*> surfaces;
-    SmTArray<long> trees;
-    copies.reserve(m_data->bodies.size());
+    std::vector<const detail::ModelData*> bodies;
     for (const auto& body : m_data->bodies)
     {
-        std::lock_guard bodyLock(body->mutex);
-        copies.emplace_back(new (*context) SmBrep(*body->brep, nullptr, nullptr, TRUE, FALSE));
-        if (!copies.back() || copies.back()->GetContext() != context.get())
-        {
-            throw std::runtime_error("CollectionArchiveContextMismatch");
-        }
-        breps.Add(copies.back().get());
+        bodies.push_back(body.get());
     }
-    if (SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, SM_BINARY, TRUE, FALSE) != SM_SUCCESS)
-    {
-        throw std::runtime_error("CollectionArchiveWriteFailed");
-    }
+    const std::array<const detail::ModelData*, 1> associated{ m_data->associated.get() };
+    detail::WritePartArchive(associated, bodies, path);
 }
+
 } // namespace step_import

@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+#include "StepImportAssociatedGeometry.h"
 #include "StepImportCircleVertexCorrection.h"
 #include "StepImportConicalApexRepair.h"
 #include "StepImportConicalApexSession.h"
@@ -491,19 +492,12 @@ public:
         {
             return tl::unexpected(std::move(operation.error()));
         }
-        if (wireframeRepresentation || supportingRepresentation)
+        if (!m_binding && (wireframeRepresentation || supportingRepresentation))
         {
-            // Local ownership unwinds before m_model/context on every failure.
-            CurvePointDefinitions definitions(*this);
-            if (auto operation = BuildWireframes(definitions); !operation)
+            if (auto built = BuildAssociatedGeometry(*this, *m_model); !built)
             {
-                return tl::unexpected(std::move(operation.error()));
+                return tl::unexpected(std::move(built.error()));
             }
-            if (auto operation = BuildSupportingGeometry(definitions); !operation)
-            {
-                return tl::unexpected(std::move(operation.error()));
-            }
-            m_model->curvePointDefinitions = std::move(definitions).Finish();
         }
         if (m_rebuiltUv || m_model->topologyNormalization)
         {
@@ -1272,178 +1266,12 @@ private:
             m_report.units->generalDefinitions = std::move(convertedLength->definitions);
         }
         m_model->lengthUnits = *m_report.units;
-        if (supportingRepresentation)
+        if (!m_binding)
         {
-            // Physical content cannot be an interoperability exception. Reject
-            // unsupported required items before allocating a native candidate.
-            for (const auto geometry : Refs(*supportingRepresentation, "items"))
+            if (auto checked = CheckAssociatedGeometry(*this); !checked)
             {
-                if (!Is(geometry, "CARTESIAN_POINT") && !Is(geometry, "AXIS2_PLACEMENT_3D") && !Is(geometry, "PLANE") &&
-                    !DetachedCurveSupported(geometry))
-                {
-                    return tl::unexpected(Fail("GeneralSupportingGeometryUnsupported", geometry, Status::Unsupported));
-                }
+                return tl::unexpected(std::move(checked.error()));
             }
-        }
-        if (wireframeRepresentation)
-        {
-            for (const auto set : Refs(*wireframeRepresentation, "items"))
-            {
-                if (Is(set, "AXIS2_PLACEMENT_3D"))
-                {
-                    continue; // Retained source frame, not an inferred relation transform.
-                }
-                for (const auto geometry : Refs(set, "elements"))
-                {
-                    const bool admitted = Is(geometry, "CARTESIAN_POINT") || DetachedCurveSupported(geometry);
-                    if (!admitted)
-                    {
-                        return tl::unexpected(Fail("GeneralWireframeGeometryUnsupported", geometry, Status::Unsupported));
-                    }
-                }
-            }
-        }
-        return {};
-    }
-    [[nodiscard]] Result<void> BuildWireframes(CurvePointDefinitions& definitions)
-    {
-        if (!wireframeRepresentation)
-        {
-            return {};
-        }
-        WireframeEvidence evidence;
-        for (const auto set : Refs(*wireframeRepresentation, "items"))
-        {
-            if (!Is(set, "GEOMETRIC_CURVE_SET"))
-            {
-                continue;
-            }
-            WireframeInfo group;
-            group.representationId = Id(*wireframeRepresentation);
-            group.relationshipId = Id(Role("wireframe_shape_relationship"));
-            group.setId = Id(set);
-            for (const auto geometry : Refs(set, "elements"))
-            {
-                if (auto operation = m_execution.Check(Phase::BeforeNativeCall); !operation)
-                {
-                    return tl::unexpected(std::move(operation.error()));
-                }
-                if (auto operation = definitions.Append(SourceRecord{ geometry }, group, evidence); !operation)
-                {
-                    return tl::unexpected(std::move(operation.error()));
-                }
-            }
-            if (auto businessCheck = Need(!group.curves.empty() || !group.points.empty(), "GeneralWireEmptySet", set); !businessCheck)
-            {
-                return tl::unexpected(std::move(businessCheck.error()));
-            }
-            m_model->wireframes.push_back(std::move(group));
-        }
-        m_report.wireframes = m_model->wireframes;
-        m_report.tolerances.push_back(
-            { "Postcheck", "MeasuredWireframeSourceTrimResidual", Id(*wireframeRepresentation), evidence.SourceResidualMm() }
-        );
-        m_report.tolerances.push_back(
-            { "Postcheck", "MeasuredWireframeDefinitionEndpointError", Id(*wireframeRepresentation), evidence.EndpointResidualMm() }
-        );
-        return {};
-    }
-    [[nodiscard]] Result<void> BuildSupportingGeometry(CurvePointDefinitions& definitions)
-    {
-        if (!supportingRepresentation)
-        {
-            return {};
-        }
-        SupportingGeometryInfo group;
-        group.representationId = Id(*supportingRepresentation);
-        group.relationshipId = Id(Role("construction_relationship"));
-        SupportingEvidence evidence;
-        for (const auto geometry : Refs(*supportingRepresentation, "items"))
-        {
-            if (auto operation = m_execution.Check(Phase::BeforeNativeCall); !operation)
-            {
-                return tl::unexpected(std::move(operation.error()));
-            }
-            auto appended = definitions.Append(SourceRecord{ geometry }, group, evidence);
-            if (!appended)
-            {
-                return tl::unexpected(std::move(appended.error()));
-            }
-            if (*appended == SupportingAppendResult::ExistingPlacement)
-            {
-                const bool plane = Is(geometry, "PLANE");
-                const auto position = plane ? Ref(geometry, "position") : geometry;
-                auto frameResult = Placement(position);
-                if (!frameResult)
-                {
-                    return tl::unexpected(std::move(frameResult.error()));
-                }
-                const auto& frame = *frameResult;
-                // STEP PLANE is unbounded. CreateCanonical retains its analytic
-                // axes and native sentinel domain, without a finite source trim.
-                // For a direct placement this same native storage is explicitly
-                // an archive frame adapter, not an added surface or locus.
-                SmPlane* raw = nullptr;
-                if (auto operation = Step(geometry); !operation)
-                {
-                    return tl::unexpected(std::move(operation.error()));
-                }
-                const auto status = SmPlane::CreateCanonical(*m_model->context, frame.Native(), raw);
-                std::unique_ptr<SmPlane> owned(raw);
-                if (auto nativeStatusCheck = Good(status); !nativeStatusCheck)
-                {
-                    return tl::unexpected(std::move(nativeStatusCheck.error()));
-                }
-                if (auto businessCheck = Need(bool(owned), "GeneralSupportingPlaneAllocation", geometry); !businessCheck)
-                {
-                    return tl::unexpected(std::move(businessCheck.error()));
-                }
-                const auto& actual = owned->GetPosition();
-                const auto axesEqual = [&](const auto& value, const V& expected)
-                {
-                    return value.x == expected[0] && value.y == expected[1] && value.z == expected[2];
-                };
-                if (auto businessCheck = Need(
-                        axesEqual(actual.GetOriginRef(), frame.o) && axesEqual(actual.GetXAxisRef(), frame.x) &&
-                            axesEqual(actual.GetYAxisRef(), frame.y),
-                        "GeneralSupportingFrameChanged",
-                        geometry
-                    );
-                    !businessCheck)
-                {
-                    return tl::unexpected(std::move(businessCheck.error()));
-                }
-                const CoordinateFrame coordinates{ frame.o, frame.x, frame.y, frame.z };
-                const auto index = m_model->supportingSurfaces.size();
-                if (plane)
-                {
-                    const auto domain = owned->GetNaturalUVDomain();
-                    group.planes.push_back(
-                        { Id(geometry),
-                          Id(position),
-                          index,
-                          coordinates,
-                          { domain.GetMin().x, domain.GetMin().y, domain.GetMax().x, domain.GetMax().y } }
-                    );
-                }
-                else
-                {
-                    group.frames.push_back({ Id(geometry), index, coordinates });
-                }
-                m_model->supportingSurfaces.push_back(std::move(owned));
-            }
-        }
-        m_model->supportingGeometry.push_back(std::move(group));
-        m_report.supportingGeometry = m_model->supportingGeometry;
-        if (const auto sourceConsistency = evidence.SourceResidualMm())
-        {
-            m_report.tolerances.push_back({ "Postcheck", "MeasuredSupportingSourceTrimResidual", Id(*supportingRepresentation), *sourceConsistency });
-        }
-        if (const auto definitionEndpoints = evidence.EndpointResidualMm())
-        {
-            m_report.tolerances.push_back(
-                { "Postcheck", "MeasuredSupportingDefinitionEndpointError", Id(*supportingRepresentation), *definitionEndpoints }
-            );
         }
         return {};
     }

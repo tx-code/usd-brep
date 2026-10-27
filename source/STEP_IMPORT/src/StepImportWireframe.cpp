@@ -616,12 +616,13 @@ ClosestPoint SupportingGeometryView::ClosestPlane(std::size_t plane, const Point
 
 namespace detail
 {
-void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path)
+void WritePartArchive(std::span<const ModelData* const> definitions, std::span<const ModelData* const> bodies, const std::filesystem::path& path)
 {
-    // SRR does not imply containment or union. Store an existing BRep first,
-    // independent curves in their own part array, and one point adapter BRep
-    // per source point. Even equal coordinates keep distinct source identities.
-    // These vertex-only BReps are an archive format adapter, not STEP vertices.
+    // The caller holds NativeMutex. Complete part-associated owners precede no
+    // material body semantically: curves/surfaces occupy separate native arrays,
+    // material BReps keep source order, then explicit point-only adapters follow.
+    // Source roles/STEP qualification remain in the owning snapshot, not this
+    // flat native container. Every copied member is read back before success.
     auto context = std::make_unique<SmContext>();
     std::vector<std::unique_ptr<SmCurve>> curveOwners;
     std::vector<std::unique_ptr<SmSurface>> surfaceOwners;
@@ -630,109 +631,146 @@ void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& 
     SmTArray<SmSurface*> surfaces;
     SmTArray<long> trees;
     SmTArray<SmBrep*> breps;
-    for (std::size_t i = 0; i < model.curvePointDefinitions.CurveCount(); ++i)
+    std::vector<std::pair<const ModelData*, std::size_t>> curveOrigins, surfaceOrigins, pointOrigins;
+    for (const auto* model : definitions)
     {
-        const auto& source = model.curvePointDefinitions.CurveAt(CurveIndex{ i });
-        SmCurve* raw = nullptr;
-        const auto status = source.Copy(*context, raw);
-        std::unique_ptr<SmCurve> copy(raw);
-        Good(status);
-        Require(copy && copy->GetContext() == context.get(), "Linked archive curve copy context mismatch");
-        curves.Add(copy.get());
-        curveOwners.push_back(std::move(copy));
+        if (!model)
+        {
+            continue;
+        }
+        for (std::size_t i = 0; i < model->curvePointDefinitions.CurveCount(); ++i)
+        {
+            const auto& source = model->curvePointDefinitions.CurveAt(CurveIndex{ i });
+            SmCurve* raw = nullptr;
+            const auto status = source.Copy(*context, raw);
+            std::unique_ptr<SmCurve> copy(raw);
+            Good(status);
+            Require(copy && copy.get() != &source && copy->GetContext() == context.get(), "Linked archive curve copy context mismatch");
+            copy->SetOwner(nullptr);
+            curves.Add(copy.get());
+            curveOwners.push_back(std::move(copy));
+            curveOrigins.emplace_back(model, i);
+        }
+        for (std::size_t i = 0; i < model->supportingSurfaces.size(); ++i)
+        {
+            const auto& source = model->supportingSurfaces[i];
+            SmSurface* raw = nullptr;
+            const auto status = source->Copy(*context, raw);
+            std::unique_ptr<SmSurface> copy(raw);
+            Good(status);
+            Require(copy && copy.get() != source.get() && copy->GetContext() == context.get(), "Supporting archive surface copy context mismatch");
+            copy->SetOwner(nullptr);
+            surfaces.Add(copy.get());
+            surfaceOwners.push_back(std::move(copy));
+            surfaceOrigins.emplace_back(model, i);
+        }
     }
-    for (const auto& source : model.supportingSurfaces)
+    for (const auto* model : bodies)
     {
-        SmSurface* raw = nullptr;
-        const auto status = source->Copy(*context, raw);
-        std::unique_ptr<SmSurface> copy(raw);
-        Good(status);
-        Require(copy && copy->GetContext() == context.get(), "Supporting archive surface copy context mismatch");
-        surfaces.Add(copy.get());
-        surfaceOwners.push_back(std::move(copy));
+        Require(model && model->brep, "Part archive material body missing");
+        std::unique_ptr<SmBrep> copy(new (*context) SmBrep(*model->brep, nullptr, nullptr, TRUE, FALSE));
+        Require(copy->GetContext() == context.get(), "Linked archive BRep copy context mismatch");
+        breps.Add(copy.get());
+        brepOwners.push_back(std::move(copy));
     }
-    const ULONG pointOffset = model.brep ? 1 : 0;
-    if (model.brep)
+    const auto pointOffset = bodies.size();
+    for (const auto* model : definitions)
     {
-        std::unique_ptr<SmBrep> body(new (*context) SmBrep(*model.brep, nullptr, nullptr, TRUE, FALSE));
-        brepOwners.push_back(std::move(body)); // Own before any vector growth can fail.
-        Require(brepOwners.back()->GetContext() == context.get(), "Linked archive BRep copy context mismatch");
-        breps.Add(brepOwners.back().get());
-    }
-    for (const auto& point : model.curvePointDefinitions.Points())
-    {
-        std::unique_ptr<SmBrep> ownedAdapter(new (*context) SmBrep());
-        auto& adapter = *ownedAdapter;
-        adapter.SetTolerance(model.queryTolerance, FALSE);
-        SmShell* shell = nullptr;
-        SmVertex* vertex = nullptr;
-        Good(adapter.MakeShellVertex(nullptr, SmPoint3d(point.pointMm[0], point.pointMm[1], point.pointMm[2]), shell, vertex));
-        Require(shell && vertex, "Linked archive point adapter missing");
-        vertex->SetTolerance(model.queryTolerance, FALSE);
-        Validate(adapter, "point adapter before write");
-        breps.Add(&adapter);
-        brepOwners.push_back(std::move(ownedAdapter));
+        if (!model)
+        {
+            continue;
+        }
+        const auto points = model->curvePointDefinitions.Points();
+        for (std::size_t i = 0; i < points.size(); ++i)
+        {
+            const auto& point = points[i];
+            std::unique_ptr<SmBrep> adapter(new (*context) SmBrep());
+            adapter->SetTolerance(model->queryTolerance, FALSE);
+            SmShell* shell = nullptr;
+            SmVertex* vertex = nullptr;
+            Good(adapter->MakeShellVertex(nullptr, SmPoint3d(point.pointMm[0], point.pointMm[1], point.pointMm[2]), shell, vertex));
+            Require(shell && vertex, "Linked archive point adapter missing");
+            vertex->SetTolerance(model->queryTolerance, FALSE);
+            Validate(*adapter, "point adapter before write");
+            breps.Add(adapter.get());
+            brepOwners.push_back(std::move(adapter));
+            pointOrigins.emplace_back(model, i);
+        }
     }
     Good(SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, breps, SM_BINARY, TRUE, FALSE));
-    // The legacy part writer does not propagate every child-writer status.
-    // Verify inventory, finite intervals and every new defining curve net/point
-    // by reading the actual file. This stricter archive check is not repair or
-    // an import-wide continuous geometry bound; source correspondence is in the
-    // owning snapshot/report and is not encoded by the native part container.
+    // The legacy writer can hide a child-writer error. Reuse the same full
+    // inventory/definition/point checks as the single-body associated writer.
     ReadPart read;
     Good(SmNativeArchive::ReadPartFromFile(read.context, path.c_str(), read.curves, read.surfaces, read.trees, read.breps, SM_BINARY));
     Require(
-        read.curves.GetSize() == curves.GetSize() && read.breps.GetSize() == breps.GetSize() && read.surfaces.GetSize() == surfaces.GetSize() &&
+        read.curves.GetSize() == curves.GetSize() && read.surfaces.GetSize() == surfaces.GetSize() && read.breps.GetSize() == breps.GetSize() &&
             read.trees.GetSize() == 0,
         "Linked archive inventory incomplete"
     );
-    const double archiveToleranceMm = std::min(model.definitionToleranceMm, 1e-9);
-    for (ULONG i = 0; i < curves.GetSize(); ++i)
+    for (std::size_t i = 0; i < curveOrigins.size(); ++i)
     {
-        Require(read.curves[i], "Linked archive curve missing");
-        CompareCurve(model.curvePointDefinitions.CurveAt(CurveIndex{ i }), *read.curves[i], archiveToleranceMm);
-        if (!model.brep)
+        const auto& [model, index] = curveOrigins[i];
+        Require(read.curves[static_cast<ULONG>(i)], "Linked archive curve missing");
+        CompareCurve(
+            model->curvePointDefinitions.CurveAt(CurveIndex{ index }),
+            *read.curves[static_cast<ULONG>(i)],
+            std::min(model->definitionToleranceMm, 1e-9)
+        );
+        if (!model->brep)
         {
             SmAssertArray deep;
-            Require(read.curves[i]->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0, "Standalone wire archive curve validity changed");
-        }
-    }
-    for (ULONG i = 0; i < surfaces.GetSize(); ++i)
-    {
-        Require(read.surfaces[i], "Supporting archive surface missing");
-        ComparePlane(*model.supportingSurfaces[i], *read.surfaces[i], archiveToleranceMm);
-    }
-    for (ULONG i = 0; i < read.breps.GetSize(); ++i)
-    {
-        Require(read.breps[i], "Linked archive BRep missing");
-        Validate(*read.breps[i], i >= pointOffset ? "point adapter after read" : "material BRep after read");
-        if (i >= pointOffset)
-        {
-            SmTArray<SmVertex*> vertices;
-            SmTArray<SmEdge*> edges;
-            SmTArray<SmFace*> faces;
-            read.breps[i]->GetVertices(vertices);
-            read.breps[i]->GetEdges(edges);
-            read.breps[i]->GetFaces(faces);
-            Require(vertices.GetSize() == 1 && edges.GetSize() == 0 && faces.GetSize() == 0, "Linked point adapter topology changed");
             Require(
-                Distance(Coordinates(vertices[0]->GetPoint()), model.curvePointDefinitions.Points()[i - pointOffset].pointMm) <= archiveToleranceMm,
-                "Linked archive point changed"
+                read.curves[static_cast<ULONG>(i)]->AssertValid(&deep, SM_LEVEL_2, SM_WALK) && deep.GetSize() == 0,
+                "Standalone wire archive curve validity changed"
             );
         }
     }
-    if (model.brep)
+    for (std::size_t i = 0; i < surfaceOrigins.size(); ++i)
     {
+        const auto& [model, index] = surfaceOrigins[i];
+        Require(read.surfaces[static_cast<ULONG>(i)], "Supporting archive surface missing");
+        ComparePlane(*model->supportingSurfaces[index], *read.surfaces[static_cast<ULONG>(i)], std::min(model->definitionToleranceMm, 1e-9));
+    }
+    for (std::size_t i = 0; i < bodies.size(); ++i)
+    {
+        auto* body = read.breps[static_cast<ULONG>(i)];
+        Require(body, "Linked archive BRep missing");
+        Validate(*body, "material BRep after read");
         SmBrepCompareResult comparison;
-        comparison.dVertexTolerance = archiveToleranceMm;
-        Good(model.brep->CompareBreps(read.breps[0], comparison));
+        comparison.dVertexTolerance = std::min(bodies[i]->definitionToleranceMm, 1e-9);
+        Good(bodies[i]->brep->CompareBreps(body, comparison));
         Require(
             comparison.lFaceCountA == comparison.lFaceCountB && comparison.lEdgeCountA == comparison.lEdgeCountB &&
                 comparison.lVertexCountA == comparison.lVertexCountB && comparison.lCurveTypeMismatches == 0 &&
-                comparison.dMaxVertexGap <= archiveToleranceMm,
+                comparison.dMaxVertexGap <= comparison.dVertexTolerance,
             "Linked archive material boundary changed"
         );
     }
+    for (std::size_t i = 0; i < pointOrigins.size(); ++i)
+    {
+        const auto& [model, index] = pointOrigins[i];
+        auto* adapter = read.breps[static_cast<ULONG>(pointOffset + i)];
+        Require(adapter, "Linked archive point adapter missing");
+        Validate(*adapter, "point adapter after read");
+        SmTArray<SmVertex*> vertices;
+        SmTArray<SmEdge*> edges;
+        SmTArray<SmFace*> faces;
+        adapter->GetVertices(vertices);
+        adapter->GetEdges(edges);
+        adapter->GetFaces(faces);
+        Require(vertices.GetSize() == 1 && !edges.GetSize() && !faces.GetSize(), "Linked point adapter topology changed");
+        Require(
+            Distance(Coordinates(vertices[0]->GetPoint()), model->curvePointDefinitions.Points()[index].pointMm) <=
+                std::min(model->definitionToleranceMm, 1e-9),
+            "Linked archive point changed"
+        );
+    }
 }
+void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path)
+{
+    const std::array<const ModelData*, 1> definitions{ &model };
+    WritePartArchive(definitions, model.brep ? std::span<const ModelData* const>(definitions) : std::span<const ModelData* const>{}, path);
+}
+
 } // namespace detail
 } // namespace step_import

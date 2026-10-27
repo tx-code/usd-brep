@@ -312,6 +312,12 @@ void ExecutionReceipt(const std::filesystem::path& output, const step_import_app
     stream.close();
     Good(bool(stream), "ExecutionResourceReceiptWriteFailed");
 }
+struct DefinitionAuxiliary
+{
+    std::size_t definition;
+    std::string sourceDefinitionId, path;
+    bool required;
+};
 void Publish(
     std::string_view profile,
     const std::filesystem::path& output,
@@ -334,7 +340,9 @@ void Publish(
     std::size_t definitionCount = 0,
     const step_import::AssemblySnapshot* assembly = nullptr,
     const step_import_app::AssemblyArguments& assemblyRequest = {},
-    std::size_t wireframeInstances = 0
+    std::size_t wireframeInstances = 0,
+    const std::vector<DefinitionAuxiliary>* definitionAuxiliary = nullptr,
+    std::string_view associatedDefinitionId = {}
 )
 {
     std::string json;
@@ -343,6 +351,8 @@ void Publish(
         w.Add(
             wireframeInstances      ? "{\"format\":\"brep-view-scene.v7\",\"status\":" :
             assemblyRequest.enabled ? "{\"format\":\"brep-view-scene.v6\",\"status\":" :
+            definitionAuxiliary     ? "{\"format\":\"brep-view-scene.v10\",\"status\":" :
+            bodyScenes && auxiliary ? "{\"format\":\"brep-view-scene.v9\",\"status\":" :
             definitionCount         ? "{\"format\":\"brep-view-scene.v5\",\"status\":" :
             bodyScenes              ? "{\"format\":\"brep-view-scene.v4\",\"status\":" :
             info                    ? "{\"format\":\"brep-view-scene.v3\",\"topology\":\"topology.json\",\"status\":" :
@@ -627,6 +637,11 @@ void Publish(
             if (auxiliary)
             {
                 w.Add(",\"auxiliary\":\"auxiliary.json\"");
+                if (bodyScenes)
+                {
+                    w.Add(",\"associated_definition_id\":");
+                    w.String(associatedDefinitionId);
+                }
             }
             w.Add(",\"role\":");
             w.String(info->shapeRole);
@@ -700,6 +715,31 @@ void Publish(
                 }
                 w.Add("]");
             }
+        }
+        if (definitionAuxiliary)
+        {
+            w.Add(",\"definition_auxiliary\":[");
+            for (std::size_t i = 0; i < definitionAuxiliary->size(); ++i)
+            {
+                if (i)
+                {
+                    w.Add(",");
+                }
+                const auto& item = (*definitionAuxiliary)[i];
+                w.Add("{\"definition\":");
+                w.Number(item.definition);
+                w.Add(",\"source_definition_id\":");
+                w.String(item.sourceDefinitionId);
+                w.Add(",\"required\":");
+                w.Bool(item.required);
+                if (item.required)
+                {
+                    w.Add(",\"auxiliary\":");
+                    w.String(item.path);
+                }
+                w.Add("}");
+            }
+            w.Add("]");
         }
         w.Add(",\"diagnostics\":[");
         for (std::size_t i = 0; i < report.diagnostics.size() && i < 5; ++i)
@@ -1163,6 +1203,86 @@ int Run(
                 total.vertices += scene.info.vertices;
                 scenes.push_back(std::move(scene));
             }
+            bool auxiliary = false;
+            std::vector<DefinitionAuxiliary> definitionAuxiliary;
+            if (collection)
+            {
+                step_view::AuxiliaryExport exporter(
+                    [](auto done, auto total)
+                    {
+                        Progress("auxiliary", done, total);
+                    }
+                );
+                auxiliary = exporter.Write(*collection, output);
+            }
+            if (document)
+            {
+                // Inspect immutable role inventories first. Body-only documents
+                // create no associated directories or empty payload descriptors.
+                std::vector<bool> required(document->PartCount(), false);
+                bool any = false;
+                for (std::size_t i = 0; i < document->PartCount(); ++i)
+                {
+                    std::visit(
+                        [&](const auto& item)
+                        {
+                            using T = std::decay_t<decltype(item)>;
+                            if constexpr (!std::is_same_v<T, std::monostate>)
+                            {
+                                Good(bool(item), "DefinitionAssociatedOwnerMissing");
+                                required[i] = !item->Wireframes().empty() || !item->SupportingGeometry().empty();
+                            }
+                        },
+                        document->Part(i)
+                    );
+                }
+                any = std::find(required.begin(), required.end(), true) != required.end();
+                if (any)
+                {
+                    // Reuse the completed body inventory once; rescanning all
+                    // bodies for every definition would make this path quadratic.
+                    std::vector<std::string_view> identities(document->PartCount());
+                    for (const auto& scene : scenes)
+                    {
+                        identities.at(scene.definition) = scene.sourceDefinitionId;
+                    }
+                    std::size_t primitiveCount = 0, auxiliaryBytes = 0;
+                    for (std::size_t i = 0; i < document->PartCount(); ++i)
+                    {
+                        Good(!identities[i].empty(), "DefinitionAssociatedSourceMissing");
+                        const auto relative = "definition-associated-" + std::to_string(i) + "/auxiliary.json";
+                        if (required[i])
+                        {
+                            const auto directory = output / ("definition-associated-" + std::to_string(i));
+                            Good(std::filesystem::create_directory(directory), "DefinitionAuxiliaryDirectoryFailed");
+                            step_view::AuxiliaryExport exporter(
+                                [](auto done, auto total)
+                                {
+                                    Progress("auxiliary", done, total);
+                                }
+                            );
+                            bool written = false;
+                            std::visit(
+                                [&](const auto& item)
+                                {
+                                    using T = std::decay_t<decltype(item)>;
+                                    if constexpr (!std::is_same_v<T, std::monostate>)
+                                    {
+                                        written = exporter.Write(*item, directory);
+                                    }
+                                },
+                                document->Part(i)
+                            );
+                            Good(written, "DefinitionAssociatedPayloadMissing");
+                            primitiveCount += exporter.PrimitiveCount();
+                            Good(primitiveCount <= 10000, "AuxiliaryPrimitiveLimit");
+                            auxiliaryBytes += std::filesystem::file_size(directory / "auxiliary.json");
+                            Good(auxiliaryBytes <= 16 * 1024 * 1024, "AuxiliaryReportLimit");
+                        }
+                        definitionAuxiliary.push_back({ i, std::string(identities[i]), relative, required[i] });
+                    }
+                }
+            }
             Progress("bodies", count, count);
             Publish(
                 profile,
@@ -1173,7 +1293,7 @@ int Run(
                 &total,
                 budget.meshCells,
                 budget.meshPoints,
-                false,
+                auxiliary,
                 nativeStatus,
                 schema,
                 carrier,
@@ -1183,7 +1303,12 @@ int Run(
                 asciiApplied,
                 &scenes,
                 unitInterpretation,
-                document ? document->PartCount() : 0
+                document ? document->PartCount() : 0,
+                nullptr,
+                {},
+                0,
+                definitionAuxiliary.empty() ? nullptr : &definitionAuxiliary,
+                collection && auxiliary ? step_view::AuxiliaryExport::DefinitionId(*collection->Source()) : std::string{}
             );
             return 0;
         }

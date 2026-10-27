@@ -5,7 +5,11 @@
 
 namespace step_import::detail
 {
-using MaterialCandidates = std::vector<std::shared_ptr<ModelData>>;
+struct MaterialCandidates
+{
+    std::vector<std::shared_ptr<ModelData>> bodies;
+    std::shared_ptr<ModelData> associated; // One part-level owner, never inserted into the material-body inventory.
+};
 using DocumentCandidate = std::shared_ptr<const DocumentSnapshot>;
 
 // Keep result vocabulary out of the common native-layout header: only grouped

@@ -123,7 +123,17 @@ Result<AssemblyNativeCandidate> BuildAssembly(
                 {
                     return tl::unexpected(std::move(bodies.error()));
                 }
-                native.bodies = std::move(*bodies);
+                if (bodies->associated)
+                {
+                    return tl::unexpected(
+                        Failure{ Status::Unsupported,
+                                 "AssemblyCollectionAssociatedGeometryUnimplemented",
+                                 "Part-level associated geometry requires its own assembly occurrence transport",
+                                 member.sourceDefinitionRecord,
+                                 "AssemblyBuild" }
+                    );
+                }
+                native.bodies = std::move(bodies->bodies);
             }
             else
             {

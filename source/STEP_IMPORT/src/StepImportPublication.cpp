@@ -111,23 +111,20 @@ Result<void> Publication::AcceptAssembly(Result<AssemblyNativeCandidate> candida
     }
     return Accept(std::move(*candidate));
 }
-[[nodiscard]] Result<void> Publication::AcceptCollection(
-    std::shared_ptr<const step_semantics::Snapshot> source,
-    std::vector<std::shared_ptr<ModelData>> candidates
-)
+[[nodiscard]] Result<void> Publication::AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, MaterialCandidates candidates)
 {
     if (!m_collectionSink && !m_partSink && !m_fileSink)
     {
         return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "CollectionPublicationTargetRequired", {} });
     }
-    if (candidates.size() != m_report.bodies.size() || std::any_of(
-                                                           m_report.bodies.begin(),
-                                                           m_report.bodies.end(),
-                                                           [](const auto& body)
-                                                           {
-                                                               return !body.checksPassed;
-                                                           }
-                                                       ))
+    if (candidates.bodies.size() != m_report.bodies.size() || std::any_of(
+                                                                  m_report.bodies.begin(),
+                                                                  m_report.bodies.end(),
+                                                                  [](const auto& body)
+                                                                  {
+                                                                      return !body.checksPassed;
+                                                                  }
+                                                              ))
     {
         m_report.candidateDiscarded = m_report.nativeCalls > 0;
         return tl::unexpected(Failure{ Status::BuildFailure, "NativeReturnOrConstructionFailure", "UncheckedMaterialCollection", {} });
@@ -363,12 +360,12 @@ void Publication::FinishFailure()
     // Preserve the existing disposal-before-report ordering and any discard
     // evidence already recorded by a builder that failed before handoff.
     const bool held = bool(m_preparedAssembly) || bool(m_candidate) || bool(m_prepared) || bool(m_preparedCollection) || bool(m_preparedDocument) ||
-                      !m_collectionCandidates.empty();
+                      !m_collectionCandidates.bodies.empty() || bool(m_collectionCandidates.associated);
     m_preparedDocument.reset();
     m_preparedAssembly.reset();
     m_prepared.reset();
     m_preparedCollection.reset();
-    m_collectionCandidates.clear();
+    m_collectionCandidates = {};
     m_candidate.reset();
     for (auto& definition : m_report.definitions)
     {

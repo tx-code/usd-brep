@@ -84,8 +84,51 @@ public:
 
     bool Write(const step_import::ModelSnapshot& model, const std::filesystem::path& output)
     {
+        return WriteGroups(model.Wireframes(), model.SupportingGeometry(), model.Info().boundsMm, DefinitionId(*model.Source()), output);
+    }
+    bool Write(const step_import::MaterialCollectionSnapshot& model, const std::filesystem::path& output)
+    {
         const auto wires = model.Wireframes();
-        const auto support = model.SupportingGeometry();
+        const auto supporting = model.SupportingGeometry();
+        if (wires.empty() && supporting.empty())
+        {
+            return false;
+        }
+        step_import::Bounds bounds{ Point{ INFINITY, INFINITY, INFINITY }, Point{ -INFINITY, -INFINITY, -INFINITY } };
+        for (std::size_t i = 0; i < model.BodyCount(); ++i)
+        {
+            const auto b = model.Body(i)->Info().boundsMm;
+            for (std::size_t k = 0; k < 3; ++k)
+            {
+                bounds[0][k] = std::min(bounds[0][k], b[0][k]);
+                bounds[1][k] = std::max(bounds[1][k], b[1][k]);
+            }
+        }
+        return WriteGroups(wires, supporting, bounds, DefinitionId(*model.Source()), output);
+    }
+    std::size_t PrimitiveCount() const
+    {
+        return m_total;
+    }
+    static std::string DefinitionId(const step_semantics::Snapshot& source)
+    {
+        for (const auto& role : source.PartDefinition().roles)
+        {
+            if (role.name == "definition")
+            {
+                return source.Source().Records()[role.recordIndex].id;
+            }
+        }
+        throw std::logic_error("AssociatedDefinitionSourceMissing");
+    }
+    bool WriteGroups(
+        const std::vector<step_import::WireframeView>& wires,
+        const std::vector<step_import::SupportingGeometryView>& support,
+        const step_import::Bounds& bounds,
+        const std::string& definitionId,
+        const std::filesystem::path& output
+    )
+    {
         if (wires.empty() && support.empty())
         {
             return false;
@@ -101,7 +144,6 @@ public:
             m_total += info.curves.size() + info.points.size() + info.frames.size() + info.planes.size();
         }
         Need(m_total <= 10000, "AuxiliaryPrimitiveLimit");
-        const auto bounds = model.Info().boundsMm;
         const auto diagonal = std::hypot(bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1], bounds[1][2] - bounds[0][2]);
         Need(std::isfinite(diagonal) && diagonal > 0, "AuxiliaryPreviewScaleUnavailable");
         std::string json;
@@ -116,6 +158,8 @@ public:
                         "\"continuous_error_bound_established\":false,\"preview_scale_mm\":"
                     );
                     Scalar(writer, diagonal * .1);
+                    writer.Add(",\"source_definition_id\":");
+                    writer.String(definitionId);
                     writer.Add(",\"groups\":[");
                     bool comma = false;
                     for (const auto& view : wires)

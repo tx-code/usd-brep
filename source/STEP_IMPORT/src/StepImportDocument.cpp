@@ -28,23 +28,6 @@ namespace step_import::detail
     candidate->source = source;
     candidate->selection = report.definitionSelection;
     candidate->sourcePartIndices = *selected;
-    // Preserve complete-request admission and its order before native work.
-    for (const auto i : *selected)
-    {
-        for (const auto& role : source->Part(i)->PartDefinition().roles)
-        {
-            if (role.name == "wireframe_representation" || role.name == "construction_representation")
-            {
-                return tl::unexpected(
-                    Failure{ Status::Unsupported,
-                             "DocumentAssociatedGeometryUnimplemented",
-                             "Independent document associated geometry must be preserved at document level",
-                             role.recordIndex,
-                             "GeneralBrep" }
-                );
-            }
-        }
-    }
     return ObserveDefinitions(
         *source,
         *selected,
@@ -62,10 +45,11 @@ namespace step_import::detail
                 {
                     return tl::unexpected(std::move(bodies.error()));
                 }
-                for (std::size_t k = 0; k < bodies->size(); ++k)
+                for (std::size_t k = 0; k < bodies->bodies.size(); ++k)
                 {
-                    candidate->bodies.push_back({ member.ordinal, member.sourceDefinitionRecord, definition.shapes[k].shape, (*bodies)[k] });
+                    candidate->bodies.push_back({ member.ordinal, member.sourceDefinitionRecord, definition.shapes[k].shape, bodies->bodies[k] });
                 }
+                candidate->associated.push_back(bodies->associated);
                 candidate->parts.emplace_back(Access::Collection(part, std::move(*bodies)));
             }
             else
@@ -76,6 +60,7 @@ namespace step_import::detail
                     return tl::unexpected(std::move(body.error()));
                 }
                 candidate->bodies.push_back({ member.ordinal, member.sourceDefinitionRecord, definition.shapes[0].shape, *body });
+                candidate->associated.push_back(*body);
                 candidate->parts.emplace_back(Access::Snapshot(std::move(*body)));
             }
             return {};
@@ -88,8 +73,8 @@ namespace step_import::detail
 }
 std::shared_ptr<const DocumentSnapshot> Access::Document(std::shared_ptr<DocumentData> data)
 {
-    if (!data || !data->source || data->parts.size() != data->sourcePartIndices.size() || data->parts.empty() ||
-        data->parts.size() > data->source->PartCount() || data->bodies.empty() ||
+    if (!data || !data->source || data->parts.size() != data->sourcePartIndices.size() || data->parts.size() != data->associated.size() ||
+        data->parts.empty() || data->parts.size() > data->source->PartCount() || data->bodies.empty() ||
         (!data->selection && data->parts.size() != data->source->PartCount()) ||
         (data->selection && data->selection->selectedDefinitionIds.size() != data->parts.size()))
     {
@@ -142,27 +127,16 @@ std::optional<DefinitionSelectionReceipt> DocumentSnapshot::Selection() const
 void DocumentSnapshot::WriteNative(const std::filesystem::path& path) const
 {
     std::lock_guard lock(detail::NativeMutex());
-    auto context = std::make_unique<SmContext>();
-    std::vector<std::unique_ptr<SmBrep>> copies;
-    SmTArray<SmBrep*> bodies;
-    SmTArray<SmCurve*> curves;
-    SmTArray<SmSurface*> surfaces;
-    SmTArray<long> trees;
+    std::vector<const detail::ModelData*> associated, bodies;
+    for (const auto& definition : m_data->associated)
+    {
+        associated.push_back(definition.get());
+    }
     for (const auto& body : m_data->bodies)
     {
-        std::lock_guard bodyLock(body.model->mutex);
-        copies.emplace_back(new (*context) SmBrep(*body.model->brep, nullptr, nullptr, TRUE, FALSE));
-        if (!copies.back() || copies.back()->GetContext() != context.get())
-        {
-            throw std::runtime_error("DocumentArchiveContextMismatch");
-        }
-        bodies.Add(copies.back().get());
+        bodies.push_back(body.model.get());
     }
-    // Ordered independent material bodies, empty CSG tree; source definition
-    // identities/qualification stay with the owning import snapshot/report.
-    if (SmBrepData::WritePartToFile(path.c_str(), curves, surfaces, trees, bodies, SM_BINARY, TRUE, FALSE) != SM_SUCCESS)
-    {
-        throw std::runtime_error("DocumentArchiveWriteFailed");
-    }
+    detail::WritePartArchive(associated, bodies, path);
 }
+
 } // namespace step_import

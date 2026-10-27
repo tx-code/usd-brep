@@ -66,11 +66,12 @@ class NativeCollectionTests(unittest.TestCase):
         self.assertEqual(0, report['native_calls'])
         self.assertFalse(report['material_collection']['complete'])
 
-    def test_associated_geometry_request_fails_before_body_allocation(self):
+    def test_associated_geometry_is_published_once_at_part_level(self):
         path = Path(__file__).resolve().parents[3]/'source/STEP_IMPORT/tests/fixtures/linked_wireframe.step'
         run, report = self.invoke_bytes(path.read_bytes(), '--material-collection')
-        self.assertNotEqual(0, run.returncode)
-        self.assertEqual(0, report['native_calls'])
+        self.assertEqual(0, run.returncode, run.stderr)
         self.assertIsNone(report['model'])
-        self.assertFalse(report['material_collection']['complete'])
-        self.assertEqual('MaterialCollectionAssociatedGeometryUnimplemented', report['diagnostics'][-1]['key'])
+        self.assertTrue(report['material_collection']['complete'])
+        self.assertEqual(1, len(report['linked_wireframes']))
+        self.assertTrue(all(not body['checks'].get('linked_wireframes')
+                            for body in report['material_collection']['bodies']))

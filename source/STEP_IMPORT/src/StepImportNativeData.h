@@ -9,6 +9,7 @@
 #include <SmCurve.h>
 #include <SmSurface.h>
 #include <mutex>
+#include <span>
 
 class SmEdge;
 class SmFace;
@@ -97,9 +98,11 @@ struct ModelData
 };
 struct CollectionData
 {
-    // No native context at this level. Each body owns its context and destruction lock.
+    // No direct native context at this level. Each body and the optional
+    // part-associated owner retain their own allocating context/destruction lock.
     std::shared_ptr<const step_semantics::Snapshot> source;
     std::vector<std::shared_ptr<ModelData>> bodies;
+    std::shared_ptr<ModelData> associated; // Detached source roles belong to the part, not body zero.
 };
 struct DocumentData
 {
@@ -112,7 +115,9 @@ struct DocumentData
     std::optional<DefinitionSelectionReceipt> selection;
     std::vector<std::size_t> sourcePartIndices; // Qualified source-view ordinals, distinct from declared inventory and native ordinals.
     std::vector<PartModel> parts;
+    std::vector<std::shared_ptr<ModelData>> associated; // One owner per selected definition; null for a body-only collection.
     std::vector<Body> bodies;
 };
 void WriteWireframeArchive(const ModelData& model, const std::filesystem::path& path);
+void WritePartArchive(std::span<const ModelData* const> definitions, std::span<const ModelData* const> bodies, const std::filesystem::path& path);
 } // namespace step_import::detail

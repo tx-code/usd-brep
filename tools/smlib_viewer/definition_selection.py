@@ -53,7 +53,7 @@ def validate_manifest(manifest, settings=None):
     selected = receipt.get('selected_definitions')
     source_count = receipt.get('source_definition_count')
     configuration = receipt.get('configuration')
-    if (manifest.get('format') != 'brep-view-scene.v5' or
+    if (manifest.get('format') not in {'brep-view-scene.v5', 'brep-view-scene.v10'} or
             configuration not in (CONFIGURATION, ISOLATED_CONFIGURATION) or
             receipt.get('native_scope') != 'ExplicitSelectedDefinitions' or
             not isinstance(receipt.get('source_sha256'), str) or

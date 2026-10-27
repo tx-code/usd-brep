@@ -3,6 +3,7 @@
 """Owning display projections of associated source roles, separate from BRep."""
 from dataclasses import dataclass
 import json
+import re
 
 from tools.smlib_gui.runtime import np, pv
 
@@ -24,6 +25,11 @@ class DisplayItem:
 
 class AuxiliaryScene:
     def __init__(self, source):
+        self.source_definition_id = source.get('source_definition_id') if isinstance(source, dict) else None
+        if (self.source_definition_id is not None and
+                (not isinstance(self.source_definition_id, str)
+                 or not re.fullmatch(r'0|[1-9][0-9]*', self.source_definition_id))):
+            raise ValueError('InvalidAuxiliaryDefinitionIdentity')
         if (not isinstance(source, dict) or source.get("format") != "brep-view-auxiliary.v1"
                 or source.get("units") != "mm" or source.get("continuous_error_bound_established") is not False):
             raise ValueError("InvalidAuxiliaryFormat")

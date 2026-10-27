@@ -520,6 +520,7 @@ private:
 
     friend class ModelSnapshot;
     friend class WireframeModelSnapshot;
+    friend class MaterialCollectionSnapshot;
     explicit WireframeView(std::shared_ptr<detail::ModelData> data, std::size_t set);
     std::shared_ptr<detail::ModelData> m_data;
     std::size_t m_set = 0;
@@ -569,6 +570,7 @@ public:
 private:
 
     friend class ModelSnapshot;
+    friend class MaterialCollectionSnapshot;
     explicit SupportingGeometryView(std::shared_ptr<detail::ModelData> data, std::size_t set);
     std::shared_ptr<detail::ModelData> m_data;
     std::size_t m_set = 0;
@@ -888,6 +890,11 @@ public:
     std::shared_ptr<const ModelSnapshot> Body(std::size_t index) const;
     std::string SourceShapeId(std::size_t index) const;
     std::shared_ptr<const step_semantics::Snapshot> Source() const;
+    // Associated role inventory belongs to this part, never to Body(0). Info
+    // indices address the owning part's detached arrays, not a flattened
+    // multi-definition native archive or the material BRep topology.
+    std::vector<WireframeView> Wireframes() const;
+    std::vector<SupportingGeometryView> SupportingGeometry() const;
     // Ordered independent BReps, with an empty CSG tree. No union/qualification transfer is implied.
     void WriteNative(const std::filesystem::path& path) const;
 

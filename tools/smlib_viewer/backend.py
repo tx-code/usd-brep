@@ -321,7 +321,8 @@ class SceneLoader(QtCore.QObject):
             if (not isinstance(manifest, dict)
                     or manifest.get("format") not in {"brep-view-scene.v1", "brep-view-scene.v2", "brep-view-scene.v3",
                                                       "brep-view-scene.v4", "brep-view-scene.v5", "brep-view-scene.v6",
-                                                      "brep-view-scene.v7"}):
+                                                      "brep-view-scene.v7", "brep-view-scene.v9",
+                                                      "brep-view-scene.v10"}):
                 raise ValueError("SceneVersionMismatch")
             # Retain only the current request's bounded manifest, before its
             # temporary payloads are released. No borrowed paths escape here.
@@ -399,7 +400,7 @@ class SceneLoader(QtCore.QObject):
                 if generation == self.generation and not job['stopped']:
                     self.loaded.emit(str(job['path']), mesh, boundary, metadata)
                 return
-            if manifest['format'] == 'brep-view-scene.v5':
+            if manifest['format'] in {'brep-view-scene.v5', 'brep-view-scene.v10'}:
                 from .collection import read_document
                 definitions = read_document(directory, manifest, scene_file)
                 first = definitions[0]
@@ -412,14 +413,20 @@ class SceneLoader(QtCore.QObject):
                     face_labels_complete=all(d.metadata['_topology'].face_labels_complete for d in definitions))
                 self.worker_result['display_scope'] = 'DefinitionLocal'
                 self.worker_result['initial_display_definition'] = 0
+                self.worker_result['definition_auxiliary_inventory'] = [
+                    dict(d.metadata['_auxiliary'].counts) if d.metadata.get('_auxiliary') is not None else {}
+                    for d in definitions]
                 self.progress.emit(Progress('render'))
                 if generation == self.generation and not job['stopped']:
                     self.loaded.emit(str(job['path']), first.mesh, first.boundary, metadata)
                 return
-            if manifest['format'] == 'brep-view-scene.v4':
-                from .collection import read_collection
-                mesh, boundary, topology = read_collection(directory, manifest, scene_file)
+            if manifest['format'] in {'brep-view-scene.v4', 'brep-view-scene.v9'}:
+                from .collection import read_collection_scene
+                mesh, boundary, topology, auxiliary = read_collection_scene(directory, manifest, scene_file)
                 metadata = dict(manifest, _topology=topology)
+                if auxiliary is not None:
+                    metadata['_auxiliary'] = auxiliary
+                    self.worker_result['auxiliary_inventory'] = dict(auxiliary.counts)
                 self.worker_result['topology_inventory'] = dict(faces=len(topology.faces), edges=len(topology.edges),
                     vertices=len(topology.vertices), bodies=len(topology.bodies), face_labels_complete=topology.face_labels_complete)
                 self.progress.emit(Progress('render'))

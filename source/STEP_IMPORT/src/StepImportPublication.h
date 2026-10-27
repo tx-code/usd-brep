@@ -24,10 +24,7 @@ public:
 
     [[nodiscard]] Result<void> Accept(std::shared_ptr<ModelData> candidate);
     [[nodiscard]] Result<void> Accept(Result<NativeCandidate> candidate);
-    [[nodiscard]] Result<void> AcceptCollection(
-        std::shared_ptr<const step_semantics::Snapshot> source,
-        std::vector<std::shared_ptr<ModelData>> candidates
-    );
+    [[nodiscard]] Result<void> AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, MaterialCandidates candidates);
     [[nodiscard]] Result<void> AcceptDocument(std::shared_ptr<const DocumentSnapshot> candidate);
     [[nodiscard]] Result<void> AcceptCollection(std::shared_ptr<const step_semantics::Snapshot> source, Result<MaterialCandidates> candidates);
     [[nodiscard]] Result<void> AcceptDocument(Result<DocumentCandidate> candidate);
@@ -50,7 +47,7 @@ private:
     std::shared_ptr<const AssemblySnapshot>* m_assemblySink = nullptr;
     std::shared_ptr<const AssemblySnapshot> m_preparedAssembly;
     std::shared_ptr<const AssemblyEvidence> m_assemblyEvidence; // Never owns native bodies.
-    std::vector<std::shared_ptr<ModelData>> m_collectionCandidates;
+    MaterialCandidates m_collectionCandidates;
     std::shared_ptr<const MaterialCollectionSnapshot> m_preparedCollection;
     std::shared_ptr<ModelData> m_candidate;
     std::shared_ptr<const ModelSnapshot> m_prepared;

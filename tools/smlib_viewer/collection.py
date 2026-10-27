@@ -11,6 +11,8 @@ from .definition_selection import validate_manifest as validate_selection
 
 
 def read_collection(directory, manifest, resolve, *, _allow_single=False, _assembly=False):
+    if manifest.get('format') == 'brep-view-scene.v9':
+        raise ValueError('CollectionAssociatedGeometryReaderRequired')
     bodies = manifest.get('body_scenes')
     count = manifest.get('body_count')
     if (type(count) is not int or count < (1 if _allow_single else 2) or count > MAX_FACES or
@@ -89,6 +91,26 @@ def read_collection(directory, manifest, resolve, *, _allow_single=False, _assem
     return mesh, boundary, data
 
 
+def read_collection_scene(directory, manifest, resolve, *, _allow_single=False):
+    """Return every required role together; a BRep-only reader cannot adopt v9."""
+    if manifest.get('format') != 'brep-view-scene.v9':
+        mesh, boundary, data = read_collection(directory, manifest, resolve, _allow_single=_allow_single)
+        return mesh, boundary, data, None
+    if manifest.get('auxiliary_required') is not True or not isinstance(manifest.get('auxiliary'), str):
+        raise ValueError('MissingCollectionAssociatedGeometry')
+    source = manifest.get('associated_definition_id')
+    if not isinstance(source, str) or not re.fullmatch(r'0|[1-9][0-9]*', source):
+        raise ValueError('MissingAssociatedDefinitionIdentity')
+    projection = dict(manifest, format='brep-view-scene.v4', auxiliary_required=False)
+    projection.pop('auxiliary')
+    mesh, boundary, data = read_collection(directory, projection, resolve, _allow_single=_allow_single)
+    from .auxiliary import read_auxiliary
+    auxiliary = read_auxiliary(resolve(directory, manifest['auxiliary']))
+    if auxiliary.source_definition_id != source:
+        raise ValueError('AssociatedDefinitionIdentityMismatch')
+    return mesh, boundary, data, auxiliary
+
+
 @dataclass(frozen=True, slots=True)
 class DefinitionScene:
     """Owning display projection in one source definition's local frame."""
@@ -149,13 +171,44 @@ def read_document(directory, manifest, resolve):
     if (len(definitions) != count or len(set(definitions.values())) != count or
             any(type(manifest.get(k)) is not int or manifest[k] != n for k, n in totals.items())):
         raise ValueError('InvalidDocumentInventory')
+    associated = manifest.get('definition_auxiliary')
+    if manifest.get('format') == 'brep-view-scene.v10':
+        if not isinstance(associated, list) or len(associated) != count:
+            raise ValueError('MissingDocumentAssociatedGeometry')
+        for index, entry in enumerate(associated):
+            if (not isinstance(entry, dict) or type(entry.get('definition')) is not int
+                    or entry['definition'] != index or entry.get('source_definition_id') != definitions[index]
+                    or type(entry.get('required')) is not bool
+                    or (entry['required'] and not isinstance(entry.get('auxiliary'), str))
+                    or (not entry['required'] and 'auxiliary' in entry)):
+                raise ValueError('InvalidDocumentAssociatedGeometry')
+    elif associated is not None:
+        raise ValueError('UnexpectedDocumentAssociatedGeometry')
     scenes = []
+    associated_paths = set()
+    associated_bytes = associated_primitives = 0
     topology_bytes = boundary_points = boundary_cells = 0
     for index, group in enumerate(groups):
-        projection = dict(manifest, role='MaterialSolidCollection', body_count=len(group), body_scenes=group)
+        projection = dict(manifest, format='brep-view-scene.v4', role='MaterialSolidCollection',
+                          body_count=len(group), body_scenes=group)
         for key in limits:
             projection[key] = sum(body[key] for body in group)
-        mesh, boundary, topology = read_collection(directory, projection, resolve, _allow_single=True)
+        if associated and associated[index]['required']:
+            path = resolve(directory, associated[index]['auxiliary'])
+            if path in associated_paths or path in used_paths:
+                raise ValueError('ReusedDocumentAssociatedGeometry')
+            associated_paths.add(path)
+            associated_bytes += path.stat().st_size
+            if associated_bytes > 16 * 1024 * 1024:
+                raise ValueError('DocumentAssociatedGeometryLimit')
+            projection.update(format='brep-view-scene.v9', auxiliary_required=True,
+                              auxiliary=associated[index]['auxiliary'], associated_definition_id=definitions[index])
+        mesh, boundary, topology, auxiliary = read_collection_scene(directory, projection, resolve, _allow_single=True)
+        if auxiliary is not None:
+            associated_primitives += sum(auxiliary.counts[k] for k in ('curves', 'points', 'frames', 'planes'))
+            if associated_primitives > 10000:
+                raise ValueError('DocumentAssociatedGeometryLimit')
+            projection['_auxiliary'] = auxiliary
         topology_bytes += topology.payload_bytes
         boundary_points += boundary.n_points
         boundary_cells += boundary.n_cells
@@ -163,6 +216,10 @@ def read_document(directory, manifest, resolve):
                 boundary_cells > MAX_DISPLAY_CELLS):
             raise ValueError('DocumentDisplayLimit')
         projection.update(role='MaterialSolid' if len(group) == 1 else 'MaterialSolidCollection',
+                          # The v4/v9 projection above is an internal body-reader
+                          # adapter. Keep the actual document protocol identity
+                          # for selection/qualification consumers and GUI state.
+                          format=manifest['format'],
                           definition_index=index, source_definition_id=definitions[index],
                           document_body_count=len(bodies), _topology=topology)
         scenes.append(DefinitionScene(mesh, boundary, projection))

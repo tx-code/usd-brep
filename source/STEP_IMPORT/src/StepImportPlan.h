@@ -5,6 +5,7 @@
 
 namespace step_import::detail
 {
+struct MaterialCandidates;
 using ExactPoint = step_planar::Vector;
 struct VertexPlan
 {
@@ -72,7 +73,7 @@ struct Access
     static std::shared_ptr<const ModelSnapshot> Snapshot(std::shared_ptr<ModelData> data);
     static std::shared_ptr<const MaterialCollectionSnapshot> Collection(
         std::shared_ptr<const step_semantics::Snapshot> source,
-        std::vector<std::shared_ptr<ModelData>> bodies
+        MaterialCandidates candidates
     );
     static std::shared_ptr<const DocumentSnapshot> Document(std::shared_ptr<DocumentData> data);
 };
