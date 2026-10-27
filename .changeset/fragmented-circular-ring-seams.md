@@ -14,6 +14,9 @@ connection to an original vertex or circular-arc interior before any real face i
 constructed. It uses retained pre-snap encounter parameters, preserves complete
 definitions, and shares all necessary arc children across their original uses.
 Ambiguous classifications and unsupported intersection families remain refused.
+The private meridian survey preserves its requested working tolerances while
+classification creates lazy UV caches. Definition, interval, vertex and tolerance
+checks remain mandatory after classification; final import checks still apply.
 
 Finite conical rings can place their computational seam away from existing source
 vertices. Original points and defining geometry remain unchanged. Newly introduced

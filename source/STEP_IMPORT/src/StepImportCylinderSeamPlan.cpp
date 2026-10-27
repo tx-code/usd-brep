@@ -457,6 +457,13 @@ bool Finite(const SmPoint3d& p)
     {
         return tl::unexpected(std::move(operation.error()));
     }
+    // HasSeamProblem can build a trimmed-surface cache and lazily install UV
+    // curves. Their native default may enlarge edge/vertex tolerances even when
+    // SmCurveClassification disables its own tolerance edits. Use the existing
+    // SmBrep validate-only policy for this private survey (SmBrep.h and
+    // SmEdgeuse::SetUVTrimCurve); all post-consumer equality checks still run.
+    // The scoped flag changes neither the caller's context nor its real BRep.
+    SmTemporaryChangeValue<SmBoolean> tolerancePolicy(survey->m_bValidateOnly, TRUE);
     const auto problem = face->HasSeamProblem(u, v, crossed, missing, near);
     if (auto checked = RequireSameNativeSurfaceDefinition(*surfaceReference, *face->GetSurface()); !checked)
     {
