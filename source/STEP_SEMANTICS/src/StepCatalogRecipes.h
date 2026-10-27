@@ -16,7 +16,10 @@
 #include "StepProductCatalogData.h"
 #include "StepRationalSplineCatalogData.h"
 #include "StepSurfaceCurveCatalogData.h"
+#include "StepVertexLoopCatalogData.h"
 #include "StepWireframeCatalogData.h"
+
+#include <array>
 
 namespace step_semantics::catalog_build
 {
@@ -43,6 +46,13 @@ constexpr std::string_view UnitDefinitions[] = { "SI_UNIT", "CONVERSION_BASED_UN
 constexpr std::string_view NominalQuantities[] = { "LENGTH_UNIT", "PLANE_ANGLE_UNIT", "SOLID_ANGLE_UNIT", "MASS_UNIT" };
 constexpr std::string_view ContextBranches[] = { "PRODUCT_CONTEXT", "PRODUCT_DEFINITION_CONTEXT" };
 constexpr Names ExclusiveGroups[] = { UnitDefinitions, NominalQuantities, ContextBranches };
+inline constexpr auto Ap214ExclusiveGroups = []
+{
+    std::array<Names, std::size(ExclusiveGroups) + 1> result;
+    std::copy(std::begin(ExclusiveGroups), std::end(ExclusiveGroups), result.begin());
+    result.back() = vertex_loop::LoopKinds;
+    return result;
+}();
 
 constexpr std::string_view UnitBranches[] = { "NAMED_UNIT", "DERIVED_UNIT" };
 constexpr std::string_view ShellBranches[] = { "OPEN_SHELL", "CLOSED_SHELL" };
@@ -551,6 +561,8 @@ constexpr Recipe ProfileRecipe()
     if constexpr (IsAp214SourceProfile(Profile))
     {
         surface_curve::AppendDeclarations(recipe); // Preserve all existing profile IDs and complex signature order.
+        vertex_loop::AppendDeclarations(recipe);
+        recipe.exclusiveGroups = common::Ap214ExclusiveGroups;
     }
     return recipe;
 }

@@ -221,11 +221,23 @@ struct RevolutionChartInfo
 };
 struct TopologyNormalizationInfo
 {
+    struct VertexLoopCut
+    {
+        std::string sourceFaceId, sourceBoundId, sourceLoopId, sourceVertexId;
+        std::size_t targetFace = 0, targetVertex = 0, targetSeamEdge = 0;
+        bool sourceOrientation = true;
+        std::optional<double> observedPoleConnectionMm; // Final original-vertex / actual native pole residual, not conversion error.
+        Fraction maximumPoleConnectionMm; // The unchanged consistency budget; a pending measurement remains absent.
+    };
     std::vector<TargetFaceOrigin> faces;
     std::vector<TargetEdgeOrigin> edges;
     std::vector<TargetVertexOrigin> vertices;
     std::vector<SourceUseSegmentOrigin> sourceUseSegments; // Owning one-to-many incidence correspondence, independent of mutable reports.
     bool sourceCurveIntervalsCovered = false, sourceVerticesPreserved = false, completed = false;
+    // Zero-dimensional source boundaries remain explicit uses. A target cut
+    // visits the SAME source vertex through two opposite seam uses; it creates
+    // neither a replacement point nor a fabricated source edge/loop identity.
+    std::vector<VertexLoopCut> vertexLoopCuts;
 };
 enum class ReportEncoding
 {

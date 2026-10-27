@@ -1,0 +1,69 @@
+ISO-10303-21;
+/* SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+   SPDX-License-Identifier: Apache-2.0
+   Public synthetic cone on a cylindrical stem, radius 3 mm, cone H=3, stem H=2.
+   Independent volume 27*pi, area pi*(21+9*sqrt(2)).
+   Circular ring anchors differ by a quarter turn, forcing a global shared split.
+   The cone still retains its original circular basis and apex vertex loop.
+   The source decimal semi-angle is nearest to -pi/4.
+   The side has an EDGE_LOOP circle and a distinct apex VERTEX_LOOP.
+   Neither side bound is labelled FACE_OUTER_BOUND. No source seam exists. */
+HEADER;
+FILE_DESCRIPTION(('Public conical point-boundary control'),'2;1');
+FILE_NAME('analytic-cone-vertex-loop-shared-ring.step','2026-10-26T00:00:00',('SDK'),('local'),'synthetic','independent analytic oracle','');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}'));
+ENDSEC;
+DATA;
+#1=APPLICATION_CONTEXT('configuration controlled 3d design of mechanical parts and assemblies');
+#2=APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2010,#1);
+#3=PRODUCT_CONTEXT('',#1,'mechanical');
+#4=PRODUCT('PUBLIC-CONE','Public analytic cone',$,(#3));
+#5=PRODUCT_DEFINITION_FORMATION('A',$,#4);
+#6=PRODUCT_DEFINITION_CONTEXT('part definition',#1,'design');
+#7=PRODUCT_DEFINITION('D1',$,#5,#6);
+#8=PRODUCT_DEFINITION_SHAPE('',$,#7);
+#9=SHAPE_DEFINITION_REPRESENTATION(#8,#20);
+#10=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.));
+#11=(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.));
+#12=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#10,#11)) REPRESENTATION_CONTEXT('local','3D'));
+#20=ADVANCED_BREP_SHAPE_REPRESENTATION('body',(#21),#12);
+#21=MANIFOLD_SOLID_BREP('',#22);
+#22=CLOSED_SHELL('',(#180,#280,#182));
+#100=CARTESIAN_POINT('',(0.,0.,0.));
+#102=CARTESIAN_POINT('',(3.,0.,0.));
+#103=CARTESIAN_POINT('',(0.,0.,3.));
+#104=DIRECTION('',(0.,0.,1.));
+#105=DIRECTION('',(1.,0.,0.));
+#106=AXIS2_PLACEMENT_3D('',#100,#104,#105);
+#110=CIRCLE('',#106,3.);
+#120=VERTEX_POINT('',#102);
+#122=VERTEX_POINT('',#103);
+#130=EDGE_CURVE('',#120,#120,#110,.T.);
+#140=PLANE('',#206);
+#142=CONICAL_SURFACE('',#106,3.,-0.7853981633974483);
+#150=ORIENTED_EDGE('',*,*,#230,.F.);
+#152=ORIENTED_EDGE('',*,*,#130,.T.);
+#160=EDGE_LOOP('',(#150));
+#162=EDGE_LOOP('',(#152));
+#164=VERTEX_LOOP('',#122);
+#170=FACE_OUTER_BOUND('',#160,.T.);
+#172=FACE_BOUND('',#162,.T.);
+#174=FACE_BOUND('',#164,.T.);
+#180=ADVANCED_FACE('',(#170),#140,.F.);
+#182=ADVANCED_FACE('',(#172,#174),#142,.T.);
+#202=CARTESIAN_POINT('',(0.,0.,-2.));
+#203=CARTESIAN_POINT('',(0.,3.,-2.));
+#206=AXIS2_PLACEMENT_3D('',#202,#104,#105);
+#210=CIRCLE('',#206,3.);
+#220=VERTEX_POINT('',#203);
+#230=EDGE_CURVE('',#220,#220,#210,.T.);
+#240=CYLINDRICAL_SURFACE('',#206,3.);
+#250=ORIENTED_EDGE('',*,*,#130,.F.);
+#252=ORIENTED_EDGE('',*,*,#230,.T.);
+#260=EDGE_LOOP('',(#250));
+#262=EDGE_LOOP('',(#252));
+#270=FACE_BOUND('',#260,.T.);
+#272=FACE_BOUND('',#262,.T.);
+#280=ADVANCED_FACE('',(#272,#270),#240,.T.);
+ENDSEC;
+END-ISO-10303-21;

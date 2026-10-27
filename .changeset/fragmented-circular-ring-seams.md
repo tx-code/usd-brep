@@ -22,6 +22,13 @@ the unchanged source-circle definition accuracy; final residuals and budgets sta
 in the owning snapshot and mandatory report. Native seam and validity checks still
 run, and no repair or tolerance growth is introduced.
 
+The fixed AP214 source catalogs also retain `VERTEX_LOOP` point boundaries and
+check the required advanced-face vertex/loop types. A complete conical circle
+and a declared apex can form a native cap through one derived straight seam,
+used in opposite directions at the original vertex. The owning topology
+correspondence records the original point-boundary use and target cut; other
+point-boundary constructions remain unsupported until qualified.
+
 ## Scope
 
 [Circular ring construction](../source/STEP_IMPORT/README.md#完整圆环的目标分段与圆柱圆锥图切口).
@@ -32,6 +39,9 @@ Rebuild the native STEP library and its consumers together.
 
 ## Compatibility
 
-No public C++ API, kernel ABI or native-file format change. This expands the
-existing general-development construction profile without introducing repair,
-changing source representations or increasing physical acceptance budgets.
+The C++20 native STEP topology correspondence adds `vertexLoopCuts` and requires
+rebuilding the library and its C++ consumers together. Kernel ABI and native-file
+format are unchanged. This expands the existing general-development construction
+profile without introducing repair, changing source representations or increasing
+physical acceptance budgets. Reports add point-boundary correspondence only when
+that normalization actually occurs.

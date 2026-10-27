@@ -44,6 +44,7 @@ target_sources(STEP_IMPORT PRIVATE src/StepImportCylindricalBandRepair.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportRingSegmentation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportCylinderSeamPlan.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportConicalVertexLoop.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportObservation.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportSourceFrame.cpp src/StepImportAssemblyPlacement.cpp src/StepImportAssemblyInstances.cpp)
 target_sources(STEP_IMPORT PRIVATE src/StepImportRevolutionConstruction.cpp)
@@ -94,6 +95,26 @@ endif()
 
 option(STEP_IMPORT_BUILD_TESTS "Build native importer interface contracts" ON)
 if(STEP_IMPORT_BUILD_TESTS)
+    add_executable(step_import_vertex_loop_tests tests/StepImportVertexLoopTests.cpp)
+    target_link_libraries(step_import_vertex_loop_tests PRIVATE STEP_IMPORT SMLib usd_brep_expected)
+    target_include_directories(step_import_vertex_loop_tests PRIVATE src)
+    target_include_directories(step_import_vertex_loop_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_vertex_loop_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    if(MSVC)
+        target_compile_options(step_import_vertex_loop_tests PRIVATE /W4 /WX /permissive- /utf-8 /fp:strict)
+    endif()
+    add_test(NAME step_import_vertex_loop_contracts COMMAND step_import_vertex_loop_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/analytic_cone_vertex_loop.step"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/analytic_cone_vertex_loop_shared_ring.step")
+    add_test(NAME step_import_vertex_loop_lifecycle COMMAND step_import_general_tests --development-file
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/analytic_cone_vertex_loop.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/vertex-loop-lifecycle/$<CONFIG>" normal)
+    add_test(NAME step_import_vertex_loop_shared_ring_lifecycle COMMAND step_import_general_tests --development-file
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/analytic_cone_vertex_loop_shared_ring.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/vertex-loop-shared-lifecycle/$<CONFIG>" normal)
+    set_tests_properties(step_import_vertex_loop_contracts step_import_vertex_loop_lifecycle step_import_vertex_loop_shared_ring_lifecycle
+        PROPERTIES TIMEOUT 90)
     add_executable(step_view_mesh_tests tests/StepViewMeshTests.cpp)
     target_link_libraries(step_view_mesh_tests PRIVATE SM_API SMLib usd_brep_expected)
     target_include_directories(step_view_mesh_tests PRIVATE app)

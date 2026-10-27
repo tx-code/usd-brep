@@ -442,6 +442,7 @@ void SourceUseSegmentsJson(Writer& w, const std::vector<SourceUseSegmentOrigin>&
     }
     w.Add("]");
 }
+void FractionJson(Writer& writer, Fraction value);
 void TopologyJson(Writer& w, const TopologyNormalizationInfo& info)
 {
     w.Add("{\"completed\":");
@@ -562,6 +563,47 @@ void TopologyJson(Writer& w, const TopologyNormalizationInfo& info)
     {
         w.Add(",\"source_use_segments\":");
         SourceUseSegmentsJson(w, info.sourceUseSegments);
+    }
+    if (!info.vertexLoopCuts.empty())
+    {
+        w.Add(",\"source_vertex_loop_cuts\":[");
+        for (std::size_t i = 0; i < info.vertexLoopCuts.size(); ++i)
+        {
+            if (i)
+            {
+                w.Add(",");
+            }
+            const auto& cut = info.vertexLoopCuts[i];
+            w.Add("{\"source_face_id\":");
+            w.String(cut.sourceFaceId);
+            w.Add(",\"source_bound_id\":");
+            w.String(cut.sourceBoundId);
+            w.Add(",\"source_loop_id\":");
+            w.String(cut.sourceLoopId);
+            w.Add(",\"source_vertex_id\":");
+            w.String(cut.sourceVertexId);
+            w.Add(",\"source_orientation\":");
+            w.Bool(cut.sourceOrientation);
+            w.Add(",\"target_face\":");
+            w.Number(cut.targetFace);
+            w.Add(",\"target_vertex\":");
+            w.Number(cut.targetVertex);
+            w.Add(",\"target_seam_edge\":");
+            w.Number(cut.targetSeamEdge);
+            w.Add(",\"observed_pole_connection_mm\":");
+            if (cut.observedPoleConnectionMm)
+            {
+                Number(w, *cut.observedPoleConnectionMm);
+            }
+            else
+            {
+                w.Add("null");
+            }
+            w.Add(",\"maximum_pole_connection_mm\":");
+            FractionJson(w, cut.maximumPoleConnectionMm);
+            w.Add("}");
+        }
+        w.Add("]");
     }
     w.Add("}");
 }

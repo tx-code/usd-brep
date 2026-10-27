@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 #include "StepImportCircleVertexCorrection.h"
+#include "StepImportConicalVertexLoop.h"
 #include "StepImportCurvePointConstruction.h"
 #include "StepImportCylinderChart.h"
 #include "StepImportCylinderSeamPlan.h"
@@ -94,6 +95,7 @@ struct Loop
     Index record, bound;
     bool outer, orientation;
     std::vector<Use> uses;
+    std::optional<Index> vertex; // VERTEX_LOOP is a point use, never an empty PATH.
 };
 struct Face
 {
@@ -252,6 +254,10 @@ public:
             m_circleVertexCorrections = std::move(*corrected);
         }
         if (auto operation = PrepareRingSubdivisions(); !operation)
+        {
+            return tl::unexpected(std::move(operation.error()));
+        }
+        if (auto operation = PrepareVertexLoopCuts(); !operation)
         {
             return tl::unexpected(std::move(operation.error()));
         }
@@ -481,7 +487,7 @@ public:
                 return tl::unexpected(std::move(operation.error()));
             }
         }
-        if (!derivedPoles.empty())
+        if (!derivedPoles.empty() || !m_vertexLoopCuts.empty())
         {
             if (auto operation = VerifyPoleInventory(); !operation)
             {
@@ -508,6 +514,13 @@ public:
             {
                 for (Index i = 0; i < curves.size(); ++i)
                 {
+                    if (m_ringNormalization && m_ringSubdivisions.contains(i))
+                    {
+                        // The representative is only one child. The existing
+                        // final shared-ring ledger proves the COMPLETE interval
+                        // union and every source use before publication below.
+                        continue;
+                    }
                     if (auto operation = Step(curves[i].record); !operation)
                     {
                         return tl::unexpected(std::move(operation.error()));
@@ -553,8 +566,11 @@ public:
                 }
             }
             m_model->topologyNormalization->sourceVerticesPreserved = true;
-            m_model->topologyNormalization->sourceCurveIntervalsCovered = true;
-            m_model->topologyNormalization->completed = true;
+            if (!m_ringNormalization)
+            {
+                m_model->topologyNormalization->sourceCurveIntervalsCovered = true;
+                m_model->topologyNormalization->completed = true;
+            }
             m_report.topologyNormalization = m_model->topologyNormalization;
         }
         if (m_captureRepairFailure || !m_faceSenseOverrides.empty())
@@ -717,6 +733,13 @@ private:
     }
     std::vector<Index> derivedEdgeFaces;
     std::vector<DerivedPole> derivedPoles;
+    struct VertexLoopPlan
+    {
+        Index ringBound, pointBound, pointLoop, baseVertex, poleVertex;
+        ConicalVertexLoopGeometry geometry;
+    };
+    std::map<Index, VertexLoopPlan> m_vertexLoopPlans;
+    std::vector<TopologyNormalizationInfo::VertexLoopCut> m_vertexLoopCuts;
     std::optional<Index> wireframeRepresentation;
     std::optional<Index> supportingRepresentation;
     Index SourceFaceIndex(Index target) const
@@ -1037,6 +1060,7 @@ private:
     }
     [[nodiscard]] Result<void> Prepare()
     {
+        const bool admitsVertexLoops = m_source->Instances("VERTEX_LOOP") != nullptr;
         const auto power = m_source->UnitContext().lengthPower10Mm;
         std::optional<ResolvedLengthScale> convertedLength;
         if (power)
@@ -1088,7 +1112,23 @@ private:
                         bound,
                         Is(bound, "FACE_OUTER_BOUND") && !NeutralizesCylindricalBandBounds(m_cylindricalBandTrial, a),
                         B(bound, "orientation"),
+                        {},
                         {} };
+                if (admitsVertexLoops && Is(loop, "VERTEX_LOOP"))
+                {
+                    auto vertex = Vertex(Ref(loop, "loop_vertex"));
+                    if (!vertex)
+                    {
+                        return tl::unexpected(std::move(vertex.error()));
+                    }
+                    l.vertex = *vertex;
+                    f.loops.push_back(std::move(l));
+                    continue;
+                }
+                if (!Is(loop, "EDGE_LOOP"))
+                {
+                    return tl::unexpected(Fail("GeneralSourceLoopKindUnsupported", loop, Status::Unsupported));
+                }
                 const auto oriented = Refs(loop, "edge_list");
                 // AP214E3_2010.exp ORIENTED_EDGE.orientation is relative to EC;
                 // FACE_BOUND.orientation reverses the whole source loop, while
@@ -3212,6 +3252,11 @@ private:
     [[nodiscard]] Result<std::array<double, 2>> AngularWindow(const Face& f, const Frame& frame)
     {
         constexpr double tau = 2 * std::numbers::pi;
+        if (const auto cut = m_vertexLoopPlans.find(f.record); cut != m_vertexLoopPlans.end())
+        {
+            const auto angle = cut->second.geometry.longitudeRadians;
+            return FullPeriodDegrees(angle > 0 ? angle - tau : angle);
+        }
         auto missing = MissingSeam(f);
         if (!missing)
         {
@@ -3843,6 +3888,104 @@ private:
         m_report.normalizations.push_back(std::move(normalization));
         return owned;
     }
+    [[nodiscard]] Result<void> PrepareVertexLoopCuts()
+    {
+        for (const auto& face : faces)
+        {
+            const auto point = std::find_if(
+                face.loops.begin(),
+                face.loops.end(),
+                [](const Loop& loop)
+                {
+                    return loop.vertex.has_value();
+                }
+            );
+            if (point == face.loops.end())
+            {
+                continue;
+            }
+            // First qualified target representation: one complete direct circle
+            // and one declared apex on a cone. Other source point boundaries are
+            // retained by semantics but cannot publish an invented native region.
+            if (!Is(face.surface, "CONICAL_SURFACE") || face.loops.size() != 2 || point->outer || m_options.normalizePeriodicFaces ||
+                m_options.restrictUnusedSupportDomains || m_options.faceOrientationRepair || m_options.cylindricalBandRepair)
+            {
+                return tl::unexpected(Fail("GeneralVertexLoopNormalizationUnestablished", point->record, Status::Unsupported));
+            }
+            const auto& ring = face.loops[point == face.loops.begin() ? 1 : 0];
+            if (ring.vertex || ring.uses.size() != 1)
+            {
+                return tl::unexpected(Fail("GeneralVertexLoopNormalizationUnestablished", point->record, Status::Unsupported));
+            }
+            const auto& use = ring.uses[0];
+            const auto& edge = curves[use.edge];
+            const auto interval = edge.native->GetNaturalInterval();
+            if (!Is(edge.geometry, "CIRCLE") || edge.v0 != edge.v1 || edge.v0 == *point->vertex || edge.t0 != interval.GetMin() ||
+                edge.t1 != interval.GetMax())
+            {
+                return tl::unexpected(Fail("GeneralConicalVertexLoopBoundaryUnestablished", ring.record, Status::Unsupported));
+            }
+            auto frame = Placement(Ref(face.surface, "position"));
+            auto circle = Placement(Ref(edge.geometry, "position"));
+            auto radius = N(face.surface, "radius");
+            auto ringRadius = N(edge.geometry, "radius");
+            auto angle = ConeAngle(face.surface);
+            if (!frame)
+            {
+                return tl::unexpected(std::move(frame.error()));
+            }
+            if (!circle)
+            {
+                return tl::unexpected(std::move(circle.error()));
+            }
+            if (!radius)
+            {
+                return tl::unexpected(std::move(radius.error()));
+            }
+            if (!ringRadius)
+            {
+                return tl::unexpected(std::move(ringRadius.error()));
+            }
+            if (!angle)
+            {
+                return tl::unexpected(std::move(angle.error()));
+            }
+            if (auto work = Step(face.record); !work)
+            {
+                return tl::unexpected(std::move(work.error()));
+            }
+            const auto inward = [](Fraction budget)
+            {
+                return std::nextafter(std::nextafter(double(budget.Numerator()), 0.) / std::nextafter(double(budget.Denominator()), INFINITY), 0.);
+            };
+            auto planned = PlanConicalVertexLoop(
+                { frame->o,
+                  frame->x,
+                  frame->y,
+                  frame->z,
+                  circle->o,
+                  circle->z,
+                  points[edge.v0],
+                  points[*point->vertex],
+                  edge.p0,
+                  edge.p1,
+                  *radius * scale,
+                  std::tan(*angle),
+                  *ringRadius * scale,
+                  use.forward },
+                inward(m_options.quality.definitionMm),
+                inward(m_options.quality.consistencyMm)
+            );
+            if (!planned)
+            {
+                auto failure = std::move(planned.error());
+                failure.record = face.record;
+                return tl::unexpected(std::move(failure));
+            }
+            m_vertexLoopPlans.emplace(face.record, VertexLoopPlan{ ring.bound, point->bound, point->record, edge.v0, *point->vertex, *planned });
+        }
+        return {};
+    }
     [[nodiscard]] Result<std::optional<SpherePolePlan>> MissingSpherePole(const Face& face) const
     {
         if (!Is(face.surface, "SPHERICAL_SURFACE") || face.loops.size() != 1 || !face.loops[0].outer || face.loops[0].uses.size() != 1)
@@ -3933,7 +4076,7 @@ private:
     }
     [[nodiscard]] Result<void> PreparePoleInventory()
     {
-        if (derivedPoles.empty())
+        if (derivedPoles.empty() && m_vertexLoopCuts.empty())
         {
             return {};
         }
@@ -3944,7 +4087,35 @@ private:
         {
             return tl::unexpected(Fail("SphericalPoleNormalizationCompositionUnestablished", shape, Status::Unsupported));
         }
+        if (m_ringNormalization)
+        {
+            if (auto checked = Need(
+                    m_model->topologyNormalization.has_value() && derivedPoles.empty(),
+                    "GeneralVertexLoopRingInventoryUnestablished",
+                    shape
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            // The shared ring builder owns the one-to-many edge inventory.
+            // Rebind point-cut edges into THAT inventory, without overwriting
+            // its original-basis subdivisions or source-use correspondence.
+            for (auto& cut : m_vertexLoopCuts)
+            {
+                auto* seam = m_model->edges.at(cut.targetSeamEdge);
+                const auto found = std::find(m_model->targetEdges.begin(), m_model->targetEdges.end(), seam);
+                if (auto checked = Need(found != m_model->targetEdges.end(), "GeneralVertexLoopRingCutMissing", shape); !checked)
+                {
+                    return tl::unexpected(std::move(checked.error()));
+                }
+                cut.targetSeamEdge = static_cast<std::size_t>(found - m_model->targetEdges.begin());
+            }
+            m_model->topologyNormalization->vertexLoopCuts = m_vertexLoopCuts;
+            return {};
+        }
         TopologyNormalizationInfo info;
+        info.vertexLoopCuts = m_vertexLoopCuts;
         for (Index i = 0; i < faces.size(); ++i)
         {
             const auto domain = m_model->faces[i].face->GetSurface()->GetNaturalUVDomain();
@@ -4000,7 +4171,7 @@ private:
     }
     [[nodiscard]] Result<void> VerifyPoleInventory()
     {
-        if (derivedPoles.empty())
+        if (derivedPoles.empty() && m_vertexLoopCuts.empty())
         {
             return {};
         }
@@ -4061,6 +4232,75 @@ private:
         {
             return tl::unexpected(std::move(businessCheck.error()));
         }
+        for (auto& cut : m_vertexLoopCuts)
+        {
+            if (auto work = Step(faces.at(cut.targetFace).record); !work)
+            {
+                return tl::unexpected(std::move(work.error()));
+            }
+            const auto& plan = m_vertexLoopPlans.at(faces[cut.targetFace].record);
+            auto* seam = m_model->targetEdges.at(cut.targetSeamEdge);
+            auto* pole = m_model->targetVertices.at(cut.targetVertex);
+            SmTArray<SmEdgeuse*> uses;
+            m_model->faces[cut.targetFace].face->GetUpwardEdgeuses(uses);
+            unsigned count = 0, orientations = 0;
+            for (const auto* use : uses)
+            {
+                if (use->GetEdge() == seam)
+                {
+                    ++count;
+                    orientations |= use->GetOrientation() == SM_OT_SAME ? 1U : use->GetOrientation() == SM_OT_OPPOSITE ? 2U : 0U;
+                }
+            }
+            // This owning correspondence describes actual final topology, not
+            // just the planned cut. Check it after every native consumer too.
+            if (auto checked = Need(
+                    count == 2 && orientations == 3 && pole == m_model->vertices.at(plan.poleVertex) &&
+                        seam->GetStartVertex() == m_model->vertices.at(plan.baseVertex) && seam->GetEndVertex() == pole &&
+                        seam->GetInterval().GetMin() == 0 && seam->GetInterval().GetMax() == 1 && seam->GetCurve()->GetOwner() == seam,
+                    "GeneralVertexLoopCutIdentityChanged",
+                    faces[cut.targetFace].record
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            if (auto work = Step(faces[cut.targetFace].record); !work)
+            {
+                return tl::unexpected(std::move(work.error()));
+            }
+            SmTArray<SmPoint3d> polePoints;
+            ULONG approximate = SM_SS_NONE;
+            const auto singularities = m_model->faces[cut.targetFace].face->GetSurface()->GetSingularities(&polePoints, nullptr, &approximate);
+            const std::array<ULONG, 4> sides{ SM_SS_UMIN, SM_SS_VMIN, SM_SS_UMAX, SM_SS_VMAX };
+            const auto side = std::find(sides.begin(), sides.end(), singularities);
+            if (auto checked = Need(
+                    side != sides.end() && polePoints.GetSize() == 4 && approximate == singularities,
+                    "GeneralVertexLoopNativePoleUnestablished",
+                    faces[cut.targetFace].record
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            const double residual = pole->GetPoint().DistanceBetween(polePoints[static_cast<ULONG>(side - sides.begin())]);
+            const auto budget = m_options.quality.consistencyMm;
+            const double inward = std::nextafter(
+                std::nextafter(double(budget.Numerator()), 0.) / std::nextafter(double(budget.Denominator()), INFINITY),
+                0.
+            );
+            if (auto checked = Need(
+                    std::isfinite(residual) && residual <= inward,
+                    "GeneralVertexLoopNativeConnectionGap",
+                    faces[cut.targetFace].record
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            cut.observedPoleConnectionMm = residual;
+        }
+        m_model->topologyNormalization->vertexLoopCuts = m_vertexLoopCuts;
         return {};
     }
     [[nodiscard]] Result<std::unique_ptr<SmSurface>> Surface(const Face& f)
@@ -4136,6 +4376,16 @@ private:
         Bounds local{ V{ INFINITY, INFINITY, INFINITY }, V{ -INFINITY, -INFINITY, -INFINITY } };
         for (const auto& loop : f.loops)
         {
+            if (loop.vertex)
+            {
+                const auto delta = Sub(points[*loop.vertex], frame.o);
+                const V point{ Dot(delta, frame.x), Dot(delta, frame.y), Dot(delta, frame.z) };
+                for (Index k = 0; k < 3; ++k)
+                {
+                    local[0][k] = std::min(local[0][k], point[k]);
+                    local[1][k] = std::max(local[1][k], point[k]);
+                }
+            }
             for (const auto& use : loop.uses)
             {
                 const auto& box = curves[use.edge].bounds;
@@ -4243,6 +4493,17 @@ private:
             }
             const auto& sourceRadius = *sourceRadiusResult;
             const double radius = sourceRadius * scale, slope = std::tan(angle);
+            const auto vertexWindow = m_vertexLoopPlans.find(f.record);
+            if (vertexWindow != m_vertexLoopPlans.end())
+            {
+                // The unbounded analytic cone determines its apex at
+                // z=-radius/slope. An approximate source incidence cannot
+                // truncate the COMPUTATIONAL support before that known pole.
+                // This changes no source point, frame, angle or bound domain.
+                const auto apex = vertexWindow->second.geometry.analyticApexHeightMm;
+                local[0][2] = std::min(local[0][2], apex);
+                local[1][2] = std::max(local[1][2], apex);
+            }
             if (slope > 0)
             {
                 local[0][2] = std::max(local[0][2], -radius / slope);
@@ -4259,12 +4520,46 @@ private:
                 return tl::unexpected(std::move(anglesResult.error()));
             }
             const auto angles = std::move(*anglesResult);
+            double lowerRadius = std::max(0., radius + slope * local[0][2]);
+            double upperRadius = std::max(0., radius + slope * local[1][2]);
+            if (vertexWindow != m_vertexLoopPlans.end())
+            {
+                // Zero is an analytic identity at THIS cone's known apex,
+                // not a heuristic collapse of a near-axis NURBS generator.
+                // Record/check arithmetic cancellation at the old definition
+                // allowance before giving the native constructor the zero end.
+                const double residual = std::abs(radius + slope * (slope > 0 ? local[0][2] : local[1][2]));
+                if (auto checked = Need(
+                        std::isfinite(residual) && residual <= Q(m_options.quality.definitionMm),
+                        "GeneralConicalVertexLoopApexRoundoff",
+                        f.record
+                    );
+                    !checked)
+                {
+                    return tl::unexpected(std::move(checked.error()));
+                }
+                (slope > 0 ? lowerRadius : upperRadius) = 0;
+                m_report.tolerances.push_back({ "ConicalSourceVertexLoopCut", "AnalyticApexRadiusCancellationMm", Id(f.record), residual });
+                ParameterMapping window;
+                window.kind = "ConicalVertexLoopAnalyticApexWindow";
+                window.sourceGeometryId = Id(g);
+                window.sourceUseId = Id(f.record);
+                window.targetFaceIndex = m_model->faces.size();
+                window.equation =
+                    "finite native axial window includes z=-source_radius_mm/tan(physical_semi_angle); original source vertex is unchanged; STEP generatrix V is not native axial V";
+                window.parameters = { { "source_origin_mm", { frame.o.begin(), frame.o.end() } },
+                                      { "native_origin_mm", { shifted.o.begin(), shifted.o.end() } },
+                                      { "source_radius_mm", { radius } },
+                                      { "physical_semi_angle_radians", { angle } },
+                                      { "native_axial_window_mm", { local[0][2], local[1][2] } } };
+                m_report.parameterMappings.push_back(std::move(window));
+            }
             SmCone* raw = nullptr;
             const auto createdStatus = SmCone::CreateCanonical(
                 *m_model->context,
                 shifted.Native(),
-                std::max(0., radius + slope * local[0][2]),
-                std::max(0., radius + slope * local[1][2]),
+                lowerRadius,
+                upperRadius,
                 local[1][2] - local[0][2],
                 raw
             );
@@ -4910,14 +5205,29 @@ private:
     }
     [[nodiscard]] Result<void> BuildFace(SmBrepConstructor& c, Face& f)
     {
-        if (std::none_of(
+        const auto vertexPlan = m_vertexLoopPlans.find(f.record);
+        if (vertexPlan != m_vertexLoopPlans.end())
+        {
+            const auto ring = std::find_if(
+                f.loops.begin(),
+                f.loops.end(),
+                [&](const Loop& loop)
+                {
+                    return loop.bound == vertexPlan->second.ringBound;
+                }
+            );
+            std::rotate(f.loops.begin(), ring, ring + 1);
+        }
+        else if (
+            std::none_of(
                 f.loops.begin(),
                 f.loops.end(),
                 [](const Loop& loop)
                 {
                     return loop.outer;
                 }
-            ))
+            )
+        )
         {
             // Bootstrap the kernel's first-loop representation with a candidate
             // envelope. This is not a region decision: ClassifyRegion must prove
@@ -5053,7 +5363,81 @@ private:
             }
             seamPlan = std::move(*missing);
         }
-        if (const auto& pole = polePlan)
+        if (vertexPlan != m_vertexLoopPlans.end())
+        {
+            const auto& plan = vertexPlan->second;
+            const auto& ring = f.loops[0];
+            const auto& point = f.loops[1];
+            if (auto operation = Step(f.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            auto* loop = c.StartLoop(SM_OT_SAME);
+            if (auto checked = Need(loop != nullptr, "GeneralVertexLoopCutAllocation", f.record); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            nf.loops.push_back(loop);
+            LoopMapping mapping{ Id(f.record), Id(ring.bound), Id(ring.record), ring.outer, ring.orientation, {} };
+            if (auto operation = AppendSourceUse(c, ring.uses[0], mapping); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            // The singular source boundary becomes a visit to its original
+            // vertex, through two opposite uses of ONE derived straight seam.
+            // No source vertex, circular definition, unit, bound or sense moves.
+            const auto seamIndex = m_model->edges.size();
+            const SeamPlan cutSeam{ plan.baseVertex,
+                                    plan.poleVertex,
+                                    points[plan.baseVertex],
+                                    points[plan.poleVertex],
+                                    plan.geometry.longitudeRadians };
+            auto seam = AppendSeamUse(c, cutSeam, f.record, nullptr, true);
+            if (!seam)
+            {
+                return tl::unexpected(std::move(seam.error()));
+            }
+            if (auto reverse = AppendSeamUse(c, cutSeam, f.record, *seam, false); !reverse)
+            {
+                return tl::unexpected(std::move(reverse.error()));
+            }
+            if (auto operation = Step(f.record); !operation)
+            {
+                return tl::unexpected(std::move(operation.error()));
+            }
+            if (auto nativeStatus = Good(c.EndLoop()); !nativeStatus)
+            {
+                return tl::unexpected(std::move(nativeStatus.error()));
+            }
+            m_report.loops.push_back(std::move(mapping));
+            m_report.loops.push_back({ Id(f.record), Id(point.bound), Id(point.record), point.outer, point.orientation, {} });
+            m_vertexLoopCuts.push_back(
+                { Id(f.record),
+                  Id(point.bound),
+                  Id(point.record),
+                  Id(vertices[plan.poleVertex]),
+                  m_model->faces.size(),
+                  plan.poleVertex,
+                  seamIndex,
+                  point.orientation,
+                  {},
+                  m_options.quality.consistencyMm }
+            );
+            m_report.normalizations.push_back(
+                { "ConicalSourceVertexLoopCut",
+                  Id(f.record),
+                  { Id(ring.bound), Id(point.bound) },
+                  { Id(vertices[plan.baseVertex]), Id(vertices[plan.poleVertex]) },
+                  seamIndex + RingExtraEdges() }
+            );
+            m_report.tolerances.push_back(
+                { "ConicalSourceVertexLoopCut", "AnalyticDefinitionResidualMm", Id(f.record), plan.geometry.definitionResidualMm }
+            );
+            m_report.tolerances.push_back(
+                { "ConicalSourceVertexLoopCut", "OriginalVertexAnalyticConnectionMm", Id(f.record), plan.geometry.vertexConnectionMm }
+            );
+        }
+        else if (const auto& pole = polePlan)
         {
             if (auto operation = Step(f.record); !operation)
             {

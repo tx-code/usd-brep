@@ -153,9 +153,70 @@ public:
         }
         WireframeChecks();
         BoundedSurfaceRolePrerequisite();
+        VertexLoopPrerequisites();
     }
 
 private:
+
+    void VertexLoopPrerequisites()
+    {
+        const auto type = Schema(m_data).Find("VERTEX_LOOP");
+        if (!type || m_data.populations[*type].empty())
+        {
+            return; // No new visits, predicates or diagnostics for existing inputs.
+        }
+        // AP214E3_2010.exp (71ab140f...), ADVANCED_FACE.WR7 and WR8. The
+        // first is not vacuous once vertex loops are admitted. These are source
+        // type predicates only: zero-dimensional boundaries still need distinct
+        // native support/region evidence and must never become empty edge loops.
+        const auto faces = Schema(m_data).RequireType("ADVANCED_FACE");
+        for (const auto face : m_data.populations[faces])
+        {
+            const auto& bound = Field(face, "bounds");
+            const auto& bounds = *bound.declaration.value;
+            bool hasVertex = false;
+            for (const auto& value : bounds.children)
+            {
+                const auto boundary = m_data.referenceTargets.at(&value);
+                const auto& loopValue = *Field(boundary, "bound").declaration.value;
+                hasVertex = hasVertex || IsA(m_data.referenceTargets.at(&loopValue), "VERTEX_LOOP");
+            }
+            if (!hasVertex)
+            {
+                continue;
+            }
+            Count(bounds.span, PredicateKind::Entity);
+            for (std::size_t i = 0; i < bounds.children.size(); ++i)
+            {
+                const auto& value = bounds.children[i];
+                m_visit(value.span);
+                const auto boundary = m_data.referenceTargets.at(&value);
+                const auto loop = m_data.referenceTargets.at(Field(boundary, "bound").declaration.value);
+                if (!IsA(loop, "VERTEX_LOOP"))
+                {
+                    continue;
+                }
+                const auto vertex = m_data.referenceTargets.at(Field(loop, "loop_vertex").declaration.value);
+                if (!IsA(vertex, "VERTEX_POINT") ||
+                    !IsA(m_data.referenceTargets.at(Field(vertex, "vertex_geometry").declaration.value), "CARTESIAN_POINT"))
+                {
+                    Fail(face, bound, value, "ADVANCED_FACE.WR7", "VERTEX_POINT with CARTESIAN_POINT", "other vertex definition", { i + 1 });
+                }
+            }
+            Count(bounds.span, PredicateKind::Entity);
+            for (std::size_t i = 0; i < bounds.children.size(); ++i)
+            {
+                const auto& value = bounds.children[i];
+                m_visit(value.span);
+                const auto boundary = m_data.referenceTargets.at(&value);
+                const auto loop = m_data.referenceTargets.at(Field(boundary, "bound").declaration.value);
+                if (unsigned(IsA(loop, "EDGE_LOOP")) + unsigned(IsA(loop, "VERTEX_LOOP")) != 1)
+                {
+                    Fail(face, bound, value, "ADVANCED_FACE.WR8", "exactly EDGE_LOOP or VERTEX_LOOP", "other loop definition", { i + 1 });
+                }
+            }
+        }
+    }
 
     void BoundedSurfaceRolePrerequisite()
     {

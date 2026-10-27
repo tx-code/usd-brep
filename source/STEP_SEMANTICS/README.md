@@ -1,5 +1,22 @@
 # STEP source semantics: ticket 03
 
+## AP214 point boundaries
+
+The two fixed AP214 catalogs append `VERTEX_LOOP`, with its inherited topology
+name and `loop_vertex : VERTEX` reference, and register the admitted `LOOP` ONEOF
+branches. Existing type identities and the three AP203 catalogs remain unchanged.
+The pinned `AP214E3_2010.exp` (`71ab140f...`) `ADVANCED_FACE.WR7` and `WR8`
+prerequisites check vertex-point/Cartesian-point dependencies and the actual
+edge-loop/vertex-loop branches when these point boundaries occur. They retain
+normal source visit accounting, diagnostics and atomic failure behavior.
+
+A vertex loop has no `PATH.edge_list`. Typed bindings retain its distinct source
+identity, vertex reference and face-bound orientation, including an unmarked
+region. These necessary source checks do not establish geometric support,
+singularity, periodic coverage or native construction. The
+[native contract](../STEP_IMPORT/README.md#圆锥的源顶点环与计算缝) specifies the
+currently qualified conical subset and its owning target-cut correspondence.
+
 ## Independent wireframe definitions in assemblies
 
 The fixed AP214 general source subset can retain a product whose SDR directly
