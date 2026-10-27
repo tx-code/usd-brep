@@ -15,6 +15,16 @@ Unsupported generators, unresolved periodic topology, zero-rank constructions an
 subsequent geometry/UV failures remain unaccepted. This does not grant full source
 schema conformance or continuous original-source conversion qualification.
 
+Canonical natural-end clamping of a generator can be admitted by a complete
+same-parameter source certificate before the actual canonical knots construct
+the tensor. Generator conversion and tensor roundoff share one original
+allowance. Final native definitions are rechecked; selected source carriers
+retain owning snapshot certificates, while temporary auxiliaries do not.
+Polynomial natural references may use independently refined corresponding spans
+with an explicit source Lipschitz transport term, preserving continuous same-U
+evidence while reducing exact work. Strict legacy reference paths keep their
+work schedule. No source data, geometric budget or execution quota is relaxed.
+
 ## Scope
 
 [Native linear-extrusion construction](../source/STEP_IMPORT/README.md#b-样条生成曲线的线性拉伸).
@@ -27,6 +37,7 @@ Rebuild matching STEP libraries and native consumers together.
 
 The AP214 catalogs append one type and the swept-surface exclusive group while
 retaining prior identities; AP203 catalogs remain unchanged. Native reports add
-linear-extrusion chart correspondence for the applicable requests. Public C++
-signatures, kernel ABI, native-file format, physical budgets and default repair
-selection are unchanged.
+linear-extrusion chart correspondence for the applicable requests. The C++ snapshot
+adds `LinearExtrusionCertificates()` with owning value evidence; rebuild matching
+libraries and consumers. Kernel ABI, native-file format, physical budgets and
+default repair selection are unchanged.

@@ -54,6 +54,7 @@
 #include <SmLoopProps.h>
 #include <SmPlane.h>
 #include <SmRegion.h>
+#include <SmSTEPSurface.h>
 #include <SmSphere.h>
 #include <SmTol.h>
 #include <SmTorus.h>
@@ -624,6 +625,68 @@ public:
         if (auto observed = RecordFinalRevolutionPoleVisits(); !observed)
         {
             return tl::unexpected(std::move(observed.error()));
+        }
+        if (HasLinearExtrusions(*m_linearExtrusions))
+        {
+            std::vector<LinearExtrusionTarget> targets;
+            for (Index i = 0; i < m_model->faces.size(); ++i)
+            {
+                const auto& sourceFace = faces[SourceFaceIndex(i)];
+                if (auto spent = m_execution.SpendExactGeometryWork(m_report, 1, sourceFace.record); !spent)
+                {
+                    return tl::unexpected(std::move(spent.error()));
+                }
+                targets.push_back({ sourceFace.surface, sourceFace.record, m_model->faces[i].face->GetSurface(), i });
+            }
+            for (Index i = 0; i < curves.size(); ++i)
+            {
+                const auto& sourceCurve = curves[i];
+                if (auto spent = m_execution.SpendExactGeometryWork(m_report, 1, sourceCurve.record); !spent)
+                {
+                    return tl::unexpected(std::move(spent.error()));
+                }
+                if (!Is(sourceCurve.geometry, "SURFACE_CURVE") || m_surfaceCurveChoices.contains(sourceCurve.record))
+                {
+                    continue;
+                }
+                const auto preference = F(sourceCurve.geometry, "master_representation").text;
+                if (preference != "PCURVE_S1" && preference != "PCURVE_S2")
+                {
+                    continue;
+                }
+                const auto pcurve = Refs(sourceCurve.geometry, "associated_geometry").at(preference == "PCURVE_S1" ? 0 : 1);
+                const auto basis = Ref(pcurve, "basis_surface");
+                if (!Is(basis, "SURFACE_OF_LINEAR_EXTRUSION"))
+                {
+                    continue;
+                }
+                // Ring children were already checked against complete private
+                // references above. Otherwise the original has been adopted by
+                // the unsplit edge. Only selected source definitions are live
+                // verification targets; discarded auxiliaries never are.
+                const auto* curve = sourceCurve.native ? sourceCurve.native.get() : m_model->edges.at(i)->GetCurve();
+                const auto* composed = dynamic_cast<const SmCrvOnSurf*>(curve);
+                const auto* wrapped = composed ? dynamic_cast<const SmSTEPSurface*>(composed->GetBaseSurface()) : nullptr;
+                targets.push_back({ basis, sourceCurve.record, wrapped ? wrapped->GetBaseSurface() : nullptr, {} });
+            }
+            auto verified = VerifyLinearExtrusions(
+                *m_linearExtrusions,
+                targets,
+                *m_context,
+                [&](Index record)
+                {
+                    return Step(record);
+                },
+                [&](std::size_t units, Index record)
+                {
+                    return m_execution.SpendExactGeometryWork(m_report, units, record);
+                }
+            );
+            if (!verified)
+            {
+                return tl::unexpected(std::move(verified.error()));
+            }
+            m_model->linearExtrusionCertificates = std::move(*verified);
         }
         if (!m_splineCharts->bindings.empty())
         {

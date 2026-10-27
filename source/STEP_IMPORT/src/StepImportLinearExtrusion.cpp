@@ -4,15 +4,40 @@
 
 #include "StepImportGeometryConstruction.h"
 #include "StepImportInterval.h"
+#include "StepImportTerminalSpline.h"
 
 #include <SmBSplineSurface.h>
 #include <SmCrvOnSurf.h>
 #include <SmLine.h>
+#include <cstdint>
 #include <limits>
+#include <map>
+#include <set>
 #include <type_traits>
 
 namespace step_import::detail::construction
 {
+namespace ts = terminal_spline;
+struct LinearExtrusionBinding
+{
+    std::size_t geometry = 0, use = 0;
+    bool carrier = false;
+    const SmSurface* identity = nullptr; // Borrowed address, never dereferenced without a live owner match.
+    ts::BinaryNet expected;
+    ParameterMapping mapping;
+};
+struct LinearExtrusionSession
+{
+    std::vector<LinearExtrusionBinding> bindings;
+};
+bool HasLinearExtrusions(const LinearExtrusionSession& session) noexcept
+{
+    return !session.bindings.empty();
+}
+std::shared_ptr<LinearExtrusionSession> MakeLinearExtrusionSession()
+{
+    return std::make_shared<LinearExtrusionSession>();
+}
 namespace
 {
 class Builder : private GeometryConstruction
@@ -117,7 +142,7 @@ private:
         {
             return tl::unexpected(Fail("GeneralLinearExtrusionAxisUnestablished", vector, Status::Indeterminate));
         }
-        auto made = MakeSplineCurve(generator, use);
+        auto made = MakeSplineCurve(generator, use, CurveEndControlPolicy::PendingNaturalDomainCertificate);
         if (!made)
         {
             return tl::unexpected(std::move(made.error()));
@@ -358,6 +383,90 @@ private:
         {
             return tl::unexpected(std::move(degree.error()));
         }
+        SmTArray<double> generatorKnots;
+        if (auto checked = Good(spline->GetKnotsAll(generatorKnots)); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        bool sameKnots = true;
+        ULONG knotIndex = 0;
+        for (ULONG i = 0; i < knots->GetSize(); ++i)
+        {
+            for (ULONG j = 0; j < (*mult)[i]; ++j)
+            {
+                sameKnots = sameKnots && knotIndex < generatorKnots.GetSize() && generatorKnots[knotIndex] == (*knots)[i];
+                ++knotIndex;
+            }
+        }
+        sameKnots = sameKnots && knotIndex == generatorKnots.GetSize();
+        const auto originalInterval = spline->GetNaturalInterval(), sourceDomain = spline->GetSTEPInterval();
+        if (sourceDomain.GetMin() != originalInterval.GetMin() || sourceDomain.GetMax() != originalInterval.GetMax())
+        {
+            return tl::unexpected(Fail("GeneralLinearExtrusionSourceParametersUnestablished", generator));
+        }
+        std::optional<ts::Proof> generatorProof;
+        SmTArray<ULONG> canonicalMult;
+        SmTArray<double> canonicalKnots;
+        if (!sameKnots)
+        {
+            const ts::Limits limits{ m_options.sourceLimits.values, 4096, 1234 };
+            const ts::Charge charge = [&](std::size_t units)
+            {
+                return m_execution.SpendExactGeometryWork(m_report, units, generator);
+            };
+            auto source = ReadExactSplineSource(generator, use, limits, charge);
+            if (!source)
+            {
+                return tl::unexpected(std::move(source.error()));
+            }
+            auto reference = ts::CaptureNaturalCurveReference(*source, limits, charge);
+            if (!reference)
+            {
+                return tl::unexpected(std::move(reference.error()));
+            }
+            ts::BinaryNet stored;
+            stored.basis = { *degree, 0, count, 1, { generatorKnots.GetDataArray(), generatorKnots.GetDataArray() + generatorKnots.GetSize() }, {} };
+            if (auto checked = charge(count); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            stored.homogeneous.reserve(count);
+            for (ULONG i = 0; i < count; ++i)
+            {
+                stored.homogeneous.push_back({ net[4 * i], net[4 * i + 1], net[4 * i + 2], rational ? net[4 * i + 3] : 1. });
+            }
+            const auto allowance = m_options.quality.definitionMm;
+            // Allocate ONE original definition budget: half for the complete
+            // exact-source -> stored-generator certificate, half for constructing
+            // the tensor from that generator and the constructed physical axis.
+            // Unsigned doubling covers every positive int64 Fraction denominator
+            // without overflow or modifying the caller's quality configuration.
+            const ts::IntegerRatio half{ std::to_string(allowance.Numerator()), std::to_string(std::uint64_t(allowance.Denominator()) * 2) };
+            // Certify compares at the SAME scalar U and requires equal EXACT
+            // natural endpoints. No affine trim map is silently applied to a
+            // source pcurve. Unestablished endpoint/basis evidence stays a refusal.
+            auto proof = ts::Certify(*reference, stored, half, limits, charge);
+            if (!proof)
+            {
+                return tl::unexpected(std::move(proof.error()));
+            }
+            if (!proof->established || !proof->maximumMm || !std::isfinite(*proof->maximumMm))
+            {
+                return tl::unexpected(Fail("GeneralLinearExtrusionGeneratorCertificateUnestablished", generator, Status::Indeterminate));
+            }
+            generatorProof = std::move(*proof);
+            for (ULONG i = 0; i < generatorKnots.GetSize();)
+            {
+                ULONG end = i + 1;
+                while (end < generatorKnots.GetSize() && generatorKnots[end] == generatorKnots[i])
+                {
+                    ++end;
+                }
+                canonicalKnots.Add(generatorKnots[i]);
+                canonicalMult.Add(end - i);
+                i = end;
+            }
+        }
         SmTArray<ULONG> vm;
         vm.Add(2);
         vm.Add(2);
@@ -369,8 +478,21 @@ private:
         {
             return tl::unexpected(std::move(checked.error()));
         }
-        const auto created = SmBSplineSurface::
-            CreateCanonical(*m_context, *degree, 1, cp, SM_SF_UNSPECIFIED, *mult, vm, *knots, vk, SM_KT_UNSPECIFIED, &surfaceWeights, nullptr, raw);
+        const auto created = SmBSplineSurface::CreateCanonical(
+            *m_context,
+            *degree,
+            1,
+            cp,
+            SM_SF_UNSPECIFIED,
+            sameKnots ? *mult : canonicalMult,
+            vm,
+            sameKnots ? *knots : canonicalKnots,
+            vk,
+            SM_KT_UNSPECIFIED,
+            &surfaceWeights,
+            nullptr,
+            raw
+        );
         std::unique_ptr<SmSurface> surface(raw);
         if (auto checked = Good(created); !checked)
         {
@@ -392,31 +514,6 @@ private:
             domain.GetMin().y != low || domain.GetMax().y != high)
         {
             return tl::unexpected(Fail("GeneralLinearExtrusionParametersChanged", geometry));
-        }
-        SmTArray<double> generatorKnots;
-        if (auto checked = Good(spline->GetKnotsAll(generatorKnots)); !checked)
-        {
-            return tl::unexpected(std::move(checked.error()));
-        }
-        // Creating an ordinary generator may correct near-coincident knots.
-        // Such a change cannot establish the original source U parameter map.
-        // Compare every transmitted knot group and multiplicity, not just its
-        // two endpoints or the newly constructed surface against the copy.
-        ULONG knotIndex = 0;
-        for (ULONG i = 0; i < knots->GetSize(); ++i)
-        {
-            for (ULONG j = 0; j < (*mult)[i]; ++j)
-            {
-                if (knotIndex >= generatorKnots.GetSize() || generatorKnots[knotIndex++] != (*knots)[i])
-                {
-                    return tl::unexpected(Fail("GeneralLinearExtrusionSourceKnotsChanged", generator));
-                }
-            }
-        }
-        const auto sourceDomain = spline->GetSTEPInterval();
-        if (knotIndex != generatorKnots.GetSize() || sourceDomain.GetMin() != original.GetMin() || sourceDomain.GetMax() != original.GetMax())
-        {
-            return tl::unexpected(Fail("GeneralLinearExtrusionSourceParametersUnestablished", generator));
         }
         ULONG ku = 0, kv = 0;
         double *uk = nullptr, *vknots = nullptr;
@@ -465,7 +562,8 @@ private:
                 error = std::max(error, *bound);
             }
         }
-        if (error > Enclose(m_options.quality.definitionMm).low)
+        const auto definitionLimit = Enclose(m_options.quality.definitionMm).low;
+        if (error > definitionLimit * (generatorProof ? .5 : 1.))
         {
             return tl::unexpected(Fail("GeneralLinearExtrusionControlConversionUnestablished", geometry, Status::Indeterminate));
         }
@@ -481,11 +579,181 @@ private:
                                { "source_vector_magnitude", { *magnitude } },
                                { "length_to_mm", { scale } },
                                { "control_construction_error_upper_mm", { error } } };
+        if (generatorProof)
+        {
+            mapping.sourceBasisGeometryId = Id(generator);
+            mapping.equation =
+                "S(u,v)=certified_same_U_generator(u)+v*constructed_physical_vector_mm; canonical target knots retained; source bytes unchanged; generator and tensor budgets share one definition allowance; original vector conversion is not certified here";
+            mapping.parameters.push_back({ "source_generator_error_upper_mm", { *generatorProof->maximumMm } });
+            mapping.parameters.push_back({ "source_generator_certificate_patches", { double(generatorProof->patches) } });
+            mapping.parameters.push_back({ "generator_definition_allowance_mm", { definitionLimit * .5 } });
+            mapping.parameters.push_back({ "tensor_definition_allowance_mm", { definitionLimit * .5 } });
+            const auto combinedError = Up(*generatorProof->maximumMm + error);
+            mapping.parameters.push_back({ "generator_plus_tensor_error_upper_mm", { combinedError } });
+            mapping.parameters.push_back({ "defining_carrier", { parameterV ? 1. : 0. } });
+            if (combinedError > definitionLimit)
+            {
+                return tl::unexpected(Fail("GeneralLinearExtrusionCombinedDefinitionUnestablished", geometry, Status::Indeterminate));
+            }
+            if (auto checked = m_execution.SpendExactGeometryWork(m_report, std::size_t(nu) * nv + ku + kv, use); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            ts::BinaryNet expected;
+            expected.basis = { raw->GetDegree(SM_SP_U), raw->GetDegree(SM_SP_V), nu, nv, { uk, uk + ku }, { vknots, vknots + kv } };
+            expected.homogeneous.reserve(std::size_t(nu) * nv);
+            for (std::size_t i = 0; i < std::size_t(nu) * nv; ++i)
+            {
+                expected.homogeneous.push_back({ actual[4 * i], actual[4 * i + 1], actual[4 * i + 2], raw->IsRational() ? actual[4 * i + 3] : 1. });
+            }
+            m_linearExtrusions->bindings.push_back({ geometry, use, bool(parameterV), raw, std::move(expected), mapping });
+        }
         m_report.parameterMappings.push_back(std::move(mapping));
         return surface;
     }
 };
 } // namespace
+Result<std::vector<ParameterMapping>> VerifyLinearExtrusions(
+    const LinearExtrusionSession& session,
+    std::span<const LinearExtrusionTarget> targets,
+    const SmContext& context,
+    const std::function<Result<void>(std::size_t)>& native,
+    const std::function<Result<void>(std::size_t, std::size_t)>& work
+)
+{
+    std::vector<ParameterMapping> evidence;
+    if (session.bindings.empty())
+    {
+        return evidence;
+    }
+    using Key = std::pair<std::size_t, std::size_t>;
+    std::map<Key, std::vector<const LinearExtrusionTarget*>> groups;
+    for (const auto& target : targets)
+    {
+        if (auto checked = work(1, target.use); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        groups[{ target.geometry, target.use }].push_back(&target);
+    }
+    std::set<Key> expectedGroups, matchedGroups;
+    for (const auto& binding : session.bindings)
+    {
+        if (auto checked = work(1, binding.use); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        const Key key{ binding.geometry, binding.use };
+        expectedGroups.insert(key);
+        const auto found = groups.find(key);
+        const LinearExtrusionTarget* target = nullptr;
+        if (found != groups.end())
+        {
+            for (const auto* candidate : found->second)
+            {
+                if (candidate->surface == binding.identity)
+                {
+                    target = candidate;
+                    break;
+                }
+            }
+        }
+        if (!target)
+        {
+            if (binding.carrier)
+            {
+                continue; // Non-driving auxiliary definition, no published native tree.
+            }
+            return tl::unexpected(
+                Failure{ Status::PostcheckFailure,
+                         "GeneralLinearExtrusionTargetMissing",
+                         "Native target surface identity changed",
+                         binding.use,
+                         "LinearExtrusion" }
+            );
+        }
+        matchedGroups.insert(key);
+        const auto fail = [&](const char* key)
+        {
+            return tl::unexpected(
+                Failure{ Status::PostcheckFailure, key, "Certified stored extrusion definition changed", binding.use, "LinearExtrusion" }
+            );
+        };
+        const auto* surface = dynamic_cast<const SmBSplineSurface*>(target->surface);
+        if (!surface || surface->GetType() != SmBSplineSurface_TYPE || surface->GetContext() != &context)
+        {
+            return fail("GeneralLinearExtrusionTargetClass");
+        }
+        if (auto checked = native(binding.use); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        ULONG nu = 0, nv = 0;
+        double* data = nullptr;
+        if (auto checked = CheckNativeStatus(surface->GetControlPointsPointer(nu, nv, data), NativeStatusOrigin::GeneralConstruction); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        const auto& expected = binding.expected;
+        if (nu != expected.basis.countU || nv != expected.basis.countV || !data || surface->GetDegree(SM_SP_U) != expected.basis.degreeU ||
+            surface->GetDegree(SM_SP_V) != expected.basis.degreeV)
+        {
+            return fail("GeneralLinearExtrusionTargetNet");
+        }
+        for (std::size_t i = 0; i < expected.homogeneous.size(); ++i)
+        {
+            if (auto checked = work(4, binding.use); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            for (unsigned k = 0; k < 4; ++k)
+            {
+                if ((k == 3 && !surface->IsRational() ? 1. : data[4 * i + k]) != expected.homogeneous[i][k])
+                {
+                    return fail("GeneralLinearExtrusionTargetNet");
+                }
+            }
+        }
+        ULONG ku = 0, kv = 0;
+        double *u = nullptr, *v = nullptr;
+        if (auto checked = native(binding.use); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (auto checked = CheckNativeStatus(surface->GetKnotsPointers(ku, kv, u, v), NativeStatusOrigin::GeneralConstruction); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (auto checked = work(std::size_t(ku) + kv, binding.use); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (ku != expected.basis.knotsU.size() || kv != expected.basis.knotsV.size() || !u || !v ||
+            !std::equal(u, u + ku, expected.basis.knotsU.begin()) || !std::equal(v, v + kv, expected.basis.knotsV.begin()))
+        {
+            return fail("GeneralLinearExtrusionTargetKnots");
+        }
+        auto mapping = binding.mapping;
+        mapping.targetFaceIndex = target->face;
+        evidence.push_back(std::move(mapping));
+    }
+    // A selected carrier whose object identity changed cannot be mistaken for
+    // a retired auxiliary: its group still exists in the final source inventory.
+    for (const auto& [key, group] : groups)
+    {
+        if (expectedGroups.contains(key) && !matchedGroups.contains(key))
+        {
+            return tl::unexpected(
+                Failure{ Status::PostcheckFailure,
+                         "GeneralLinearExtrusionSelectedCarrierChanged",
+                         "Selected source carrier no longer owns the certified definition",
+                         key.second,
+                         "LinearExtrusion" }
+            );
+        }
+    }
+    return evidence;
+}
 Result<std::unique_ptr<SmSurface>> MakeSourceLinearExtrusion(
     const GeometryConstruction& inputs,
     std::size_t geometry,

@@ -68,6 +68,7 @@ struct ModelData
     std::vector<RevolutionChartInfo> revolutionCharts;
     std::shared_ptr<const SplineChartSession> splineChartEvidence;
     std::shared_ptr<const PcurveLineSession> pcurveLineEvidence;
+    std::vector<ParameterMapping> linearExtrusionCertificates; // Frozen values only; no borrowed construction objects.
     std::vector<RevolutionPoleVisitInfo> revolutionPoleVisits;
     std::vector<PcurveCarrierPrecisionInfo> pcurveCarrierPrecisions;
     SmRegion* material = nullptr;

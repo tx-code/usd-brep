@@ -373,6 +373,7 @@ class Reference
 public:
 
     Net net;
+    bool preferMatchedPolynomialSpans = false; // ONLY the new natural-curve capture opts in; old evidence paths keep their work sequence.
     // ReadSource captures these exact bounds before its ordinary outward
     // computational envelope is extended. Only an unrequested source curve
     // can authorize a source-domain restriction, never an interpreted domain.
@@ -1602,7 +1603,124 @@ Result<void> RestrictCurve(Net& net, const R& low, const R& high, Arithmetic& ma
     net = std::move(selected);
     return {};
 }
-Result<Proof> CertifyNets(Net& a, Net& b, const R& allowed, Arithmetic& math)
+Result<std::optional<Proof>> MatchedPolynomialSpans(const Net& original, const Net& actual, const R& allowed, Arithmetic& math)
+{
+    if (original.q || actual.q || original.nv != 1 || actual.nv != 1)
+    {
+        return std::optional<Proof>{};
+    }
+    const R one{ 1, 1 };
+    for (const auto* net : { &original, &actual })
+    {
+        for (const auto& h : net->cp)
+        {
+            TS_OK(math.Spend());
+            if (Compare(h[3], one) != 0)
+            {
+                return std::optional<Proof>{};
+            }
+        }
+    }
+    TS_TRY(u, KnotUnion(original.u, original.u, math));
+    TS_TRY(v, KnotUnion(actual.u, actual.u, math));
+    if (u.size() != v.size() || u.size() < 2)
+    {
+        return std::optional<Proof>{};
+    }
+    R delta;
+    for (std::size_t i = 0; i < u.size(); ++i)
+    {
+        TS_TRY(d, math.Sub(u[i], v[i]));
+        if (d.n < 0)
+        {
+            d.n = -d.n;
+        }
+        if (Compare(d, delta) > 0)
+        {
+            delta = std::move(d);
+        }
+    }
+    if (delta.n == 0)
+    {
+        return std::optional<Proof>{};
+    }
+    // Natural-domain polynomial curves only. On each corresponding native
+    // span define phi by mapping its endpoints to the original source knots.
+    // Both independently refined Bezier polygons use the same local s in[0,1],
+    // so their maximum coefficient L1 difference bounds |A(phi(u))-B(u)|.
+    // |phi(u)-u| <= max knot displacement. The C0 source has a global Lipschitz
+    // bound max_span (p/h)*max_j |P[j+1]-P[j]|_1. Therefore
+    // |A(u)-B(u)| <= coefficient_difference + Lipschitz*knot_displacement.
+    // The transport term is essential: aligned polygons alone certify images,
+    // not same-U geometry. This uses no endpoint sampling or curve fitting.
+    // Separate private copies retain the old common-refinement fallback; all
+    // allocations/arithmetic charge the caller's SAME cumulative ledger.
+    TS_OK(math.Reserve(original.cp.size()));
+    TS_OK(math.Reserve(actual.cp.size()));
+    Net a = original, b = actual;
+    TS_OK(Refine(a, true, u, math));
+    TS_OK(Refine(b, true, v, math));
+    if (a.nu != b.nu || a.nu != (u.size() - 1) * a.p + 1)
+    {
+        return std::optional<Proof>{};
+    }
+    R displacement, lipschitz;
+    for (std::size_t span = 0; span + 1 < u.size(); ++span)
+    {
+        TS_TRY(length, math.Sub(u[span + 1], u[span]));
+        if (length.n <= 0)
+        {
+            return std::optional<Proof>{};
+        }
+        TS_TRY(factor, math.Div(R{ a.p, 1 }, length));
+        for (unsigned j = 0; j <= a.p; ++j)
+        {
+            const auto i = span * a.p + j;
+            R gap, speed;
+            for (unsigned k = 0; k < 3; ++k)
+            {
+                TS_TRY(d, math.Sub(a.cp[i][k], b.cp[i][k]));
+                if (d.n < 0)
+                {
+                    d.n = -d.n;
+                }
+                TS_TRY(sum, math.Add(gap, d));
+                gap = std::move(sum);
+                if (j < a.p)
+                {
+                    TS_TRY(derivativeDifference, math.Sub(a.cp[i + 1][k], a.cp[i][k]));
+                    if (derivativeDifference.n < 0)
+                    {
+                        derivativeDifference.n = -derivativeDifference.n;
+                    }
+                    TS_TRY(derivativeSum, math.Add(speed, derivativeDifference));
+                    speed = std::move(derivativeSum);
+                }
+            }
+            if (Compare(gap, displacement) > 0)
+            {
+                displacement = std::move(gap);
+            }
+            if (j < a.p)
+            {
+                TS_TRY(bound, math.Mul(speed, factor));
+                if (Compare(bound, lipschitz) > 0)
+                {
+                    lipschitz = std::move(bound);
+                }
+            }
+        }
+    }
+    TS_TRY(transport, math.Mul(lipschitz, delta));
+    TS_TRY(total, math.Add(displacement, transport));
+    if (Compare(total, allowed) > 0)
+    {
+        return std::optional<Proof>{};
+    }
+    TS_TRY(maximum, math.Outward(total, true));
+    return std::optional<Proof>{ Proof{ true, maximum, u.size() - 1 } };
+}
+Result<Proof> CertifyNets(Net& a, Net& b, const R& allowed, Arithmetic& math, bool preferMatchedSpans = false)
 {
     // Both callers must arrive with exactly matching domains and degrees.
     // The ordinary Certify entry keeps its original whole-domain refusal;
@@ -1611,6 +1729,14 @@ Result<Proof> CertifyNets(Net& a, Net& b, const R& allowed, Arithmetic& math)
         Compare(a.v[a.nv], b.v[b.nv]))
     {
         return tl::unexpected(Error("TerminalSplineActualDomainOrDegree"));
+    }
+    if (preferMatchedSpans)
+    {
+        TS_TRY(matched, MatchedPolynomialSpans(a, b, allowed, math));
+        if (matched)
+        {
+            return *matched;
+        }
     }
     TS_TRY(u, KnotUnion(a.u, b.u, math));
     TS_TRY(v, KnotUnion(a.v, b.v, math));
@@ -1788,6 +1914,7 @@ Result<std::shared_ptr<const Reference>> CaptureNaturalCurveReference(const Sour
             TS_TRY(net, NaturalCurveNet(original, math));
             auto reference = std::make_shared<Reference>();
             reference->net = std::move(net);
+            reference->preferMatchedPolynomialSpans = true;
             reference->originalCurveDomain = std::move(originalCurveDomain);
             return std::shared_ptr<const Reference>(std::move(reference));
         }
@@ -1815,7 +1942,7 @@ Result<Proof> Certify(
             TS_OK(math.Reserve(reference->net.cp.size()));
             Net a = reference->net;
             TS_TRY(b, ReadBinary(actual, math));
-            return CertifyNets(a, b, allowed, math);
+            return CertifyNets(a, b, allowed, math, reference->preferMatchedPolynomialSpans);
         }
     );
 }
@@ -1853,7 +1980,7 @@ Result<Proof> CertifyCurveRestriction(
                 return tl::unexpected(Error("TerminalSplineRestrictionOutsideSourceDomain"));
             }
             TS_OK(RestrictCurve(a, low, high, math));
-            return CertifyNets(a, b, allowed, math);
+            return CertifyNets(a, b, allowed, math, reference->preferMatchedPolynomialSpans);
         }
     );
 }
@@ -1913,7 +2040,7 @@ Result<Proof> CertifyCurveTrim(
             // rounding and native construction error in ONE defining budget.
             TS_OK(RestrictCurve(a, low, high, math));
             TS_OK(MapCurveParameter(a, low, high, targetLow, targetHigh, math));
-            return CertifyNets(a, b, allowed, math);
+            return CertifyNets(a, b, allowed, math, reference->preferMatchedPolynomialSpans);
         }
     );
 }

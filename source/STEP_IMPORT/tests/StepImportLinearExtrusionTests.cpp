@@ -81,7 +81,16 @@ std::string WithPcurves(std::string text)
     text.insert(text.rfind("ENDSEC;"), extra);
     return text;
 }
-void Check(const std::string& text, double area, const Point& evaluation, double u, double v, const std::filesystem::path& archive, bool resources)
+void Check(
+    const std::string& text,
+    double area,
+    const Point& evaluation,
+    double u,
+    double v,
+    const std::filesystem::path& archive,
+    bool resources,
+    std::size_t expectedCertificates = 0
+)
 {
     auto result = ImportBytes(text, Settings());
     if (!result.model)
@@ -93,6 +102,37 @@ void Check(const std::string& text, double area, const Point& evaluation, double
     }
     Require(result.status == Status::Accepted && result.model, "complete explicit linear extrusion import");
     const auto model = result.model;
+    const auto certificates = model->LinearExtrusionCertificates();
+    Require(certificates.size() == expectedCertificates, "only final live source definitions retain owning certificates");
+    if (expectedCertificates)
+    {
+        for (const auto& certificate : certificates)
+        {
+            Require(
+                certificate.sourceGeometryId == "30" && certificate.sourceBasisGeometryId == "40",
+                "owning surface/generator source correspondence"
+            );
+            const auto value = [&](std::string_view name)
+            {
+                const auto found = std::find_if(
+                    certificate.parameters.begin(),
+                    certificate.parameters.end(),
+                    [&](const auto& field)
+                    {
+                        return field.first == name;
+                    }
+                );
+                Require(found != certificate.parameters.end() && found->second.size() == 1, "certificate numeric field present");
+                return found->second[0];
+            };
+            Require(value("source_generator_error_upper_mm") == 0, "independent cardinal-source conversion is exactly equivalent");
+            Require(
+                value("generator_definition_allowance_mm") <= 5e-10 && value("tensor_definition_allowance_mm") <= 5e-10 &&
+                    value("generator_plus_tensor_error_upper_mm") <= 1e-9,
+                "source proof and actual tensor construction share one original allowance"
+            );
+        }
+    }
     const auto calls = result.report.nativeCalls;
     const auto exact = result.report.exactGeometryWork->usedUnits;
     const auto reportBytes = result.report.json.size();
@@ -139,6 +179,15 @@ void Check(const std::string& text, double area, const Point& evaluation, double
     );
     result = {};
     PointNear(view.EvaluateSurface(u, v), evaluation, 1e-8, "owning view survives report release");
+    const auto retained = model->LinearExtrusionCertificates();
+    Require(retained.size() == certificates.size(), "certificate ownership survives mutable report/outcome release");
+    for (std::size_t i = 0; i < retained.size(); ++i)
+    {
+        Require(
+            retained[i].parameters == certificates[i].parameters && retained[i].sourceUseId == certificates[i].sourceUseId,
+            "snapshot certificate values remain unchanged"
+        );
+    }
     if (!resources)
     {
         return;
@@ -187,6 +236,42 @@ int main(int argc, char** argv)
         const auto text = Read(dir / "linear_extrusion_patch.step");
         Check(text, 160, { 5, 1.2, 1.6 }, 3.5, 1, out / "affine.smb", true);
         Check(WithPcurves(text), 160, { 5, 1.2, 1.6 }, 3.5, 1, out / "pcurve.smb", false);
+        auto unclamped = text;
+        Replace(
+            unclamped,
+            "#40=B_SPLINE_CURVE_WITH_KNOTS('generator',1,(#41,#42),.UNSPECIFIED.,.F.,.F.,(2,2),(2.,5.),.UNSPECIFIED.);",
+            "#40=B_SPLINE_CURVE_WITH_KNOTS('generator',2,(#41,#42,#43),.UNSPECIFIED.,.F.,.F.,(1,1,1,1,1,1),(-4.,-1.,2.,5.,8.,11.),.UNSPECIFIED.);"
+        );
+        Replace(unclamped, "#41=CARTESIAN_POINT('',(0.,0.,0.))", "#41=CARTESIAN_POINT('',(-5.,0.,0.))");
+        Replace(unclamped, "#42=CARTESIAN_POINT('',(10.,0.,0.))", "#42=CARTESIAN_POINT('',(5.,0.,0.))");
+        unclamped.insert(unclamped.rfind("ENDSEC;"), "#43=CARTESIAN_POINT('',(15.,0.,0.));\n");
+        // Independent cardinal quadratic oracle: C(u)=(10*(u-2)/3,0,0),
+        // exactly the original affine control on natural U[2,5], despite the
+        // nonclamped outer knots and different end control coefficients.
+        Check(unclamped, 160, { 5, 1.2, 1.6 }, 3.5, 1, out / "unclamped.smb", true, 1);
+        Check(WithPcurves(unclamped), 160, { 5, 1.2, 1.6 }, 3.5, 1, out / "unclamped-pcurve.smb", false, 5);
+        auto auxiliaryOnly = WithPcurves(unclamped);
+        std::size_t at = 0;
+        while ((at = auxiliaryOnly.find(".PCURVE_S1.", at)) != std::string::npos)
+        {
+            auxiliaryOnly.replace(at, std::string(".PCURVE_S1.").size(), ".CURVE_3D.");
+            at += std::string(".CURVE_3D.").size();
+        }
+        Check(auxiliaryOnly, 160, { 5, 1.2, 1.6 }, 3.5, 1, out / "unclamped-retired-auxiliaries.smb", false, 1);
+        auto unclampedRational = unclamped;
+        Replace(
+            unclampedRational,
+            "#40=B_SPLINE_CURVE_WITH_KNOTS('generator',2,(#41,#42,#43),.UNSPECIFIED.,.F.,.F.,(1,1,1,1,1,1),(-4.,-1.,2.,5.,8.,11.),.UNSPECIFIED.);",
+            "#40=(BOUNDED_CURVE() B_SPLINE_CURVE(2,(#41,#42,#43),.UNSPECIFIED.,.F.,.F.) "
+            "B_SPLINE_CURVE_WITH_KNOTS((1,1,1,1,1,1),(-4.,-1.,2.,5.,8.,11.),.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() "
+            "RATIONAL_B_SPLINE_CURVE((2.,2.,2.)) REPRESENTATION_ITEM('generator'));"
+        );
+        Check(unclampedRational, 160, { 5, 1.2, 1.6 }, 3.5, 1, out / "unclamped-rational.smb", false, 1);
+        auto unclampedMetres = unclamped;
+        Replace(unclampedMetres, "SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
+        Check(WithPcurves(unclampedMetres), 160000000, { 5000, 1200, 1600 }, 3.5, 1, out / "unclamped-metres.smb", false, 5);
+
+
         auto metres = text;
         Replace(metres, "SI_UNIT(.MILLI.,.METRE.)", "SI_UNIT($,.METRE.)");
         Check(WithPcurves(metres), 160000000, { 5000, 1200, 1600 }, 3.5, 1, out / "metres.smb", false);

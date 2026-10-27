@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include "StepImportExecution.h"
+#include "StepImportLinearExtrusion.h"
 #include "StepImportNativeStatus.h"
 #include "StepImportPcurveLineSession.h"
 #include "StepImportSourceFrame.h"
 #include "StepImportSourceParameterUnits.h"
 #include "StepImportSplineChartSession.h"
 #include "StepImportTerminalDomainConstruction.h"
+#include "StepImportTerminalSpline.h"
 #include "StepImportVectorMath.h"
 
 #include <SmAxis2Placement.h>
@@ -77,7 +79,8 @@ protected:
           m_angleUnits(std::make_shared<SourceAngleCache>()),
           m_terminalDomainCache(options.terminalDomainInterpretation ? MakeTerminalDomainCache() : nullptr),
           m_splineCharts(std::make_shared<SplineChartSession>()),
-          m_pcurveLines(std::make_shared<PcurveLineSession>())
+          m_pcurveLines(std::make_shared<PcurveLineSession>()),
+          m_linearExtrusions(MakeLinearExtrusionSession())
     {
     }
     GeometryConstruction(const GeometryConstruction&) = default;
@@ -90,6 +93,13 @@ protected:
     std::shared_ptr<TerminalDomainCache> m_terminalDomainCache;
     std::shared_ptr<SplineChartSession> m_splineCharts;
     std::shared_ptr<PcurveLineSession> m_pcurveLines;
+    std::shared_ptr<LinearExtrusionSession> m_linearExtrusions;
+    [[nodiscard]] Result<terminal_spline::Source> ReadExactSplineSource(
+        Index basis,
+        Index use,
+        const terminal_spline::Limits& limits,
+        const terminal_spline::Charge& charge
+    );
     SmContext* m_context = nullptr;
     double scale = 0;
     bool Is(Index a, std::string_view type) const
@@ -368,7 +378,16 @@ protected:
         }
         return result;
     }
-    [[nodiscard]] Result<std::unique_ptr<SmCurve>> MakeSplineCurve(Index geometry, Index use)
+    enum class CurveEndControlPolicy
+    {
+        ConstructorInputs,
+        PendingNaturalDomainCertificate
+    };
+    [[nodiscard]] Result<std::unique_ptr<SmCurve>> MakeSplineCurve(
+        Index geometry,
+        Index use,
+        CurveEndControlPolicy endControls = CurveEndControlPolicy::ConstructorInputs
+    )
     {
         SmTArray<SmPoint3d> cp;
         for (const auto control : Refs(geometry, "control_points_list"))
@@ -436,7 +455,31 @@ protected:
             {
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
-            if (auto businessCheck = VerifyRationalNet(geometry, use, cp, *weights, net, count, raw->IsRational()); !businessCheck)
+            bool constructorControls = true;
+            if (endControls == CurveEndControlPolicy::PendingNaturalDomainCertificate)
+            {
+                // Only the private extrusion caller may defer end-pole index
+                // correspondence when canonicalization actually changed knots.
+                // Its complete same-U source certificate must succeed before a
+                // tensor or snapshot can be published. Weight checks stay strict.
+                SmTArray<double> stored;
+                if (auto checked = Good(raw->GetKnotsAll(stored)); !checked)
+                {
+                    return tl::unexpected(std::move(checked.error()));
+                }
+                ULONG position = 0;
+                for (ULONG i = 0; i < knotsResult->GetSize(); ++i)
+                {
+                    for (ULONG j = 0; j < (*mult)[i]; ++j)
+                    {
+                        constructorControls = constructorControls && position < stored.GetSize() && stored[position] == (*knotsResult)[i];
+                        ++position;
+                    }
+                }
+                constructorControls = constructorControls && position == stored.GetSize();
+            }
+            if (auto businessCheck = VerifyRationalNet(geometry, use, cp, *weights, net, count, raw->IsRational(), constructorControls);
+                !businessCheck)
             {
                 return tl::unexpected(std::move(businessCheck.error()));
             }
@@ -568,7 +611,8 @@ protected:
         const SmTArray<double>& weights,
         const double* net,
         ULONG count,
-        bool rational
+        bool rational,
+        bool constructorControls = true
     ) const
     {
         if (auto businessCheck = Need(net && count == control.GetSize(), "GeneralRationalNetShapeChanged", geometry); !businessCheck)
@@ -623,7 +667,7 @@ protected:
                 }
             }
             if (auto businessCheck = Need(
-                    Norm(Sub(actual, P(control[i]))) <= Q(m_options.quality.definitionMm),
+                    !constructorControls || Norm(Sub(actual, P(control[i]))) <= Q(m_options.quality.definitionMm),
                     "GeneralControlRoundtripUnestablished",
                     geometry
                 );
@@ -638,7 +682,10 @@ protected:
             trace.kind = "ExactUniformWeightCancellation";
             trace.sourceGeometryId = Id(geometry);
             trace.sourceUseId = Id(sourceUse);
-            trace.equation = "identical positive source weights cancel from numerator/denominator; source parameters and Euclidean controls unchanged";
+            trace.equation =
+                constructorControls ?
+                    "identical positive source weights cancel from numerator/denominator; source parameters and Euclidean controls unchanged" :
+                    "identical positive source weights cancel; changed canonical end controls require the caller's complete natural-domain certificate";
             trace.parameters = { { "source_uniform_weight", { weights[0] } }, { "native_uniform_weight", { 1. } } };
             m_report.parameterMappings.push_back(std::move(trace));
         }

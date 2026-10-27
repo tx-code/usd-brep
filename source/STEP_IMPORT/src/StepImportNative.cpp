@@ -2289,6 +2289,10 @@ std::vector<RevolutionChartInfo> ModelSnapshot::RevolutionCharts() const
 {
     return m_data->revolutionCharts;
 }
+std::vector<ParameterMapping> ModelSnapshot::LinearExtrusionCertificates() const
+{
+    return m_data->linearExtrusionCertificates;
+}
 std::vector<ParameterMapping> ModelSnapshot::SplineCharts() const
 {
     std::vector<ParameterMapping> mappings;

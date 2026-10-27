@@ -638,6 +638,10 @@ public:
     std::vector<SurfaceNormalizationInfo> SurfaceNormalizations() const; // Owning original-basis extraction, separate from repair/topology changes.
     std::vector<RevolutionChartInfo> RevolutionCharts() const; // Owning exact target chart correspondence; source STEP UV stays unchanged.
     std::vector<ParameterMapping> SplineCharts() const; // Owning defining-carrier/face chart correspondence, independent of the report.
+    // Owning exact-source generator / stored tensor evidence when canonical
+    // generator knots differ. Same-U whole-domain proof; does not certify the
+    // original vector conversion, arbitrary modeling copies or native files.
+    std::vector<ParameterMapping> LinearExtrusionCertificates() const;
     std::vector<ParameterMapping> PcurveLineWindows() const; // Owning source-generator/native-parameter maps; does not qualify modeling copies.
     std::vector<RevolutionPoleVisitInfo> RevolutionPoleVisits() const;
     std::vector<PcurveCarrierPrecisionInfo> PcurveCarrierPrecisions() const;

@@ -29,7 +29,7 @@ add_library(STEP_IMPORT STATIC src/StepImport.cpp src/StepImportExecution.cpp sr
 target_compile_features(STEP_IMPORT PUBLIC cxx_std_20)
 target_sources(STEP_IMPORT PRIVATE src/StepImportAssociatedGeometry.cpp)
 
-target_sources(STEP_IMPORT PRIVATE src/StepImportLinearExtrusion.cpp)
+target_sources(STEP_IMPORT PRIVATE src/StepImportLinearExtrusion.cpp src/StepImportSourceSpline.cpp)
 
 target_sources(STEP_IMPORT PRIVATE src/StepImportGeneralRole.cpp)
 

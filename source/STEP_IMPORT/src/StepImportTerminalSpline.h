@@ -131,7 +131,9 @@ struct PoleVisitProof
 // Compare the actual native binary64 definition against the exact interpreted
 // SOURCE reference on the WHOLE actual natural domain. Degrees/domain must match
 // the prepared computational envelope; distinct source/native interior knots
-// are compared through exact common refinement, not assumed to share a basis.
+// are compared by exact span enclosures, never assumed to share a basis.
+// Natural polynomial references may use matched-span Bezier bounds plus a
+// whole-source Lipschitz transport term; other paths keep common refinement.
 // Bernstein coefficients of N_ref*W_actual-N_actual*W_ref and strictly positive
 // weight minima bound Euclidean distance via an L1 upper bound on every patch.
 // maximumMm is the ONE remaining exact mm allowance assigned by the request

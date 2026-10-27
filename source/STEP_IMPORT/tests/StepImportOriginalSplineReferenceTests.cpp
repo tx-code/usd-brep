@@ -564,6 +564,62 @@ void NaturalDegreeAndRepeatedKnots()
         "original C2 interior knot and repeated natural endpoints match independent rational polynomial oracle"
     );
 }
+void MatchedSpanParameterTransport()
+{
+    Source source;
+    source.u = { 1, { "0", ".1", "1" }, { 2, 1, 2 }, {} };
+    source.countU = 3;
+    source.controls = { { "0", "0", "0" }, { "1", "0", "0" }, { "0", "0", "0" } };
+    BinaryNet actual;
+    actual.basis = { 1, 0, 3, 1, { 0, 0, .125, 1, 1 }, {} };
+    actual.homogeneous = { { 0, 0, 0, 1 }, { 1, 0, 0, 1 }, { 0, 0, 0, 1 } };
+    // The aligned-span polygons are identical, but at the SAME U=.1 the
+    // source hat is1 and actual is .8: a real .2 mm discrepancy. Its source
+    // Lipschitz constant10 times knot displacement.025 gives upper bound.25.
+    const auto run = [&](Ledger& ledger, IntegerRatio budget, const BinaryNet& target) -> Result<Proof>
+    {
+        auto ref = CaptureNaturalCurveReference(source, Capacity(), ledger.Callback());
+        if (!ref)
+        {
+            return tl::unexpected(std::move(ref.error()));
+        }
+        return Certify(*ref, target, budget, Capacity(), ledger.Callback());
+    };
+    Ledger accepted;
+    const auto proof = run(accepted, { "3", "10" }, actual);
+    Require(
+        proof && proof->established && proof->maximumMm && *proof->maximumMm == .25 && proof->patches == 2,
+        "continuous same-U bound includes exact parameter transport"
+    );
+    Ledger strict;
+    const auto refused = run(strict, { "1", "100" }, actual);
+    Require(refused && !refused->established, "identical aligned polygons cannot bypass same-U knot displacement error");
+    auto changed = actual;
+    changed.homogeneous[1][0] = 2.;
+    Ledger coordinates;
+    const auto wrong = run(coordinates, { "3", "10" }, changed);
+    Require(wrong && !wrong->established, "transport alone cannot bypass differing aligned control polygons");
+    for (auto maximum : { accepted.work, accepted.work - 1 })
+    {
+        Ledger bounded;
+        bounded.maximum = maximum;
+        const auto result = run(bounded, { "3", "10" }, actual);
+        Require(
+            maximum == accepted.work ? bool(result && result->established) : !result && result.error().key == "OriginalReferenceWork",
+            "matched-span preparation and proof share the original N/N-1 caller ledger"
+        );
+    }
+    for (auto at : { std::size_t(1), accepted.calls / 2, accepted.calls })
+    {
+        Ledger stopped;
+        stopped.cancelAt = at;
+        const auto result = run(stopped, { "3", "10" }, actual);
+        Require(
+            !result && result.error().status == Status::Cancelled && result.error().record == 61 && result.error().stage == "OriginalReferenceCaller",
+            "matched-span cancellation preserves the caller failure identity"
+        );
+    }
+}
 void NaturalMultiSpanAndExecution()
 {
     Source source;
@@ -670,6 +726,7 @@ int main()
         NaturalMultiSpanAndExecution();
         NaturalDegreeAndRepeatedKnots();
         NaturalOneSidedEndpoints();
+        MatchedSpanParameterTransport();
         return 0;
     }
     catch (const std::exception& error)
