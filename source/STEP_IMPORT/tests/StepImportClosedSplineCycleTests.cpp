@@ -148,6 +148,79 @@ Outcome Accepted(const std::string& text)
     Require(uses.front().target.endVertex == uses.back().target.startVertex, "child traversal joins at the derived closure");
     return result;
 }
+void CyclicQuintic(const std::filesystem::path& path, const std::filesystem::path& directory)
+{
+    std::ifstream in(path, std::ios::binary);
+    Require(bool(in), "public cyclic quintic fixture");
+    const std::string text{ std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
+    auto result = ImportBytes(text, Settings());
+    Require(result.status == Status::Accepted && result.model, "whole unclamped cyclic quintic import");
+    const auto model = result.model;
+    Require(model->Source()->Source().Bytes() == text, "original unclamped knot/control definition retained");
+    // Independent exact Green integral of the authored degree-five polynomial
+    // B-spline pieces on [5,13]: 2596859/113400. Schema closed_curve alone does
+    // not authorize changing that basis or treating a shifted interval as its
+    // selected natural domain. The area is a numerical observation, not a
+    // replacement for complete source-use, UV, role and native validation.
+    Near(model->Info().areaMm2, 2596859. / 113400., 1e-5, "independent exact cyclic-quintic area");
+    Require(model->Info().shapeRole == "OpenSurfaceModel" && !model->MaterialVolumeMm3(), "cyclic boundary retains surface role");
+    const auto closest = model->Closest({ 3, 3, 2 });
+    Near(closest.distanceMm, 2., 1e-6, "independent cyclic-face query");
+    const auto normalization = model->TopologyNormalization();
+    Require(
+        normalization && normalization->completed && normalization->sourceCurveIntervalsCovered && normalization->sourceVerticesPreserved,
+        "cyclic quintic retains complete owning source coverage"
+    );
+    const auto native = [](SmBrep& brep)
+    {
+        SmAssertArray pointers, deep;
+        Require(brep.ValidatePointers(&pointers) == SM_SUCCESS && !pointers.GetSize(), "cyclic quintic native pointers");
+        Require(brep.AssertValid(&deep, SM_LEVEL_2, SM_WALK) && !deep.GetSize(), "cyclic quintic native LEVEL2");
+        SmTArray<SmEdge*> edges;
+        brep.GetEdges(edges);
+        Require(edges.GetSize() == 2, "two full-basis cyclic children");
+        std::set<std::pair<double, double>> intervals;
+        for (const auto edge : edges)
+        {
+            Require(edge->GetCurve()->GetDegree() == 5, "original quintic degree");
+            const auto interval = edge->GetInterval();
+            intervals.emplace(interval.GetMin(), interval.GetMax());
+        }
+        Require(
+            intervals.size() == 2 && intervals.begin()->first == 5 && intervals.rbegin()->second == 13 &&
+                intervals.begin()->second == intervals.rbegin()->first,
+            "original full natural domain covered exactly once"
+        );
+        step_import_test::CheckNativeWorkBudget(brep, .001);
+    };
+    auto copy = model->CopyBrepForModeling();
+    Require(copy.model != nullptr, "independent cyclic quintic modeling copy");
+    copy.model->Edit(native);
+    const auto archive = directory / "cyclic-quintic.smb";
+    model->WriteNative(archive);
+    SmContext context;
+    SmTArray<SmCurve*> curves;
+    SmTArray<SmSurface*> surfaces;
+    SmTArray<long> trees;
+    SmTArray<SmBrep*> bodies;
+    SmObjsDelete<SmCurve*> dc(&curves);
+    SmObjsDelete<SmSurface*> ds(&surfaces);
+    SmObjsDelete<SmBrep*> db(&bodies);
+    Require(
+        SmNativeArchive::ReadPartFromFile(context, archive.c_str(), curves, surfaces, trees, bodies, SM_BINARY) == SM_SUCCESS &&
+            bodies.GetSize() == 1,
+        "complete cyclic quintic archive replay"
+    );
+    native(*bodies[0]);
+    copy.model->Edit(
+        [&](SmBrep& original)
+        {
+            step_import_test::CompareNativeDefinitions(original, *bodies[0]);
+        }
+    );
+    result = {};
+    Require(model->TopologyNormalization()->completed, "cyclic quintic evidence outlives mutable report");
+}
 } // namespace
 int main(int argc, char** argv)
 {
@@ -473,6 +546,7 @@ int main(int argc, char** argv)
                 Native(native);
             }
         );
+        CyclicQuintic(std::filesystem::path(argv[1]).parent_path() / "closed_quintic_natural_domain.step", directory);
         return 0;
     }
     catch (const std::exception& e)
