@@ -29,7 +29,7 @@ std::string Read(const std::filesystem::path& path)
     Require(bool(in), "public mixed ellipse fixture");
     return { std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
 }
-void Native(SmBrep& brep, bool material)
+void Native(SmBrep& brep, bool material, bool closedEllipse = false)
 {
     SmAssertArray pointers, deep;
     Require(brep.ValidatePointers(&pointers) == SM_SUCCESS && !pointers.GetSize(), "mixed ellipse native pointers");
@@ -42,7 +42,8 @@ void Native(SmBrep& brep, bool material)
     brep.GetEdges(edges);
     brep.GetVertices(vertices);
     Require(
-        faces.GetSize() == (material ? 4U : 1U) && edges.GetSize() == (material ? 6U : 5U) && vertices.GetSize() == 4,
+        faces.GetSize() == (material ? (closedEllipse ? 3U : 4U) : 1U) && edges.GetSize() == (closedEllipse ? 4U : (material ? 6U : 5U)) &&
+            vertices.GetSize() == (closedEllipse ? 3U : 4U),
         "one global ellipse subdivision and one meridian, shared with caps"
     );
     std::vector<const SmCurve*> ellipse;
@@ -70,7 +71,7 @@ void Native(SmBrep& brep, bool material)
     }
     Require(derived, "derived cut is on the unchanged ellipse at the source meridian");
 }
-Outcome Check(const std::string& text, const std::filesystem::path& archive, bool material)
+Outcome Check(const std::string& text, const std::filesystem::path& archive, bool material, bool closedEllipse = false)
 {
     auto r = ImportBytes(text, Settings());
     if (!r.model)
@@ -86,7 +87,10 @@ Outcome Check(const std::string& text, const std::filesystem::path& archive, boo
     Require(model->Info().shapeRole == (material ? "MaterialSolid" : "OpenSurfaceModel"), "source material/surface role retained");
     // R=2. Side height is 3 on one half and 3+1.5*cos(theta) on the other:
     // side area=12*pi+6. Caps add 4*pi+2*pi+2.5*pi; volume=12*pi+4.
-    const double expectedArea = (material ? 20.5 : 12) * std::numbers::pi + 6;
+    // A whole ellipse has zero mean tilt: its side area and material volume
+    // are 12*pi, and its two caps add 4*pi+5*pi. The source ellipse still has
+    // one source vertex; the target meridian supplies a distinct derived cut.
+    const double expectedArea = closedEllipse ? (material ? 21 : 12) * std::numbers::pi : (material ? 20.5 : 12) * std::numbers::pi + 6;
     // As in the other general-import controls, compare the area observation at
     // twice the requested 1e-4 relative quadrature stopping accuracy. Derived
     // trims retain their original 1e-3 mm budget; this is no new geometry or
@@ -95,7 +99,7 @@ Outcome Check(const std::string& text, const std::filesystem::path& archive, boo
     if (material)
     {
         Require(model->MaterialVolumeMm3().has_value(), "explicit material volume is applicable");
-        Near(*model->MaterialVolumeMm3(), 12 * std::numbers::pi + 4, 1e-4, "independent material volume");
+        Near(*model->MaterialVolumeMm3(), 12 * std::numbers::pi + (closedEllipse ? 0 : 4), 1e-4, "independent material volume");
     }
     else
     {
@@ -122,7 +126,7 @@ Outcome Check(const std::string& text, const std::filesystem::path& archive, boo
     copy.model->Edit(
         [&](SmBrep& b)
         {
-            Native(b, material);
+            Native(b, material, closedEllipse);
         }
     );
     model->WriteNative(archive);
@@ -139,7 +143,7 @@ Outcome Check(const std::string& text, const std::filesystem::path& archive, boo
             bodies.GetSize() == 1,
         "complete native archive replay"
     );
-    Native(*bodies[0], material);
+    Native(*bodies[0], material, closedEllipse);
     copy.model->Edit(
         [&](SmBrep& b)
         {
@@ -222,6 +226,8 @@ int main(int argc, char** argv)
             Require(failed.status == Status::Cancelled && !failed.model, "cancel releases all unpublished subdivisions");
         }
         Check(Read(fixtures / "mixed_ellipse_cylinder_solid.step"), directory / "material.smb", true);
+        Check(Read(fixtures / "closed_ellipse_cylinder_band.step"), directory / "closed-ellipse-surface.smb", false, true);
+        Check(Read(fixtures / "closed_ellipse_cylinder_solid.step"), directory / "closed-ellipse-material.smb", true, true);
         auto off = text;
         auto at = off.find("ELLIPSE('',#51,2.5,2.)");
         Require(at != std::string::npos, "independent source gap mutation");

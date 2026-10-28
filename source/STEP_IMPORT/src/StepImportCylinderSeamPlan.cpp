@@ -140,9 +140,23 @@ bool Finite(const SmPoint3d& p)
             }
         }
     }
-    if (!anchorLoop || loops[1 - *anchorLoop].size() < 2)
+    if (!anchorLoop || loops[1 - *anchorLoop].empty())
     {
         return std::optional<CylinderSeamPlan>{};
+    }
+    const auto& opposite = loops[1 - *anchorLoop];
+    if (opposite.size() == 1)
+    {
+        const auto& curve = *definitions.at(opposite[0].edge);
+        // A whole ellipse is one closed source use, not an empty mixed ring.
+        // Keep its original vertex as the natural-cycle anchor; the UNIQUE
+        // classified meridian encounter below may introduce an interior cut.
+        // Do not infer this scope for a closed B-spline or a second circle;
+        // those retain their separately qualified construction paths.
+        if (curve.firstVertex != curve.lastVertex || !dynamic_cast<const SmEllipse*>(curve.curve) || dynamic_cast<const SmCircle*>(curve.curve))
+        {
+            return std::optional<CylinderSeamPlan>{};
+        }
     }
     if (auto checked = Need(loopOf.size() == definitions.size(), "CylindricalSeamSurveyUnusedInput"); !checked)
     {

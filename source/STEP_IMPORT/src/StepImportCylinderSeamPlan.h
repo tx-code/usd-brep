@@ -35,7 +35,8 @@ struct CylinderSeamPlan
 // The caller owns NativeMutex, immutable prepared source geometry and the
 // allocating context. A private single-face survey copies complete definitions;
 // it never edits/adopts an input, changes tolerances or publishes a BRep.
-// Caller selects one closed circle plus one mixed source loop. A unique
+// Caller selects one closed circle plus one mixed source loop (which may be
+// one closed ELLIPSE use, retaining its own original vertex). A unique
 // meridian interval must connect that circle's original vertex to an existing
 // outer vertex or an interior CIRCLE/ELLIPSE point, within definitionMm in
 // physical mm. Native curve t and the cylinder's angular chart are not assumed

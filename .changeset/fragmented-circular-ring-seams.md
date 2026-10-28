@@ -17,6 +17,9 @@ Direct ellipses can participate in the mixed boundary, including a uniquely
 classified interior cut. Their analytic class, full defining basis and original
 parameter survive global subdivision; shared caps use the same target children.
 Native curve parameters are re-evaluated independently of cylinder chart angles.
+The opposite boundary can also be a single closed ellipse retaining its own
+source vertex. Only a unique classified meridian cut is admitted; this does not
+infer equivalent support for a closed spline or remove a source vertex.
 Ambiguous classifications and unsupported intersection families remain refused.
 The private meridian survey preserves its requested working tolerances while
 classification creates lazy UV caches. Definition, interval, vertex and tolerance
