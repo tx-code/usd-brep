@@ -1,0 +1,4130 @@
+{
+  "format": "ap242e2-catalog-source-reference.v1",
+  "scope": "CatalogTransportOnlyNoSourceQualification",
+  "source": {
+    "url": "https://www.mbx-if.org/home/wp-content/uploads/2024/07/ap242ed2_mim_lf_v1.101.zip",
+    "download_sha256": "c49efcf85172276dd769cf899f7543bcc1ef4bc003cb5ec26329ab6439019cdc",
+    "member": "ap242ed2_dis2_mim_lf_v1.101.exp",
+    "sha256": "ff51beb1be6e78faebd52338da342fd1059da2840beaa7cfd08b4df8e7c5a410",
+    "bytes": 2343934
+  },
+  "declarations": [
+    {
+      "name": "REPRESENTATION_ITEM",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "6ae5b2fad061186bc76539e93b855132e1158ab4fa489cb0e37d36e6e1c00681"
+    },
+    {
+      "name": "GEOMETRIC_REPRESENTATION_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "96a4af5fbff33f920094e4ae302fae95c1c57b78c392620f53698551a1338a6b"
+    },
+    {
+      "name": "TOPOLOGICAL_REPRESENTATION_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "d71a226b9ddf2e82b819747818f192f3b7ae5cfc73fb39fad58b186522855574"
+    },
+    {
+      "name": "POINT",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "bdd59f9c59eff2f8cd4f3d9012d229ae83d27bc67f560938071cf25cdeaddfd5"
+    },
+    {
+      "name": "CARTESIAN_POINT",
+      "parents": [
+        "POINT"
+      ],
+      "fields": [
+        {
+          "name": "coordinates",
+          "type": "LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 1,
+              "maximum": 3,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "1dd6b4c906014a1cd9ab5f5c6df1fa59d80db2beebbe5bd6c22ccd0da55bb074"
+    },
+    {
+      "name": "DIRECTION",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "direction_ratios",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": 3,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "93e429ab79c03e2384bed58a5861e62dbe2627fa8cc7b3bea9e4a60266ebd97b"
+    },
+    {
+      "name": "VECTOR",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "orientation",
+          "type": "DIRECTION",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "magnitude",
+          "type": "LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "06b74dae225312ee8ed87f411be8d9cfb41a40b42a49566a5c31b91ddc20b7cc"
+    },
+    {
+      "name": "PLACEMENT",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "location",
+          "type": "CARTESIAN_POINT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0ea41603b8d55e81bb2886ee54b840e82c15290e361ee366016be1aeace48b19"
+    },
+    {
+      "name": "AXIS2_PLACEMENT_3D",
+      "parents": [
+        "PLACEMENT"
+      ],
+      "fields": [
+        {
+          "name": "axis",
+          "type": "DIRECTION",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "ref_direction",
+          "type": "DIRECTION",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "7b62308b1c808d62419227dcd8ab1063a29e0aeaec5b40b3630c1a537c70da85"
+    },
+    {
+      "name": "CURVE",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0272ab37404bc66670f0dbcf7cf9692738d82d7466ea932bbec8c23b2cad0c76"
+    },
+    {
+      "name": "LINE",
+      "parents": [
+        "CURVE"
+      ],
+      "fields": [
+        {
+          "name": "pnt",
+          "type": "CARTESIAN_POINT",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "dir",
+          "type": "VECTOR",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "cc28fe7783297895c53faca2c95d28ce5f46851e1a3386246b2bf47368cc11d6"
+    },
+    {
+      "name": "SURFACE",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a9089e47362f738d0d9497f3e806f1fb4c99306924ccdc2ab3cc062f1ebb0dc0"
+    },
+    {
+      "name": "ELEMENTARY_SURFACE",
+      "parents": [
+        "SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "position",
+          "type": "AXIS2_PLACEMENT_3D",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "7002a4b5fd79a5f28e2364a798655e7456513350febc720c06f7ae29f749a869"
+    },
+    {
+      "name": "PLANE",
+      "parents": [
+        "ELEMENTARY_SURFACE"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "7bc8c1d721b9eef4925440e6c250641241a4577727bd7f48878d849a4831229e"
+    },
+    {
+      "name": "VERTEX",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "4657ff9fe30c4819e133ad205e5752ca87fd422a0e4c2eb7a191f54481d3fe2b"
+    },
+    {
+      "name": "VERTEX_POINT",
+      "parents": [
+        "VERTEX",
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "vertex_geometry",
+          "type": "POINT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "6481553ce6287b16971b572e1bfe058c4c0ccfa199766e98809b9e818370dc4f"
+    },
+    {
+      "name": "EDGE",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "edge_start",
+          "type": "VERTEX",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "edge_end",
+          "type": "VERTEX",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "ad733cfdcb608bf792699525b587bdcbad7ba7a483ebac7d143469799c9e8e30"
+    },
+    {
+      "name": "EDGE_CURVE",
+      "parents": [
+        "EDGE",
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "edge_geometry",
+          "type": "CURVE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "same_sense",
+          "type": "BOOLEAN",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "471dff3f70c9e9eb5017d86ed2b9fba0c178359327dfe6db7e91790307563d46"
+    },
+    {
+      "name": "ORIENTED_EDGE",
+      "parents": [
+        "EDGE"
+      ],
+      "fields": [
+        {
+          "name": "edge_element",
+          "type": "EDGE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "orientation",
+          "type": "BOOLEAN",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [
+        {
+          "declared_in": "EDGE",
+          "field": "edge_start"
+        },
+        {
+          "declared_in": "EDGE",
+          "field": "edge_end"
+        }
+      ],
+      "declaration_sha256": "6a88b031480a54f54dd8426e82ea935b8f026cc343468202037a0a956e48ad51"
+    },
+    {
+      "name": "LOOP",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "b1d572b6fb225d6b7f5a3d82b87a28ad012ea935b847b550826cbb6ab7abab73"
+    },
+    {
+      "name": "PATH",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "edge_list",
+          "type": "ORIENTED_EDGE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 1,
+              "maximum": null,
+              "unique": true
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "7a7afb85f7667504bc65846701bc0b11ebb80f276b762f280345b23cca9a27bb"
+    },
+    {
+      "name": "EDGE_LOOP",
+      "parents": [
+        "LOOP",
+        "PATH"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "e020134b50b191fbfe5b198876682b249896a222c3f9db66f509ec40f44e1960"
+    },
+    {
+      "name": "FACE_BOUND",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "bound",
+          "type": "LOOP",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "orientation",
+          "type": "BOOLEAN",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "ce6574cde1376dcd20cedded085eaa4343f2257740f9d7eb44f113f746745f7c"
+    },
+    {
+      "name": "FACE_OUTER_BOUND",
+      "parents": [
+        "FACE_BOUND"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c415498ab002f2fa886898dda182a5325694a0b600e668073fe9420bc9ccb724"
+    },
+    {
+      "name": "FACE",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "bounds",
+          "type": "FACE_BOUND",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "ee7c0929f57b71996c644d4354fdc2ab2b814a5c2dacdb7a8b14c408685b5e44"
+    },
+    {
+      "name": "FACE_SURFACE",
+      "parents": [
+        "FACE",
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "face_geometry",
+          "type": "SURFACE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "same_sense",
+          "type": "BOOLEAN",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3f3827397e9197658b7a94eb21fbe6e2a1e52841879efdd9b03122f87358af90"
+    },
+    {
+      "name": "ADVANCED_FACE",
+      "parents": [
+        "FACE_SURFACE"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "7d1983b0682b07b7b91a714c7c9e2c70e9266adc27a8af09d135c17cd50e5e23"
+    },
+    {
+      "name": "CONNECTED_FACE_SET",
+      "parents": [
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "cfs_faces",
+          "type": "FACE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3a83985b7e5ff707f44d4f54b42c405fb02a05d9f99b84b90e9d943a2d900592"
+    },
+    {
+      "name": "OPEN_SHELL",
+      "parents": [
+        "CONNECTED_FACE_SET"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "634ee605a2428feae6a0d4ceff8623a738005e922baad4b04685f6d0d1b5d4d0"
+    },
+    {
+      "name": "CLOSED_SHELL",
+      "parents": [
+        "CONNECTED_FACE_SET"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "634ee605a2428feae6a0d4ceff8623a738005e922baad4b04685f6d0d1b5d4d0"
+    },
+    {
+      "name": "SOLID_MODEL",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8a78407c54fa85372b89266ad68f670f6d4d6a935521252f74410ff6ac904e89"
+    },
+    {
+      "name": "MANIFOLD_SOLID_BREP",
+      "parents": [
+        "SOLID_MODEL"
+      ],
+      "fields": [
+        {
+          "name": "outer",
+          "type": "CLOSED_SHELL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8ffca856964f45b041bedca731555d03ccf38433f1f87c10cec736ab1ac9cf33"
+    },
+    {
+      "name": "SHELL_BASED_SURFACE_MODEL",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "sbsm_boundary",
+          "type": "SHELL",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "efbd0a89c695e913ac64b5817fb2cc88c1aefaea70444fa9ac64d8801f2930f1"
+    },
+    {
+      "name": "REPRESENTATION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "items",
+          "type": "REPRESENTATION_ITEM",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "context_of_items",
+          "type": "REPRESENTATION_CONTEXT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "57ba94d68db1daf9250cfaad67985f5b85ce70add67515a4dc0ca765e2092ccc"
+    },
+    {
+      "name": "SHAPE_REPRESENTATION",
+      "parents": [
+        "REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "44e8c66d49d76cf2bd7a3e817c12ab81e0b36bc509600851b606341d260a4b1d"
+    },
+    {
+      "name": "ADVANCED_BREP_SHAPE_REPRESENTATION",
+      "parents": [
+        "SHAPE_REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "4a50016164f5625a3b0ee9dccc09f62114232e784b58f68932b940a2b7055009"
+    },
+    {
+      "name": "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+      "parents": [
+        "SHAPE_REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "db0a639f730980e8d01b3d08bd297952edcd1e880703b798004c26a845e8c10c"
+    },
+    {
+      "name": "APPLICATION_CONTEXT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "application",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "b2c2f7d3e87065bc0586133db725a9f17cf662f65a464c16822045b9ad68b00a"
+    },
+    {
+      "name": "APPLICATION_CONTEXT_ELEMENT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "frame_of_reference",
+          "type": "APPLICATION_CONTEXT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "b4578a01c377dbff6fcf7cb6079d8907b2dc18a3414d5cd990e9aa688998ed61"
+    },
+    {
+      "name": "APPLICATION_PROTOCOL_DEFINITION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "status",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "application_interpreted_model_schema_name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "application_protocol_year",
+          "type": "YEAR_NUMBER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "application",
+          "type": "APPLICATION_CONTEXT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f94e63d5c8639889b73cba58be081f349dd11ac4cbbcbf60690df5ff08a685fc"
+    },
+    {
+      "name": "PRODUCT_CONTEXT",
+      "parents": [
+        "APPLICATION_CONTEXT_ELEMENT"
+      ],
+      "fields": [
+        {
+          "name": "discipline_type",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c4df8ce397577edf899bde3eff6d5adb1c0c19ebf10bd43f5cc6f0413d27441f"
+    },
+    {
+      "name": "MECHANICAL_CONTEXT",
+      "parents": [
+        "PRODUCT_CONTEXT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "aa2f47b4440bdd76c748c3b2ed64253faa78a2fb9f25b56a095c13e26681809a"
+    },
+    {
+      "name": "PRODUCT_DEFINITION_CONTEXT",
+      "parents": [
+        "APPLICATION_CONTEXT_ELEMENT"
+      ],
+      "fields": [
+        {
+          "name": "life_cycle_stage",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "04fe94e8186baf9bdc1b4523f302cf179beb2c1e1931bdbf110259fff8f847b8"
+    },
+    {
+      "name": "DESIGN_CONTEXT",
+      "parents": [
+        "PRODUCT_DEFINITION_CONTEXT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "5035cb7f833136cf9f6b826bdc753ee13615ff5feb3589c3c0f278347e1d501f"
+    },
+    {
+      "name": "PRODUCT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "type": "IDENTIFIER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "frame_of_reference",
+          "type": "PRODUCT_CONTEXT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "ce2d80bcd890380532888324db507e75b21141dfb47f2a70d4294da66033af45"
+    },
+    {
+      "name": "PRODUCT_DEFINITION_FORMATION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "type": "IDENTIFIER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "of_product",
+          "type": "PRODUCT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8904f43e51559192c3dbe3c01acf45b428741516412714962ff17647e4951b20"
+    },
+    {
+      "name": "PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE",
+      "parents": [
+        "PRODUCT_DEFINITION_FORMATION"
+      ],
+      "fields": [
+        {
+          "name": "make_or_buy",
+          "type": "SOURCE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "5ad4b5d1cbab5158bddbe9a134b077df65f639f5089fe42518568becd4d74507"
+    },
+    {
+      "name": "PRODUCT_DEFINITION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "type": "IDENTIFIER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "formation",
+          "type": "PRODUCT_DEFINITION_FORMATION",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "frame_of_reference",
+          "type": "PRODUCT_DEFINITION_CONTEXT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "2b4882cb7300cf0e965009b832c75364b1b5f8582a87bbe9dbe7cf002c2f1544"
+    },
+    {
+      "name": "PROPERTY_DEFINITION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "definition",
+          "type": "CHARACTERIZED_DEFINITION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "658a9923ccfa846e0128dc096e8782c3a449be53154b4fea87690b1059cadca4"
+    },
+    {
+      "name": "PRODUCT_DEFINITION_SHAPE",
+      "parents": [
+        "PROPERTY_DEFINITION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8ca39f00adc3b8cc3b50870a593d4cddd4e5826db5f0c2f6a2256f07b4895a1e"
+    },
+    {
+      "name": "PROPERTY_DEFINITION_REPRESENTATION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "definition",
+          "type": "REPRESENTED_DEFINITION",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "used_representation",
+          "type": "REPRESENTATION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "d85c7c7d6aa583087b8abda3b9fed3cbb8f64840991ebda809643ca9a04304b1"
+    },
+    {
+      "name": "SHAPE_DEFINITION_REPRESENTATION",
+      "parents": [
+        "PROPERTY_DEFINITION_REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [
+        {
+          "declared_in": "PROPERTY_DEFINITION_REPRESENTATION",
+          "field": "definition",
+          "type": "PROPERTY_DEFINITION",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "declared_in": "PROPERTY_DEFINITION_REPRESENTATION",
+          "field": "used_representation",
+          "type": "SHAPE_REPRESENTATION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "derived_overrides": [],
+      "declaration_sha256": "330d0dbc5d3090cce01eaee6ec48fc44cbb846e295897712be3a94af86a41276"
+    },
+    {
+      "name": "PRODUCT_CATEGORY",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0119908a5fad0470d36b5732caa871996b92d98c14e874e40b0d77bebd71119c"
+    },
+    {
+      "name": "PRODUCT_RELATED_PRODUCT_CATEGORY",
+      "parents": [
+        "PRODUCT_CATEGORY"
+      ],
+      "fields": [
+        {
+          "name": "products",
+          "type": "PRODUCT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "85b63f118562c3cdda27c0434a270c024cb5deabc087b45f350cf71d800de439"
+    },
+    {
+      "name": "REPRESENTATION_CONTEXT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "context_identifier",
+          "type": "IDENTIFIER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "context_type",
+          "type": "TEXT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "93adc50b0afb84bfc062b2a439a4342ea55fcfe5ef8a24d6f4a95ee3c158e070"
+    },
+    {
+      "name": "GEOMETRIC_REPRESENTATION_CONTEXT",
+      "parents": [
+        "REPRESENTATION_CONTEXT"
+      ],
+      "fields": [
+        {
+          "name": "coordinate_space_dimension",
+          "type": "DIMENSION_COUNT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "ea389a5f08059b96b3db9341f870bf9291714ad5f8ab0545af4df21ec4b90b75"
+    },
+    {
+      "name": "GLOBAL_UNIT_ASSIGNED_CONTEXT",
+      "parents": [
+        "REPRESENTATION_CONTEXT"
+      ],
+      "fields": [
+        {
+          "name": "units",
+          "type": "UNIT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "696f502e8e0aab5327226d064c562ef569f1588f5ead2a3d078921239cfc54c8"
+    },
+    {
+      "name": "GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT",
+      "parents": [
+        "REPRESENTATION_CONTEXT"
+      ],
+      "fields": [
+        {
+          "name": "uncertainty",
+          "type": "UNCERTAINTY_MEASURE_WITH_UNIT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f5d5b8bdb5c2542e867251203556f35ae661c7dd4ca9d124df78d24ecc831e08"
+    },
+    {
+      "name": "NAMED_UNIT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "dimensions",
+          "type": "DIMENSIONAL_EXPONENTS",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "b7ebd1b0a223c392fd589a0c7e52ab9fffc9877ecfc0ed7e040a89b50b5da07c"
+    },
+    {
+      "name": "SI_UNIT",
+      "parents": [
+        "NAMED_UNIT"
+      ],
+      "fields": [
+        {
+          "name": "prefix",
+          "type": "SI_PREFIX",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "name",
+          "type": "SI_UNIT_NAME",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [
+        {
+          "declared_in": "NAMED_UNIT",
+          "field": "dimensions"
+        }
+      ],
+      "declaration_sha256": "334019e89fba4f7b22854469708780f2dfbc695dce12e76a7b7f4d7588265687"
+    },
+    {
+      "name": "LENGTH_UNIT",
+      "parents": [
+        "NAMED_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "cef5cea78442cbd3d0722c253c04342009b06979b9f3aea50578e588ef698666"
+    },
+    {
+      "name": "PLANE_ANGLE_UNIT",
+      "parents": [
+        "NAMED_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "252f62398cf32e48ed7e7bb45186d17c278dd075823287b2132552a8d281663c"
+    },
+    {
+      "name": "SOLID_ANGLE_UNIT",
+      "parents": [
+        "NAMED_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "252f62398cf32e48ed7e7bb45186d17c278dd075823287b2132552a8d281663c"
+    },
+    {
+      "name": "CONVERSION_BASED_UNIT",
+      "parents": [
+        "NAMED_UNIT"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "conversion_factor",
+          "type": "MEASURE_WITH_UNIT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "94d2d151f4b414046648efcd2e7095064f70c9db9dfe7366454839d3f144a8c9"
+    },
+    {
+      "name": "DIMENSIONAL_EXPONENTS",
+      "parents": [],
+      "fields": [
+        {
+          "name": "length_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "mass_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "time_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "electric_current_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "thermodynamic_temperature_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "amount_of_substance_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "luminous_intensity_exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "155858be6510fb1a750a6cf099f51e9ec06b57bbb49a51a42bb0a67198b93831"
+    },
+    {
+      "name": "MEASURE_WITH_UNIT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "value_component",
+          "type": "MEASURE_VALUE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "unit_component",
+          "type": "UNIT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a6451deafc2b3854cc48cbf9cdf873aaad6e8d0836dabf7c3634fd7aa5286fad"
+    },
+    {
+      "name": "LENGTH_MEASURE_WITH_UNIT",
+      "parents": [
+        "MEASURE_WITH_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "004459cc9ec1185fb7fa56f863afe835d0f4f68c0af2a84c29f9b5bf1266f5de"
+    },
+    {
+      "name": "UNCERTAINTY_MEASURE_WITH_UNIT",
+      "parents": [
+        "MEASURE_WITH_UNIT"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "66e701717a6df3d04f1672f8b074940f21eaccc016d7363d7f880cc23f48b52c"
+    },
+    {
+      "name": "MASS_UNIT",
+      "parents": [
+        "NAMED_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8813a17a05994e87c264f2bb5114d7a0483af32232c5d4ba59cac4a96b728c32"
+    },
+    {
+      "name": "FOUNDED_ITEM",
+      "parents": [],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3cde190fd9d2ef1f1237414ff452b59bd0f479007582c40aa98445611d0b0f61"
+    },
+    {
+      "name": "DERIVED_UNIT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "elements",
+          "type": "DERIVED_UNIT_ELEMENT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "b3c03b58b7ee97e547fbfdc2af53ad5afa48e0a237bcfd85b4660fdb091ccaf4"
+    },
+    {
+      "name": "DERIVED_UNIT_ELEMENT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "unit",
+          "type": "NAMED_UNIT",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "exponent",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "d27f257098af1e3c89b33c0962f1abea5af7971bdb9925c8bc699b03aad6f218"
+    },
+    {
+      "name": "MASS_MEASURE_WITH_UNIT",
+      "parents": [
+        "MEASURE_WITH_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0fc34077f320ffbdf2876d0640f865541b67451cb21d64b47e4b7a3a51766215"
+    },
+    {
+      "name": "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION",
+      "parents": [
+        "REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [
+        {
+          "declared_in": "REPRESENTATION",
+          "field": "items",
+          "type": "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION_ITEMS",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "derived_overrides": [],
+      "declaration_sha256": "b421759cc5bb8f7ea2a460b206dbd7cf73aca621e5febacf5b6f63a3f512baf2"
+    },
+    {
+      "name": "STYLED_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "styles",
+          "type": "PRESENTATION_STYLE_ASSIGNMENT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 0,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "item",
+          "type": "STYLED_ITEM_TARGET",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "77f54df8874669c3df7bc98c24c132f62a593345caf241a8a1a53035af8c9cad"
+    },
+    {
+      "name": "PRESENTATION_STYLE_ASSIGNMENT",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "styles",
+          "type": "PRESENTATION_STYLE_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0e99a3f583f0d790a8f3a042956b96d4a92e7b9b7a523136f773bdf59e1ef39a"
+    },
+    {
+      "name": "SURFACE_STYLE_USAGE",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "side",
+          "type": "SURFACE_SIDE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "style",
+          "type": "SURFACE_SIDE_STYLE_SELECT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0b02badcc9048182f36b8d36e611d260192d5ef97a5da0b64b8e6ba92386fc63"
+    },
+    {
+      "name": "SURFACE_SIDE_STYLE",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "styles",
+          "type": "SURFACE_STYLE_ELEMENT_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": 7,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "541d25c5427f140aee3d0e99960f2e14f1edc4d0f4e0364194219476bd0d40e8"
+    },
+    {
+      "name": "SURFACE_STYLE_FILL_AREA",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "fill_area",
+          "type": "FILL_AREA_STYLE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "2f4a2843816a1e29b870b2e66312aace11cb52bd037acb2b291fc3d7422e8151"
+    },
+    {
+      "name": "FILL_AREA_STYLE",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "fill_styles",
+          "type": "FILL_STYLE_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "abde43e50c78fe21533d7263437c9edd35548ccb7cf9075afc2c5a6b35f7eb1b"
+    },
+    {
+      "name": "FILL_AREA_STYLE_COLOUR",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "fill_colour",
+          "type": "COLOUR",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "4765b32e19138c6b1dce467bfe98c7ab3c9b38f54cc185eb130877ee648baa29"
+    },
+    {
+      "name": "COLOUR",
+      "parents": [],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "41b805ea7ac014e23556e98bb374702a08344268f92489a02f0880849394a1e4"
+    },
+    {
+      "name": "COLOUR_SPECIFICATION",
+      "parents": [
+        "COLOUR"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "e6e188fd16fb387d8e4b5fecfabe71adfb78275c9c02565a0c40a07c28615923"
+    },
+    {
+      "name": "COLOUR_RGB",
+      "parents": [
+        "COLOUR_SPECIFICATION"
+      ],
+      "fields": [
+        {
+          "name": "red",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "green",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "blue",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3adc66772618dff2b3c6ccfd7dff13ea101bb25a6a75020f0988a811b0bb4022"
+    },
+    {
+      "name": "REPRESENTATION_RELATIONSHIP",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "rep_1",
+          "type": "REPRESENTATION_OR_REPRESENTATION_REFERENCE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "rep_2",
+          "type": "REPRESENTATION_OR_REPRESENTATION_REFERENCE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "61b943a76602c2a75d7d9c2a55f376627af15dc0b7a88cda86f304df1ef647a2"
+    },
+    {
+      "name": "SHAPE_REPRESENTATION_RELATIONSHIP",
+      "parents": [
+        "REPRESENTATION_RELATIONSHIP"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f94f0a0c61964f588804236d447eadb88a4698ad602b9ca75e58a3d03258e0bd"
+    },
+    {
+      "name": "CONIC",
+      "parents": [
+        "CURVE"
+      ],
+      "fields": [
+        {
+          "name": "position",
+          "type": "AXIS2_PLACEMENT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "1e4bee70a6cd7d63c42c263a7c06c9736f3cabf0f935232fc37e778d556b4549"
+    },
+    {
+      "name": "CIRCLE",
+      "parents": [
+        "CONIC"
+      ],
+      "fields": [
+        {
+          "name": "radius",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "2d18914acde671cdbe3003e02512a73e9e84b3cc1ac9d6d8b5c294c58d89dd52"
+    },
+    {
+      "name": "ELLIPSE",
+      "parents": [
+        "CONIC"
+      ],
+      "fields": [
+        {
+          "name": "semi_axis_1",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "semi_axis_2",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c0965d33e165ba6594e2ac5f8aa555d9523c5b11a4b57c4b3117c31553b086a6"
+    },
+    {
+      "name": "CYLINDRICAL_SURFACE",
+      "parents": [
+        "ELEMENTARY_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "radius",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "14ee41f5917f438749cbcd2c4ee17566ef35ae68ffc9d792f0b928a4db002c04"
+    },
+    {
+      "name": "CONICAL_SURFACE",
+      "parents": [
+        "ELEMENTARY_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "radius",
+          "type": "LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "semi_angle",
+          "type": "PLANE_ANGLE_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "dbcfbab890438d228b1fd8649200d3d610e971a8969e6b95b8ded967372d3e67"
+    },
+    {
+      "name": "BOUNDED_CURVE",
+      "parents": [
+        "CURVE"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "afab10a8bec6e77845bd844e9a7b7fd4bde03f323df72aa5a6e8a0243b93f66f"
+    },
+    {
+      "name": "B_SPLINE_CURVE",
+      "parents": [
+        "BOUNDED_CURVE"
+      ],
+      "fields": [
+        {
+          "name": "degree",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "control_points_list",
+          "type": "CARTESIAN_POINT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "curve_form",
+          "type": "B_SPLINE_CURVE_FORM",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "closed_curve",
+          "type": "LOGICAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "self_intersect",
+          "type": "LOGICAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "1dca7cacb0f278f55baab134264be7bc2d734d21bd9367e3862d77fb36f66d02"
+    },
+    {
+      "name": "B_SPLINE_CURVE_WITH_KNOTS",
+      "parents": [
+        "B_SPLINE_CURVE"
+      ],
+      "fields": [
+        {
+          "name": "knot_multiplicities",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "knots",
+          "type": "PARAMETER_VALUE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "knot_spec",
+          "type": "KNOT_TYPE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "54d823e86861ce1c70b795dbd8a86fb5d783929fce47de1e8bfa343a68d52eb2"
+    },
+    {
+      "name": "BOUNDED_SURFACE",
+      "parents": [
+        "SURFACE"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "58f358a6d5bb903b5d72925bef6a731283dfb93e716bedf35e9d3db3e4cf8669"
+    },
+    {
+      "name": "B_SPLINE_SURFACE",
+      "parents": [
+        "BOUNDED_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "u_degree",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "v_degree",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "control_points_list",
+          "type": "CARTESIAN_POINT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            },
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "surface_form",
+          "type": "B_SPLINE_SURFACE_FORM",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "u_closed",
+          "type": "LOGICAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "v_closed",
+          "type": "LOGICAL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "self_intersect",
+          "type": "LOGICAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c498cbdff7e641bc7a82351aad8c947aa41c22ac52d9079488ac41c30ff79e76"
+    },
+    {
+      "name": "B_SPLINE_SURFACE_WITH_KNOTS",
+      "parents": [
+        "B_SPLINE_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "u_multiplicities",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "v_multiplicities",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "u_knots",
+          "type": "PARAMETER_VALUE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "v_knots",
+          "type": "PARAMETER_VALUE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "knot_spec",
+          "type": "KNOT_TYPE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "02f29aceb8612efcb2e0d72a66b8213e87b6876d1317cded7b6f65aa50cfd473"
+    },
+    {
+      "name": "MEASURE_REPRESENTATION_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM",
+        "MEASURE_WITH_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "ad7108b32e892642160e72ec90a7c267122ef3f97da27e7033218006596acd0c"
+    },
+    {
+      "name": "DESCRIPTIVE_REPRESENTATION_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f729b3b9eaff270bfac31adc4058b39e777c9618e1aab605350e59a200e7f336"
+    },
+    {
+      "name": "DATE",
+      "parents": [],
+      "fields": [
+        {
+          "name": "year_component",
+          "type": "YEAR_NUMBER",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "5dda35bced3ac460040f78199a5028138d5ef4433e08eaa4e88235483ccec9a9"
+    },
+    {
+      "name": "CALENDAR_DATE",
+      "parents": [
+        "DATE"
+      ],
+      "fields": [
+        {
+          "name": "day_component",
+          "type": "DAY_IN_MONTH_NUMBER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "month_component",
+          "type": "MONTH_IN_YEAR_NUMBER",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f330450e0464e19dac394fa1e3a8928c8abe9728beeddd7ba3fcd6ded11de7af"
+    },
+    {
+      "name": "DATE_AND_TIME",
+      "parents": [],
+      "fields": [
+        {
+          "name": "date_component",
+          "type": "DATE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "time_component",
+          "type": "LOCAL_TIME",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "983473af709ba94a98fcb47345d49dfadef7a569da6438de72a1051e7288eef8"
+    },
+    {
+      "name": "LOCAL_TIME",
+      "parents": [],
+      "fields": [
+        {
+          "name": "hour_component",
+          "type": "HOUR_IN_DAY",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "minute_component",
+          "type": "MINUTE_IN_HOUR",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "second_component",
+          "type": "SECOND_IN_MINUTE",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "zone",
+          "type": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a0391cce8302323b51658e505ad6321a1a605f58fbc1bc4e67187132ec0ad847"
+    },
+    {
+      "name": "COORDINATED_UNIVERSAL_TIME_OFFSET",
+      "parents": [],
+      "fields": [
+        {
+          "name": "hour_offset",
+          "type": "INTEGER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "minute_offset",
+          "type": "INTEGER",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "sense",
+          "type": "AHEAD_OR_BEHIND",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c48502c510ad8c965718e3d9f32f87a5e3bf6536b545cd54049d49e23f62ebfc"
+    },
+    {
+      "name": "DATE_TIME_ROLE",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c34cf0a5b6d4c80a0d855ae04afb49139d9d64d5bab8a6d617de18be177900cc"
+    },
+    {
+      "name": "DATE_AND_TIME_ASSIGNMENT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "assigned_date_and_time",
+          "type": "DATE_AND_TIME",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "role",
+          "type": "DATE_TIME_ROLE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a68a8a971646d4f12063ab340c773344cd84f12453d2f19960c41f3012e5b768"
+    },
+    {
+      "name": "APPLIED_DATE_AND_TIME_ASSIGNMENT",
+      "parents": [
+        "DATE_AND_TIME_ASSIGNMENT"
+      ],
+      "fields": [
+        {
+          "name": "items",
+          "type": "DATE_AND_TIME_ITEM",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c71825fc8934f62bb8f92b40c02bafcfa1c0ec383f2dc8c28505fcc3e1ba95c8"
+    },
+    {
+      "name": "SURFACE_STYLE_RENDERING",
+      "parents": [],
+      "fields": [
+        {
+          "name": "rendering_method",
+          "type": "SHADING_SURFACE_METHOD",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "surface_colour",
+          "type": "COLOUR",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c70d7a1d0050fd84371f7023bec9115b4add89371c6d2e2e8e095a9c08302d28"
+    },
+    {
+      "name": "SURFACE_STYLE_RENDERING_WITH_PROPERTIES",
+      "parents": [
+        "SURFACE_STYLE_RENDERING"
+      ],
+      "fields": [
+        {
+          "name": "properties",
+          "type": "RENDERING_PROPERTIES_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "71bdd9a85148ebf2e84508a3cffc9bb703dac00caec431a2778c0b3b6e3affcf"
+    },
+    {
+      "name": "SURFACE_STYLE_TRANSPARENT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "transparency",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "1598289b255deac68b343620a2ad74774269f6eed1a0f1ce779fad87dda53f4f"
+    },
+    {
+      "name": "PRE_DEFINED_ITEM",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8619e26d3044d074a6e0e8fe3f7e929f3282f873547ebf8c4de2c3b54665a885"
+    },
+    {
+      "name": "PRE_DEFINED_CURVE_FONT",
+      "parents": [
+        "PRE_DEFINED_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f444969ffeea55c712d0d7bf66c903e7975e16f4d09d502f56ecd103450ba663"
+    },
+    {
+      "name": "DRAUGHTING_PRE_DEFINED_CURVE_FONT",
+      "parents": [
+        "PRE_DEFINED_CURVE_FONT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "68c2a465b485ab92fb7cfd394b277214819eb580c39a9f3a0ed27c970d10e6e2"
+    },
+    {
+      "name": "CURVE_STYLE",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "curve_font",
+          "type": "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "curve_width",
+          "type": "SIZE_SELECT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "curve_colour",
+          "type": "COLOUR",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "edc90dd678888d7a1fc816bc5a3693c42bca5b174970761b9e3f846b1fbdaa07"
+    },
+    {
+      "name": "GENERAL_PROPERTY",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "type": "IDENTIFIER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a9b3143e54f4797ad5b5e66fd9ee9df22ad0aea63bb92505f91694daa0035907"
+    },
+    {
+      "name": "GENERAL_PROPERTY_ASSOCIATION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "base_definition",
+          "type": "GENERAL_PROPERTY",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "derived_definition",
+          "type": "DERIVED_PROPERTY_SELECT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "67f760ca5884ed82bc2bb765d55bfe1c754a270540062ed12a6457bd0ea24b50"
+    },
+    {
+      "name": "OVER_RIDING_STYLED_ITEM",
+      "parents": [
+        "STYLED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "over_ridden_style",
+          "type": "STYLED_ITEM",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "e5d6979d9b1e2970b8189fbde0ce63f6e082b23b0318ffd3788c52f2b41e627e"
+    },
+    {
+      "name": "PRESENTATION_LAYER_ASSIGNMENT",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "assigned_items",
+          "type": "LAYERED_ITEM",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "5e5ae3cf922ff285bb88302c40422641de73d0f68cd1ce05b562b3741bfd6db4"
+    },
+    {
+      "name": "RATIONAL_B_SPLINE_CURVE",
+      "parents": [
+        "B_SPLINE_CURVE"
+      ],
+      "fields": [
+        {
+          "name": "weights_data",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "bee5f9a3b6a56216cb85fbd3d4cbb02f363edf6e6ef6988a7cce2356d769eed6"
+    },
+    {
+      "name": "RATIONAL_B_SPLINE_SURFACE",
+      "parents": [
+        "B_SPLINE_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "weights_data",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            },
+            {
+              "aggregate": "LIST",
+              "minimum": 2,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f44db6a5d9c1d1d704a1925c540fa350eed1df7008614127786a81737a0ba818"
+    },
+    {
+      "name": "TOROIDAL_SURFACE",
+      "parents": [
+        "ELEMENTARY_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "major_radius",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "minor_radius",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "7f9f8c5b6185fa606b88a4b2f4188efac04aa8a9786889893869eda6e80dcff1"
+    },
+    {
+      "name": "TRIMMED_CURVE",
+      "parents": [
+        "BOUNDED_CURVE"
+      ],
+      "fields": [
+        {
+          "name": "basis_curve",
+          "type": "CURVE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "trim_1",
+          "type": "TRIMMING_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "trim_2",
+          "type": "TRIMMING_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "sense_agreement",
+          "type": "BOOLEAN",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "master_representation",
+          "type": "TRIMMING_PREFERENCE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "145937ee16615761a350704d8ce715ed1b79268f8a300a12b538bc0a98338695"
+    },
+    {
+      "name": "PLANE_ANGLE_MEASURE_WITH_UNIT",
+      "parents": [
+        "MEASURE_WITH_UNIT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "019b10a7624c371c8493540b2afeaf6e7e5d0d1cb81a3b8d21832c671825178a"
+    },
+    {
+      "name": "PRE_DEFINED_COLOUR",
+      "parents": [
+        "PRE_DEFINED_ITEM",
+        "COLOUR"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8af4dc11e15db05bccf99309f716558d8b7cb9ebfd9c5e9c0ddec3323ad0fb37"
+    },
+    {
+      "name": "DRAUGHTING_PRE_DEFINED_COLOUR",
+      "parents": [
+        "PRE_DEFINED_COLOUR"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "459d1209813d6cfeb280d3a01eeb62176165525a3b8bc4385a1b2d2a58f026b6"
+    },
+    {
+      "name": "GENERIC_EXPRESSION",
+      "parents": [],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "67f5b2e75e0f72f861856744b9f49bf18b6286dbdc9cba9ca3b2b4920918e447"
+    },
+    {
+      "name": "EXPRESSION",
+      "parents": [
+        "GENERIC_EXPRESSION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "545e397ac47c76ea356cc908ede55903426b5464f2beeca531919065d9296377"
+    },
+    {
+      "name": "NUMERIC_EXPRESSION",
+      "parents": [
+        "EXPRESSION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a57adb3bd9806716c9d8a05ccae5b7f97cee0e0ba3f4203ec56cae63fe1377bd"
+    },
+    {
+      "name": "SIMPLE_GENERIC_EXPRESSION",
+      "parents": [
+        "GENERIC_EXPRESSION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8a22d8f493543e7654c2ae0530cc5ecf7df414fad63e9dfcfa772fe91a2f0ea4"
+    },
+    {
+      "name": "GENERIC_LITERAL",
+      "parents": [
+        "SIMPLE_GENERIC_EXPRESSION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "b02fd1ef8ef8e91fa0209dda11d43231a0e021d834e987272ad9fa5bee275e2e"
+    },
+    {
+      "name": "SIMPLE_NUMERIC_EXPRESSION",
+      "parents": [
+        "NUMERIC_EXPRESSION",
+        "SIMPLE_GENERIC_EXPRESSION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "9414cbf8afceaf83acb1c9d0d9218b59861b8cb50377f41e57e02d59f9fd6a9b"
+    },
+    {
+      "name": "LITERAL_NUMBER",
+      "parents": [
+        "SIMPLE_NUMERIC_EXPRESSION",
+        "GENERIC_LITERAL"
+      ],
+      "fields": [
+        {
+          "name": "the_value",
+          "type": "NUMBER",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3d6fdbc14e32f25b1c82ea93f35dca89dc387a5a34f9145f922a9b52ab34a9dd"
+    },
+    {
+      "name": "REAL_LITERAL",
+      "parents": [
+        "LITERAL_NUMBER"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [
+        {
+          "declared_in": "LITERAL_NUMBER",
+          "field": "the_value",
+          "type": "REAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "derived_overrides": [],
+      "declaration_sha256": "6dd92bb858b54f8c697a276e88a315dd615b68211278f31fd9b628d299db7a5e"
+    },
+    {
+      "name": "REAL_REPRESENTATION_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM",
+        "REAL_LITERAL"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "e150e4a66cce7b50a586d57f7a4b31b196172bf3d5f827670cbce682eed0873a"
+    },
+    {
+      "name": "GEOMETRIC_SET",
+      "parents": [
+        "GEOMETRIC_REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "elements",
+          "type": "GEOMETRIC_SET_SELECT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "cfc575db27b9ab3640b24f756e188cd1d2ba77095c5974d5c6a9dc3f738c3465"
+    },
+    {
+      "name": "GEOMETRIC_CURVE_SET",
+      "parents": [
+        "GEOMETRIC_SET"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3bcbcfaf123ae33fd0a1a3eba3781bd2e19c3827d42c3bc9c4e3e69f488fc622"
+    },
+    {
+      "name": "GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION",
+      "parents": [
+        "SHAPE_REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8c2bdc9aea285496bee907efb6a68b4700d3f54dbc2484019b5d367047980dbd"
+    },
+    {
+      "name": "PRODUCT_CATEGORY_RELATIONSHIP",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "category",
+          "type": "PRODUCT_CATEGORY",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "sub_category",
+          "type": "PRODUCT_CATEGORY",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "e66ca8b9af14890ac0c3e09f9ba1d6741759ba260a8b8699f2543048224b966a"
+    },
+    {
+      "name": "INVISIBILITY",
+      "parents": [],
+      "fields": [
+        {
+          "name": "invisible_items",
+          "type": "INVISIBLE_ITEM",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "SET",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f203a704aa705ee8eb57dd49c41346dbb49248c43cfbef53db2730ce42ed7c87"
+    },
+    {
+      "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+      "parents": [
+        "REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "8204bfd609ee0b10f50abc603e194955eb495c38c70cc4ac71e9ef2cf8ed5967"
+    },
+    {
+      "name": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_RELATIONSHIP",
+      "parents": [
+        "REPRESENTATION_RELATIONSHIP"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [
+        {
+          "declared_in": "REPRESENTATION_RELATIONSHIP",
+          "field": "rep_1",
+          "type": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_OR_SHAPE_REPRESENTATION",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "declared_in": "REPRESENTATION_RELATIONSHIP",
+          "field": "rep_2",
+          "type": "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "derived_overrides": [],
+      "declaration_sha256": "e82d83c746d22ad8d1013515e373f83d177a8980ecdcee8f64a84fc767f5c60d"
+    },
+    {
+      "name": "PARAMETRIC_REPRESENTATION_CONTEXT",
+      "parents": [
+        "REPRESENTATION_CONTEXT"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "e8b913303b4a1f2749ada0b99836fd6c377f82e05f37c1bee0cf71888a472fea"
+    },
+    {
+      "name": "VALUE_REPRESENTATION_ITEM",
+      "parents": [
+        "REPRESENTATION_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "value_component",
+          "type": "MEASURE_VALUE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f030374590fae37e15fabd7b7bb3cb336eee984d9b33a789924402bf8ef6c781"
+    },
+    {
+      "name": "POINT_STYLE",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "marker",
+          "type": "MARKER_SELECT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "marker_size",
+          "type": "SIZE_SELECT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "marker_colour",
+          "type": "COLOUR",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "de2232c0375323a9df2aed85294c7efa32d79a973484a927de3190f193f8f0e1"
+    },
+    {
+      "name": "PRE_DEFINED_MARKER",
+      "parents": [
+        "PRE_DEFINED_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f444969ffeea55c712d0d7bf66c903e7975e16f4d09d502f56ecd103450ba663"
+    },
+    {
+      "name": "PRE_DEFINED_SYMBOL",
+      "parents": [
+        "PRE_DEFINED_ITEM"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "f444969ffeea55c712d0d7bf66c903e7975e16f4d09d502f56ecd103450ba663"
+    },
+    {
+      "name": "PRE_DEFINED_POINT_MARKER_SYMBOL",
+      "parents": [
+        "PRE_DEFINED_MARKER",
+        "PRE_DEFINED_SYMBOL"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "16c08b78902294ff9c09c396a686e0deee1fe87e5470e2c8529ceaf96ba11c5d"
+    },
+    {
+      "name": "COMPOSITE_CURVE",
+      "parents": [
+        "BOUNDED_CURVE"
+      ],
+      "fields": [
+        {
+          "name": "segments",
+          "type": "COMPOSITE_CURVE_SEGMENT",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 1,
+              "maximum": null,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "self_intersect",
+          "type": "LOGICAL",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "818c2ef9e4948de7daba3142e44526b6ea035485ea82c5d72db21a6dd36992f5"
+    },
+    {
+      "name": "COMPOSITE_CURVE_SEGMENT",
+      "parents": [
+        "FOUNDED_ITEM"
+      ],
+      "fields": [
+        {
+          "name": "transition",
+          "type": "TRANSITION_CODE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "same_sense",
+          "type": "BOOLEAN",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "parent_curve",
+          "type": "CURVE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "5432543a3bbfda7507759d4f03acd04a3b114f954932812a7946b8b60a9aa0ed"
+    },
+    {
+      "name": "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION",
+      "parents": [
+        "SHAPE_REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "13023887ca84a486d5a91904671188b2a03143935497e02bc9702b13bb2cf403"
+    },
+    {
+      "name": "SPHERICAL_SURFACE",
+      "parents": [
+        "ELEMENTARY_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "radius",
+          "type": "POSITIVE_LENGTH_MEASURE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "14ee41f5917f438749cbcd2c4ee17566ef35ae68ffc9d792f0b928a4db002c04"
+    },
+    {
+      "name": "PRODUCT_DEFINITION_RELATIONSHIP",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "type": "IDENTIFIER",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "relating_product_definition",
+          "type": "PRODUCT_DEFINITION_OR_REFERENCE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "related_product_definition",
+          "type": "PRODUCT_DEFINITION_OR_REFERENCE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "5e9e88b7d17cfe53383e8563a9197babc23d1a524002ccdf57e5fc5e5eb6ab5d"
+    },
+    {
+      "name": "PRODUCT_DEFINITION_USAGE",
+      "parents": [
+        "PRODUCT_DEFINITION_RELATIONSHIP"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "efc5b16fd492a3a9f2c334ab1393bbba1e7967b573b6e965752dad3cc03c5384"
+    },
+    {
+      "name": "ASSEMBLY_COMPONENT_USAGE",
+      "parents": [
+        "PRODUCT_DEFINITION_USAGE"
+      ],
+      "fields": [
+        {
+          "name": "reference_designator",
+          "type": "IDENTIFIER",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "60827ae3e43a04469e2283219a7b6baea02670c2eae43f34366da8b895b1abb0"
+    },
+    {
+      "name": "NEXT_ASSEMBLY_USAGE_OCCURRENCE",
+      "parents": [
+        "ASSEMBLY_COMPONENT_USAGE"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "3e6258e0db9459e90800efab4535116636fba77f8154ab20fb2cb7d7890779c5"
+    },
+    {
+      "name": "CONTEXT_DEPENDENT_SHAPE_REPRESENTATION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "representation_relation",
+          "type": "SHAPE_REPRESENTATION_RELATIONSHIP",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "represented_product_relation",
+          "type": "PRODUCT_DEFINITION_SHAPE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "228168caadfb941617aa46d86c11070932feb0af25537060087a4f14f5fbf3f4"
+    },
+    {
+      "name": "ITEM_DEFINED_TRANSFORMATION",
+      "parents": [],
+      "fields": [
+        {
+          "name": "name",
+          "type": "LABEL",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "optional": true,
+          "dimensions": []
+        },
+        {
+          "name": "transform_item_1",
+          "type": "REPRESENTATION_ITEM",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "transform_item_2",
+          "type": "REPRESENTATION_ITEM",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "4d5ca29a7ea5d391d0f5ba5530d054d21eff0ff9e4e423939ccfe5171eb875ac"
+    },
+    {
+      "name": "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION",
+      "parents": [
+        "REPRESENTATION_RELATIONSHIP"
+      ],
+      "fields": [
+        {
+          "name": "transformation_operator",
+          "type": "TRANSFORMATION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "58bc6c47f817d586e60fd6d07e3fc0facdca6fb1fe460a4bbfbafde2d2b469c1"
+    },
+    {
+      "name": "AXIS1_PLACEMENT",
+      "parents": [
+        "PLACEMENT"
+      ],
+      "fields": [
+        {
+          "name": "axis",
+          "type": "DIRECTION",
+          "optional": true,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "4799017f896339be76150276eb853b8fa62c58327f110ac264520f25fd700be3"
+    },
+    {
+      "name": "SWEPT_SURFACE",
+      "parents": [
+        "SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "swept_curve",
+          "type": "CURVE",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "0cda5ca2a7ebffa8fa1a7d67194e7f904ff9fbeb0a67c76affb4eb95db8e77e9"
+    },
+    {
+      "name": "SURFACE_OF_REVOLUTION",
+      "parents": [
+        "SWEPT_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "axis_position",
+          "type": "AXIS1_PLACEMENT",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "c43966ef2f11d8812d183da38050c8ac10a06f30327597b495f9cd02da1d958d"
+    },
+    {
+      "name": "DEFINITIONAL_REPRESENTATION",
+      "parents": [
+        "REPRESENTATION"
+      ],
+      "fields": [],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "a6a3b6c9658c7a934cb14214bfc7cadbcc53c14a5698c1b0f761862c50413878"
+    },
+    {
+      "name": "PCURVE",
+      "parents": [
+        "CURVE"
+      ],
+      "fields": [
+        {
+          "name": "basis_surface",
+          "type": "SURFACE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "reference_to_curve",
+          "type": "DEFINITIONAL_REPRESENTATION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "214473ada584b50a454074fbd3315e4f3122125d102ea1d0bf2c866558a5fcf7"
+    },
+    {
+      "name": "SURFACE_CURVE",
+      "parents": [
+        "CURVE"
+      ],
+      "fields": [
+        {
+          "name": "curve_3d",
+          "type": "CURVE",
+          "optional": false,
+          "dimensions": []
+        },
+        {
+          "name": "associated_geometry",
+          "type": "PCURVE_OR_SURFACE",
+          "optional": false,
+          "dimensions": [
+            {
+              "aggregate": "LIST",
+              "minimum": 1,
+              "maximum": 2,
+              "unique": false
+            }
+          ]
+        },
+        {
+          "name": "master_representation",
+          "type": "PREFERRED_SURFACE_CURVE_REPRESENTATION",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "4c1ff8491333d8f999e0b94c36f5d4eee422e41d14f9b0d572d98aec6c120fe3"
+    },
+    {
+      "name": "VERTEX_LOOP",
+      "parents": [
+        "LOOP"
+      ],
+      "fields": [
+        {
+          "name": "loop_vertex",
+          "type": "VERTEX",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "bad32b3fb38e9b516f7468729edf69453b513e78f4cdb55dc6426911f589b4d1"
+    },
+    {
+      "name": "SURFACE_OF_LINEAR_EXTRUSION",
+      "parents": [
+        "SWEPT_SURFACE"
+      ],
+      "fields": [
+        {
+          "name": "extrusion_axis",
+          "type": "VECTOR",
+          "optional": false,
+          "dimensions": []
+        }
+      ],
+      "explicit_redeclarations": [],
+      "derived_overrides": [],
+      "declaration_sha256": "19d3b8520d287b3ef5f735a31ac9b2e3f75f05f734f68c0abaabd717ab890263"
+    }
+  ],
+  "types": {
+    "GEOMETRIC_SET_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "ANNOTATION_TEXT",
+        "CURVE",
+        "PLACEMENT",
+        "PLANAR_BOX",
+        "POINT",
+        "SURFACE"
+      ]
+    },
+    "LAYERED_ITEM": {
+      "kind": "SELECT",
+      "branches": [
+        "PRESENTATION_REPRESENTATION",
+        "REPRESENTATION_ITEM"
+      ]
+    },
+    "TEXT": {
+      "kind": "ALIAS",
+      "base": "STRING"
+    },
+    "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION_ITEMS": {
+      "kind": "SELECT",
+      "branches": [
+        "AXIS2_PLACEMENT",
+        "CAMERA_MODEL_D3",
+        "MAPPED_ITEM",
+        "STYLED_ITEM"
+      ]
+    },
+    "CURVE_FONT_OR_SCALED_CURVE_FONT_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "CURVE_STYLE_FONT_AND_SCALING",
+        "CURVE_STYLE_FONT_SELECT"
+      ]
+    },
+    "MINUTE_IN_HOUR": {
+      "kind": "ALIAS",
+      "base": "INTEGER"
+    },
+    "DATE_AND_TIME_ITEM": {
+      "kind": "SELECT",
+      "branches": [
+        "ACTION",
+        "ACTION_DIRECTIVE",
+        "ACTION_METHOD",
+        "ACTION_PROPERTY",
+        "ACTION_RELATIONSHIP",
+        "ACTION_REQUEST_SOLUTION",
+        "ALTERNATE_PRODUCT_RELATIONSHIP",
+        "ANALYSIS_ASSIGNMENT",
+        "APPLIED_ACTION_ASSIGNMENT",
+        "APPLIED_ACTION_METHOD_ASSIGNMENT",
+        "APPLIED_CERTIFICATION_ASSIGNMENT",
+        "APPLIED_CLASSIFICATION_ASSIGNMENT",
+        "APPLIED_CONTRACT_ASSIGNMENT",
+        "APPLIED_DOCUMENT_REFERENCE",
+        "APPLIED_DOCUMENT_USAGE_CONSTRAINT_ASSIGNMENT",
+        "APPLIED_EFFECTIVITY_ASSIGNMENT",
+        "APPLIED_EVENT_OCCURRENCE_ASSIGNMENT",
+        "APPLIED_IDENTIFICATION_ASSIGNMENT",
+        "APPLIED_ORGANIZATIONAL_PROJECT_ASSIGNMENT",
+        "APPLIED_ORGANIZATION_ASSIGNMENT",
+        "APPLIED_PERSON_AND_ORGANIZATION_ASSIGNMENT",
+        "APPLIED_SECURITY_CLASSIFICATION_ASSIGNMENT",
+        "APPLIED_USAGE_RIGHT",
+        "APPROVAL",
+        "APPROVAL_PERSON_ORGANIZATION",
+        "APPROVAL_STATUS",
+        "ASCRIBABLE_STATE",
+        "ASSEMBLY_COMPONENT_USAGE_SUBSTITUTE",
+        "CERTIFICATION",
+        "CLASS",
+        "CLASS_SYSTEM",
+        "CONFIGURATION_DESIGN",
+        "CONFIGURATION_ITEM",
+        "CONFIGURED_EFFECTIVITY_ASSIGNMENT",
+        "CONTRACT",
+        "DATA_EQUIVALENCE_DEFINITION",
+        "DATA_QUALITY_DEFINITION",
+        "DATE_AND_TIME_ASSIGNMENT",
+        "DATE_ASSIGNMENT",
+        "DIRECTED_ACTION",
+        "DOCUMENT",
+        "DOCUMENT_FILE",
+        "DRAUGHTING_MODEL",
+        "DRAWING_REVISION",
+        "EFFECTIVITY",
+        "ENVELOPE",
+        "EVENT_OCCURRENCE",
+        "EVIDENCE",
+        "EXECUTED_ACTION",
+        "GENERAL_PROPERTY",
+        "GENERAL_PROPERTY_RELATIONSHIP",
+        "INFORMATION_USAGE_RIGHT",
+        "INTERFACE_CONNECTION",
+        "INTERFACE_CONNECTOR_AS_PLANNED",
+        "INTERFACE_CONNECTOR_AS_REALIZED",
+        "INTERFACE_CONNECTOR_DESIGN_TO_PLANNED",
+        "INTERFACE_CONNECTOR_DESIGN_TO_REALIZED",
+        "INTERFACE_CONNECTOR_OCCURRENCE",
+        "INTERFACE_CONNECTOR_PLANNED_TO_REALIZED",
+        "INTERFACE_DEFINITION_CONNECTION",
+        "INTERFACE_DEFINITION_FOR",
+        "MATERIAL_DESIGNATION",
+        "MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION",
+        "ORGANIZATIONAL_ADDRESS",
+        "ORGANIZATIONAL_PROJECT",
+        "ORGANIZATION_RELATIONSHIP",
+        "PERSON",
+        "PERSON_AND_ORGANIZATION",
+        "PRESENTATION_AREA",
+        "PRODUCT",
+        "PRODUCT_CONCEPT",
+        "PRODUCT_CONCEPT_FEATURE",
+        "PRODUCT_CONCEPT_FEATURE_ASSOCIATION",
+        "PRODUCT_CONCEPT_FEATURE_CATEGORY",
+        "PRODUCT_CONCEPT_FEATURE_CATEGORY_USAGE",
+        "PRODUCT_DEFINITION",
+        "PRODUCT_DEFINITION_CONTEXT",
+        "PRODUCT_DEFINITION_FORMATION",
+        "PRODUCT_DEFINITION_FORMATION_RELATIONSHIP",
+        "PRODUCT_DEFINITION_RELATIONSHIP",
+        "PRODUCT_DEFINITION_SUBSTITUTE",
+        "PRODUCT_GROUP",
+        "PRODUCT_GROUP_MEMBERSHIP",
+        "PRODUCT_GROUP_RELATIONSHIP",
+        "PRODUCT_IDENTIFICATION",
+        "PROPERTY_DEFINITION",
+        "PROPERTY_DEFINITION_REPRESENTATION",
+        "REPRESENTATION",
+        "REQUIREMENT_ASSIGNMENT",
+        "REQUIREMENT_FOR_ACTION_RESOURCE",
+        "REQUIREMENT_SOURCE",
+        "RESOURCE_PROPERTY",
+        "RULE_ACTION",
+        "SECURITY_CLASSIFICATION",
+        "SECURITY_CLASSIFICATION_LEVEL",
+        "SHAPE_REPRESENTATION",
+        "STATE_OBSERVED",
+        "STATE_OBSERVED_ASSIGNMENT",
+        "STATE_OBSERVED_RELATIONSHIP",
+        "STATE_TYPE",
+        "STATE_TYPE_ASSIGNMENT",
+        "STATE_TYPE_RELATIONSHIP",
+        "STRUCTURED_MESSAGE",
+        "VALIDATION",
+        "VERIFICATION",
+        "VERIFICATION_RELATIONSHIP",
+        "VERSIONED_ACTION_REQUEST"
+      ]
+    },
+    "AHEAD_OR_BEHIND": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "AHEAD",
+        "EXACT",
+        "BEHIND"
+      ]
+    },
+    "TRANSFORMATION": {
+      "kind": "SELECT",
+      "branches": [
+        "FUNCTIONALLY_DEFINED_TRANSFORMATION",
+        "ITEM_DEFINED_TRANSFORMATION",
+        "LIST_ITEM_DEFINED_TRANSFORMATION",
+        "SET_ITEM_DEFINED_TRANSFORMATION"
+      ]
+    },
+    "SECOND_IN_MINUTE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "SIZE_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "DESCRIPTIVE_MEASURE",
+        "MEASURE_WITH_UNIT",
+        "POSITIVE_LENGTH_MEASURE"
+      ]
+    },
+    "UNIT": {
+      "kind": "SELECT",
+      "branches": [
+        "DERIVED_UNIT",
+        "NAMED_UNIT"
+      ]
+    },
+    "B_SPLINE_SURFACE_FORM": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "PLANE_SURF",
+        "CYLINDRICAL_SURF",
+        "CONICAL_SURF",
+        "SPHERICAL_SURF",
+        "TOROIDAL_SURF",
+        "SURF_OF_REVOLUTION",
+        "RULED_SURF",
+        "GENERALISED_CONE",
+        "QUADRIC_SURF",
+        "SURF_OF_LINEAR_EXTRUSION",
+        "UNSPECIFIED"
+      ]
+    },
+    "B_SPLINE_CURVE_FORM": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "POLYLINE_FORM",
+        "CIRCULAR_ARC",
+        "ELLIPTIC_ARC",
+        "PARABOLIC_ARC",
+        "HYPERBOLIC_ARC",
+        "UNSPECIFIED"
+      ]
+    },
+    "TRIMMING_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "CARTESIAN_POINT",
+        "PARAMETER_VALUE"
+      ]
+    },
+    "TRANSITION_CODE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "DISCONTINUOUS",
+        "CONTINUOUS",
+        "CONT_SAME_GRADIENT",
+        "CONT_SAME_GRADIENT_SAME_CURVATURE"
+      ]
+    },
+    "KNOT_TYPE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "UNIFORM_KNOTS",
+        "QUASI_UNIFORM_KNOTS",
+        "PIECEWISE_BEZIER_KNOTS",
+        "UNSPECIFIED"
+      ]
+    },
+    "SURFACE_SIDE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "POSITIVE",
+        "NEGATIVE",
+        "BOTH"
+      ]
+    },
+    "FILL_STYLE_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "EXTERNALLY_DEFINED_HATCH_STYLE",
+        "EXTERNALLY_DEFINED_TILE_STYLE",
+        "FILL_AREA_STYLE_COLOUR",
+        "FILL_AREA_STYLE_HATCHING",
+        "FILL_AREA_STYLE_TILES",
+        "TEXTURE_STYLE_SPECIFICATION"
+      ]
+    },
+    "SHADING_SURFACE_METHOD": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "CONSTANT_SHADING",
+        "COLOUR_SHADING",
+        "DOT_SHADING",
+        "NORMAL_SHADING"
+      ]
+    },
+    "TRIMMING_PREFERENCE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "CARTESIAN",
+        "PARAMETER",
+        "UNSPECIFIED"
+      ]
+    },
+    "PREFERRED_SURFACE_CURVE_REPRESENTATION": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "CURVE_3D",
+        "PCURVE_S1",
+        "PCURVE_S2"
+      ]
+    },
+    "HOUR_IN_DAY": {
+      "kind": "ALIAS",
+      "base": "INTEGER"
+    },
+    "DERIVED_PROPERTY_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "ACTION_PROPERTY",
+        "DIMENSIONAL_LOCATION",
+        "DIMENSIONAL_SIZE",
+        "GEOMETRIC_TOLERANCE",
+        "PROPERTY_DEFINITION",
+        "RESOURCE_PROPERTY"
+      ]
+    },
+    "REPRESENTED_DEFINITION": {
+      "kind": "SELECT",
+      "branches": [
+        "GENERAL_PROPERTY",
+        "PROPERTY_DEFINITION",
+        "PROPERTY_DEFINITION_RELATIONSHIP",
+        "SHAPE_ASPECT",
+        "SHAPE_ASPECT_RELATIONSHIP"
+      ]
+    },
+    "LIST_ITEM_DEFINED_TRANSFORMATION": {
+      "kind": "ALIAS",
+      "base": "LIST [2 : ?] OF ITEM_DEFINED_TRANSFORMATION"
+    },
+    "MEASURE_VALUE": {
+      "kind": "SELECT",
+      "branches": [
+        "ABSORBED_DOSE_MEASURE",
+        "ACCELERATION_MEASURE",
+        "AMOUNT_OF_SUBSTANCE_MEASURE",
+        "AREA_MEASURE",
+        "CAPACITANCE_MEASURE",
+        "CELSIUS_TEMPERATURE_MEASURE",
+        "CONDUCTANCE_MEASURE",
+        "CONTEXT_DEPENDENT_MEASURE",
+        "COUNT_MEASURE",
+        "DESCRIPTIVE_MEASURE",
+        "DOSE_EQUIVALENT_MEASURE",
+        "ELECTRIC_CHARGE_MEASURE",
+        "ELECTRIC_CURRENT_MEASURE",
+        "ELECTRIC_POTENTIAL_MEASURE",
+        "ENERGY_MEASURE",
+        "FORCE_MEASURE",
+        "FREQUENCY_MEASURE",
+        "ILLUMINANCE_MEASURE",
+        "INDUCTANCE_MEASURE",
+        "LENGTH_MEASURE",
+        "LUMINOUS_FLUX_MEASURE",
+        "LUMINOUS_INTENSITY_MEASURE",
+        "MAGNETIC_FLUX_DENSITY_MEASURE",
+        "MAGNETIC_FLUX_MEASURE",
+        "MASS_MEASURE",
+        "NON_NEGATIVE_LENGTH_MEASURE",
+        "NUMERIC_MEASURE",
+        "PARAMETER_VALUE",
+        "PLANE_ANGLE_MEASURE",
+        "POSITIVE_LENGTH_MEASURE",
+        "POSITIVE_PLANE_ANGLE_MEASURE",
+        "POSITIVE_RATIO_MEASURE",
+        "POWER_MEASURE",
+        "PRESSURE_MEASURE",
+        "RADIOACTIVITY_MEASURE",
+        "RATIO_MEASURE",
+        "RESISTANCE_MEASURE",
+        "SOLID_ANGLE_MEASURE",
+        "THERMODYNAMIC_TEMPERATURE_MEASURE",
+        "TIME_MEASURE",
+        "VELOCITY_MEASURE",
+        "VOLUME_MEASURE"
+      ]
+    },
+    "MARKER_TYPE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "DOT",
+        "X",
+        "PLUS",
+        "ASTERISK",
+        "RING",
+        "SQUARE",
+        "TRIANGLE"
+      ]
+    },
+    "POSITIVE_LENGTH_MEASURE": {
+      "kind": "ALIAS",
+      "base": "NON_NEGATIVE_LENGTH_MEASURE"
+    },
+    "MASS_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "MONTH_IN_YEAR_NUMBER": {
+      "kind": "ALIAS",
+      "base": "INTEGER"
+    },
+    "AREA_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "PLANE_ANGLE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "CAPACITANCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "LENGTH_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "VELOCITY_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "FORCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "TIME_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "CONTEXT_DEPENDENT_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "IDENTIFIER": {
+      "kind": "ALIAS",
+      "base": "STRING"
+    },
+    "CONDUCTANCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "RESISTANCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "SOURCE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "MADE",
+        "BOUGHT",
+        "NOT_KNOWN"
+      ]
+    },
+    "CONSTRUCTIVE_GEOMETRY_REPRESENTATION_OR_SHAPE_REPRESENTATION": {
+      "kind": "SELECT",
+      "branches": [
+        "CONSTRUCTIVE_GEOMETRY_REPRESENTATION",
+        "SHAPE_REPRESENTATION"
+      ]
+    },
+    "SI_PREFIX": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "EXA",
+        "PETA",
+        "TERA",
+        "GIGA",
+        "MEGA",
+        "KILO",
+        "HECTO",
+        "DECA",
+        "DECI",
+        "CENTI",
+        "MILLI",
+        "MICRO",
+        "NANO",
+        "PICO",
+        "FEMTO",
+        "ATTO"
+      ]
+    },
+    "SOLID_ANGLE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "LABEL": {
+      "kind": "ALIAS",
+      "base": "STRING"
+    },
+    "DESCRIPTIVE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "STRING"
+    },
+    "DAY_IN_MONTH_NUMBER": {
+      "kind": "ALIAS",
+      "base": "INTEGER"
+    },
+    "ELECTRIC_POTENTIAL_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "MARKER_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "MARKER_TYPE",
+        "PRE_DEFINED_MARKER"
+      ]
+    },
+    "PARAMETER_VALUE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "RENDERING_PROPERTIES_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "SURFACE_STYLE_REFLECTANCE_AMBIENT",
+        "SURFACE_STYLE_TRANSPARENT"
+      ]
+    },
+    "SET_ITEM_DEFINED_TRANSFORMATION": {
+      "kind": "ALIAS",
+      "base": "SET [2 : ?] OF ITEM_DEFINED_TRANSFORMATION"
+    },
+    "PRESENTATION_STYLE_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "CURVE_STYLE",
+        "EXTERNALLY_DEFINED_STYLE",
+        "FILL_AREA_STYLE",
+        "NULL_STYLE",
+        "POINT_STYLE",
+        "SURFACE_STYLE_USAGE",
+        "SYMBOL_STYLE",
+        "TEXTURE_STYLE_TESSELLATION_SPECIFICATION",
+        "TEXT_STYLE"
+      ]
+    },
+    "MAGNETIC_FLUX_DENSITY_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "YEAR_NUMBER": {
+      "kind": "ALIAS",
+      "base": "INTEGER"
+    },
+    "POSITIVE_PLANE_ANGLE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "PLANE_ANGLE_MEASURE"
+    },
+    "STYLED_ITEM_TARGET": {
+      "kind": "SELECT",
+      "branches": [
+        "GEOMETRIC_REPRESENTATION_ITEM",
+        "MAPPED_ITEM",
+        "REPRESENTATION_OR_REPRESENTATION_REFERENCE",
+        "TOPOLOGICAL_REPRESENTATION_ITEM"
+      ]
+    },
+    "PRODUCT_DEFINITION_OR_REFERENCE": {
+      "kind": "SELECT",
+      "branches": [
+        "GENERIC_PRODUCT_DEFINITION_REFERENCE",
+        "PRODUCT_DEFINITION",
+        "PRODUCT_DEFINITION_OCCURRENCE"
+      ]
+    },
+    "NUMERIC_MEASURE": {
+      "kind": "ALIAS",
+      "base": "NUMBER"
+    },
+    "CURVE_STYLE_FONT_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "CURVE_STYLE_FONT",
+        "EXTERNALLY_DEFINED_CURVE_FONT",
+        "PRE_DEFINED_CURVE_FONT"
+      ]
+    },
+    "POWER_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "ENERGY_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "INVISIBLE_ITEM": {
+      "kind": "SELECT",
+      "branches": [
+        "DRAUGHTING_CALLOUT",
+        "PRESENTATION_LAYER_ASSIGNMENT",
+        "REPRESENTATION",
+        "STYLED_ITEM"
+      ]
+    },
+    "SHELL": {
+      "kind": "SELECT",
+      "branches": [
+        "CLOSED_SHELL",
+        "OPEN_SHELL",
+        "VERTEX_SHELL",
+        "WIRE_SHELL"
+      ]
+    },
+    "ELECTRIC_CHARGE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "SURFACE_SIDE_STYLE_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "PRE_DEFINED_SURFACE_SIDE_STYLE",
+        "SURFACE_SIDE_STYLE"
+      ]
+    },
+    "SI_UNIT_NAME": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "METRE",
+        "GRAM",
+        "SECOND",
+        "AMPERE",
+        "KELVIN",
+        "MOLE",
+        "CANDELA",
+        "RADIAN",
+        "STERADIAN",
+        "HERTZ",
+        "NEWTON",
+        "PASCAL",
+        "JOULE",
+        "WATT",
+        "COULOMB",
+        "VOLT",
+        "FARAD",
+        "OHM",
+        "SIEMENS",
+        "WEBER",
+        "TESLA",
+        "HENRY",
+        "DEGREE_CELSIUS",
+        "LUMEN",
+        "LUX",
+        "BECQUEREL",
+        "GRAY",
+        "SIEVERT"
+      ]
+    },
+    "POSITIVE_RATIO_MEASURE": {
+      "kind": "ALIAS",
+      "base": "RATIO_MEASURE"
+    },
+    "RADIOACTIVITY_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "DOSE_EQUIVALENT_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "AXIS2_PLACEMENT": {
+      "kind": "SELECT",
+      "branches": [
+        "AXIS2_PLACEMENT_2D",
+        "AXIS2_PLACEMENT_3D"
+      ]
+    },
+    "INDUCTANCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "PCURVE_OR_SURFACE": {
+      "kind": "SELECT",
+      "branches": [
+        "PCURVE",
+        "SURFACE"
+      ]
+    },
+    "REPRESENTATION_OR_REPRESENTATION_REFERENCE": {
+      "kind": "SELECT",
+      "branches": [
+        "REPRESENTATION",
+        "REPRESENTATION_REFERENCE"
+      ]
+    },
+    "SURFACE_STYLE_ELEMENT_SELECT": {
+      "kind": "SELECT",
+      "branches": [
+        "SURFACE_STYLE_BOUNDARY",
+        "SURFACE_STYLE_CONTROL_GRID",
+        "SURFACE_STYLE_FILL_AREA",
+        "SURFACE_STYLE_PARAMETER_LINE",
+        "SURFACE_STYLE_RENDERING",
+        "SURFACE_STYLE_SEGMENTATION_CURVE",
+        "SURFACE_STYLE_SILHOUETTE"
+      ]
+    },
+    "CHARACTERIZED_DEFINITION": {
+      "kind": "SELECT",
+      "branches": [
+        "CHARACTERIZED_ITEM",
+        "CHARACTERIZED_OBJECT",
+        "CHARACTERIZED_PRODUCT_DEFINITION",
+        "SHAPE_DEFINITION"
+      ]
+    },
+    "PRESSURE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "MAGNETIC_FLUX_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "NULL_STYLE": {
+      "kind": "ENUMERATION OF",
+      "branches": [
+        "NULL"
+      ]
+    },
+    "DIMENSION_COUNT": {
+      "kind": "ALIAS",
+      "base": "INTEGER"
+    },
+    "NON_NEGATIVE_LENGTH_MEASURE": {
+      "kind": "ALIAS",
+      "base": "LENGTH_MEASURE"
+    },
+    "LUMINOUS_FLUX_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "FREQUENCY_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "THERMODYNAMIC_TEMPERATURE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "ILLUMINANCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "ABSORBED_DOSE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "VOLUME_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "LUMINOUS_INTENSITY_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "ACCELERATION_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "AMOUNT_OF_SUBSTANCE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "CELSIUS_TEMPERATURE_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "RATIO_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "ELECTRIC_CURRENT_MEASURE": {
+      "kind": "ALIAS",
+      "base": "REAL"
+    },
+    "COUNT_MEASURE": {
+      "kind": "ALIAS",
+      "base": "NUMBER"
+    },
+    "CHARACTERIZED_PRODUCT_DEFINITION": {
+      "kind": "SELECT",
+      "branches": [
+        "PRODUCT_DEFINITION",
+        "PRODUCT_DEFINITION_OCCURRENCE",
+        "PRODUCT_DEFINITION_RELATIONSHIP",
+        "PRODUCT_DEFINITION_RELATIONSHIP_RELATIONSHIP"
+      ]
+    },
+    "SHAPE_DEFINITION": {
+      "kind": "SELECT",
+      "branches": [
+        "PRODUCT_DEFINITION_SHAPE",
+        "SHAPE_ASPECT",
+        "SHAPE_ASPECT_RELATIONSHIP"
+      ]
+    },
+    "CHARACTERIZED_ITEM": {
+      "kind": "SELECT",
+      "branches": [
+        "DIMENSIONAL_SIZE",
+        "GEOMETRIC_TOLERANCE",
+        "ITEM_IDENTIFIED_REPRESENTATION_USAGE"
+      ]
+    }
+  }
+}

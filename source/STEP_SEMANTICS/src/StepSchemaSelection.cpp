@@ -54,7 +54,13 @@ constexpr std::array versions{ Version{ SchemaName, "1 0 10303 403 2 1 2", "ap20
                                // to AP214E3_2010.zip. The linked file's own header instead declares
                                // version(3), so give the published binding a distinct identity. Never
                                // drop an arc, infer an edition, or rewrite the captured HEADER.
-                               Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 1 1 1 1", "ap214-mbx-2010" } };
+                               Version{ "AUTOMOTIVE_DESIGN", "1 0 10303 214 1 1 1 1", "ap214-mbx-2010" },
+                               // MBx-IF EXPRESS Schemas table: recognition only. The
+                               // AP242 catalog cannot yet select a qualified checker.
+                               Version{ "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF", "1 0 10303 442 1 1 4", "ap242-edition-1" },
+                               Version{ "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF", "1 0 10303 442 3 1 4", "ap242-edition-2" },
+                               Version{ "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF", "1 0 10303 442 4 1 4", "ap242-edition-3" },
+                               Version{ "AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF", "1 0 10303 442 7 1 4", "ap242-edition-4" } };
 
 SchemaIdentifier Identify(const step_source::Value& value)
 {

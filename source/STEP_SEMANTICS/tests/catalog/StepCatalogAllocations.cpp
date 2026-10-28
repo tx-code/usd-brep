@@ -246,18 +246,15 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "one profile index required\n");
         return 2;
     }
-    if (argv[1][0] < '0' || argv[1][0] > '4' || argv[1][1] != '\0')
+    if (argv[1][0] < '0' || argv[1][0] > '5' || argv[1][1] != '\0')
     {
         return 2;
     }
     const int index = argv[1][0] - '0';
-    constexpr ProfileKind kinds[] = { ProfileKind::Ap203e2Planar,
-                                      ProfileKind::Ap203e2GeneralSource,
-                                      ProfileKind::Ap214e3Source,
-                                      ProfileKind::Ap214MbxSource,
-                                      ProfileKind::Ap203N916Source };
-    constexpr const char* names[] = { "Ap203e2Planar", "Ap203e2GeneralSource", "Ap214e3Source", "Ap214MbxSource", "Ap203N916Source" };
-    if (index < 0 || index >= 5)
+    constexpr ProfileKind kinds[] = { ProfileKind::Ap203e2Planar,  ProfileKind::Ap203e2GeneralSource, ProfileKind::Ap214e3Source,
+                                      ProfileKind::Ap214MbxSource, ProfileKind::Ap203N916Source,      ProfileKind::Ap242e2Source };
+    constexpr const char* names[] = { "Ap203e2Planar", "Ap203e2GeneralSource", "Ap214e3Source", "Ap214MbxSource", "Ap203N916Source", "Ap242e2Source" };
+    if (index < 0 || index >= 6)
     {
         return 2;
     }

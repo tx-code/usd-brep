@@ -34,6 +34,8 @@ constexpr const char* SourceArtifactName(ProfileKind profile)
             return "AP214E3_2010.exp";
         case ProfileKind::Ap203N916Source:
             return "STEPcode modified N916";
+        case ProfileKind::Ap242e2Source:
+            return "AP242 Ed.2 mim_lf.exp v1.101";
     }
     throw std::logic_error("Unknown source profile authority");
 }

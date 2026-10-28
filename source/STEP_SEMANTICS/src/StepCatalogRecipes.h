@@ -10,6 +10,7 @@
 #include "StepAp214SourceRolesCatalogData.h"
 #include "StepAp214SurfaceRoleCatalogData.h"
 #include "StepAp214ValueCatalogData.h"
+#include "StepAp242CatalogData.h"
 #include "StepCatalogBuilder.h"
 #include "StepCompositeCurveCatalogData.h"
 #include "StepDateTimeCatalogData.h"
@@ -524,6 +525,10 @@ constexpr Recipe Describe(ProfileKind profile)
 template <ProfileKind Profile>
 constexpr Recipe ProfileRecipe()
 {
+    if constexpr (Profile == ProfileKind::Ap242e2Source)
+    {
+        return ap242::Apply(ProfileRecipe<ProfileKind::Ap214MbxSource>());
+    }
     auto recipe = Describe(Profile);
     if constexpr (Profile != ProfileKind::Ap203e2Planar)
     {

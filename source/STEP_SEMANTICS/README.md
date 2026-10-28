@@ -785,6 +785,34 @@ names. Recognized versions have not thereby passed EXPRESS, geometry or native
 validation. Additional profiles need audited declarations, checks and their own
 dispatch before they can be admitted to the existing pipeline.
 
+AP242 Ed.1/2/3/4 identifiers from the
+[MBx-IF schema table](https://www.mbx-if.org/home/mbx/resources/express-schemas/)
+now have exact registry identities. The numeric OIDs are not normalized, and
+name-only or unregistered variants remain observations. **None selects a qualified
+AP242 source checker yet**: all current AP242 imports still return
+`UnsupportedSchemaBinding`; the existing AP214 interpretation options cannot
+turn a recognized AP242 identifier into an AP214 profile.
+
+An independent AP242 Ed.2 **catalog foundation only** is compiled from the
+[published v1.101 artifact](https://www.mbx-if.org/home/wp-content/uploads/2024/07/ap242ed2_mim_lf_v1.101.zip),
+SHA256 `ff51beb1be6e78faebd52338da342fd1059da2840beaa7cfd08b4df8e7c5a410`.
+Its 166 registered entities preserve the audited common parent/field transport,
+with AP242-specific explicit CBU dimensions, optional curve/point style fields,
+zero-minimum STYLED_ITEM styles, SELECT target types and six explicit inherited
+redeclarations. The source declaring slot and aggregate bounds remain intact;
+no extra source parameter or DERIVE marker is invented. Reference narrowing proves inclusion of the entire admitted domain through
+transitive branch ancestry, separately from the earlier NUMBER-to-REAL narrowing.
+No per-target enumeration or increased compiler step limit is required.
+
+[Independent schema facts](../../tools/step_catalog_validation/contracts/ap242e2-source-reference-v1.json)
+check all 217 local attributes, parents, reference branches, enumerations and
+explicit/derived redeclarations against the fixed source. This establishes
+catalog transport only. Profile-specific source clauses, ownership, units and
+native admission still need integration and acceptance; no geometry qualification
+or extra interoperability/repair policy follows from this catalog. External
+references, camera/mapping/PMI branches outside this closed catalog stay unsupported.
+The existing five catalogs and their frozen baseline remain unchanged.
+
 The AP214e3 source profile `214e3-P0-Source-0.1` binds exact
 `AUTOMOTIVE_DESIGN {1 0 10303 214 3 1 1}` to STEPcode commit
 `24783b448511b8f6bce2829286a3f00015430236`,

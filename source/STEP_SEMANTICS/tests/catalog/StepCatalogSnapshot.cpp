@@ -338,22 +338,30 @@ void ProfileJson(Writer& out, const ProfileEntry& profile)
 }
 } // namespace
 
-int main()
+int main(int argc, char** argv)
 {
     try
     {
+        const bool ap242 = argc == 2 && std::string_view(argv[1]) == "--ap242-catalog";
+        if (argc != 1 && !ap242)
+        {
+            throw std::invalid_argument("Unknown catalog snapshot argument");
+        }
         std::string output;
         // A test artifact bound, independent of the input/report acceptance
         // budgets. Publish only a complete snapshot, never a partial baseline.
         if (!Writer::Publish(
                 16 * 1024 * 1024,
                 output,
-                [](Writer& out)
+                [&](Writer& out)
                 {
                     out.Add("{\"format\":\"step-catalog-snapshot.v3\",\"profiles\":");
+                    constexpr ProfileEntry candidate[] = {
+                        { ProfileKind::Ap242e2Source, "Ap242e2Source", Ap242e2SourceProfile, Ap242e2SchemaSha256 }
+                    };
                     Array(
                         out,
-                        Profiles,
+                        ap242 ? std::span<const ProfileEntry>(candidate) : std::span<const ProfileEntry>(Profiles),
                         [&](const ProfileEntry& profile)
                         {
                             ProfileJson(out, profile);

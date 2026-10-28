@@ -456,10 +456,69 @@ constexpr Layout ComputeLayout(const Recipe& recipe)
             Fail(report, Error::ExplicitField, i);
             return layout;
         }
-        // This closed compiler currently admits exactly the scalar narrowing
-        // required by N2635 REAL_LITERAL. Preserve NUMBER at its declaring
-        // origin and REAL at the effective slot; do not invent a type lattice.
-        if (field->kind != FieldKind::Number || field->type != "NUMBER" || slot.kind != FieldKind::Real || slot.type != "REAL")
+        // Reference domains are unions of descendant sets. Inclusion of each
+        // new branch root in the old domain proves inclusion of ALL of its
+        // descendants by the already checked transitive ancestry. Resolve each
+        // domain once: scanning every target and repeatedly resolving names can
+        // exhaust MSVC Debug's constexpr step budget without adding evidence.
+        // Aggregate redeclarations retain their bounds/order/element codec;
+        // the only other admitted narrowing remains fixed NUMBER -> REAL.
+        const bool numeric = field->kind == FieldKind::Number && field->type == "NUMBER" && slot.kind == FieldKind::Real && slot.type == "REAL";
+        const bool reference = field->kind == slot.kind && (field->kind == FieldKind::Reference ||
+                                                            (field->kind == FieldKind::Aggregate && field->elementKind == FieldKind::Reference));
+        bool containedDomain = false;
+        if (reference)
+        {
+            const auto originalType = typeId(field->type);
+            const auto originalSelect = std::find_if(
+                recipe.referenceSelects.begin(),
+                recipe.referenceSelects.end(),
+                [&](const auto& select)
+                {
+                    return select.name == field->type;
+                }
+            );
+            const auto admitsRoot = [&](std::size_t target)
+            {
+                if (originalType)
+                {
+                    return layout.ancestors[target].test(*originalType);
+                }
+                return originalSelect != recipe.referenceSelects.end() && std::any_of(
+                                                                              originalSelect->branches.begin(),
+                                                                              originalSelect->branches.end(),
+                                                                              [&](std::string_view branch)
+                                                                              {
+                                                                                  return layout.ancestors[target].test(*typeId(branch));
+                                                                              }
+                                                                          );
+            };
+            if (const auto narrowedType = typeId(slot.type))
+            {
+                containedDomain = admitsRoot(*narrowedType);
+            }
+            else
+            {
+                const auto narrowedSelect = std::find_if(
+                    recipe.referenceSelects.begin(),
+                    recipe.referenceSelects.end(),
+                    [&](const auto& select)
+                    {
+                        return select.name == slot.type;
+                    }
+                );
+                containedDomain = narrowedSelect != recipe.referenceSelects.end() && !narrowedSelect->branches.empty() &&
+                                  std::all_of(
+                                      narrowedSelect->branches.begin(),
+                                      narrowedSelect->branches.end(),
+                                      [&](std::string_view branch)
+                                      {
+                                          return admitsRoot(*typeId(branch));
+                                      }
+                                  );
+            }
+        }
+        if (!numeric && !containedDomain)
         {
             Fail(report, Error::ExplicitNarrowing, i);
             return layout;

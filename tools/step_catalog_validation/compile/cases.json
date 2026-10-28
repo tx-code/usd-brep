@@ -532,6 +532,74 @@
       "expect": "fail",
       "marker": "STEP_CATALOG_INVALID_MissingEnumeration",
       "positive_control": "marker_valid"
+    },
+    {
+      "name": "explicit_reference_valid",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=0"
+      ],
+      "expect": "pass"
+    },
+    {
+      "name": "explicit_reference_reject_1",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=1"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_reference_valid"
+    },
+    {
+      "name": "explicit_reference_reject_2",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=2"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_reference_valid"
+    },
+    {
+      "name": "explicit_reference_reject_3",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=3"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_reference_valid"
+    },
+    {
+      "name": "explicit_reference_reject_4",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=4"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_reference_valid"
+    },
+    {
+      "name": "explicit_reference_reject_5",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=5"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_reference_valid"
+    },
+    {
+      "name": "explicit_reference_reject_6",
+      "source": "ExplicitReference.cpp",
+      "definitions": [
+        "STEP_REFERENCE_CASE=6"
+      ],
+      "expect": "fail",
+      "marker": "STEP_CATALOG_INVALID_ExplicitNarrowing",
+      "positive_control": "explicit_reference_valid"
     }
   ]
 }

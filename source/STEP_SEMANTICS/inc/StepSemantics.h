@@ -23,6 +23,10 @@ inline constexpr const char* Ap214SchemaSha256 = "71ab140fe7f774321beee6a31e6fee
 inline constexpr const char* Ap214MbxSourceProfile = "214-MBx2010-Source-0.1";
 inline constexpr const char* Ap203GeneralSourceProfile = "203e2-G0-Source-0.1";
 inline constexpr const char* Ap203N916SourceProfile = "203-N916-Source-0.1";
+// Fixed MBx-IF AP242 Ed.2 artifact. Catalog availability is independent of
+// source-check admission: SelectSchema does not yet qualify this profile.
+inline constexpr const char* Ap242e2SourceProfile = "242e2-Source-Catalog-0.1";
+inline constexpr const char* Ap242e2SchemaSha256 = "ff51beb1be6e78faebd52338da342fd1059da2840beaa7cfd08b4df8e7c5a410";
 inline constexpr const char* SourceFaceClauseSelectionProfile = "SourceFaceClauseSelection-0.1";
 inline constexpr const char* Ap203N916SchemaSha256 = "020b4d25dbd0b6ee7d15099b978e3448f6699a72cb862d381e416e32187562f1";
 
@@ -32,7 +36,8 @@ enum class ProfileKind
     Ap214e3Source,
     Ap203e2GeneralSource,
     Ap214MbxSource,
-    Ap203N916Source
+    Ap203N916Source,
+    Ap242e2Source // Catalog only; no source/native admission until profile checks are integrated.
 };
 
 struct Limits

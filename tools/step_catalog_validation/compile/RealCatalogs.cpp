@@ -12,6 +12,8 @@ using General = CompiledCatalog<ProfileRecipe<ProfileKind::Ap203e2GeneralSource>
 using Ap214 = CompiledCatalog<ProfileRecipe<ProfileKind::Ap214e3Source>>;
 using Mbx = CompiledCatalog<ProfileRecipe<ProfileKind::Ap214MbxSource>>;
 using N916 = CompiledCatalog<ProfileRecipe<ProfileKind::Ap203N916Source>>;
+using Ap242 = CompiledCatalog<ProfileRecipe<ProfileKind::Ap242e2Source>>;
+static_assert(Ap242::analysis.code == Error::None && Ap242::catalog.names.size() == 166);
 static_assert(Planar::analysis.code == Error::None && General::analysis.code == Error::None);
 static_assert(Ap214::analysis.code == Error::None && Mbx::analysis.code == Error::None);
 // The product-structure snapshot (baseline-product-structure/catalog.json)
