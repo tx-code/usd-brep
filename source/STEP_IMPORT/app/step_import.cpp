@@ -329,6 +329,10 @@ int main(int argc, char** argv)
                 }
                 options.carrierInterpretation = step_source::CarrierInterpretation::Level1AsCorrectedEncodingWithLowercaseHex;
             }
+            else if (arg == "--preserve-unset-header-authorization")
+            {
+                options.headerMetadataPolicy = step_source::HeaderMetadataPolicy::PreserveUnsetAuthorization;
+            }
             else if (arg == "--preserve-opaque-header-name" || arg == "--preserve-opaque-file-name-text")
             {
                 const auto headerChoice = arg == "--preserve-opaque-header-name" ? step_source::HeaderNamePolicy::PreserveOpaqueBytes :

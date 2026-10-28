@@ -67,6 +67,12 @@ enum class DataStringPolicy
     PreserveAsciiInvariantBytes // Explicit assumption: raw high bytes denote non-ASCII characters; no decoding or normalization.
 };
 
+enum class HeaderMetadataPolicy
+{
+    Strict,
+    PreserveUnsetAuthorization // Only FILE_NAME parameter 7 = $; no string or authorization is inferred.
+};
+
 enum class CarrierInterpretation
 {
     DeclaredOnly,
@@ -177,6 +183,7 @@ public:
     // False means unestablished, not ASCII. No decoding, case folding or Unicode normalization.
     bool IsAssumedNonAsciiData(const Value& value) const;
     const CarrierAssumption* AppliedCarrierAssumption() const; // Borrows immutable snapshot-owned interpretation evidence.
+    const std::vector<Diagnostic>& PreservedHeaderIssues() const; // Immutable original header errors, distinct from DATA/schema errors.
 
 private:
 
@@ -209,6 +216,8 @@ struct InspectOutcome
     // Survives later parse failure without publishing a partial source graph.
     // Successful-source consumers use the snapshot's immutable receipt instead.
     std::shared_ptr<const CarrierAssumption> carrierAssumption;
+    HeaderMetadataPolicy headerMetadataPolicy = HeaderMetadataPolicy::Strict;
+    std::vector<Diagnostic> preservedHeaderIssues; // Failures may retain a notice; successful consumers trust the owning snapshot.
 };
 
 // Bytes are owned by value before parsing. Neither entry point consults a path after capture.
@@ -217,14 +226,16 @@ InspectOutcome InspectBytes(
     Limits limits,
     HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii,
     DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii,
-    CarrierInterpretation carrierInterpretation = CarrierInterpretation::DeclaredOnly
+    CarrierInterpretation carrierInterpretation = CarrierInterpretation::DeclaredOnly,
+    HeaderMetadataPolicy headerMetadataPolicy = HeaderMetadataPolicy::Strict
 );
 InspectOutcome InspectFile(
     const std::filesystem::path& path,
     Limits limits,
     HeaderNamePolicy headerNamePolicy = HeaderNamePolicy::StrictAscii,
     DataStringPolicy dataStringPolicy = DataStringPolicy::StrictAscii,
-    CarrierInterpretation carrierInterpretation = CarrierInterpretation::DeclaredOnly
+    CarrierInterpretation carrierInterpretation = CarrierInterpretation::DeclaredOnly,
+    HeaderMetadataPolicy headerMetadataPolicy = HeaderMetadataPolicy::Strict
 );
 
 // Bounded internal JSON report. False clears output; never returns a truncated success document.

@@ -28,7 +28,7 @@ std::recursive_mutex& NativeMutex();
 inline bool HasAppliedSourceInterpretation(const step_semantics::Snapshot& source)
 {
     return source.AppliedInterpretation() != step_semantics::SchemaInterpretation::DeclaredOnly || source.Source().AppliedCarrierAssumption() ||
-           source.Source().HasAsciiInvariantDataAssumption() ||
+           source.Source().HasAsciiInvariantDataAssumption() || !source.Source().PreservedHeaderIssues().empty() ||
            source.AppliedUnitInterpretation() != step_semantics::UnitInterpretation::DeclaredOnly || !source.ComplexMappingAssumptions().empty();
 }
 struct NativeFaceData

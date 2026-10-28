@@ -1,5 +1,15 @@
 # STEP_IMPORT（内部 C++20）
 
+`Options::headerMetadataPolicy = PreserveUnsetAuthorization` 是独立的显式非几何互操作选项；
+CLI 与查看器使用 `--preserve-unset-header-authorization`。仅在其余头部形状有效时，保留
+`FILE_NAME` 最后一项原始 `$` 及 `InvalidHeader`，不补成空字符串，不推断授权人。
+必须同时选择通用导入与 `PreserveNonGeometric`；严格默认保持拒绝。成功原生结果单列为
+`AcceptedUnderInterpretation`，不授予头部符合性。原错误随只读源快照拥有，清空报告不会丢失；
+强制报告保留 `header_metadata_preservation`，查看器核对同一源身份及字段路径后才接入。
+协议、编码、类型、单位、几何、拓扑及全部预算仍按既有合同验收，取消／失败不部分发布。
+此项不是修复，不改变原件或建模副本的资格。匹配重建 source/semantics/native 及其消费者；
+Source 检查入口增加默认参数，`InspectOutcome`／`Options` 的 C++ 布局同时扩展。
+
 显式通用装配入口支持固定 AP214 范围内独立的 `WireframeModel` 定义。每个定义拥有
 本地毫米坐标下的曲线／点，实例共享只读定义及独立变换；`BodyCount` 为零，通过
 `AssemblySnapshot::WireframeModel` 取得 owning 快照。源实体、单位、参数及全部 GCS

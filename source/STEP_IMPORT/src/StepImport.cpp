@@ -373,6 +373,12 @@ void Validate(const Options& options)
     }
     // Opaque metadata is an explicit interoperability choice, not a side effect
     // of selecting a geometry quality. Strict/P0 requests never relax carriers.
+    if (options.headerMetadataPolicy != step_source::HeaderMetadataPolicy::Strict &&
+        (options.headerMetadataPolicy != step_source::HeaderMetadataPolicy::PreserveUnsetAuthorization || !options.generalBrep ||
+         options.sourcePolicy != step_semantics::SourcePolicy::PreserveNonGeometric))
+    {
+        throw std::invalid_argument("HEADER metadata preservation requires explicit general interoperability");
+    }
     if (options.headerNamePolicy != step_source::HeaderNamePolicy::StrictAscii &&
         ((options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveOpaqueBytes &&
           options.headerNamePolicy != step_source::HeaderNamePolicy::PreserveFileNameText) ||
@@ -448,6 +454,7 @@ Result Import(
     step_source::InspectOutcome raw;
     raw.limits = options.sourceLimits;
     raw.headerNamePolicy = options.headerNamePolicy;
+    raw.headerMetadataPolicy = options.headerMetadataPolicy;
     raw.dataStringPolicy = options.dataStringPolicy;
     raw.requestedCarrierInterpretation = options.carrierInterpretation;
     detail::Execution execution(options, report);
@@ -834,7 +841,8 @@ AssemblyOutcome ImportAssemblyBytes(
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         },
         limits,
@@ -865,7 +873,8 @@ AssemblyOutcome ImportAssemblyFile(
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         },
         limits,
@@ -885,7 +894,8 @@ Outcome ImportBytes(std::string bytes, const Options& options)
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -904,7 +914,8 @@ Outcome ImportFile(const std::filesystem::path& path, const Options& options)
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -926,7 +937,8 @@ CollectionOutcome ImportMaterialCollectionBytes(std::string bytes, const Options
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -949,7 +961,8 @@ CollectionOutcome ImportMaterialCollectionFile(const std::filesystem::path& path
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -972,7 +985,8 @@ PartOutcome ImportPartFile(const std::filesystem::path& path, const Options& opt
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -994,7 +1008,8 @@ PartOutcome ImportPartBytes(std::string bytes, const Options& options)
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -1017,7 +1032,8 @@ FileOutcome ImportModelFile(const std::filesystem::path& path, const Options& op
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -1039,7 +1055,8 @@ FileOutcome ImportModelBytes(std::string bytes, const Options& options)
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -1062,7 +1079,8 @@ DocumentOutcome ImportDocumentFile(const std::filesystem::path& path, const Opti
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );
@@ -1084,7 +1102,8 @@ DocumentOutcome ImportDocumentBytes(std::string bytes, const Options& options)
                 frozen.sourceLimits,
                 frozen.headerNamePolicy,
                 frozen.dataStringPolicy,
-                frozen.carrierInterpretation
+                frozen.carrierInterpretation,
+                frozen.headerMetadataPolicy
             );
         }
     );

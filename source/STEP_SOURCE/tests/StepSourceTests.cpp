@@ -518,6 +518,84 @@ int main()
             );
             ++checks;
         }
+        {
+            auto input = File("#1=UNKNOWN($);\n");
+            const auto field = input.find("'p','s',''");
+            Require(field != std::string::npos, "header metadata mutation");
+            input.replace(field, std::string("'p','s',''").size(), "'p','s',$");
+            const auto strict = InspectBytes(input, limits);
+            Require(
+                strict.status == Status::Rejected && !strict.source && strict.diagnostics.back().key == "InvalidHeader",
+                "strict unset authorization rejection retained"
+            );
+            auto preserved = InspectBytes(
+                input,
+                limits,
+                HeaderNamePolicy::StrictAscii,
+                DataStringPolicy::StrictAscii,
+                CarrierInterpretation::DeclaredOnly,
+                HeaderMetadataPolicy::PreserveUnsetAuthorization
+            );
+            Require(preserved.status == Status::Inspected && preserved.source, "explicit header metadata continuation");
+            const auto owner = preserved.source;
+            const auto& value = owner->Header()[1].parameters[6];
+            Require(
+                value.kind == ValueKind::Unset && owner->Raw(value.span) == "$" && owner->Bytes() == input,
+                "no fabricated authorization or rewritten bytes"
+            );
+            const auto& issues = owner->PreservedHeaderIssues();
+            Require(
+                issues.size() == 1 && issues[0].key == strict.diagnostics.back().key && issues[0].message == strict.diagnostics.back().message &&
+                    issues[0].primary.begin == strict.diagnostics.back().primary.begin && issues[0].parameterPath == std::vector<std::size_t>{ 7 },
+                "original error and parameter path retained"
+            );
+            preserved.preservedHeaderIssues.clear();
+            preserved.headerMetadataPolicy = HeaderMetadataPolicy::Strict;
+            std::string headerReport;
+            Require(
+                InspectJson(preserved, headerReport) && headerReport.find("KnownNonGeometricErrorPreserved") != std::string::npos,
+                "owning receipt overrides mutable annotations"
+            );
+            auto exact = preserved;
+            // The configured capacity is itself emitted in the source report.
+            // Establish that fixed point before applying its N-1 boundary.
+            for (unsigned iteration = 0; iteration < 3; ++iteration)
+            {
+                exact.limits.reportBytes = headerReport.size();
+                Require(InspectJson(exact, headerReport), "header receipt report exact capacity");
+            }
+            Require(exact.limits.reportBytes == headerReport.size(), "header report capacity fixed point");
+            --exact.limits.reportBytes;
+            Require(!InspectJson(exact, headerReport) && headerReport.empty(), "header receipt report N-1 is atomic");
+            for (unsigned mode = 0; mode < 3; ++mode)
+            {
+                auto bad = input;
+                if (mode == 0)
+                {
+                    bad.replace(bad.find("'p','s',$"), std::string("'p','s',$").size(), "$,'s',$");
+                }
+                if (mode == 1)
+                {
+                    bad.replace(bad.find("FILE_SCHEMA(('TEST'))"), std::string("FILE_SCHEMA(('TEST'))").size(), "FILE_SCHEMA(($))");
+                }
+                if (mode == 2)
+                {
+                    bad.replace(bad.find("#1=UNKNOWN($)"), std::string("#1=UNKNOWN($)").size(), "#1=UNKNOWN(#999)");
+                }
+                const auto deniedHeader = InspectBytes(
+                    bad,
+                    limits,
+                    HeaderNamePolicy::StrictAscii,
+                    DataStringPolicy::StrictAscii,
+                    CarrierInterpretation::DeclaredOnly,
+                    HeaderMetadataPolicy::PreserveUnsetAuthorization
+                );
+                Require(!deniedHeader.source && deniedHeader.status == Status::Rejected, "metadata scope cannot hide another header or DATA failure");
+            }
+            preserved = {};
+            Require(owner->PreservedHeaderIssues().size() == 1 && owner->Raw(value.span) == "$", "source metadata evidence lifetime");
+            ++checks;
+        }
         ReportWriterContract();
         ++checks;
         std::cout << "Passed " << checks << " native source contract groups\n";

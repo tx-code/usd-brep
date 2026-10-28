@@ -1990,6 +1990,7 @@ void WriteReportJson(
             w.Add(",\"source_binding_verified\":false,\"source_interpretation\":");
             w.String(step_semantics::SchemaInterpretationName(report.sourceSchema->appliedInterpretation));
         }
+        step_source::report::WriteHeaderMetadataFields(w, source);
         const auto carrier = source.source ? source.source->AppliedCarrierAssumption() : report.carrierAssumption.get();
         if (source.requestedCarrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly || carrier)
         {

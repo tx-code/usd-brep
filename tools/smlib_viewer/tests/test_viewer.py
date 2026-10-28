@@ -83,6 +83,36 @@ class ViewerTests(unittest.TestCase):
         self.assertEqual(str(BOX), self.window.filename)
         self.assertEqual(0, self.window.progress_bar.value())
 
+    def test_explicit_header_metadata_survives_worker_and_refused_replacement(self):
+        from dataclasses import replace
+
+        fixture = REPO / "source/STEP_IMPORT/tests/fixtures/mixed_ellipse_cylinder_solid.step"
+        original = fixture.read_text(encoding="utf-8")
+        header = original.index("FILE_NAME(")
+        end = original.index(";", header)
+        token = original.rindex("''", header, end)
+        modified = original[:token] + "$" + original[token + 2:]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "public-unset-authorization.step"
+            path.write_text(modified, encoding="utf-8")
+            self.assertFalse(self.load(path))
+            self.window.loader.settings = replace(
+                self.window.loader.settings, preserve_unset_header_authorization=True)
+            self.assertTrue(self.load(path))
+            receipt = self.window.loader.worker_result['header_metadata_preservation']
+            self.assertTrue(receipt['applied'])
+            self.assertEqual([7], receipt['original_diagnostics'][0]['parameter_path'])
+            mesh = self.window.mesh
+            # A known later geometric refusal cannot replace the accepted scene;
+            # the new request still owns its original header-error observation.
+            off_surface = modified.replace("ELLIPSE('',#51,2.5,2.)", "ELLIPSE('',#51,2.6,2.)")
+            self.assertNotEqual(off_surface, modified)
+            path.write_text(off_surface, encoding="utf-8")
+            self.assertFalse(self.load(path))
+            self.assertIs(self.window.mesh, mesh)
+            self.assertTrue(self.window.loader.worker_result['header_metadata_preservation']['applied'])
+            self.assertTrue(receipt['original_diagnostics'])
+
     def test_cancel_and_stale_request_never_complete_at_100(self):
         self.assertFalse(self.load(BOX, self.window.loader.cancel))
         self.assertIsNone(self.window.mesh)

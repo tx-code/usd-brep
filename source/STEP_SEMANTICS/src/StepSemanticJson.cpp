@@ -374,6 +374,9 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
             "{\"format_version\":\"step-semantics.v1\",\"scope\":\"SinglePartTypesSI\",\"status\":"
     );
     out.String(StatusName(result.status));
+    const auto* headerOwner = result.snapshot ? &result.snapshot->Source() : result.document ? &result.document->Source() : source.source.get();
+    const bool preservedHeaderIssues = headerOwner && !headerOwner->PreservedHeaderIssues().empty();
+
     if (result.productStructure)
     {
         const auto& graph = *result.productStructure;
@@ -1334,6 +1337,7 @@ void report::WriteJson(Writer& out, const step_source::InspectOutcome& source, c
                                                     bandRepairPending                               ? "ExplicitRepairPending" :
                                                     mappingApplied                                  ? "ComplexMappingInterpreted" :
                                                     appliedUnit != UnitInterpretation::DeclaredOnly ? "UnitDeclarationInterpreted" :
+                                                    preservedHeaderIssues                           ? "NonGeometricHeaderIssuesPreserved" :
                                                     result.preservedDiagnostics.empty()             ? "SelectedSubsetChecked" :
                                                                                                       "NonGeometricIssuesPreserved") :
                                                    "NotQualified"

@@ -1,5 +1,22 @@
 # STEP source inspection (ticket 02)
 
+`HeaderMetadataPolicy::PreserveUnsetAuthorization` /
+`--preserve-unset-header-authorization` is a separate explicit metadata exception.
+Only parameter 7 of an otherwise valid `FILE_NAME` may remain `Unset` (`$`).
+The original bytes, value kind and `InvalidHeader` diagnostic remain in the
+owning source snapshot's `PreservedHeaderIssues()`, including source span and
+parameter path `[7]`. No empty string, sender identity or authorization is inferred.
+The conditional `header_metadata_preservation` report section distinguishes an
+applied exception from an unused request and from an incomplete source graph.
+
+ISO 10303-21 `file_name` clause 8.2.3 specifies a mandatory authorization STRING
+as human-readable information; see the [fixed edition-3 specification](https://steptools.com/stds/step/IS_final_p21e3.html).
+This exception does not establish header-schema conformance. Strict defaults,
+other FILE_NAME fields/arity, syntax, encoding, FILE_DESCRIPTION, FILE_SCHEMA,
+DATA indexing/references and resource limits retain their checks. Semantic/native
+continuation requires explicit general nongeometric interoperability; clearing
+mutable outcome notices cannot bypass the immutable source owner's issue.
+
 `SourceSnapshot::Sha256()` retains the immutable SHA256 of its original captured
 bytes, independently of mutable `InspectOutcome` fields. It is computed once by
 the existing capture path, not by reparsing or reopening the file. The borrowed

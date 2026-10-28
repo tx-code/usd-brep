@@ -6,6 +6,7 @@
 #include "StepConicalApexArguments.h"
 #include "StepCylindricalBandArguments.h"
 #include "StepExecutionArguments.h"
+#include "StepHeaderMetadataArguments.h"
 #include "StepImport.h"
 #include "StepIntegrationArguments.h"
 #include "StepRepairArguments.h"
@@ -827,7 +828,8 @@ int Run(
     const std::string& schemaSourceIdentity = {},
     const std::shared_ptr<const step_import::SurfaceCurve3dInterpretationRequest>& surfaceCurve3d = {},
     const step_import_app::ExecutionArguments& executionRequest = {},
-    const std::optional<step_import::ConicalApexRepairRequest>& apexRepair = {}
+    const std::optional<step_import::ConicalApexRepairRequest>& apexRepair = {},
+    step_source::HeaderMetadataPolicy headerMetadataPolicy = step_source::HeaderMetadataPolicy::Strict
 )
 {
     Good(std::filesystem::is_directory(output) && std::filesystem::is_empty(output), "FreshOutputDirectoryRequired");
@@ -854,6 +856,7 @@ int Run(
     try
     {
         auto options = step_import::Options::PlanarFixture();
+        options.headerMetadataPolicy = headerMetadataPolicy;
         options.generalBrep = true;
         options.surfaceCurve3dInterpretation = surfaceCurve3d;
         options.numericalIntegration = numericalIntegration;
@@ -1420,6 +1423,10 @@ int wmain(int argc, wchar_t** argv)
         step_import_app::ExecutionArguments executionArguments;
         for (int i = 13; i < argc; i += 2)
         {
+            if (step_import_app::HeaderMetadataArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request))
+            {
+                continue;
+            }
             auto resource = executionArguments.Parse(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string());
             Good(bool(resource), "InvalidOrDuplicateExecutionResourceArgument");
             Good(
@@ -1488,7 +1495,8 @@ int wmain(int argc, wchar_t** argv)
             request.schemaInterpretation.sourceSha256,
             surfaceCurveArguments.Request(),
             executionArguments,
-            request.conicalApexRepair
+            request.conicalApexRepair,
+            request.headerMetadataPolicy
         );
     }
     catch (...)
@@ -1526,6 +1534,10 @@ int main(int argc, char** argv)
         step_import_app::ExecutionArguments executionArguments;
         for (int i = 13; i < argc; i += 2)
         {
+            if (step_import_app::HeaderMetadataArgument(std::filesystem::path(argv[i]).string(), std::filesystem::path(argv[i + 1]).string(), request))
+            {
+                continue;
+            }
             auto resource = executionArguments.Parse(argv[i], argv[i + 1]);
             Good(bool(resource), "InvalidOrDuplicateExecutionResourceArgument");
             Good(
@@ -1569,7 +1581,8 @@ int main(int argc, char** argv)
             request.schemaInterpretation.sourceSha256,
             surfaceCurveArguments.Request(),
             executionArguments,
-            request.conicalApexRepair
+            request.conicalApexRepair,
+            request.headerMetadataPolicy
         );
     }
     catch (...)

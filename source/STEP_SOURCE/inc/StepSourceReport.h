@@ -64,4 +64,6 @@ enum class Encoding
     SpanReferencesV2
 };
 void WriteJson(Writer& writer, const InspectOutcome& outcome, Encoding encoding = Encoding::ExpandedV1);
+// Conditional fields only; successful owners override mutable outcome notices.
+void WriteHeaderMetadataFields(Writer& writer, const InspectOutcome& outcome);
 } // namespace step_source::report

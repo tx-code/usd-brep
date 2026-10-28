@@ -81,10 +81,14 @@ class ImportSettings:
     maximum_apex_repair_move_mm: str = ''
     maximum_apex_repair_total_move_mm: str = ''
     conical_apex_uses: tuple[str, ...] = ()
+    preserve_unset_header_authorization: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, 'conical_apex_uses', tuple(self.conical_apex_uses))
         execution_arguments(self)
+        if (type(self.preserve_unset_header_authorization) is not bool
+                or (self.preserve_unset_header_authorization and self.strict_source)):
+            raise ValueError("HeaderMetadataRequiresExplicitInteroperability")
         if type(self.preserve_opaque_file_name_text) is not bool:
             raise ValueError("InvalidFileNameTextPolicy")
         validate(self.schema_interpretation, self.carrier_interpretation, self.strict_source,
@@ -198,6 +202,8 @@ class SceneLoader(QtCore.QObject):
                       complex_mapping_arguments(self.settings) + assembly_arguments(self.settings) +
                       integration_arguments(self.settings) + source_identity_arguments(self.settings) +
                       surface_curve_arguments(self.settings) + execution_arguments(self.settings))
+            if self.settings.preserve_unset_header_authorization:
+                intent += ['--preserve-unset-header-authorization', '1']
             if intent:
                 arguments = arguments[:6] + [self.settings.schema_interpretation, self.settings.carrier_interpretation,
                     str(self.settings.report_budget_mib), str(int(self.settings.preserve_opaque_file_name_text)),
@@ -334,6 +340,21 @@ class SceneLoader(QtCore.QObject):
             if execution_arguments(resource_settings) or resource_settings.timeout_seconds != 120:
                 self.worker_result['worker_timeout_seconds'] = resource_settings.timeout_seconds
             if code != 0 or manifest.get("status") != "Ready":
+                if self.settings.preserve_unset_header_authorization:
+                    try:
+                        from copy import deepcopy
+                        observed = read_report(directory, scene_file,
+                                               resource_settings.report_budget_mib * 1024 * 1024,
+                                               prefix='HeaderMetadata').document
+                        if (not manifest.get('source_sha256')
+                                or observed.get('source_sha256') != manifest['source_sha256']):
+                            raise ValueError('HeaderMetadataSourceIdentityMismatch')
+                        self.worker_result['header_metadata_preservation'] = deepcopy(
+                            observed.get('header_metadata_preservation'))
+                    except (OSError, ValueError, TypeError) as error:
+                        # Observation never replaces the original refusal or
+                        # grants adoption of an incomplete candidate.
+                        self.worker_result['header_metadata_report_error'] = str(error)
                 try:
                     resources = validate_execution_receipt(directory, manifest, resource_settings, scene_file)
                     if resources is not None:
@@ -371,6 +392,12 @@ class SceneLoader(QtCore.QObject):
                 if resource_settings.assembly or surface_curve_arguments(resource_settings):
                     prefix = 'SurfaceCurve3d' if surface_curve_arguments(resource_settings) else 'AssemblyDisplay'
                     native_report = read_report(directory, scene_file, report_capacity, prefix=prefix)
+                if self.settings.preserve_unset_header_authorization:
+                    if native_report is None:
+                        native_report = read_report(directory, scene_file, report_capacity, prefix='HeaderMetadata')
+                    from .header_metadata import validate_receipt as validate_header_metadata
+                    header_receipt = validate_header_metadata(native_report, manifest)
+                    self.worker_result['header_metadata_preservation'] = header_receipt
                 receipt = validate_surface_curve_receipt(directory, manifest, self.settings, scene_file, native_report=native_report)
                 if receipt is not None:
                     # Keep the complete native evidence as owning JSON values

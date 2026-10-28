@@ -99,6 +99,7 @@ def run_case(path, directory, options, caption):
                           (options.restrict_unused_support_domains, "--restrict-unused-support-domains"),
                           (options.strict_source, "--strict-source"), (options.edges, "--edges"),
                           (options.preserve_opaque_file_name_text, "--preserve-opaque-file-name-text"),
+                           (getattr(options, 'preserve_unset_header_authorization', False), "--preserve-unset-header-authorization"),
                           (options.assume_ascii_invariant_data, "--assume-ascii-invariant-data"),
                           (options.wireframe, "--wireframe")]:
         if enabled:

@@ -1422,7 +1422,7 @@ private:
                 // unknown schema is nonphysical or equivalent. Preserve the
                 // exact strict failure in a separate, owning diagnostic set.
                 // It shares the configured storage quota with metadata issues.
-                if (m_outcome.limits.preservedDiagnostics == 0)
+                if (m_data->source->PreservedHeaderIssues().size() >= m_outcome.limits.preservedDiagnostics)
                 {
                     Fail(
                         "PreservedDiagnosticLimit",
@@ -1644,7 +1644,8 @@ private:
                         {
                             throw;
                         }
-                        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() >=
+                        if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
+                                m_data->source->PreservedHeaderIssues().size() >=
                             m_outcome.limits.preservedDiagnostics)
                         {
                             Fail(
@@ -1843,7 +1844,7 @@ private:
             return false;
         }
         if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
-                m_data->cylindricalBandRepairDiagnostics.size() >=
+                m_data->cylindricalBandRepairDiagnostics.size() + m_data->source->PreservedHeaderIssues().size() >=
             m_outcome.limits.preservedDiagnostics)
         {
             Fail("PreservedDiagnosticLimit", "D2", "Explicit repair source diagnostic capacity exceeded", Record(face).span, Status::ResourceLimit);
@@ -4804,7 +4805,7 @@ private:
             }
         }
         if (m_data->pendingIssues.size() + m_data->interpretationDiagnostics.size() + m_data->complexMappingDiagnostics.size() +
-                m_data->cylindricalBandRepairDiagnostics.size() >
+                m_data->cylindricalBandRepairDiagnostics.size() + m_data->source->PreservedHeaderIssues().size() >
             m_outcome.limits.preservedDiagnostics)
         {
             Fail(
@@ -5749,6 +5750,12 @@ static Outcome CheckImpl(
     }
     // Trust the immutable source owner's actual assumption, never resettable
     // InspectOutcome notices/options. P0 cannot acquire this unverified carrier.
+    if ((source.headerMetadataPolicy != step_source::HeaderMetadataPolicy::Strict ||
+         (source.source && !source.source->PreservedHeaderIssues().empty())) &&
+        (policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
+    {
+        throw std::invalid_argument("HEADER metadata preservation requires explicit general interoperability");
+    }
     if ((source.requestedCarrierInterpretation != step_source::CarrierInterpretation::DeclaredOnly ||
          (source.source && (source.source->AppliedCarrierAssumption() || source.source->HasAsciiInvariantDataAssumption()))) &&
         (policy != SourcePolicy::PreserveNonGeometric || scope != GeometryScope::GeneralBrep))
@@ -5833,6 +5840,21 @@ static Outcome CheckImpl(
         diagnostic.source.stage = "D2";
         diagnostic.source.message = "Source selection must bind the immutable original capture and its consistent receipt";
         diagnostic.classification = "ProfileUnsupported";
+        result.diagnostics.push_back(std::move(diagnostic));
+        return result;
+    }
+    // Header exceptions are immutable source facts, but consume the same request
+    // diagnostic capacity as DATA exceptions. Reject before binding/native work;
+    // an explicit policy never grants unbounded diagnostic retention.
+    if (source.source->PreservedHeaderIssues().size() > limits.preservedDiagnostics)
+    {
+        result.status = Status::ResourceLimit;
+        Diagnostic diagnostic;
+        diagnostic.source.key = "PreservedDiagnosticLimit";
+        diagnostic.source.stage = "D2";
+        diagnostic.source.message = "Interoperability diagnostic capacity exceeded by preserved header issues";
+        diagnostic.source.primary = source.source->PreservedHeaderIssues().front().primary;
+        diagnostic.classification = "ResourceLimit";
         result.diagnostics.push_back(std::move(diagnostic));
         return result;
     }
@@ -5921,7 +5943,7 @@ static Outcome CheckImpl(
         result.unitInterpretationDiagnostics = data->unitInterpretationDiagnostics;
         if (result.status == Status::Checked &&
             (!result.preservedDiagnostics.empty() || !data->unitInterpretationDiagnostics.empty() || !data->complexMappingAssumptions.empty() ||
-             !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption()))
+             !data->interpretationDiagnostics.empty() || data->source->AppliedCarrierAssumption() || !data->source->PreservedHeaderIssues().empty()))
         {
             result.status = Status::CheckedWithDiagnostics;
         }

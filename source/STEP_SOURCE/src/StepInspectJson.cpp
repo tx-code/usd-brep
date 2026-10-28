@@ -109,6 +109,30 @@ void DiagnosticJson(Writer& out, const InspectOutcome& result, const Diagnostic&
 }
 } // namespace
 
+void report::WriteHeaderMetadataFields(Writer& out, const InspectOutcome& result)
+{
+    const auto& issues = result.source ? result.source->PreservedHeaderIssues() : result.preservedHeaderIssues;
+    if (result.headerMetadataPolicy == HeaderMetadataPolicy::Strict && issues.empty())
+    {
+        return;
+    }
+    out.Add(",\"header_metadata_preservation\":{\"policy\":\"PreserveUnsetAuthorization\",\"applied\":");
+    out.Bool(!issues.empty());
+    out.Add(",\"source_graph_complete\":");
+    out.Bool(bool(result.source));
+    out.Add(",\"header_schema_conformance\":");
+    out.String(issues.empty() ? "NoExceptionApplied" : "KnownNonGeometricErrorPreserved");
+    out.Add(",\"original_diagnostics\":[");
+    for (std::size_t i = 0; i < issues.size(); ++i)
+    {
+        if (i)
+        {
+            out.Add(",");
+        }
+        DiagnosticJson(out, result, issues[i]);
+    }
+    out.Add("]}");
+}
 void report::WriteJson(Writer& out, const InspectOutcome& result, Encoding encoding)
 {
     if (encoding != Encoding::ExpandedV1 && encoding != Encoding::SpanReferencesV2)
@@ -123,6 +147,7 @@ void report::WriteJson(Writer& out, const InspectOutcome& result, Encoding encod
                                                  "{\"format_version\":\"step-source.v1\",\"scope\":\"SyntaxIndexReferences\",\"status\":"
     );
     out.String(StatusName(result.status));
+    WriteHeaderMetadataFields(out, result);
     if (result.headerNamePolicy == HeaderNamePolicy::PreserveOpaqueBytes)
     {
         out.Add(",\"header_name_policy\":\"PreserveOpaqueBytes\"");

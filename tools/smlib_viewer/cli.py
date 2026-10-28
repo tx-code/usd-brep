@@ -34,6 +34,8 @@ def main(argv=None):
     parser.add_argument('--complex-mapping-interpretation', choices=COMPLEX_MAPPING_POLICIES, default='DeclaredOnly',
                         help='显式按已登记组成项名称解释非标准复合实体顺序；保留原文与诊断')
     parser.add_argument("--carrier-interpretation", choices=CARRIER_POLICIES, default="DeclaredOnly")
+    parser.add_argument('--preserve-unset-header-authorization', action='store_true',
+                        help='显式保留 FILE_NAME 最后一项 $ 及原错误；需要非几何互操作')
     parser.add_argument("--preserve-opaque-file-name-text", action="store_true",
                         help="显式保留 FILE_NAME 未知编码元信息，不猜测代码页")
     parser.add_argument("--assume-ascii-invariant-data", action="store_true",

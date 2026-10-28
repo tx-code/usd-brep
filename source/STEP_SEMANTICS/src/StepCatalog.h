@@ -326,7 +326,7 @@ struct SemanticData
     std::size_t DiagnosticFactCount() const
     {
         return pendingIssues.size() + interpretationDiagnostics.size() + complexMappingDiagnostics.size() + cylindricalBandRepairDiagnostics.size() +
-               definitionDiagnosticCount + isolatedSourceFailures.size();
+               definitionDiagnosticCount + isolatedSourceFailures.size() + (source ? source->PreservedHeaderIssues().size() : 0);
     }
 };
 

@@ -37,6 +37,7 @@ int main(int argc, char** argv)
                                                                              { "--max-id-digits", &limits.idDigits } };
         bool selectedLimits = false;
         auto headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
+        auto headerMetadataPolicy = step_source::HeaderMetadataPolicy::Strict;
         auto dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
         auto carrierInterpretation = step_source::CarrierInterpretation::DeclaredOnly;
         std::string input;
@@ -46,6 +47,10 @@ int main(int argc, char** argv)
             if (argument == "--fixture-limits")
             {
                 selectedLimits = true;
+            }
+            else if (argument == "--preserve-unset-header-authorization")
+            {
+                headerMetadataPolicy = step_source::HeaderMetadataPolicy::PreserveUnsetAuthorization;
             }
             else if (argument == "--preserve-opaque-header-name" || argument == "--preserve-opaque-file-name-text")
             {
@@ -123,7 +128,14 @@ int main(int argc, char** argv)
             std::cerr << "Usage: step_inspect --fixture-limits <input.step> [--max-... N]\n";
             return 64;
         }
-        const auto outcome = step_source::InspectFile(std::filesystem::path(input), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
+        const auto outcome = step_source::InspectFile(
+            std::filesystem::path(input),
+            limits,
+            headerNamePolicy,
+            dataStringPolicy,
+            carrierInterpretation,
+            headerMetadataPolicy
+        );
         std::string report;
         if (!step_source::InspectJson(outcome, report))
         {

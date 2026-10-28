@@ -188,7 +188,8 @@ private:
         // Diagnostic-only collection cannot rely on final interoperability
         // approval for the combined cap: that approval intentionally stays
         // unrun. Share its global ledger with binding and definition facts.
-        const auto used = m_data.definitionInspectionRequested ? m_data.DiagnosticFactCount() : m_data.pendingIssues.size();
+        const auto used = m_data.definitionInspectionRequested ? m_data.DiagnosticFactCount() :
+                                                                 m_data.pendingIssues.size() + m_data.source->PreservedHeaderIssues().size();
         if (used >= m_data.preservedDiagnosticLimit)
         {
             Fail(

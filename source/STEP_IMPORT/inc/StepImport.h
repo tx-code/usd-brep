@@ -428,6 +428,7 @@ struct Options
     bool generalBrep = false; // Explicit native geometry path; never implies full AP/schema conformance.
     step_semantics::SourcePolicy sourcePolicy = step_semantics::SourcePolicy::Strict;
     step_source::HeaderNamePolicy headerNamePolicy = step_source::HeaderNamePolicy::StrictAscii;
+    step_source::HeaderMetadataPolicy headerMetadataPolicy = step_source::HeaderMetadataPolicy::Strict;
     step_source::DataStringPolicy dataStringPolicy = step_source::DataStringPolicy::StrictAscii;
     step_semantics::UnitInterpretation unitInterpretation = step_semantics::UnitInterpretation::DeclaredOnly;
     step_semantics::SchemaInterpretationRequest schemaInterpretation = step_semantics::SchemaInterpretation::DeclaredOnly;

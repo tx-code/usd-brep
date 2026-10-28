@@ -599,6 +599,7 @@ def run(options):
                               carrier_interpretation=options.carrier_interpretation,
                               report_budget_mib=options.report_budget_mib,
                               preserve_opaque_file_name_text=options.preserve_opaque_file_name_text,
+                              preserve_unset_header_authorization=getattr(options, 'preserve_unset_header_authorization', False),
                               assume_ascii_invariant_data=options.assume_ascii_invariant_data,
                               unit_interpretation=options.unit_interpretation,
                               repair_source_sha256=getattr(options, 'repair_source_sha256', ''),

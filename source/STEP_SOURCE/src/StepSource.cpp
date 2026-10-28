@@ -20,6 +20,7 @@ struct SourceData
     std::shared_ptr<const std::string> bytes;
     std::string sha256;
     std::shared_ptr<const CarrierAssumption> carrierAssumption;
+    std::vector<Diagnostic> preservedHeaderIssues;
     std::vector<Span> asciiInvariantDataTokens; // Immutable receipt; resettable outcome options cannot grant this assumption.
     std::vector<Component> header;
     std::vector<Record> records;
@@ -1010,7 +1011,23 @@ private:
             valid = p.size() == 7 && StringList(p[2], opaqueText) && StringList(p[3], opaqueText);
             for (std::size_t i : { std::size_t(0), std::size_t(1), std::size_t(4), std::size_t(5), std::size_t(6) })
             {
-                valid = valid && (p[i].kind == ValueKind::String || ((i == 0 || opaqueText) && p[i].kind == ValueKind::OpaqueString));
+                // The separate metadata policy preserves one known schema
+                // error, not malformed syntax or text decoding. All other
+                // FILE_NAME fields, arity and header selectors stay strict.
+                const bool preserve = i == 6 && m_result.headerMetadataPolicy == HeaderMetadataPolicy::PreserveUnsetAuthorization && p.size() == 7 &&
+                                      p[i].kind == ValueKind::Unset;
+                valid = valid && (p[i].kind == ValueKind::String || ((i == 0 || opaqueText) && p[i].kind == ValueKind::OpaqueString) || preserve);
+            }
+            if (valid && p[6].kind == ValueKind::Unset)
+            {
+                // ISO 10303-21 file_name (8.2.3, fixed project carrier contract):
+                // authorization is mandatory STRING human-readable metadata.
+                // Keep $ and its original InvalidHeader rather than inventing
+                // an empty string or a permission/authentication claim.
+                Diagnostic issue{ "InvalidHeader", "D0", "Header parameter shape is invalid", component.span, { p[6].span }, {}, "FILE_NAME",
+                                  { 7 },           {} };
+                m_data->preservedHeaderIssues.push_back(issue);
+                m_result.preservedHeaderIssues.push_back(std::move(issue));
             }
         }
         else if (component.name == "FILE_SCHEMA")
@@ -1207,6 +1224,10 @@ const CarrierAssumption* SourceSnapshot::AppliedCarrierAssumption() const
 {
     return m_data->carrierAssumption.get();
 }
+const std::vector<Diagnostic>& SourceSnapshot::PreservedHeaderIssues() const
+{
+    return m_data->preservedHeaderIssues;
+}
 const char* CarrierInterpretationName(CarrierInterpretation interpretation)
 {
     switch (interpretation)
@@ -1227,9 +1248,14 @@ InspectOutcome InspectBytes(
     Limits limits,
     HeaderNamePolicy headerNamePolicy,
     DataStringPolicy dataStringPolicy,
-    CarrierInterpretation carrierInterpretation
+    CarrierInterpretation carrierInterpretation,
+    HeaderMetadataPolicy headerMetadataPolicy
 )
 {
+    if (headerMetadataPolicy != HeaderMetadataPolicy::Strict && headerMetadataPolicy != HeaderMetadataPolicy::PreserveUnsetAuthorization)
+    {
+        throw std::invalid_argument("Unknown HEADER metadata policy");
+    }
     if (headerNamePolicy != HeaderNamePolicy::StrictAscii && headerNamePolicy != HeaderNamePolicy::PreserveOpaqueBytes &&
         headerNamePolicy != HeaderNamePolicy::PreserveFileNameText)
     {
@@ -1249,6 +1275,7 @@ InspectOutcome InspectBytes(
     result.headerNamePolicy = headerNamePolicy;
     result.dataStringPolicy = dataStringPolicy;
     result.requestedCarrierInterpretation = carrierInterpretation;
+    result.headerMetadataPolicy = headerMetadataPolicy;
     if (!ValidLimits(limits))
     {
         result.status = Status::ResourceLimit;
@@ -1364,9 +1391,14 @@ InspectOutcome InspectFile(
     Limits limits,
     HeaderNamePolicy headerNamePolicy,
     DataStringPolicy dataStringPolicy,
-    CarrierInterpretation carrierInterpretation
+    CarrierInterpretation carrierInterpretation,
+    HeaderMetadataPolicy headerMetadataPolicy
 )
 {
+    if (headerMetadataPolicy != HeaderMetadataPolicy::Strict && headerMetadataPolicy != HeaderMetadataPolicy::PreserveUnsetAuthorization)
+    {
+        throw std::invalid_argument("Unknown HEADER metadata policy");
+    }
     if (dataStringPolicy != DataStringPolicy::StrictAscii && dataStringPolicy != DataStringPolicy::PreserveOpaqueBytes &&
         dataStringPolicy != DataStringPolicy::PreserveAsciiInvariantBytes)
     {
@@ -1378,7 +1410,7 @@ InspectOutcome InspectFile(
     }
     if (!ValidLimits(limits))
     {
-        return InspectBytes({}, limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
+        return InspectBytes({}, limits, headerNamePolicy, dataStringPolicy, carrierInterpretation, headerMetadataPolicy);
     }
     std::ifstream input(path, std::ios::binary);
     std::string bytes;
@@ -1392,12 +1424,12 @@ InspectOutcome InspectFile(
             bytes.append(buffer.data(), static_cast<std::size_t>(input.gcount()));
             if (bytes.size() > limits.inputBytes)
             {
-                return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
+                return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation, headerMetadataPolicy);
             }
         }
         if (input.eof() && !input.bad())
         {
-            return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation);
+            return InspectBytes(std::move(bytes), limits, headerNamePolicy, dataStringPolicy, carrierInterpretation, headerMetadataPolicy);
         }
     }
     InspectOutcome result{};
@@ -1406,6 +1438,7 @@ InspectOutcome InspectFile(
     result.headerNamePolicy = headerNamePolicy;
     result.dataStringPolicy = dataStringPolicy;
     result.requestedCarrierInterpretation = carrierInterpretation;
+    result.headerMetadataPolicy = headerMetadataPolicy;
     result.diagnostics.push_back({ "InputReadFailure", "Capture", "Input capture did not complete", {}, {}, {}, {}, {}, {} });
     return result;
 }

@@ -49,6 +49,13 @@ key and diagnostic message remain available. This does not identify the source
 as invalid, authorize repair or imply a broken pointer; mixed/unknown findings
 keep the generic failure caption. The previous accepted scene remains intact.
 
+The explicit `--preserve-unset-header-authorization` option preserves `$` in
+FILE_NAME authorization only. It retains the original header diagnostic and
+source identity; it does not establish header conformance or relax geometry
+checks. Strict source mode cannot use it. The loader requires an owning,
+source-matched native receipt before adopting a complete scene; a later refusal
+remains a refusal and retains its local header observation.
+
 ## Input and quality scope
 
 Collections with linked wireframe or constructive geometry use a v9 scene. One
