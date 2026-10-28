@@ -2708,7 +2708,7 @@ private:
                 {
                     const auto& curve = curves[use.edge];
                     const bool circle = Is(curve.geometry, "CIRCLE");
-                    const bool other = Is(curve.geometry, "LINE") || Is(curve.geometry, "B_SPLINE_CURVE_WITH_KNOTS");
+                    const bool other = Is(curve.geometry, "LINE") || Is(curve.geometry, "B_SPLINE_CURVE_WITH_KNOTS") || Is(curve.geometry, "ELLIPSE");
                     eligible = eligible && (circle || other);
                     mixed = mixed || other;
                     anchor = anchor || (face.loops[i].uses.size() == 1 && circle && curve.v0 == curve.v1);
@@ -6071,8 +6071,8 @@ private:
                     const bool closed = !m_ringSubdivisions.empty() ? edge->GetStartVertex() == edge->GetEndVertex() :
                                                                       curves[index].v0 == curves[index].v1;
                     if ((closed && !toroidalProjection) ||
-                        !(Is(curves[index].geometry, "CIRCLE") || Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ||
-                          Is(curves[index].geometry, "SURFACE_CURVE")))
+                        !(Is(curves[index].geometry, "CIRCLE") || (cylinderProjection && Is(curves[index].geometry, "ELLIPSE")) ||
+                          Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") || Is(curves[index].geometry, "SURFACE_CURVE")))
                     {
                         continue;
                     }
@@ -6135,6 +6135,7 @@ private:
                                        revolutionProjection                                    ? "ControlledRevolutionUvProjection" :
                                        coneProjection                                          ? "ControlledConeUvProjection" :
                                        Is(curves[index].geometry, "B_SPLINE_CURVE_WITH_KNOTS") ? "ControlledCylinderSplineUvProjection" :
+                                       Is(curves[index].geometry, "ELLIPSE")                   ? "ControlledEllipseUvProjection" :
                                                                                                  "ControlledCircleUvProjection";
                     const auto targetIndex = !m_ringSubdivisions.empty() ? m_ringEdgeOrdinals.at(edge) : index;
                     RepresentationNormalization normalization{ kind, Id(f.record), {}, {}, targetIndex };

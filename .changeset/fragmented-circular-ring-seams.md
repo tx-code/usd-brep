@@ -13,6 +13,10 @@ contains lines and B-splines. A bounded private survey identifies one meridian
 connection to an original vertex or circular-arc interior before any real face is
 constructed. It uses retained pre-snap encounter parameters, preserves complete
 definitions, and shares all necessary arc children across their original uses.
+Direct ellipses can participate in the mixed boundary, including a uniquely
+classified interior cut. Their analytic class, full defining basis and original
+parameter survive global subdivision; shared caps use the same target children.
+Native curve parameters are re-evaluated independently of cylinder chart angles.
 Ambiguous classifications and unsupported intersection families remain refused.
 The private meridian survey preserves its requested working tolerances while
 classification creates lazy UV caches. Definition, interval, vertex and tolerance

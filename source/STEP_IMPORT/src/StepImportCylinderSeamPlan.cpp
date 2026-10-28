@@ -14,6 +14,7 @@
 #include <SmCurveClass.h>
 #include <SmCylinder.h>
 #include <SmEdge.h>
+#include <SmEllipse.h>
 #include <SmFace.h>
 #include <SmTol.h>
 #include <SmVertex.h>
@@ -582,7 +583,14 @@ bool Finite(const SmPoint3d& p)
         if (point.GetPointClass() == SM_PC_EDGE && edgeSources.contains(point.GetEdgeObject()))
         {
             const auto& input = *edgeSources.at(point.GetEdgeObject());
-            if (loopOf.at(input.key) == *anchorLoop || !dynamic_cast<const SmCircle*>(input.curve) || !point.AreParametersSet())
+            // A circular or elliptic arc keeps its complete analytic definition
+            // in every global child. The classifier's actual native t must be
+            // strictly interior and re-evaluate to the meridian within the SAME
+            // definition budget. This admits no fit, endpoint snap or new mm
+            // allowance; final source coverage/UV/region checks remain required.
+            // SmCircle derives from SmEllipse, so the existing circle path and
+            // its operation/charge order are preserved.
+            if (loopOf.at(input.key) == *anchorLoop || !dynamic_cast<const SmEllipse*>(input.curve) || !point.AreParametersSet())
             {
                 return std::optional<CylinderSeamPlan>{};
             }

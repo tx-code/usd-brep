@@ -114,6 +114,15 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_collection_associated_contracts COMMAND step_import_collection_associated_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/collection_associated_geometry.step" "${CMAKE_CURRENT_BINARY_DIR}/collection-associated/$<CONFIG>")
     set_tests_properties(step_import_collection_associated_contracts PROPERTIES TIMEOUT 120)
+    add_executable(step_import_mixed_ellipse_tests tests/StepImportMixedEllipseTests.cpp)
+    target_link_libraries(step_import_mixed_ellipse_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_include_directories(step_import_mixed_ellipse_tests PRIVATE src)
+    target_include_directories(step_import_mixed_ellipse_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_mixed_ellipse_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_mixed_ellipse_contracts COMMAND step_import_mixed_ellipse_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures" "${CMAKE_CURRENT_BINARY_DIR}/mixed-ellipse/$<CONFIG>")
+    set_tests_properties(step_import_mixed_ellipse_contracts PROPERTIES TIMEOUT 120)
     add_executable(step_import_extrusion_seam_tests tests/StepImportExtrusionSeamTests.cpp)
     target_link_libraries(step_import_extrusion_seam_tests PRIVATE STEP_IMPORT usd_brep_expected)
     target_include_directories(step_import_extrusion_seam_tests PRIVATE src)

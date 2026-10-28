@@ -37,7 +37,9 @@ struct CylinderSeamPlan
 // it never edits/adopts an input, changes tolerances or publishes a BRep.
 // Caller selects one closed circle plus one mixed source loop. A unique
 // meridian interval must connect that circle's original vertex to an existing
-// outer vertex or an interior CIRCLE point, within definitionMm in physical mm.
+// outer vertex or an interior CIRCLE/ELLIPSE point, within definitionMm in
+// physical mm. Native curve t and the cylinder's angular chart are not assumed
+// to share an affine parameterization; re-evaluate the original conic at t.
 // Numerical classification selects a plan, not a continuous source certificate.
 // The caller must freeze global subdivisions before constructing ANY real face,
 // retain source identity/interval coverage and run the complete original gates.
