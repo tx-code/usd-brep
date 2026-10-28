@@ -854,6 +854,8 @@ private:
     // Private full-basis copies die before m_model and its allocating context.
     std::map<Index, RingSubdivision> m_ringSubdivisions;
     std::map<Index, SeamPlan> m_plannedSeams;
+    std::map<Index, std::array<Point, 2>> m_extrusionSeams;
+    std::map<Index, SmEdge*> m_extrusionSeamEdges; // Borrowed from the unpublished candidate only.
     std::vector<RingVertex> m_ringVertices;
     std::vector<Index> m_targetCurveSources;
     std::map<SmEdge*, Index> m_ringEdgeOrdinals;
@@ -3357,6 +3359,83 @@ private:
                 { "ConicalDerivedVertexConnection", "ExistingConsistencyBudgetMm", sourceId, Q(m_options.quality.consistencyMm) }
             );
         }
+        // Repeat the cut bound on the FINAL live carriers after all native
+        // consumers. Existing complete ring definitions, source vertices,
+        // paired incidences, UV/region and native validity remain mandatory.
+        for (const auto& [faceRecord, endpoints] : m_extrusionSeams)
+        {
+            const auto face = std::find_if(
+                faces.begin(),
+                faces.end(),
+                [&](const Face& f)
+                {
+                    return f.record == faceRecord;
+                }
+            );
+            const auto index = static_cast<Index>(face - faces.begin());
+            if (auto checked = Need(face != faces.end() && index < m_model->faces.size(), "GeneralExtrusionSeamFaceLost", faceRecord); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            const auto edge = m_extrusionSeamEdges.find(faceRecord);
+            const auto& plan = m_plannedSeams.at(faceRecord);
+            if (auto checked = Need(
+                    edge != m_extrusionSeamEdges.end() && edge->second && edge->second->GetCurve() &&
+                        edge->second->GetCurve()->GetOwner() == edge->second && edge->second->GetStartVertex() == RingVertexAt(plan.v0) &&
+                        edge->second->GetEndVertex() == RingVertexAt(plan.v1) && edge->second->GetInterval().GetMin() == 0 &&
+                        edge->second->GetInterval().GetMax() == 1,
+                    "GeneralExtrusionSeamIdentityChanged",
+                    faceRecord
+                );
+                !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            auto bound = BoundLinearExtrusionSeam(
+                *m_model->faces[index].face->GetSurface(),
+                endpoints,
+                m_options.quality.definitionMm,
+                [&]
+                {
+                    return Step(faceRecord);
+                },
+                [&](std::size_t work)
+                {
+                    return m_execution.SpendExactGeometryWork(m_report, work, faceRecord);
+                },
+                edge->second->GetCurve()
+            );
+            if (!bound)
+            {
+                return tl::unexpected(std::move(bound.error()));
+            }
+            if (auto checked = Need(bound->has_value(), "GeneralExtrusionSeamDefinitionChanged", faceRecord); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            if (auto checked = Step(faceRecord); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            SmTArray<SmEdgeuse*> uses;
+            m_model->faces[index].face->GetUpwardEdgeuses(uses);
+            if (auto checked = m_execution.SpendExactGeometryWork(m_report, uses.GetSize(), faceRecord); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+            std::array<std::size_t, 2> paired{};
+            for (const auto use : uses)
+            {
+                if (use->GetEdge() == edge->second)
+                {
+                    ++paired[use->GetOrientation() == SM_OT_SAME ? 0 : 1];
+                }
+            }
+            if (auto checked = Need(paired == std::array<std::size_t, 2>{ 1, 1 }, "GeneralExtrusionSeamIncidenceChanged", faceRecord); !checked)
+            {
+                return tl::unexpected(std::move(checked.error()));
+            }
+        }
         m_report.topologyNormalization = info;
         return {};
     }
@@ -5642,6 +5721,41 @@ private:
         }
         const auto& polePlan = *poleResult;
         std::optional<SeamPlan> seamPlan;
+        if (Is(f.surface, "SURFACE_OF_LINEAR_EXTRUSION") && f.loops.size() == 2 && f.loops[0].uses.size() == 1 && f.loops[1].uses.size() == 1)
+        {
+            const auto first = f.loops[0].uses[0].edge, second = f.loops[1].uses[0].edge;
+            if (m_closedSplineCycles.contains(first) && m_closedSplineCycles.contains(second))
+            {
+                // These derived vertices already delimit each FULL original
+                // natural cycle. Reuse the global subdivision, including caps;
+                // do not RegisterRingCut again (that would reset its anchor to
+                // the source's interior-phase vertex). Source U/V never change.
+                const auto a = m_ringSubdivisions.at(first).originalVertex, b = m_ringSubdivisions.at(second).originalVertex;
+                const std::array<Point, 2> endpoints{ m_ringVertices.at(a - vertices.size()).point, m_ringVertices.at(b - vertices.size()).point };
+                auto bound = BoundLinearExtrusionSeam(
+                    *nf.face->GetSurface(),
+                    endpoints,
+                    m_options.quality.definitionMm,
+                    [&]
+                    {
+                        return Step(f.record);
+                    },
+                    [&](std::size_t work)
+                    {
+                        return m_execution.SpendExactGeometryWork(m_report, work, f.record);
+                    }
+                );
+                if (!bound)
+                {
+                    return tl::unexpected(std::move(bound.error()));
+                }
+                if (*bound)
+                {
+                    m_plannedSeams.emplace(f.record, SeamPlan{ a, b, endpoints[0], endpoints[1], 0, first, second });
+                    m_extrusionSeams.emplace(f.record, endpoints);
+                }
+            }
+        }
         if (!polePlan)
         {
             auto missing = MissingSeam(f);
@@ -5846,6 +5960,10 @@ private:
                 return tl::unexpected(std::move(edgeResult.error()));
             }
             auto edge = std::move(*edgeResult);
+            if (m_extrusionSeams.contains(f.record))
+            {
+                m_extrusionSeamEdges.emplace(f.record, edge);
+            }
             if (auto operation = AppendRingLoop(c, *second, mapping, seam->v1); !operation)
             {
                 return tl::unexpected(std::move(operation.error()));
@@ -5870,7 +5988,8 @@ private:
                 return tl::unexpected(std::move(nativeStatusCheck.error()));
             }
             m_report.normalizations.push_back(
-                { seam->separatedSourceVertices                       ? "ConicalCutAwayFromSourceVertexGaps" :
+                { m_extrusionSeams.contains(f.record)                 ? "LinearExtrusionNaturalBoundaryCut" :
+                  seam->separatedSourceVertices                       ? "ConicalCutAwayFromSourceVertexGaps" :
                   seam->mixedBoundary                                 ? "PeriodicCutFromMixedCylindricalBoundaries" :
                   first->uses.size() == 1 && second->uses.size() == 1 ? "PeriodicCutFromTwoSourceRings" :
                                                                         "PeriodicCutFromFragmentedCircularRings",

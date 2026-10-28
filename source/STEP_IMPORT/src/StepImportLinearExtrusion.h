@@ -38,6 +38,20 @@ struct LinearExtrusionBoundary
     Bounds implicitBounds; // Existing positive carrier-net bound when the defining curve is implicit.
     std::array<double, 2> interval; // Actual retained source-edge interval, including affine LINE extrapolation.
 };
+// Caller supplies an already constructed source extrusion and two retained
+// closed-cycle natural-boundary vertices. Bound the WHOLE straight cut against
+// BOTH actual U-boundary isoparameters, without fitting, rephasing or moving a
+// vertex. Only clamped degree-one V with equal positive V weights is admitted.
+// This is a stored-chart cut bound in mm, not a source-surface certificate.
+// Absence retains the ordinary seam refusal; callback/native errors propagate.
+[[nodiscard]] Result<std::optional<double>> BoundLinearExtrusionSeam(
+    const SmSurface& surface,
+    const std::array<Point, 2>& endpoints,
+    Fraction maximumMm,
+    const std::function<Result<void>()>& native,
+    const std::function<Result<void>(std::size_t)>& work,
+    const SmCurve* actualCut = nullptr // Final stored degree-one [0,1] cut; includes constructor roundoff.
+);
 // Pure definition construction in the caller's NativeMutex/context. Original
 // B-spline U and scalar V are retained: S(u,v)=C(u)+v*VECTOR, including magnitude
 // and source length-unit normalization policy. V is never treated as mm itself.

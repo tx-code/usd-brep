@@ -114,6 +114,19 @@ if(STEP_IMPORT_BUILD_TESTS)
     add_test(NAME step_import_collection_associated_contracts COMMAND step_import_collection_associated_tests
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/collection_associated_geometry.step" "${CMAKE_CURRENT_BINARY_DIR}/collection-associated/$<CONFIG>")
     set_tests_properties(step_import_collection_associated_contracts PROPERTIES TIMEOUT 120)
+    add_executable(step_import_extrusion_seam_tests tests/StepImportExtrusionSeamTests.cpp)
+    target_link_libraries(step_import_extrusion_seam_tests PRIVATE STEP_IMPORT usd_brep_expected)
+    target_include_directories(step_import_extrusion_seam_tests PRIVATE src)
+    target_include_directories(step_import_extrusion_seam_tests SYSTEM PRIVATE ../SMLib/inc ../SM_API/inc)
+    target_compile_definitions(step_import_extrusion_seam_tests PRIVATE NOMINMAX UNICODE _UNICODE SM_GRAPHICS_CALLBACKS=1 NL_DEBUG_CODE
+        $<$<CONFIG:Debug>:SM_DEBUG_CODE=1;SM_GFX_CODE=1>)
+    add_test(NAME step_import_extrusion_seam_contracts COMMAND step_import_extrusion_seam_tests
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/closed_extrusion_rings.step" "${CMAKE_CURRENT_BINARY_DIR}/extrusion-seam/$<CONFIG>")
+    set_tests_properties(step_import_extrusion_seam_contracts PROPERTIES TIMEOUT 120)
+    add_test(NAME step_import_extrusion_seam_material_lifecycle COMMAND step_import_general_tests --development-file
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/closed_extrusion_material.step"
+        "${CMAKE_CURRENT_BINARY_DIR}/extrusion-seam-material/$<CONFIG>" normal)
+    set_tests_properties(step_import_extrusion_seam_material_lifecycle PROPERTIES TIMEOUT 120)
     add_executable(step_import_linear_extrusion_tests tests/StepImportLinearExtrusionTests.cpp)
     target_link_libraries(step_import_linear_extrusion_tests PRIVATE STEP_IMPORT SMLib usd_brep_expected)
     target_include_directories(step_import_linear_extrusion_tests PRIVATE src)

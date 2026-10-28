@@ -4,6 +4,8 @@
 
 #include "StepImportGeometryConstruction.h"
 #include "StepImportInterval.h"
+#include "StepImportNativeStatus.h"
+#include "StepImportProofEnvironment.h"
 #include "StepImportTerminalSpline.h"
 
 #include <SmBSplineSurface.h>
@@ -763,5 +765,162 @@ Result<std::unique_ptr<SmSurface>> MakeSourceLinearExtrusion(
 )
 {
     return Builder(inputs).Make(geometry, use, boundaries, parameterV);
+}
+Result<std::optional<double>> BoundLinearExtrusionSeam(
+    const SmSurface& surface,
+    const std::array<Point, 2>& endpoints,
+    Fraction maximumMm,
+    const std::function<Result<void>()>& native,
+    const std::function<Result<void>(std::size_t)>& work,
+    const SmCurve* actualCut
+)
+{
+    const auto* spline = dynamic_cast<const SmBSplineSurface*>(&surface);
+    if (!spline || !native || !work || !SurfaceProofNumericEnvironment() || maximumMm.Numerator() <= 0 || spline->GetDegree(SM_SP_V) != 1)
+    {
+        return std::optional<double>{};
+    }
+    if (auto checked = native(); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    ULONG nu = 0, nv = 0;
+    double* cp = nullptr;
+    if (auto checked = CheckNativeStatus(spline->GetControlPointsPointer(nu, nv, cp), NativeStatusOrigin::GeneralConstruction); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    if (auto checked = native(); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    ULONG ku = 0, kv = 0;
+    double* u = nullptr;
+    double* v = nullptr;
+    if (auto checked = CheckNativeStatus(spline->GetKnotsPointers(ku, kv, u, v), NativeStatusOrigin::GeneralConstruction); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    const auto degree = spline->GetDegree(SM_SP_U);
+    if (!cp || !u || !v || nv != 2 || nu <= degree || std::uint64_t(nu) + degree + 1 != ku || kv != 4 || v[0] != v[1] || v[2] != v[3] ||
+        !(v[1] < v[2]))
+    {
+        return std::optional<double>{};
+    }
+    if (auto checked = work(std::size_t(degree) * 2 + 96); !checked)
+    {
+        return tl::unexpected(std::move(checked.error()));
+    }
+    for (ULONG i = 0; i <= degree; ++i)
+    {
+        if (u[i] != u[degree] || u[nu + i] != u[nu])
+        {
+            return std::optional<double>{};
+        }
+    }
+    std::array<Point, 2> cutEndpoints = endpoints;
+    if (actualCut)
+    {
+        const auto* line = dynamic_cast<const SmLine*>(actualCut);
+        if (!line || line->IsRational())
+        {
+            return std::optional<double>{};
+        }
+        if (auto checked = native(); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        ULONG count = 0;
+        double* data = nullptr;
+        if (auto checked = CheckNativeStatus(line->GetControlPointsPointer(count, data), NativeStatusOrigin::GeneralConstruction); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (auto checked = native(); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        SmTArray<double> knots;
+        if (auto checked = CheckNativeStatus(line->GetKnotsAll(knots), NativeStatusOrigin::GeneralConstruction); !checked)
+        {
+            return tl::unexpected(std::move(checked.error()));
+        }
+        if (count != 2 || !data || knots.GetSize() != 4 || knots[0] != 0 || knots[1] != 0 || knots[2] != 1 || knots[3] != 1)
+        {
+            return std::optional<double>{};
+        }
+        for (std::size_t i = 0; i < 2; ++i)
+        {
+            for (std::size_t k = 0; k < 3; ++k)
+            {
+                cutEndpoints[i][k] = data[4 * i + k];
+            }
+        }
+    }
+    // A clamped U end selects exactly its end control row. Equal positive
+    // weights along degree-one V make BOTH end rows affine in the SAME scalar
+    // V. A straight cut between A,B and either boundary at affine V(A),V(B)
+    // therefore has an affine residual: the maximum endpoint norm encloses
+    // the WHOLE cut. This is not an endpoint-sampling argument for a spline.
+    // Only arithmetic failures become absence. Callbacks, allocation and native
+    // failures stay outside this boundary and retain their original contracts.
+    try
+    {
+        std::array<std::array<IntervalPoint, 2>, 2> sides;
+        for (std::size_t side = 0; side < 2; ++side)
+        {
+            const auto index = std::size_t(side ? nu - 1 : 0) * 8;
+            const double w = spline->IsRational() ? cp[index + 3] : 1.;
+            if (!(w > 0) || !std::isfinite(w) || (spline->IsRational() && cp[index + 7] != w))
+            {
+                return std::optional<double>{};
+            }
+            for (std::size_t row = 0; row < 2; ++row)
+            {
+                for (std::size_t k = 0; k < 3; ++k)
+                {
+                    sides[side][row][k] = Exact(cp[index + row * 4 + k]) / Exact(w);
+                }
+            }
+        }
+        const auto direction = Subtract(sides[0][1], sides[0][0]);
+        const auto squared = Dot(direction, direction);
+        if (!(squared.low > 0))
+        {
+            return std::optional<double>{};
+        }
+        std::array<double, 2> fractions;
+        double bound = 0;
+        for (std::size_t endpoint = 0; endpoint < 2; ++endpoint)
+        {
+            const auto projected = Dot(Subtract(Exact(endpoints[endpoint]), sides[0][0]), direction) / squared;
+            // Choose a finite witness, then verify it by outward arithmetic.
+            // The midpoint is NOT claimed to be an exact closest parameter.
+            const double fraction = projected.low * .5 + projected.high * .5;
+            if (!std::isfinite(fraction) || fraction < 0 || fraction > 1)
+            {
+                return std::optional<double>{};
+            }
+            fractions[endpoint] = fraction;
+            for (const auto& side : sides)
+            {
+                const auto at = Add(Times(side[0], Exact(1) - Exact(fraction)), Times(side[1], Exact(fraction)));
+                bound = std::max(bound, NormUpper(Subtract(Exact(cutEndpoints[endpoint]), at)));
+            }
+        }
+        if (fractions[0] == fractions[1] || bound > Enclose(maximumMm).low)
+        {
+            return std::optional<double>{};
+        }
+        return std::optional<double>{ bound };
+    }
+    catch (const std::overflow_error&)
+    {
+        return std::optional<double>{};
+    }
+    catch (const std::domain_error&)
+    {
+        return std::optional<double>{};
+    }
 }
 } // namespace step_import::detail::construction

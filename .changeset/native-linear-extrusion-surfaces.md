@@ -25,6 +25,14 @@ with an explicit source Lipschitz transport term, preserving continuous same-U
 evidence while reducing exact work. Strict legacy reference paths keep their
 work schedule. No source data, geometric budget or execution quota is relaxed.
 
+Two qualified closed spline rings can reuse their complete natural-domain
+subdivisions for a straight computational cut at the original U boundary.
+Outward interval bounds cover the whole actual cut against both stored U sides;
+final ownership, paired uses, defining coefficients, UV, region and native
+validity remain mandatory. Source vertices, full bases, scalar U/V, shared cap
+edges and material/surface roles remain distinct and unchanged. Ineligible cuts
+retain refusal; this normalization is not a repair or a full source-surface proof.
+
 ## Scope
 
 [Native linear-extrusion construction](../source/STEP_IMPORT/README.md#b-样条生成曲线的线性拉伸).
